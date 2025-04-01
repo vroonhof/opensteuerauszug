@@ -1,6 +1,83 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
- 
+ # Code Organization Rules
+
+Rule for deciding where to put new code files
+
+<rule>
+name: code_organization
+description: Rules for organizing code in specific subpackages
+filters:
+  - type: file_extension
+    pattern: "\\.py$"
+  - type: file_create
+    pattern: "src/opensteuerauszug/.*\\.py$"
+
+actions:
+  - type: suggest
+    message: |
+      All code must be placed in one of the following subpackages unless explicitly requested otherwise:
+
+      1. `importers/`: Code for importing data from various sources
+         - File parsers
+         - Data extractors
+         - Import utilities
+
+      2. `model/`: Data models and schemas
+         - Pydantic models
+         - Data structures
+         - Type definitions
+
+      3. `core/`: Core functionality and business logic
+         - Main business logic
+         - Core data processing
+         - Primary interfaces
+
+      4. `calculate/`: Tax calculation and processing
+         - Tax computations
+         - Financial calculations
+         - Processing algorithms
+
+      5. `render/`: Output generation
+         - Report generation
+         - Export functionality
+         - Formatting and presentation
+
+      6. `util/`: Utility functions and helpers
+         - Common utilities
+         - Helper functions
+         - Shared tools
+
+      Directory structure:
+      ```
+      src/opensteuerauszug/
+      ├── importers/
+      ├── model/
+      ├── core/
+      ├── calculate/
+      ├── render/
+      └── util/
+      ```
+
+      Guidelines:
+      - Place new code in the most appropriate subpackage
+      - Keep subpackages focused on their specific responsibility
+      - Use relative imports for cross-package references
+      - Document any exceptions to this organization
+
+examples:
+  - input: |
+      # Bad: File in root package
+      src/opensteuerauszug/parser.py
+      
+      # Good: File in appropriate subpackage
+      src/opensteuerauszug/importers/parser.py
+    output: "Code properly organized in subpackage"
+
+metadata:
+  priority: high
+  version: 1.0
+</rule>
