@@ -9,7 +9,7 @@ A Python package for handling and processing German tax statements (Steuerauszü
 ## Installation
 
 ```bash
-pip install -r requirements.txt
+pip install .
 ```
 
 ## Usage
@@ -26,7 +26,7 @@ To set up the development environment:
 
 ```bash
 # Create and activate virtual environment
-python -m venv venv
+python -m venv .venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies

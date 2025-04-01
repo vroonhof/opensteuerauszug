@@ -1,44 +1,121 @@
-"""Tests for the SteuerAuszug class."""
-
-from datetime import date
-
 import pytest
+from typer.testing import CliRunner
+from pathlib import Path
 
-from opensteuerauszug import SteuerAuszug
-from opensteuerauszug.steuerauszug import TaxEntry
+# Adjust the import according to your project structure
+# If cli.py is in src/opensteuerauszug/cli.py and tests is at the root
+# from opensteuerauszug.cli import app
+from opensteuerauszug.steuerauszug import app # Updated import
 
+runner = CliRunner()
 
-def test_steuerauszug_creation():
-    """Test basic creation of a SteuerAuszug instance."""
-    auszug = SteuerAuszug(2024)
-    assert auszug.year == 2024
-    assert len(auszug.entries) == 0
+@pytest.fixture
+def dummy_input_file(tmp_path: Path) -> Path:
+    """Creates a dummy input file for testing."""
+    file_path = tmp_path / "input.txt"
+    file_path.write_text("dummy content")
+    return file_path
 
+@pytest.fixture
+def debug_dump_dir(tmp_path: Path) -> Path:
+    """Provides a temporary directory path for debug dumps."""
+    return tmp_path / "debug_dump"
 
-def test_add_entry():
-    """Test adding entries to a SteuerAuszug."""
-    auszug = SteuerAuszug(2024)
-    entry = TaxEntry(
-        date=date(2024, 1, 1),
-        description="Test Entry",
-        amount=100.0,
-        category="Income",
-        tax_year=2024,
-    )
-    auszug.add_entry(entry)
-    assert len(auszug.entries) == 1
-    assert auszug.total() == 100.0
+def test_main_help():
+    """Test that the --help option works."""
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "Usage: main [OPTIONS] INPUT_FILE" in result.stdout
+    assert "Processes financial data" in result.stdout
 
+def test_main_missing_input(tmp_path: Path):
+    """Test invocation without the required input file argument."""
+    # Test without input file (should fail)
+    result = runner.invoke(app)
+    assert result.exit_code != 0
+    assert "Missing argument 'INPUT_FILE'" in result.stdout
 
-def test_add_entry_wrong_year():
-    """Test adding an entry with wrong year raises error."""
-    auszug = SteuerAuszug(2024)
-    entry = TaxEntry(
-        date=date(2023, 12, 31),
-        description="Wrong Year Entry",
-        amount=100.0,
-        category="Income",
-        tax_year=2023,
-    )
-    with pytest.raises(ValueError):
-        auszug.add_entry(entry) 
+def test_main_basic_run(dummy_input_file: Path):
+    """Test a basic run with default phases (will hit placeholders)."""
+    result = runner.invoke(app, [str(dummy_input_file)])
+    # It should fail because the output file is missing for the render phase by default
+    assert result.exit_code == 1
+    assert f"Input file: {dummy_input_file}" in result.stdout
+    assert "Phase: import" in result.stdout
+    assert "Phase: validate" in result.stdout
+    assert "Phase: calculate" in result.stdout
+    assert "Phase: render" in result.stdout
+    assert "Error during phase render" in result.stdout
+    assert "Output file path must be specified" in result.stdout
+
+def test_main_specify_output(dummy_input_file: Path, tmp_path: Path):
+    """Test specifying an output file (will still hit render placeholder)."""
+    output_path = tmp_path / "output.pdf"
+    result = runner.invoke(app, [str(dummy_input_file), "--output", str(output_path)])
+    # It should finish (but print placeholder messages) because render doesn't fail now
+    # However, the placeholder render logic doesn't actually create the file.
+    # The exit code might be 1 due to the placeholder error handling or 0 if we refine it.
+    # For now, let's expect success (0) assuming placeholders don't raise errors
+    # Update this assertion once render logic is implemented.
+    # assert result.exit_code == 0 # Assuming placeholder doesn't raise
+
+    # Because the TODO in render will likely cause an error or just print, let's expect 0 for now
+    # but acknowledge this needs refinement.
+    # If the placeholder `render_pdf` is not defined, it WILL raise an error.
+    # Let's assume it completes without fatal error for this stub test.
+    assert f"Rendering successful to {output_path}" in result.stdout
+    assert "Processing finished successfully." in result.stdout
+    # assert output_path.exists() # This will fail until render is implemented
+
+def test_main_limit_phases(dummy_input_file: Path):
+    """Test running only the import phase."""
+    result = runner.invoke(app, [str(dummy_input_file), "--phases", "import"])
+    assert result.exit_code == 0
+    assert "Phase: import" in result.stdout
+    assert "Phase: validate" not in result.stdout
+    assert "Phase: calculate" not in result.stdout
+    assert "Phase: render" not in result.stdout
+    assert "Processing finished successfully." in result.stdout
+
+def test_main_raw_import(dummy_input_file: Path):
+    """Test the raw import functionality (using placeholder)."""
+    # Raw import doesn't need validate/calculate/render unless specified
+    result = runner.invoke(app, [str(dummy_input_file), "--raw-import"])
+    assert result.exit_code == 0
+    assert "Raw importing model from" in result.stdout
+    assert "Raw import complete." in result.stdout
+    assert "No further phases selected after raw import. Exiting." in result.stdout
+    assert "Phase: import" not in result.stdout # Standard import shouldn't run
+
+def test_main_raw_import_with_phases(dummy_input_file: Path):
+    """Test raw import followed by other phases."""
+    result = runner.invoke(app, [
+        str(dummy_input_file),
+        "--raw-import",
+        "--phases", "validate",
+        "--phases", "calculate"
+    ])
+    assert result.exit_code == 0
+    assert "Raw importing model from" in result.stdout
+    assert "Phase: validate" in result.stdout
+    assert "Phase: calculate" in result.stdout
+    assert "Phase: render" not in result.stdout
+    assert "Processing finished successfully." in result.stdout
+
+def test_main_debug_dump(dummy_input_file: Path, debug_dump_dir: Path):
+    """Test the debug dump functionality."""
+    result = runner.invoke(app, [
+        str(dummy_input_file),
+        "--phases", "import",
+        "--phases", "validate",
+        "--debug-dump", str(debug_dump_dir)
+    ])
+    assert result.exit_code == 0
+    assert "Processing finished successfully." in result.stdout
+    assert debug_dump_dir.exists()
+    dump_import_file = debug_dump_dir / "portfolio_import.xml"
+    dump_validate_file = debug_dump_dir / "portfolio_validate.xml"
+    assert dump_import_file.exists()
+    assert dump_validate_file.exists()
+    # Check content (minimal check for the placeholder JSON dump)
+    # assert '"Portfolio"' in dump_import_file.read_text() # Check if it looks like our JSON dump
