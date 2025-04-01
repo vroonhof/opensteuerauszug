@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mit XMLSpy v2010 rel. 3 sp1 (http://www.altova.com) von Martin Stingelin (Stingelin Informatik GmbH) bearbeitet -->
+<!-- edited with XMLSpy v2007 sp2 (http://www.altova.com) by Martin Stingelin (Stingelin Informatik GmbH) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by BITUSER (Bundesamt für Informatik und Telekommunikation) -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:eCH-0008="http://www.ech.ch/xmlns/eCH-0008-f/3" targetNamespace="http://www.ech.ch/xmlns/eCH-0008-f/3" elementFormDefault="qualified" attributeFormDefault="unqualified" version="3.0">
+	<xs:annotation>
+		<xs:documentation xml:lang="de">Ausgabedatum: 09.09.2011</xs:documentation>
+	</xs:annotation>
+	<xs:simpleType name="countryIdType">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="1000"/>
+			<xs:maxInclusive value="9999"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="countryIdISO2Type">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="countryNameShortType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="50"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="countryType">
+		<xs:sequence>
+			<xs:element name="countryId" type="eCH-0008:countryIdType" minOccurs="0"/>
+			<xs:element name="countryIdISO2" type="eCH-0008:countryIdISO2Type" minOccurs="0"/>
+			<xs:element name="countryNameShort" type="eCH-0008:countryNameShortType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="countryShortType">
+		<xs:sequence>
+			<xs:element name="countryNameShort" type="eCH-0008:countryNameShortType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:element name="countryRoot">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="country" type="eCH-0008:countryType"/>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

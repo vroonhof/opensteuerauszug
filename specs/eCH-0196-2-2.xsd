@@ -1,0 +1,2459 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:eCH-0007="http://www.ech.ch/xmlns/eCH-0007/6" xmlns:eCH-0008="http://www.ech.ch/xmlns/eCH-0008/3" xmlns:eCH-0010="http://www.ech.ch/xmlns/eCH-0010/7" xmlns:eCH-0097="http://www.ech.ch/xmlns/eCH-0097/4" xmlns:eCH-0196="http://www.ech.ch/xmlns/eCH-0196/2" targetNamespace="http://www.ech.ch/xmlns/eCH-0196/2" elementFormDefault="qualified" attributeFormDefault="unqualified" version="2">
+	<xs:annotation>
+		<xs:documentation xml:lang="de">SSK eSteuerauszug V2.2.0</xs:documentation>
+		<xs:documentation xml:lang="fr">SSK Relevé fiscal électronique V2.2.0</xs:documentation>
+	</xs:annotation>
+	<xs:import namespace="http://www.ech.ch/xmlns/eCH-0007/6" schemaLocation="http://www.ech.ch/xmlns/eCH-0007/6/eCH-0007-6-0.xsd"/>
+	<xs:import namespace="http://www.ech.ch/xmlns/eCH-0008/3" schemaLocation="http://www.ech.ch/xmlns/eCH-0008/3/eCH-0008-3-0.xsd"/>
+	<xs:import namespace="http://www.ech.ch/xmlns/eCH-0010/7" schemaLocation="http://www.ech.ch/xmlns/eCH-0010/7/eCH-0010-7-0.xsd"/>
+	<xs:import namespace="http://www.ech.ch/xmlns/eCH-0097/4" schemaLocation="http://www.ech.ch/xmlns/eCH-0097/4/eCH-0097-4-0.xsd"/>
+	<xs:element name="taxStatement">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Basiselement des Steuerauszug.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:complexType>
+			<xs:complexContent>
+				<xs:extension base="eCH-0196:taxStatementType">
+					<xs:attribute name="minorVersion" type="xs:integer" use="required">
+						<xs:annotation>
+							<xs:documentation xml:lang="de">Die Versionsnummer des Steuerauszugs.</xs:documentation>
+							<xs:documentation xml:lang="fr"/>
+						</xs:annotation>
+					</xs:attribute>
+				</xs:extension>
+			</xs:complexContent>
+		</xs:complexType>
+	</xs:element>
+	<xs:simpleType name="bankAccountNameType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition für die Kontobezeichnung.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="40"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="bankAccountNumberType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition für die Kontonummer.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="32"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="clientNumberType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition für die Kundennummer.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="40"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="currencyIdISO3Type">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition des ISO3-Code zur Währung.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="3"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="depotNumberType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition für die Depotnummer.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="32"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="expenseTypeType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition für den Spesentyp der Vermögensverwaltungskosen.</xs:documentation>
+			<xs:documentation xml:lang="fr">Définition du type de frais pour les frais de gestion de fortune.</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="1">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Stempelabgaben (Emissions- und Umsatzabgaben)</xs:documentation>
+					<xs:documentation xml:lang="fr">droits de timbre (droits de timbre d'émission et de négociation)</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="2">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Transaktionskosten</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de transaction</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="3">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Vorfälligkeitsentschädigungen</xs:documentation>
+					<xs:documentation xml:lang="fr">pénalités de résiliation anticipée</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="4">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Administrationsgebühren (Verwaltungsgebühren)</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de gestion/frais d'administration</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="5">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Banklagernd</xs:documentation>
+					<xs:documentation xml:lang="fr">banque restante</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="6">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beratungskosten</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de conseil</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="7">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Kosten für das Ausfüllen von Formularen (Rückforderung z.B. R-D1 / Anrechnung der ausländischen Quellensteuer DA-1)</xs:documentation>
+					<xs:documentation xml:lang="fr">coûts pour remplir des formulaires (récupération p. ex. R-D1 / imputation des impôts étrangers à la source DA-1)</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="8">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Kosten für die Erstellung der Steuererklärung</xs:documentation>
+					<xs:documentation xml:lang="fr">frais d'établissement de la déclaration d'impôts</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="9">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Kosten für die Erstellung der Steuerunterlagen</xs:documentation>
+					<xs:documentation xml:lang="fr">frais d'établissement des documents fiscaux</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="10">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Kosten für die Erstellung der Steuerverzeichnisse von Banken</xs:documentation>
+					<xs:documentation xml:lang="fr">frais pour l'établissement des relevés fiscaux bancaires</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="11">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Kosten der Vermögensumlagerung</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de transferts d'éléments de fortune</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="12">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Provisionen (Agent Fee)</xs:documentation>
+					<xs:documentation xml:lang="fr">commissions (Agent Fee)</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="13">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Treuhandkommissionen / Treuhandgebühren</xs:documentation>
+					<xs:documentation xml:lang="fr">commissions fiduciaires / honoraires fiduciaire</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="14">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Vermittlungsgebühren</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de courtage</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="15">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Vermögensverwaltungskosten (aktives Depotmanagement)</xs:documentation>
+					<xs:documentation xml:lang="fr">frais d'administration de fortune (gestion active de portefeuille)</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="16">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Verrechenbare Courtagegebühren aus IUP (Reine und modifizierte Differenzbesteuerung)</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de courtage compensables résultant d'IUP (imposition de la différence pure ou modifiée)</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="17">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Abgezogene Quellensteuer</xs:documentation>
+					<xs:documentation xml:lang="fr">impôts prélevés à la source</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="18">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Affidavitspesen</xs:documentation>
+					<xs:documentation xml:lang="fr">frais d'affidavit</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="19">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">All-in Fee</xs:documentation>
+					<xs:documentation xml:lang="fr">All-in Fee</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="20">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Auslieferung Edelmetalle</xs:documentation>
+					<xs:documentation xml:lang="fr">livraison de métaux précieux</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="21">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Auslieferungsspesen / Titellieferungsgebühren</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de livraison / frais de remise de titres</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="22">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Depotgebühren</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de dépôt</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="23">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Gebühren für Bescheinigungen (z.B. Stichtagsaufstellung; Kapitalsteuerertrag)</xs:documentation>
+					<xs:documentation xml:lang="fr">frais d'attestation (p.ex. Stichtagsaufstellung; Kapitalsteuerertrag)</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="24">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Inkassospesen</xs:documentation>
+					<xs:documentation xml:lang="fr">frais d'encaissement</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="25">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Kontoführungsgebühren (inkl. Baukontogebühren, Kontospesen, Metallkonto, Kontosegregierung)</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de tenue de compte (y.c. frais de crédit de construction, frais de compte, comptes de métaux précieux, ségrégation de comptes)</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="26">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Kosten für eigene Bemühungen</xs:documentation>
+					<xs:documentation xml:lang="fr">coûts des efforts personnels</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="27">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Managementgebühren</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de management/de gestion</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="28">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Metallkontokommissionen</xs:documentation>
+					<xs:documentation xml:lang="fr">commissions sur comptes de métaux précieux</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="29">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Negativzinsen (im Privatvermögen)</xs:documentation>
+					<xs:documentation xml:lang="fr">intérêts négatifs (dans la fortune privée)</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="30">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Nummernkontogebühren</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de compte numéroté</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="31">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Pauschalgebühren / Verwaltungsgebühren</xs:documentation>
+					<xs:documentation xml:lang="fr">frais forfaitaires / frais d'administration/frais de gestion</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="32">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Performanceorientierte / Erfolgsorientierte Honorare</xs:documentation>
+					<xs:documentation xml:lang="fr">honoraires orientés sur la performance/le résultat</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="33">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Porto / Versandkosten</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de port/d'expédition</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="34">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Saldierungsspesen</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de dissolution</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="35">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Tresorfachgebühren / Schrankfachgebühren</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de coffre-fort</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="36">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Absicherungskosten</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de couverture</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="37">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Diverse Gebühren</xs:documentation>
+					<xs:documentation xml:lang="fr">frais divers</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="38">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Devisenkurssicherungskosten</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de couverture de devises</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="39">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Externe Gebühren / Fremdspesen</xs:documentation>
+					<xs:documentation xml:lang="fr">frais externes/coûts étrangers</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="40">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Kartengebühren / Kreditkartengebühren</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de carte/frais de carte de crédit</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="41">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Kreditgebühren / Kreditkommissionen</xs:documentation>
+					<xs:documentation xml:lang="fr">frais de crédit/commissions de crédit</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="42">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Nichtkündigungsabzug</xs:documentation>
+					<xs:documentation xml:lang="fr">déduction pour défaut d'annonce</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="43">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Zessionskommission</xs:documentation>
+					<xs:documentation xml:lang="fr">commission de cession</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="44">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Erstellung/Erhöhung Schuldbriefe</xs:documentation>
+					<xs:documentation xml:lang="fr">création/augmentation lettre de dettes</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="99">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Sonstige unqualifizierte Begriffe</xs:documentation>
+					<xs:documentation xml:lang="fr">autres notions non définies</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="ibanType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition der IBAN (International Bank Account Number).</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:minLength value="15"/>
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="isinType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition der ISIN (International Securities Identifiication Number).</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:minLength value="12"/>
+			<xs:maxLength value="12"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="leiType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition der LEI (Legal Entity Identifier) gemäss ROC (Regulatory Oversight Committee).</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:minLength value="20"/>
+			<xs:maxLength value="20"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="quotationTypeType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition der Notationsart (Stück oder Prozent).</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="PIECE">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Stück</xs:documentation>
+					<xs:documentation xml:lang="fr"/>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="PERCENT">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Prozent</xs:documentation>
+					<xs:documentation xml:lang="fr"/>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="securityCategoryType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition der Titelkategorie (Aktien, Anlagefonds, Anleihen, Derivative Instrumente, Devisen und Banknoten, Libor- und Swapsätze, Münzen und Edelmetalle, Optionen und Sonstige).</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="BOND">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Anleihen</xs:documentation>
+					<xs:documentation xml:lang="fr">Emprunts</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="COINBULL">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Münzen und Edelmetalle</xs:documentation>
+					<xs:documentation xml:lang="fr">Monnaies et métaux précieux</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="CURRNOTE">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Devisen und Banknoten</xs:documentation>
+					<xs:documentation xml:lang="fr">Devises et billets de banque</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="DEVT">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Derivative Instrumente</xs:documentation>
+					<xs:documentation xml:lang="fr">Produits financiers dérivés</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="FUND">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Anlagefonds</xs:documentation>
+					<xs:documentation xml:lang="fr">Fonds de placement</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="LIBOSWAP">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Libor- und Swapsätze</xs:documentation>
+					<xs:documentation xml:lang="fr"/>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="OPTION">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Optionen</xs:documentation>
+					<xs:documentation xml:lang="fr">Options</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="OTHER">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Andere</xs:documentation>
+					<xs:documentation xml:lang="fr">autre</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="SHARE">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Aktien</xs:documentation>
+					<xs:documentation xml:lang="fr">Actions</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="securityNameType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition der Titelbezeichnung.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="60"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="securityTypeType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition für die Titelart zu den Titelkategorien.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="BOND.BOND">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Obligationen</xs:documentation>
+					<xs:documentation xml:lang="fr">Obligations</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="BOND.OPTION">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Optionsanleihen</xs:documentation>
+					<xs:documentation xml:lang="fr">Emprunts à option</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="BOND.CONVERTIBLE">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Wandelanleihen</xs:documentation>
+					<xs:documentation xml:lang="fr">Emprunts convertibles</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="COINBULL.COINGOLD">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Gemünztes Gold</xs:documentation>
+					<xs:documentation xml:lang="fr">Or monnayé</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="COINBULL.GOLD">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Gold</xs:documentation>
+					<xs:documentation xml:lang="fr">Or</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="COINBULL.PALLADIUM">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Palladium</xs:documentation>
+					<xs:documentation xml:lang="fr">Palladium</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="COINBULL.PLATINUM">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Platin</xs:documentation>
+					<xs:documentation xml:lang="fr">Platine</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="COINBULL.SILVER">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Silber</xs:documentation>
+					<xs:documentation xml:lang="fr">Argent</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="CURRNOTE.CURRENCY">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Devisen</xs:documentation>
+					<xs:documentation xml:lang="fr">Devises</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="CURRNOTE.CURRYEAR">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Jahresendkurse Devisen</xs:documentation>
+					<xs:documentation xml:lang="fr">Cours des devises à la fin de l'année</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="DEVT.COMBINEDPRODUCT">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Kombinierte Produkte</xs:documentation>
+					<xs:documentation xml:lang="fr">Produits combinés</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="DEVT.FUNDSIMILARASSET">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Anlagefondsähnliche Vermögen</xs:documentation>
+					<xs:documentation xml:lang="fr">Ensemble de biens assimilés à un fonds de placement</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="DEVT.INDEXBASKET">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Index- und Basketzertifikate</xs:documentation>
+					<xs:documentation xml:lang="fr">Certificats sur un indice ou un panier d'actions</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="FUND.ACCUMULATION">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Thesaurierungsfonds</xs:documentation>
+					<xs:documentation xml:lang="fr">Fonds de thésaurisation</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="FUND.DISTRIBUTION">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Ausschüttungsfonds</xs:documentation>
+					<xs:documentation xml:lang="fr">Fonds de distribution</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="FUND.REALESTATE">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Immobilienfonds mit direktem Grundbesitz</xs:documentation>
+					<xs:documentation xml:lang="fr">Fonds de placement avec immeubles en propriété directe</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="LIBOSWAP.LIBOR">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Liborsätze</xs:documentation>
+					<xs:documentation xml:lang="fr">Taux libor</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="LIBOSWAP.SWAP">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Swapsätze</xs:documentation>
+					<xs:documentation xml:lang="fr">Taux swap</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="OPTION.CALL">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Call</xs:documentation>
+					<xs:documentation xml:lang="fr">Call</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="OPTION.PHANTOM">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Phantom</xs:documentation>
+					<xs:documentation xml:lang="fr">Phantôme</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="OPTION.PUT">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Put</xs:documentation>
+					<xs:documentation xml:lang="fr">Put</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="SHARE.BEARERCERT">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Inhaberzertifikat</xs:documentation>
+					<xs:documentation xml:lang="fr">Certificat au porteur</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="SHARE.BONUS">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Genussschein</xs:documentation>
+					<xs:documentation xml:lang="fr">Bon de jouissance</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="SHARE.COMMON">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Stammaktie</xs:documentation>
+					<xs:documentation xml:lang="fr">Action ordinaire</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="SHARE.COOP">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Anteilscheine Genossenschaft</xs:documentation>
+					<xs:documentation xml:lang="fr">Parts sociales de société coopérative</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="SHARE.LIMITED">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Stammanteile GmbH</xs:documentation>
+					<xs:documentation xml:lang="fr">Parts sociales de Sàrl</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="SHARE.NOMINAL">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Namesanktie</xs:documentation>
+					<xs:documentation xml:lang="fr">Action nominative</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="SHARE.PARTCERT">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Partizipationsschein</xs:documentation>
+					<xs:documentation xml:lang="fr">Bon de participation</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="SHARE.PREFERRED">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Vorzugsaktie</xs:documentation>
+					<xs:documentation xml:lang="fr">Action préférentielle</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+			<xs:enumeration value="SHARE.TRANSFERABLE">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Inhaberaktie</xs:documentation>
+					<xs:documentation xml:lang="fr">Action au porteur</xs:documentation>
+				</xs:annotation>
+			</xs:enumeration>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="valorNumberType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition der Valorennummer.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="100"/>
+			<xs:maxInclusive value="999999999999"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="signType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition für eine Zeichenerklärung der Kursliste z.B. (I).</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:minLength value="3"/>
+			<xs:maxLength value="4"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="tinType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition der TIN (Taxpayer Identification Number).</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:minLength value="9"/>
+			<xs:maxLength value="11"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="positive-decimal">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Positiver Dezimaltyp</xs:documentation>
+			<xs:documentation xml:lang="fr">Positiver Dezimaltyp</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:decimal">
+			<xs:minInclusive value="0"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="taxStatementType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition des Steuerauszug.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="institution" type="eCH-0196:institutionType">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Die Angaben zum Finanzinstitut.</xs:documentation>
+					<xs:documentation xml:lang="fr">Informations sur l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="client" type="eCH-0196:clientType" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Die Angaben zu dem oder den Kunden (Stichwort: Partnerstamm).</xs:documentation>
+					<xs:documentation xml:lang="fr">Informations sur le ou les clients (mot-clé : fichier des partenaires).</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="accompanyingLetter" type="eCH-0196:accompanyingLetterType" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Das Begleitschreiben zum Steuerauszug.</xs:documentation>
+					<xs:documentation xml:lang="fr">Lettre accompagnant le relevé fiscal.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="listOfBankAccounts" type="eCH-0196:listOfBankAccountsType" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Das Kontenverzeichnis des Steuerauszugs.</xs:documentation>
+					<xs:documentation xml:lang="fr">Etat des comptes du relevé fiscal.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="listOfLiabilities" type="eCH-0196:listOfLiabilitiesType" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Das Schuldenverzeichnis des Steuerauszugs.</xs:documentation>
+					<xs:documentation xml:lang="fr">Etat des dettes du relevé fiscal.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="listOfExpenses" type="eCH-0196:listOfExpensesType" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Das Spesenverzeichnis des Steuerauszugs.</xs:documentation>
+					<xs:documentation xml:lang="fr">Etat des frais du relevé fiscal.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="listOfSecurities" type="eCH-0196:listOfSecuritiesType" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Das Wertschriftenverzeichnis des Steuerauszugs.</xs:documentation>
+					<xs:documentation xml:lang="fr">Etat des titres du relevé fiscal.</xs:documentation>
+				</xs:annotation>
+				<xs:unique name="uniqueSecurityPositionIdConstraint">
+					<xs:selector xpath="eCH-0196:depot/eCH-0196:security"/>
+					<xs:field xpath="@positionId"/>
+				</xs:unique>
+				<xs:unique name="uniqueDepotNumberConstraint">
+					<xs:selector xpath="eCH-0196:depot"/>
+					<xs:field xpath="@depotNumber"/>
+				</xs:unique>
+			</xs:element>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="id" type="xs:ID" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die eindeutige Id des Steuerauszugs. Dieses Attribut kann als Referenz (URI) für die Signatur verwendet werden.</xs:documentation>
+				<xs:documentation xml:lang="fr">Identifiant du relevé fiscal. Cet attribut peut être utilisé comme référence (URI) pour la signature.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="creationDate" type="xs:dateTime" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Erstelldatum und Uhrzeit des Steuerauszugs.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date et heure de création du relevé fiscal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="taxPeriod" type="xs:gYear" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Jahr der zugehörigen Steuerperiode.</xs:documentation>
+				<xs:documentation xml:lang="fr">Année de la période fiscale concernée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="periodFrom" type="xs:date" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Beginn der zugehörigen Steuerperiode.</xs:documentation>
+				<xs:documentation xml:lang="fr">Début de la période fiscale concernée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="periodTo" type="xs:date" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Ende der zugehörigen Steuerperiode.</xs:documentation>
+				<xs:documentation xml:lang="fr">Fin de la période fiscale concernée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="country" type="eCH-0008:countryIdISO2Type" use="optional" default="CH">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Steuerdomizil (Land) des Steuerpflichtigen.</xs:documentation>
+				<xs:documentation xml:lang="fr">Domicile fiscal (pays) du contribuable.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="canton" type="eCH-0007:cantonAbbreviationType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der massgebende Kanton des Steuerpflichtigen.</xs:documentation>
+				<xs:documentation xml:lang="fr">Canton déterminant du contribuable.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalTaxValue" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Steuerwerte.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des valeurs fiscales.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueA" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik A (mit Verrechnungssteueranspruch) für die Bundessteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique A (avec droit au remboursement de l'impôt anticipé) pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueACanton" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik A (mit Verrechnungssteueranspruch) für die Staatssteuer. Der Wert ist nur anzugeben, wenn dieser vom Wert für die Bundessteuer abweicht.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique A (avec droit au remboursement de l'impôt anticipé) pour l'impôt cantonal. Valeur à spécifier uni-quement si elle diffère de la valeur pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueB" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik B (ohne Verrechnungssteueranspruch) für die Bundessteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueBCanton" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik B (ohne Verrechnungssteueranspruch) für die Staatssteuer. Der Wert ist nur anzugeben, wenn dieser vom Wert für die Bundessteuer abweicht.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt cantonal. Valeur à spécifier uni-quement si elle diffère de la valeur pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalWithHoldingTaxClaim" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total des Verrechnungssteueranspruchs.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total du droit au remboursement de l'impôt anticipé.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="institutionType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zu den Angaben des Finanzinstituts.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="uid" type="eCH-0097:uidStructureType" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Unternehmens-Identifikationsnummer gemäss Bundesamt für Statistik (BFS).</xs:documentation>
+					<xs:documentation xml:lang="fr">numéro d'identification de société selon l'office fédéral de la statistique (OFS).</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="lei" type="eCH-0196:leiType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die LEI (Legal Entity Identifier) des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">LEI (Legal Entity Identifier) de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="name" type="eCH-0010:organisationNameType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Name des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Nom de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="clientType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Kunden des Finanzinstituts.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence minOccurs="0">
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="clientNumber" type="eCH-0196:clientNumberType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Kundennummer des Kunden beim Finanzinstitut.</xs:documentation>
+				<xs:documentation xml:lang="fr">Numéro de client du client auprès de l'établis-sement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="tin" type="eCH-0196:tinType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die TIN (Taxpayer Identification Number) des Kunden.</xs:documentation>
+				<xs:documentation xml:lang="fr">TIN (Taxpayer Identification Number) du client. Il est introduit avec l'échange d'informations automatique.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="salutation" type="eCH-0010:mrMrsType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Anrede des Kunden.</xs:documentation>
+				<xs:documentation xml:lang="fr">Titre de civilité du client.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="firstName" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Vorname des Kunden.</xs:documentation>
+				<xs:documentation xml:lang="fr">Prénom du client.</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="eCH-0010:firstNameType">
+					<xs:minLength value="1"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="lastName" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Nachname des Kunden.</xs:documentation>
+				<xs:documentation xml:lang="fr">Nom de famille du client.</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="eCH-0010:lastNameType">
+					<xs:minLength value="1"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="accompanyingLetterType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Begleitschreiben des Finanzinstituts.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence minOccurs="0">
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="fileName" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Grösse der Datei des Begleitschreibens.</xs:documentation>
+				<xs:documentation xml:lang="fr">Taille du fichier de la lettre d'accompagnement.</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:maxLength value="200"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="fileSize" type="xs:integer" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Grösse der Datei.</xs:documentation>
+				<xs:documentation xml:lang="fr">Taille du fichier.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="fileData" type="xs:base64Binary" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die encodierten Daten (base64) der Datei.</xs:documentation>
+				<xs:documentation xml:lang="fr">Données encodées (base64) du fichier.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="listOfBankAccountsType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Kontenverzeichnis.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="bankAccount" type="eCH-0196:bankAccountType" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Die Konten des Kontenverzeichnisses.</xs:documentation>
+					<xs:documentation xml:lang="fr">Comptes de l'état des comptes.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="totalTaxValue" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Steuerwerte.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des valeurs fiscales.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueA" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik A (mit Verrechnungssteueranspruch) für die Bundes- und Staatssteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique A (avec droit au remboursement de l'impôt anticipé) pour l'impôt fédéral et cantonal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueB" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik B (ohne Verrechnungssteueranspruch) für die Bundes- und Staatssteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt fédéral et cantonal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalWithHoldingTaxClaim" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total des Verrechnungssteueranspruchs.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total du droit au remboursement de l'impôt anticipé.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="bankAccountType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Bankkonto.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="taxValue" type="eCH-0196:bankAccountTaxValueType" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Der Steuerwert zum Bankkonto.</xs:documentation>
+					<xs:documentation xml:lang="fr">Valeur fiscale du compte bancaire.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="payment" type="eCH-0196:bankAccountPaymentType" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Die Erträge zum Bankkonto.</xs:documentation>
+					<xs:documentation xml:lang="fr">Revenus du compte bancaire.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="iban" type="eCH-0196:ibanType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die IBAN (International Bank Account Number) des Bankkontos.</xs:documentation>
+				<xs:documentation xml:lang="fr">IBAN (International Bank Account Number) du compte bancaire.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="bankAccountNumber" type="eCH-0196:bankAccountNumberType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Kontonummer des Bankkontos.</xs:documentation>
+				<xs:documentation xml:lang="fr">Numéro du compte bancaire.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="bankAccountName" type="eCH-0196:bankAccountNameType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Kontobezeichnung des Bankkontos.</xs:documentation>
+				<xs:documentation xml:lang="fr">Intitulé du compte bancaire.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="bankAccountCountry" type="eCH-0008:countryIdISO2Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Domizil (Land) zum Bankkonto.</xs:documentation>
+				<xs:documentation xml:lang="fr">Domicile (pays) du compte bancaire.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="bankAccountCurrency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung des Bankkontos.</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du compte bancaire.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="openingDate" type="xs:date" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Eröffnungsdatum des Bankkontos.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date d'ouverture du compte bancaire.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="closingDate" type="xs:date" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Saldierungsdatum des Bankkontos.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date de clôture du compte bancaire.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalTaxValue" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Steuerwerte.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des valeurs fiscales.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueA" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik A (mit Verrechnungssteueranspruch) für die Bundes- und Staatssteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique A (avec droit au remboursement de l'impôt anticipé) pour l'impôt fédéral et cantonal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueB" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik B (ohne Verrechnungssteueranspruch) für die Bundes- und Staatssteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt fédéral et cantonal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalWithHoldingTaxClaim" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total des Verrechnungssteueranspruchs.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total du droit au remboursement de l'impôt anticipé.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="bankAccountTaxValueType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Steuerwert des Bankkontos.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence minOccurs="0">
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="referenceDate" type="xs:date" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Stichtag zum Steuerwert .</xs:documentation>
+				<xs:documentation xml:lang="fr">Date critère de la valeur fiscale.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="name" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Bezeichnung zum Steuerwert.</xs:documentation>
+				<xs:documentation xml:lang="fr">Désignation de la valeur fiscale.</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:maxLength value="200"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="balanceCurrency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung des Saldos.</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du solde.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="balance" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Saldo zum Stichtag in der angegebenen Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Solde à la date critère dans la monnaie spéci-fiée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="exchangeRate" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Devisenkurs zum Stichtag und Währung mit Stückelung 1.</xs:documentation>
+				<xs:documentation xml:lang="fr">Cours de change à la date critère pour la monnaie spécifiée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="value" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Steuerwert zum Stichtag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Valeur fiscale à la date critère.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="bankAccountPaymentType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Ertrag des Bankkontos.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence minOccurs="0">
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="paymentDate" type="xs:date" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Fälligkeitsdatum zum Bruttoertrag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date d'échéance du revenu brut.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="name" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Bezeichnung zum Bruttoertrag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Désignation du revenu brut.</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:maxLength value="200"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="amountCurrency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung des Bruttoertrags.</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du revenu brut.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="amount" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Bruttoertrag zum Fälligkeitsdatum in der angegebenen Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Revenu brut à la date d'échéance dans la monnaie spécifiée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="exchangeRate" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Devisenkurs zum Fälligkeitsdatum und Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Cours de change à la date d'échéance pour la monnaie spécifiée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="grossRevenueA" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Bruttoertrag der Rubrik A (mit Verrechnungssteueranspruch) für die Bundes- und Staatssteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Revenu brut de la rubrique A (avec droit au remboursement de l'impôt anticipé) pour l'impôt fédéral et cantonal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="grossRevenueB" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Bruttoertrag der Rubrik B (ohne Verrechnungssteueranspruch) für die Bundes- und Staatssteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Revenu brut de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt fédéral et cantonal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="withHoldingTaxClaim" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Betrag des Verrechnungssteueranspruchs.</xs:documentation>
+				<xs:documentation xml:lang="fr">Montant du droit au remboursement de l'impôt anticipé.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="listOfLiabilitiesType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Schuldenverzeichnis.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="liabilityAccount" type="eCH-0196:liabilityAccountType" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Die Bankkonten (Schulden) des Schuldenverzeichnisses.</xs:documentation>
+					<xs:documentation xml:lang="fr">Comptes bancaires (dettes) de l'état des dettes.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="totalTaxValue" type="eCH-0196:positive-decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Summe der Beträge (|x| ≥ 0) der negativen Steuerwerte (Schulden) , gerundet nach DIN 1333..</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des montants (|x| ≥ 0) des valeurs fiscales négatives.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueB" type="eCH-0196:positive-decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Summe der Beträge (|x| ≥ 0) der Bruttoaufwände (Schuldzinsen) der Rubrik B (ohne Verrechnungssteueranspruch) für die Bundes- und Staatssteuer, gerundet nach DIN 1333.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des montants (|x| ≥ 0) revenus bruts négatifs de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt fédéral et cantonal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="liabilityAccountType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Bankkonto (Schulden).</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="taxValue" type="eCH-0196:liabilityAccountTaxValueType" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Betrag (|x| ≥ 0) des negativen Steuerwertes (Schulden) zum Bankkonto (Schulden).</xs:documentation>
+					<xs:documentation xml:lang="fr">Montant (|x| ≥ 0) des valeur fiscale négative du compte bancaire (dettes).</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="payment" type="eCH-0196:liabilityAccountPaymentType" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Summe der Beträge der Aufwände (Schuldzinsen) zum Bankkonto (Schulden).</xs:documentation>
+					<xs:documentation xml:lang="fr">Total des montants des efforts relatifs au compte bancaire (dettes).</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="iban" type="eCH-0196:ibanType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die IBAN (International Bank Account Number) des Bankkontos (Schulden).</xs:documentation>
+				<xs:documentation xml:lang="fr">IBAN (International Bank Account Number) du compte bancaire (dettes).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="bankAccountNumber" type="eCH-0196:bankAccountNumberType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Kontonummer des Bankkontos (Schulden).</xs:documentation>
+				<xs:documentation xml:lang="fr">Numéro du compte bancaire (dettes).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="bankAccountName" type="eCH-0196:bankAccountNameType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Kontobezeichnung des Bankkontos (Schulden).</xs:documentation>
+				<xs:documentation xml:lang="fr">Intitulé du compte bancaire (dettes).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="bankAccountCountry" type="eCH-0008:countryIdISO2Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Domizil (Land) zum Bankkonto (Schulden).</xs:documentation>
+				<xs:documentation xml:lang="fr">Domicile (pays) du compte bancaire (dettes).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="bankAccountCurrency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung des Bankkontos (Schulden).</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du compte bancaire (dettes).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="openingDate" type="xs:date" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Eröffnungsdatum des Bankkontos (Schulden).</xs:documentation>
+				<xs:documentation xml:lang="fr">Date d'ouverture du compte bancaire (dettes).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="closingDate" type="xs:date" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Saldierungsdatum des Bankkontos (Schulden).</xs:documentation>
+				<xs:documentation xml:lang="fr">Date de clôture du compte bancaire (dettes).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalTaxValue" type="eCH-0196:positive-decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Summe der Beträge (|x| ≥ 0) der negativen Steuerwerte (Schulden), gerundet nach DIN 1333..</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des montants (|x| ≥ 0) des valeurs fiscales négatives (dettes).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueB" type="eCH-0196:positive-decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Summe der Beträge (|x| ≥ 0) der Bruttoaufwände (Schuldzinsen) der Rubrik B (ohne Verrechnungssteueranspruch) für die Bundes- und Staatssteuer, gerundet nach DIN 1333.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des montants (|x| ≥ 0) des revenus bruts (effort des dettes) de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt fédéral et cantonal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="liabilityAccountTaxValueType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Steuerwert des Bankkontos (Schulden).</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence minOccurs="0">
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="referenceDate" type="xs:date" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Stichtag zum Steuerwert</xs:documentation>
+				<xs:documentation xml:lang="fr">Date critère de la valeur fiscale.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="name" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Bezeichnung zum Steuerwert.</xs:documentation>
+				<xs:documentation xml:lang="fr">Désignation de la valeur fiscale.</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:maxLength value="200"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="balanceCurrency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung des Saldos.</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du solde.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="balance" type="eCH-0196:positive-decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Saldo (Betrag |x| ≥ 0) zum Stichtag in der angegebenen Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Solde (montant |x| ≥ 0) à la date critère dans la monnaie spécifiée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="exchangeRate" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Devisenkurs zum Stichtag und Währung mit Stückelung 1.</xs:documentation>
+				<xs:documentation xml:lang="fr">Cours de change à la date critère pour la monnaie spécifiée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="value" type="eCH-0196:positive-decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Betrag (|x| ≥ 0) des negativen Steuerwertes (Schulden) zum Stichtag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Montant (|x| ≥ 0) de valeur fiscale négative (dettes) à la date critère.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="liabilityAccountPaymentType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Aufwand des Schuldenkontos.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence minOccurs="0">
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="paymentDate" type="xs:date" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Fälligkeitsdatum zum Bruttoaufwand.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date d'échéance du effort brut.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="name" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Bezeichnung zum Bruttoaufwand.</xs:documentation>
+				<xs:documentation xml:lang="fr">Désignation du effort brut.</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:maxLength value="200"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="amountCurrency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung des Bruttoaufwand.</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du effort brut.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="amount" type="eCH-0196:positive-decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Betrag (|x| ≥ 0) des Bruttoaufwandes (Schuldzins) zum Stichtag in der angegebenen Wäh-rung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Montant (|x| ≥ 0) de l'effort brut à la date critère dans la monnaie spécifiée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="exchangeRate" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Devisenkurs zum Stichtag und Währung mit Stückelung 1.</xs:documentation>
+				<xs:documentation xml:lang="fr">Cours de change à la date critère pour la monnaie spécifiée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="grossRevenueB" type="eCH-0196:positive-decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Betrag (|x| ≥ 0) des Bruttoaufwandes (Schuldzins) der Rubrik B (ohne Verrechnungssteueranspruch) für die Bundes- und Staatssteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Montant (|x| ≥ 0) du revenu brut (effort des dettes) de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt fédéral et cantonal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="listOfExpensesType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Spesenverzeichnis.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="expense" type="eCH-0196:expenseType" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Die Bankspesen des Spesenverzeichnisses.</xs:documentation>
+					<xs:documentation xml:lang="fr">Frais bancaires de l'état des frais.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="totalExpenses" type="eCH-0196:positive-decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bankspesen, gerundet nach DIN 1333.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des frais bancaires, arrondi DIN1333</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalExpensesDeductible" type="eCH-0196:positive-decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der abzugsfähigen Bankspesen für die Bundessteuer, gerundet nach DIN 1333.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des frais bancaires déductibles pour l'im-pôt fédéral, arrondi DIN1333.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalExpensesDeductibleCanton" type="eCH-0196:positive-decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der abzugsfähigen Bankspesen für die Staatssteuer, gerundet nach DIN 1333. Der Wert ist nur anzugeben, wenn dieser vom Wert für die Bundessteuer abweicht.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des frais bancaires déductibles pour l'im-pôt cantonal, arrondi DIN1333. Valeur à spécifier uniquement si elle diffère de la valeur pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="expenseType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zu den Bankspesen.</xs:documentation>
+			<xs:documentation xml:lang="fr">Le type de frais de gestion de fortune.</xs:documentation>
+		</xs:annotation>
+		<xs:sequence minOccurs="0">
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="referenceDate" type="xs:date" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Stichtag zu den Bankspesen.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date critère des frais bancaires.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="name" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Bezeichnung zu den Bankspesen.</xs:documentation>
+				<xs:documentation xml:lang="fr">Désignation des frais bancaires.</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:maxLength value="200"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="iban" type="eCH-0196:ibanType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die IBAN (International Bank Account Number) des zugehörigen Bankkontos.</xs:documentation>
+				<xs:documentation xml:lang="fr">IBAN (International Bank Account Number) du compte bancaire concerné.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="bankAccountNumber" type="eCH-0196:bankAccountNumberType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Kontonummer des zugehörigen Bankkontos.</xs:documentation>
+				<xs:documentation xml:lang="fr">Numéro de compte du compte bancaire concerné.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="depotNumber" type="eCH-0196:depotNumberType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Depotnummer des zugehörigen Wertschriftendepots.</xs:documentation>
+				<xs:documentation xml:lang="fr">Numéro de dépôt du dépôt de titres concerné.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="amountCurrency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung zum Fremdwährungsbetrag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du montant en monnaie étrangère.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="amount" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Betrag in Fremdwährung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Montant en monnaie étrangère.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="exchangeRate" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Devisenkurs zum Stichtag und Währung mit Stückelung 1.</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie des frais bancaires.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="expenses" type="eCH-0196:positive-decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Betrag der Bankspesen.</xs:documentation>
+				<xs:documentation xml:lang="fr">Montant des frais bancaires.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="expensesDeductible" type="eCH-0196:positive-decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der abzugsfähige Betrag der Bankspesen für die Bundessteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Montant déductible des frais bancaires pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="expensesDeductibleCanton" type="eCH-0196:positive-decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der abzugsfähige Betrag der Bankspesen für die Staatssteuer. Der Wert ist nur anzugeben, wenn dieser vom Wert für die Bundessteuer abweicht.</xs:documentation>
+				<xs:documentation xml:lang="fr">Montant déductible des frais bancaires pour l'impôt cantonal. Valeur à spécifier uniquement si elle diffère de la valeur pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="expenseType" type="eCH-0196:expenseTypeType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Spesentyp der Vermögensverwaltungskosten.</xs:documentation>
+				<xs:documentation xml:lang="fr"/>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="listOfSecuritiesType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Wertschriftenverzeichnis.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="depot" type="eCH-0196:securityDepotType" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Die Wertschriftendepots zum Wertschriftenverzeichnis.</xs:documentation>
+					<xs:documentation xml:lang="fr">Les dépôts de titres relatifs à l'état des titres.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="totalTaxValue" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Steuerwerte.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des valeurs fiscales.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueA" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik A (mit Verrechnungssteueranspruch) für die Bundessteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique A (avec droit au remboursement de l'impôt anticipé) pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueACanton" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik A (mit Verrechnungssteueranspruch) für die Staatssteuer. Der Wert ist nur anzugeben, wenn dieser vom Wert für die Bundessteuer abweicht.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique A (avec droit au remboursement de l'impôt anticipé) pour l'impôt cantonal. Valeur à spécifier uniquement si elle diffère de la valeur pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueB" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik B (ohne Verrechnungssteueranspruch) für die Bundessteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueBCanton" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge der Rubrik B (ohne Verrechnungssteueranspruch) für die Staatssteuer. Der Wert ist nur anzugeben, wenn dieser vom Wert für die Bundessteuer abweicht.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt cantonal. Valeur à spécifier uni-quement si elle diffère de la valeur pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalWithHoldingTaxClaim" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total des Verrechnungssteueranspruchs.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total du droit au remboursement de l'impôt anticipé.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalLumpSumTaxCredit" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der pauschalen Steueranrechnung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total de l'imputation forfaitaire d'impôt.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalNonRecoverableTax" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total des nicht rückforderbaren Teils der pauschalen Steueranrechnung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total de la partie non récupérable de l'imputa-tion forfaitaire d'impôt</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalAdditionalWithHoldingTaxUSA" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total des Steuerrückbehalt USA.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total de la retenue supplémentaire d'impôt USA.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueIUP" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge aus IUP (reiner oder modifizierter Differenzbesteuerung).</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de l'IUP (imposition de la différence pure ou modifiée).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="totalGrossRevenueConversion" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Total der Bruttoerträge aus (individueller) Wandlung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Total des revenus bruts de la conversion (indi-viduelle).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="securityDepotType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Wertschriftendepot für das Wertschriftenverzeichnis.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="security" type="eCH-0196:securitySecurityType" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Die Titel im Wertschriftendepot.</xs:documentation>
+					<xs:documentation xml:lang="fr">Titres contenus dans le dépôt de titres.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="depotNumber" type="eCH-0196:depotNumberType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Depotnummer des Wertschriftendepots.</xs:documentation>
+				<xs:documentation xml:lang="fr">Numéro de dépôt du dépôt de titres.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="securitySecurityType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Titel für das Wertschriftenverzeichnis.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="taxValue" type="eCH-0196:securityTaxValueType" minOccurs="0" maxOccurs="1">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Der Steuerwert zum Titel. Unterschiedliche Steuerwerte sind aufgrund gesperrter Titel möglich.</xs:documentation>
+					<xs:documentation xml:lang="fr">Valeur fiscale du titre.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="payment" type="eCH-0196:securityPaymentType" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Die Erträge zum Titel.</xs:documentation>
+					<xs:documentation xml:lang="fr">Revenus du titre.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="stock" type="eCH-0196:securityStockType" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Der Bestand (Mutationen) zum Titel.</xs:documentation>
+					<xs:documentation xml:lang="fr">Stock (modifications) du titre.</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="uid" type="eCH-0097:uidStructureType" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Unternehmens-Identifikationsnummer gemäss Bundesamt für Statistik (BFS).</xs:documentation>
+					<xs:documentation xml:lang="fr">numéro d'identification de société selon l'office fédéral de la statistique (OFS).</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="positionId" type="xs:positiveInteger" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Unterteilt einen Titel, innerhalb einer Wertschriftenposition, in einzelne Positionen</xs:documentation>
+				<xs:documentation xml:lang="fr"/>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="valorNumber" type="eCH-0196:valorNumberType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Valorennummer des Titels.</xs:documentation>
+				<xs:documentation xml:lang="fr">Numéro de valeur du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="isin" type="eCH-0196:isinType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die ISIN des Titels.</xs:documentation>
+				<xs:documentation xml:lang="fr">ISIN du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="country" type="eCH-0008:countryIdISO2Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Domizil (Land) des Titels.</xs:documentation>
+				<xs:documentation xml:lang="fr">Domicile (pays) du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="city" type="eCH-0010:townType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Ort aus der Adresse der zugehörigen Gesellschaft.</xs:documentation>
+				<xs:documentation xml:lang="fr">Localité de l’adresse de la société concernée.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="currency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung zum Titel.</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="quotationType" type="eCH-0196:quotationTypeType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Notationsart zum Titel (Stück oder Prozent).</xs:documentation>
+				<xs:documentation xml:lang="fr">Type de cotation du titre (pièce ou pourcen-tage).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="nominalValue" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Nennwert des Titels.</xs:documentation>
+				<xs:documentation xml:lang="fr">Valeur nominale du titre</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="securityCategory" type="eCH-0196:securityCategoryType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Titelkategorie zum Titel.</xs:documentation>
+				<xs:documentation xml:lang="fr">Catégorie du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="securityType" type="eCH-0196:securityTypeType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Titelart zum Titel. Hieraus kann zum Beispiel abgeleitet werden, dass es sich um einen Thesaurierungsfonds handelt.</xs:documentation>
+				<xs:documentation xml:lang="fr">Type du titre. Permet de déduire qu'il s'agit d'un fonds de capitalisation.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="securityName" type="eCH-0196:securityNameType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Titelbezeichnung zum Titel.</xs:documentation>
+				<xs:documentation xml:lang="fr">Désignation du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="issueDate" type="xs:date" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Emissionsdatum des Titels.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date d'émission du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="redemptionDate" type="xs:date" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Rückzahlungsdatum des Titels.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date de remboursement du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="redemptionDateEarly" type="xs:date" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das vorzeitige Rückzahlungsdatum des Titels.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date de remboursement anticipé du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="issuePrice" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Emissionspreis des Titels in der angegebenen Notationsart.</xs:documentation>
+				<xs:documentation xml:lang="fr">Prix d'émission du titre dans le type de cotation spécifié.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="redemptionPrice" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Rückzahlungspreis des Titels in der angegebenen Notationsart.</xs:documentation>
+				<xs:documentation xml:lang="fr">Prix de remboursement du titre dans le type de cotation spécifié.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="redemptionPriceEarly" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der vorzeitige Rückzahlungspreis des Titels in der angegebenen Notationsart.</xs:documentation>
+				<xs:documentation xml:lang="fr">Prix de remboursement anticipé du titre dans le type de cotation spécifié.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="interestRate" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Zinssatz (fix) des Titels in Prozent (100% = 100).</xs:documentation>
+				<xs:documentation xml:lang="fr">Taux d'intérêt (fixe) du titre en pourcentage (100 % = 100).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="variableInterest" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Flag für einen Titel mit variablem Zinssatz. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Drapeau pour un titre avec taux d'intérêt va-riable.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="iup" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das IUP-Flag (reine oder modifizierte Differenzbesteuerung) zum Titel. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Drapeau IUP (imposition de la différence pure ou modifiée) du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="bfp" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das BFP-Flag (Bondfloor Pricing) zum Titel. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.
+
+IUP=0, BFP=1: Wandelbar
+IUP=1, BFP=0: reine Differenzbesteuerung
+IUP=1, BFP=1: modifizierte Differenzbesteuerung</xs:documentation>
+				<xs:documentation xml:lang="fr">Drapeau BFP (Bondfloor Pricing) du titre.
+
+IUP=0, BFP=1: convertible
+IUP=1, BFP=0: imposition de la différence pure
+IUP=1, BFP=1: imposition de la différence modifiée
+</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="securityStockType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Bestand (Mutation) des Titels für das Wertschriftenverzeichnis.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="referenceDate" type="xs:date" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Stichtag zum Bestand oder Mutation.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date critère du stock ou de la modification.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="mutation" type="xs:boolean" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Mutations-Flag zum Bestand oder Mutation. Das Mutations-Flag muss gesetzt sein (Wert 1 = true), wenn es sich um einen Zu- oder Abgang zum Bestand handelt</xs:documentation>
+				<xs:documentation xml:lang="fr">Drapeau de modification du stock ou de la modification.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="name" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Bezeichnung zum Bestand oder Mutation.</xs:documentation>
+				<xs:documentation xml:lang="fr">Désignation du stock ou de la modification.</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:maxLength value="200"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="quotationType" type="eCH-0196:quotationTypeType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Notationsart zur Anzahl (Stück oder Nominal).</xs:documentation>
+				<xs:documentation xml:lang="fr">Type de cotation du nombre (pièce ou nominal).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="quantity" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Anzahl (Stück oder Nominal) zum Bestand (+) oder Mutation (+/-) zum Stichtag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Nombre (pièce ou nominal) du stock (+) ou de la modification (+/-) à la date critère.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="balanceCurrency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung zum Steuerkurs (Stückpreis oder Prozentwert).</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du cours fiscal (pièce ou pourcentage).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="unitPrice" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Steuerkurs (Stückpreis oder Prozentwert) zum Stichtag und Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Cours fiscal (pièce ou pourcentage) à la date critère et monnaie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="balance" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Saldo zum Stichtag und Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Solde à la date critère et monnaie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="reductionCost" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Gewinnungskosten beim Kauf- oder Verkauf. Die Gewinnungskosten sind nur bei reiner Differenzbesteuerung relevant.</xs:documentation>
+				<xs:documentation xml:lang="fr">Frais d'acquisition à l'achat ou la vente. Les frais d'acquisition ne sont pertinents que pour l'imposition de la différence pure.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="exchangeRate" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Devisenkurs zum Stichtag und Währung mit Stückelung 1.</xs:documentation>
+				<xs:documentation xml:lang="fr">Cours de change à la date critère et monnaie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="value" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Steuerwert zum Stichtag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Valeur fiscale à la date critère pour l'impôt fédéral ou cantonal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="blocked" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Gesperrt-Flag zum Titel. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Drapeau de blocage du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="blockingTo" type="xs:date" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Gesperrt-Bis Datum zum Titel.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date de fin de blocage du titre.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="securityTaxValueType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Steuerwert des Titels für das Wertschriftenverzeichnis.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="referenceDate" type="xs:date" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Stichtag zum Steuerwert.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date critère de la valeur fiscale.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="name" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Bezeichnung zum Steuerwert.</xs:documentation>
+				<xs:documentation xml:lang="fr">Désignation de la valeur fiscale.</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:maxLength value="200"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="quotationType" type="eCH-0196:quotationTypeType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Notationsart zur Anzahl (Stück oder Nominal).</xs:documentation>
+				<xs:documentation xml:lang="fr">Type de cotation du nombre (pièce ou nominal).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="quantity" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Anzahl (Stück oder Nominal) zum Stichtag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Nombre (pièce ou nominal) à la date critère.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="balanceCurrency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung zum Steuerkurs (Stückpreis oder Prozentwert).</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du cours fiscal (pièce ou pourcentage).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="unitPrice" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Steuerkurs (Stückpreis oder Prozentwert) zum Stichtag und Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Cours fiscal (pièce ou pourcentage) à la date critère et monnaie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="balance" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Saldo zum Stichtag und Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Solde à la date critère et monnaie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="exchangeRate" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Devisenkurs zum Stichtag und Währung mit Stückelung 1.</xs:documentation>
+				<xs:documentation xml:lang="fr">Cours de change à la date critère et monnaie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="value" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Steuerwert zum Stichtag für die Staatssteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Valeur fiscale à la date critère pour l'impôt can-tonal.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="blocked" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Gesperrt-Flag zum Titel. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein. Gesperrte Titel können einen reduzierten Steuerwert aufweisen.</xs:documentation>
+				<xs:documentation xml:lang="fr">Drapeau de blocage du titre. Les titres bloqués peuvent présenter une valeur fiscale réduite.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="blockingTo" type="xs:date" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Gesperrt-Bis Datum zum Titel. Gesperrte Titel können einen reduzierten Steuerwert aufweisen.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date de fin de blocage du titre. Les titres blo-qués peuvent présenter une valeur fiscale ré-duite.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="undefined" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Undefiniert-Flag für einen nicht oder noch nicht verfügbaren Steuerwert. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Drapeau de non définition pour une valeur fiscale non disponible.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="kursliste" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Kursliste-Flag als Quelle für den Steuerwert. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Drapeau de liste des cours en tant que source de la valeur fiscale.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="securityPaymentType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition zum Ertrag des Titels für das Wertschriftenverzeichnis.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="purchase" type="eCH-0196:securityPurchaseDispositionType" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Der oder die Zugänge (Kauf) zum Titel für die IUP-Berechnung (reine oder modifizierte Differenzbesteuerung).</xs:documentation>
+					<xs:documentation xml:lang="fr">Entrée(s) (achat) relative(s) au titre pour le cal-cul IUP (imposition de la différence pure ou modifiée).</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="disposition" type="eCH-0196:securityPurchaseDispositionType" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Der Abgang (Verkauf / Rückzahlung) zum Titel für die IUP-Berechnung (reine oder modifizierte Differenzbesteuerung).</xs:documentation>
+					<xs:documentation xml:lang="fr">Sortie (vente / remboursement) relative au titre pour le calcul IUP (imposition de la différence pure ou modifiée).</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="paymentDate" type="xs:date" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Fälligkeitsdatum zum Bruttoertrag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date d'échéance du revenu brut.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="exDate" type="xs:date" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Ex-Datum zum Bruttoertrag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date de comptabilisation du revenu brut.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="name" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Bezeichnung zum Bruttoertrag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Désignation du revenu brut.</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:maxLength value="200"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="quotationType" type="eCH-0196:quotationTypeType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Notationsart zur Anzahl (Stück oder Nominal).</xs:documentation>
+				<xs:documentation xml:lang="fr">Type de cotation du nombre (pièce ou nominal).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="quantity" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Anzahl (Stück oder Nominal) zum Ex-Datum bzw. Fälligkeitsdatum.</xs:documentation>
+				<xs:documentation xml:lang="fr">Nombre (pièce ou nominal) à la date de comp-tabilisation ou d'échéance.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="amountCurrency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung zum Bruttobetrag (Stückpreis oder Prozentwert).</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du montant brut (pièce ou pourcen-tage).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="amountPerUnit" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Bruttobetrag pro Stück oder Nominal zum Fälligkeitsdatum und Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Montant brut par pièce ou nominal à la date d'échéance et monnaie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="amount" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Bruttobetrag zum Fälligkeitsdatum und Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Montant brut à la date d'échéance et monnaie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="exchangeRate" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Devisenkurs zum Fälligkeitsdatum und Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Cours de change à la date d'échéance et monnaie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="grossRevenueA" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Bruttoertrag der Rubrik A (mit Verrechnungssteueranspruch) für die Bundessteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Revenu brut de la rubrique A (avec droit au remboursement de l'impôt anticipé) pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="grossRevenueACanton" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Bruttoertrag der Rubrik A (mit Verrechnungssteueranspruch) für die Staatssteuer. Der Wert ist nur anzugeben, wenn dieser vom Wert für die Bundessteuer abweicht.</xs:documentation>
+				<xs:documentation xml:lang="fr">Revenu brut de la rubrique A (avec droit au remboursement de l'impôt anticipé) pour l'impôt cantonal. Valeur à spécifier uniquement si elle diffère de la valeur pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="grossRevenueB" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Bruttoertrag der Rubrik B (ohne Verrechnungssteueranspruch) für die Bundessteuer.</xs:documentation>
+				<xs:documentation xml:lang="fr">Revenu brut de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="grossRevenueBCanton" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Bruttoertrag der Rubrik B (ohne Verrechnungssteueranspruch) für die Staatssteuer. Der Wert ist nur anzugeben, wenn dieser vom Wert für die Bundessteuer abweicht.</xs:documentation>
+				<xs:documentation xml:lang="fr">Revenu brut de la rubrique B (sans droit au remboursement de l'impôt anticipé) pour l'impôt cantonal. Valeur à spécifier uniquement si elle diffère de la valeur pour l'impôt fédéral.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="withHoldingTaxClaim" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Betrag des Verrechnungssteueranspruchs.</xs:documentation>
+				<xs:documentation xml:lang="fr">Montant du droit au remboursement de l'impôt anticipé.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="lumpSumTaxCredit" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Kennzeichnet die Ausschüttung für die Pauschale Steueranrechnung und Steuerrückbehalt USA. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Distribution pour l'imputation forfaitaire d'impôt et la retenue supplémentaire d'impôt USA.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="lumpSumTaxCreditPercent" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Pauschale Steueranrechnung in Prozent (100% = 100).</xs:documentation>
+				<xs:documentation xml:lang="fr">Imputation forfaitaire d'impôt en pourcentage (100 % = 100).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="lumpSumTaxCreditAmount" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Pauschale Steueranrechnung zum Bruttoertrag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Imputation forfaitaire d'impôt sur le revenu brut.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="nonRecoverableTaxPercent" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der nicht rückforderbare Teil zur pauschalen Steueranrechnung in Prozent (100% = 100).</xs:documentation>
+				<xs:documentation xml:lang="fr">Part non récupérable de l'imputation forfaitaire d'impôt en pourcentage (100 % = 100).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="nonRecoverableTaxAmount" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der nicht rückforderbare Teil zur pauschalen Steueranrechnung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Part non récupérable de l'imputation forfaitaire d'impôt.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="additionalWithHoldingTaxUSA" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Steuerrückbehalt USA zum Bruttoertrag.</xs:documentation>
+				<xs:documentation xml:lang="fr">Retenue supplémentaire d'impôt USA sur le re-venu brut.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="iup" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Kennzeichnet die Ausschüttung als Ergebnis der IUP-Berechnung (reine oder modifizierte Differenzbesteuerung). </xs:documentation>
+				<xs:documentation xml:lang="fr">Distribution résultant du calcul IUP (imposition de la différence pure ou modifiée).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="conversion" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Kennzeichnet die Ausschüttung als Ergebnis der Wandlung. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Distribution résultant de la conversion.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="gratis" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Kennzeichnet die Ausschüttung als Ertrag aus Gratisaktien. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Distribution en tant que revenu provenant d'ac-tions gratuites.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="securitiesLending" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Kennzeichnet die Ausschüttung als Ausgleichszahlung. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Distribution en tant que paiement compensatoire.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="lendingFee" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Kennzeichnet die Ausschüttung als Ausleihgebühr. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Distribution en tant que taxe de prêt.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="retrocession" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Kennzeichnet die Ausschüttung als Retrozession. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Distribution en tant que rétrocession.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="undefined" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Undefiniert-Flag für einen nicht oder noch nicht verfügbaren Bruttoertrag. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Drapeau de non définition pour un revenu brut non disponible.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="kursliste" type="xs:boolean" use="optional" fixed="1">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Das Kursliste-Flag als Quelle für den Bruttoertrag. Falls angegeben, so muss der fixe Werte 1 (true) gesetzt sein.</xs:documentation>
+				<xs:documentation xml:lang="fr">Drapeau de liste des cours en tant que source pour le revenu brut.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="sign" type="eCH-0196:signType" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Zeichenerklärung zur Ausschüttung aus der Kursliste z.B. (I).</xs:documentation>
+				<xs:documentation xml:lang="fr">Explication des signes relative à la distribution provenant de la liste des cours, p. ex. (I).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+	<xs:complexType name="securityPurchaseDispositionType">
+		<xs:annotation>
+			<xs:documentation xml:lang="de">Typdefinition für den Zugang oder Abgang eines Titels für die IUP-Berechnung.</xs:documentation>
+			<xs:documentation xml:lang="fr"/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded">
+				<xs:annotation>
+					<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+					<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+				</xs:annotation>
+			</xs:any>
+		</xs:sequence>
+		<xs:attribute name="referenceDate" type="xs:date" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Stichtag zum Zugang oder Abgang.</xs:documentation>
+				<xs:documentation xml:lang="fr">Date critère de l'entrée ou de la sortie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="quotationType" type="eCH-0196:quotationTypeType" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Notationsart zur Anzahl (Stück oder Nominal).</xs:documentation>
+				<xs:documentation xml:lang="fr">Type de cotation du nombre (pièce ou nominal).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="quantity" type="xs:decimal" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Anzahl (Stück oder Nominal) (+) zum Zugangs-  oder Abgangsdatum.</xs:documentation>
+				<xs:documentation xml:lang="fr">Nombre (pièce ou nominal) (+) à la date d'en-trée ou de sortie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="bondFloor" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Bondfloor zum Stichtag in Prozent (100% = 100).</xs:documentation>
+				<xs:documentation xml:lang="fr">Plancher obligataire à la date critère en pourcentage (100 % = 100).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="balanceCurrency" type="eCH-0196:currencyIdISO3Type" use="required">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Währung zum Steuerkurs (Stückpreis oder Prozentwert).</xs:documentation>
+				<xs:documentation xml:lang="fr">Monnaie du cours fiscal (pièce ou pourcentage).</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="unitPrice" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Steuerkurs (Stückpreis oder Prozentwert) zum Stichtag und Währung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Cours fiscal (pièce ou pourcentage) à la date critère et monnaie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="balance" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Saldo zum Stichtag und Währung für die IUP-Berechnung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Solde à la date critère et monnaie pour le calcul IUP.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="reductionCost" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Die Gewinnungskosten beim Kauf- oder Verkauf. Die Gewinnungskosten sind nur bei reiner Differenzbesteuerung relevant.</xs:documentation>
+				<xs:documentation xml:lang="fr">Frais d'acquisition à l'achat ou la vente. Les frais d'acquisition ne sont pertinents que dans le cas de l'imposition de la différence pure.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="exchangeRate" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Devisenkurs zum Stichtag und Währung mit Stückelung 1.</xs:documentation>
+				<xs:documentation xml:lang="fr">Cours de change à la date critère et monnaie.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:attribute name="value" type="xs:decimal" use="optional">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Der Steuerwert zum Stichtag für die IUP-Berechnung.</xs:documentation>
+				<xs:documentation xml:lang="fr">Valeur fiscale à la date critère pour le calcul IUP.</xs:documentation>
+			</xs:annotation>
+		</xs:attribute>
+		<xs:anyAttribute namespace="##other" processContents="lax">
+			<xs:annotation>
+				<xs:documentation xml:lang="de">Beliebige Erweiterungen des Finanzinstituts.</xs:documentation>
+				<xs:documentation xml:lang="fr">Extension libre de l'établissement financier.</xs:documentation>
+			</xs:annotation>
+		</xs:anyAttribute>
+	</xs:complexType>
+</xs:schema>

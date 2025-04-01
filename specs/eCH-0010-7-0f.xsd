@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mit XMLSpy v2010 rel. 3 sp1 (http://www.altova.com) von Martin Stingelin (Stingelin Informatik GmbH) bearbeitet -->
+<!-- edited with XMLSpy v2012 rel. 2 sp1 (http://www.altova.com) by Martin Stingelin (Stingelin Informatik GmbH) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by BITUSER (Bundesamt für Informatik und Telekommunikation) -->
+<xs:schema xmlns:eCH-0010="http://www.ech.ch/xmlns/eCH-0010-f/7" xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.ech.ch/xmlns/eCH-0010-f/7" elementFormDefault="qualified" attributeFormDefault="unqualified" version="7.0">
+	<xs:annotation>
+		<xs:documentation xml:lang="de">Ausgabedatum: 02.06.2017</xs:documentation>
+	</xs:annotation>
+	<xs:complexType name="mailAddressType">
+		<xs:sequence minOccurs="0">
+			<xs:choice minOccurs="0">
+				<xs:element name="organisation" type="eCH-0010:organisationMailAddressInfoType" minOccurs="0"/>
+				<xs:element name="person" type="eCH-0010:personMailAddressInfoType" minOccurs="0"/>
+			</xs:choice>
+			<xs:element name="addressInformation" type="eCH-0010:addressInformationType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="personMailAddressType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="person" type="eCH-0010:personMailAddressInfoType" minOccurs="0"/>
+			<xs:element name="addressInformation" type="eCH-0010:addressInformationType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="personMailAddressInfoType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="mrMrs" type="eCH-0010:mrMrsType" minOccurs="0"/>
+			<xs:element name="title" type="eCH-0010:titleType" minOccurs="0"/>
+			<xs:element name="firstName" type="eCH-0010:firstNameType" minOccurs="0"/>
+			<xs:element name="lastName" type="eCH-0010:lastNameType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="organisationMailAddressType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="organisation" type="eCH-0010:organisationMailAddressInfoType" minOccurs="0"/>
+			<xs:element name="addressInformation" type="eCH-0010:addressInformationType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="organisationMailAddressInfoType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="organisationName" type="eCH-0010:organisationNameType" minOccurs="0"/>
+			<xs:element name="organisationNameAddOn1" type="eCH-0010:organisationNameType" minOccurs="0"/>
+			<xs:element name="organisationNameAddOn2" type="eCH-0010:organisationNameType" minOccurs="0"/>
+			<xs:element name="mrMrs" type="eCH-0010:mrMrsType" minOccurs="0"/>
+			<xs:element name="title" type="eCH-0010:titleType" minOccurs="0"/>
+			<xs:element name="firstName" type="eCH-0010:firstNameType" minOccurs="0"/>
+			<xs:element name="lastName" type="eCH-0010:lastNameType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="addressInformationType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="addressLine1" type="eCH-0010:addressLineType" minOccurs="0"/>
+			<xs:element name="addressLine2" type="eCH-0010:addressLineType" minOccurs="0"/>
+			<xs:sequence minOccurs="0">
+				<xs:element name="street" type="eCH-0010:streetType" minOccurs="0"/>
+				<xs:element name="houseNumber" type="eCH-0010:houseNumberType" minOccurs="0"/>
+				<xs:element name="dwellingNumber" type="eCH-0010:dwellingNumberType" minOccurs="0"/>
+			</xs:sequence>
+			<xs:sequence minOccurs="0">
+				<xs:element name="postOfficeBoxNumber" type="eCH-0010:postOfficeBoxNumberType" minOccurs="0"/>
+				<xs:element name="postOfficeBoxText" type="eCH-0010:postOfficeBoxTextType" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="locality" type="eCH-0010:localityType" minOccurs="0"/>
+			<xs:element name="town" type="eCH-0010:townType" minOccurs="0"/>
+			<xs:choice minOccurs="0">
+				<xs:sequence minOccurs="0">
+					<xs:element name="swissZipCode" type="eCH-0010:swissZipCodeType" minOccurs="0"/>
+					<xs:element name="swissZipCodeAddOn" type="eCH-0010:swissZipCodeAddOnType" minOccurs="0"/>
+					<xs:element name="swissZipCodeId" type="eCH-0010:swissZipCodeIdType" minOccurs="0"/>
+				</xs:sequence>
+				<xs:element name="foreignZipCode" type="eCH-0010:foreignZipCodeType" minOccurs="0"/>
+			</xs:choice>
+			<xs:element name="country" type="eCH-0010:countryType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="swissAddressInformationType">
+		<xs:sequence>
+			<xs:element name="addressLine1" type="eCH-0010:addressLineType" minOccurs="0"/>
+			<xs:element name="addressLine2" type="eCH-0010:addressLineType" minOccurs="0"/>
+			<xs:sequence minOccurs="0">
+				<xs:element name="street" type="eCH-0010:streetType"/>
+				<xs:element name="houseNumber" type="eCH-0010:houseNumberType" minOccurs="0"/>
+				<xs:element name="dwellingNumber" type="eCH-0010:dwellingNumberType" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="locality" type="eCH-0010:localityType" minOccurs="0"/>
+			<xs:element name="town" type="eCH-0010:townType" minOccurs="0"/>
+			<xs:sequence minOccurs="0">
+				<xs:element name="swissZipCode" type="eCH-0010:swissZipCodeType" minOccurs="0"/>
+				<xs:element name="swissZipCodeAddOn" type="eCH-0010:swissZipCodeAddOnType" minOccurs="0"/>
+				<xs:element name="swissZipCodeId" type="eCH-0010:swissZipCodeIdType" minOccurs="0"/>
+			</xs:sequence>
+			<xs:element name="country" type="eCH-0010:countryType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="organisationNameType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="60"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="mrMrsType">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="1"/>
+			<xs:enumeration value="2"/>
+			<xs:enumeration value="3"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="titleType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="50"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="firstNameType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="lastNameType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="addressLineType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="150"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="streetType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="150"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="houseNumberType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="dwellingNumberType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="30"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="postOfficeBoxNumberType">
+		<xs:restriction base="xs:unsignedInt">
+			<xs:maxInclusive value="99999999"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="postOfficeBoxTextType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="15"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="swissZipCodeType">
+		<xs:restriction base="xs:unsignedInt">
+			<xs:minInclusive value="1000"/>
+			<xs:maxInclusive value="9999"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="swissZipCodeAddOnType">
+		<xs:restriction base="xs:string">
+			<xs:maxLength value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="swissZipCodeIdType">
+		<xs:restriction base="xs:int"/>
+	</xs:simpleType>
+	<xs:simpleType name="foreignZipCodeType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="15"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="localityType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="40"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="townType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="40"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="countryIdType">
+		<xs:restriction base="xs:integer">
+			<xs:minInclusive value="1000"/>
+			<xs:maxInclusive value="9999"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="countryIdISO2Type">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="2"/>
+			<xs:minLength value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="countryNameShortType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="50"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="countryType">
+		<xs:sequence minOccurs="0">
+			<xs:element name="countryId" type="eCH-0010:countryIdType" minOccurs="0"/>
+			<xs:element name="countryIdISO2" type="eCH-0010:countryIdISO2Type" minOccurs="0"/>
+			<xs:element name="countryNameShort" type="eCH-0010:countryNameShortType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:element name="personMailAddress" type="eCH-0010:personMailAddressType"/>
+	<xs:element name="organisationMailAdress" type="eCH-0010:organisationMailAddressType"/>
+	<xs:element name="mailAddress" type="eCH-0010:mailAddressType"/>
+</xs:schema>

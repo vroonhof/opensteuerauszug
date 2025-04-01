@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mit XMLSpy v2010 rel. 3 sp1 (http://www.altova.com) von Martin Stingelin (Stingelin Informatik GmbH) bearbeitet -->
+<!-- edited with XMLSpy v2012 rel. 2 sp1 (http://www.altova.com) by Martin Stingelin (Stingelin Informatik GmbH) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by BITUSER (Bundesamt für Informatik und Telekommunikation) -->
+<xs:schema xmlns:eCH-0007="http://www.ech.ch/xmlns/eCH-0007/6" xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.ech.ch/xmlns/eCH-0007/6" elementFormDefault="qualified" attributeFormDefault="unqualified" version="6.0">
+	<xs:annotation>
+		<xs:documentation xml:lang="de">Ausgabedatum: 06.12.2013</xs:documentation>
+	</xs:annotation>
+	<xs:simpleType name="municipalityIdType">
+		<xs:restriction base="xs:int">
+			<xs:minInclusive value="1"/>
+			<xs:maxInclusive value="9999"/>
+			<xs:totalDigits value="4"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="municipalityNameType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="40"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="cantonFlAbbreviationType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="2"/>
+			<xs:enumeration value="ZH"/>
+			<xs:enumeration value="BE"/>
+			<xs:enumeration value="LU"/>
+			<xs:enumeration value="UR"/>
+			<xs:enumeration value="SZ"/>
+			<xs:enumeration value="OW"/>
+			<xs:enumeration value="NW"/>
+			<xs:enumeration value="GL"/>
+			<xs:enumeration value="ZG"/>
+			<xs:enumeration value="FR"/>
+			<xs:enumeration value="SO"/>
+			<xs:enumeration value="BS"/>
+			<xs:enumeration value="BL"/>
+			<xs:enumeration value="SH"/>
+			<xs:enumeration value="AR"/>
+			<xs:enumeration value="AI"/>
+			<xs:enumeration value="SG"/>
+			<xs:enumeration value="GR"/>
+			<xs:enumeration value="AG"/>
+			<xs:enumeration value="TG"/>
+			<xs:enumeration value="TI"/>
+			<xs:enumeration value="VD"/>
+			<xs:enumeration value="VS"/>
+			<xs:enumeration value="NE"/>
+			<xs:enumeration value="GE"/>
+			<xs:enumeration value="JU"/>
+			<xs:enumeration value="FL"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="cantonAbbreviationType">
+		<xs:restriction base="xs:token">
+			<xs:maxLength value="2"/>
+			<xs:enumeration value="ZH"/>
+			<xs:enumeration value="BE"/>
+			<xs:enumeration value="LU"/>
+			<xs:enumeration value="UR"/>
+			<xs:enumeration value="SZ"/>
+			<xs:enumeration value="OW"/>
+			<xs:enumeration value="NW"/>
+			<xs:enumeration value="GL"/>
+			<xs:enumeration value="ZG"/>
+			<xs:enumeration value="FR"/>
+			<xs:enumeration value="SO"/>
+			<xs:enumeration value="BS"/>
+			<xs:enumeration value="BL"/>
+			<xs:enumeration value="SH"/>
+			<xs:enumeration value="AR"/>
+			<xs:enumeration value="AI"/>
+			<xs:enumeration value="SG"/>
+			<xs:enumeration value="GR"/>
+			<xs:enumeration value="AG"/>
+			<xs:enumeration value="TG"/>
+			<xs:enumeration value="TI"/>
+			<xs:enumeration value="VD"/>
+			<xs:enumeration value="VS"/>
+			<xs:enumeration value="NE"/>
+			<xs:enumeration value="GE"/>
+			<xs:enumeration value="JU"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="historyMunicipalityId">
+		<xs:restriction base="xs:int">
+			<xs:minInclusive value="10001"/>
+			<xs:maxInclusive value="99999"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="swissMunicipalityType">
+		<xs:sequence>
+			<xs:element name="municipalityId" type="eCH-0007:municipalityIdType" minOccurs="0"/>
+			<xs:element name="municipalityName" type="eCH-0007:municipalityNameType"/>
+			<xs:element name="cantonAbbreviation" type="eCH-0007:cantonAbbreviationType" minOccurs="0"/>
+			<xs:element name="historyMunicipalityId" type="eCH-0007:historyMunicipalityId" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="swissAndFlMunicipalityType">
+		<xs:sequence>
+			<xs:element name="municipalityId" type="eCH-0007:municipalityIdType"/>
+			<xs:element name="municipalityName" type="eCH-0007:municipalityNameType"/>
+			<xs:element name="cantonFlAbbreviation" type="eCH-0007:cantonFlAbbreviationType"/>
+			<xs:element name="historyMunicipalityId" type="eCH-0007:historyMunicipalityId" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:element name="municipalityRoot">
+		<xs:complexType>
+			<xs:choice>
+				<xs:element name="swissMunicipality" type="eCH-0007:swissMunicipalityType"/>
+				<xs:element name="swissAndFlMunicipality" type="eCH-0007:swissAndFlMunicipalityType"/>
+			</xs:choice>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>
