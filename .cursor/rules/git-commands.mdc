@@ -1,0 +1,54 @@
+# Git Command Rules
+
+<rule>
+name: git_user_credentials
+description: Never override git user credentials in commands
+filters:
+  - type: command
+    pattern: "git.*"
+
+actions:
+  - type: reject
+    conditions:
+      - pattern: "git -c user\\.name=.*|git -c user\\.email=.*"
+        message: "Do not override git user credentials in commands. Use global git config instead."
+
+  - type: suggest
+    message: |
+      When using git commands:
+
+      1. Never override user credentials in commands:
+         - Do not use -c user.name
+         - Do not use -c user.email
+         
+      2. Instead, ensure proper git configuration:
+         ```bash
+         # Set up git config globally
+         git config --global user.name "Your Name"
+         git config --global user.email "your.email@example.com"
+         ```
+         
+      3. Use simple git commands:
+         ```bash
+         # Good
+         git commit -m "message"
+         
+         # Bad
+         git -c user.name="name" -c user.email="email" commit -m "message"
+         ```
+
+examples:
+  - input: |
+      # Bad: Overriding credentials
+      git -c user.name="name" commit
+      git -c user.email="email" commit
+      
+      # Good: Simple commands
+      git commit
+      git push
+    output: "Git commands without credential overrides"
+
+metadata:
+  priority: high
+  version: 1.0
+</rule> 
