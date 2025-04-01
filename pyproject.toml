@@ -18,6 +18,7 @@ dependencies = [
     "pydantic",
     "typer",
     "rich", # Included because requirements.txt had typer[all]
+    "lxml", # Added for XML parsing and serialization
 ]
 
 [project.scripts]

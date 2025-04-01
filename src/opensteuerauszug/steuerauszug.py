@@ -3,7 +3,13 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional
 
-from .model.portfolio import Portfolio
+# Use the generated eCH-0196 model
+from .model.ech0196 import TaxStatement
+# Keep Portfolio for now, maybe it becomes an alias or wrapper for TaxStatement?
+# Or perhaps TaxStatement becomes the internal representation?
+# For now, assume TaxStatement IS the model passed around.
+# from .model.portfolio import Portfolio
+Portfolio = TaxStatement # Use TaxStatement as the main model type
 
 app = typer.Typer()
 
@@ -38,37 +44,39 @@ def main(
     print(f"Raw import: {raw_import}")
     print(f"Debug dump path: {debug_dump_path}")
 
-    portfolio: Optional[Portfolio] = None
+    portfolio: Optional[Portfolio] = None # Now refers to TaxStatement
 
     def dump_debug_model(current_phase_str: str, model: Portfolio):
         if debug_dump_path and model:
             debug_dump_path.mkdir(parents=True, exist_ok=True)
             dump_file = debug_dump_path / f"portfolio_{current_phase_str}.xml"
-            # TODO: Implement XML serialization for Portfolio model
-            with open(dump_file, "w") as f:
-                # Replace with actual XML writing logic
-                f.write(f"<!-- Debug dump after {current_phase_str} phase -->\n")
-                f.write(model.model_dump_json(indent=2)) # Temporary JSON dump
-            print(f"Debug model dumped to: {dump_file}")
+            try:
+                # Use the model's XML dump method
+                model.dump_debug_xml(str(dump_file))
+                print(f"Debug model dumped to: {dump_file}")
+            except Exception as e:
+                print(f"Error dumping debug model to {dump_file}: {e}")
+        # Removed old JSON dump logic
 
     # --- Raw Import Phase (Special Case) ---
     if raw_import:
         if Phase.IMPORT in run_phases:
             if phases_specified_by_user:
                  print("Warning: --phases includes 'import' but --raw-import is active. Loading directly from XML.")
-            run_phases = [p for p in run_phases if p != Phase.IMPORT] # Remove standard import phase if present
+            run_phases = [p for p in run_phases if p != Phase.IMPORT]
 
         print(f"Raw importing model from: {input_file}")
-        # TODO: Implement XML deserialization for Portfolio model
-        # portfolio = Portfolio.from_xml(input_file)
-        portfolio = Portfolio() # Placeholder
-        print("Raw import complete.")
-        dump_debug_model("raw_import", portfolio)
+        try:
+            # Use the model's XML load method
+            portfolio = Portfolio.from_xml_file(str(input_file))
+            print("Raw import complete.")
+            dump_debug_model("raw_import", portfolio)
+        except Exception as e:
+            print(f"Error during raw XML import from {input_file}: {e}")
+            raise typer.Exit(code=1)
 
-        # If user specified --raw-import but *did not* specify any --phases,
-        # assume they *only* want the raw import and no subsequent steps.
         if not phases_specified_by_user:
-            run_phases = [] # Clear subsequent phases
+            run_phases = []
 
         if not any(p in run_phases for p in [Phase.VALIDATE, Phase.CALCULATE, Phase.RENDER]):
              print("No further phases selected after raw import. Exiting.")
@@ -82,8 +90,9 @@ def main(
             print(f"Phase: {current_phase.value}")
             # TODO: Implement importer logic based on input_file type
             # portfolio = run_import(input_file, ...)
-            portfolio = Portfolio() # Placeholder
-            print(f"Import successful.")
+            # For now, create an empty TaxStatement if not raw importing
+            portfolio = Portfolio(minorVersion=2)
+            print(f"Import successful (placeholder)." )
             dump_debug_model(current_phase.value, portfolio)
 
         if Phase.VALIDATE in run_phases:
@@ -91,9 +100,9 @@ def main(
             print(f"Phase: {current_phase.value}")
             if not portfolio:
                  raise ValueError("Portfolio model not loaded. Cannot run validate phase.")
-            # TODO: Implement validation logic
-            # validate_portfolio(portfolio, ...)
-            print(f"Validation successful.")
+            # Call the model's validate method
+            portfolio.validate_model()
+            print(f"Validation successful (placeholder check)." )
             dump_debug_model(current_phase.value, portfolio)
 
         if Phase.CALCULATE in run_phases:
@@ -103,7 +112,7 @@ def main(
                  raise ValueError("Portfolio model not loaded. Cannot run calculate phase.")
             # TODO: Implement calculation logic
             # calculate_tax_values(portfolio, ...)
-            print(f"Calculation successful.")
+            print(f"Calculation successful (placeholder)." )
             dump_debug_model(current_phase.value, portfolio)
 
         if Phase.RENDER in run_phases:
@@ -113,16 +122,15 @@ def main(
                  raise ValueError("Portfolio model not loaded. Cannot run render phase.")
             if not output_file:
                  raise ValueError("Output file path must be specified for the render phase.")
-            # TODO: Implement rendering logic
+            # TODO: Implement rendering logic (e.g., to PDF)
             # render_pdf(portfolio, output_file, ...)
-            print(f"Rendering successful to {output_file}.")
-            # No debug dump after render, as it's the final output
+            print(f"Rendering successful to {output_file} (placeholder)." )
+            # No debug dump after render
 
         print("Processing finished successfully.")
 
     except Exception as e:
         print(f"Error during phase {current_phase.value if current_phase else 'startup'}: {e}")
-        # Potentially dump model even on error if it exists
         if portfolio and debug_dump_path:
             error_phase_str = f"{current_phase.value}_error" if current_phase else "startup_error"
             try:
@@ -130,7 +138,6 @@ def main(
             except Exception as dump_e:
                 print(f"Failed to dump debug model after error: {dump_e}")
         raise typer.Exit(code=1)
-
 
 if __name__ == "__main__":
     app() 
