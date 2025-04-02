@@ -1,6 +1,6 @@
 """Pydantic models for eCH-0196 Tax Statement standard."""
 
-from pydantic import BaseModel, Field, validator, field_validator, StringConstraints
+from pydantic import BaseModel, Field, validator, field_validator, StringConstraints, AfterValidator
 from pydantic.fields import FieldInfo # Import FieldInfo
 from typing import List, Optional, Any, Dict, TypeVar, Type, Union, get_origin, get_args, Literal, Annotated # Import helpers & Literal, Annotated
 from datetime import date, datetime
@@ -49,18 +49,13 @@ class LiabilityCategoryType(str): # enumeration
     pass
 class ExpenseCategoryType(str): # enumeration
     pass
-class PositiveDecimal(Decimal):
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate_positive
 
-    @classmethod
-    def validate_positive(cls, v):
-        if not isinstance(v, Decimal):
-            v = Decimal(v)
-        if v < Decimal(0):
-            raise ValueError("Value must be positive")
-        return v
+def check_positive(v: Decimal) -> Decimal:
+    if v < Decimal(0):
+        raise ValueError(f"Value must be positive, got {v}")
+    return v
+
+PositiveDecimal = Annotated[Decimal, AfterValidator(check_positive)]
 
 # --- Types based on imported eCH standards ---
 
@@ -156,36 +151,48 @@ class BaseXmlModel(BaseModel):
                 field_type = field_info.annotation
                 origin_type = get_origin(field_type)
                 type_args = get_args(field_type)
-                
+                is_annotated = origin_type is Annotated
+
                 # Handle Optional[T]
                 actual_type = field_type
                 if origin_type is Union and type(None) in type_args:
-                   actual_type = next((t for t in type_args if t is not type(None)), None) # type: ignore
-                   # If still None after Optional stripping, fallback to str, not Any
-                   if actual_type is None: actual_type = str
+                   actual_type = next((t for t in type_args if t is not type(None)), str) # type: ignore # Use str as fallback
+                   origin_type = get_origin(actual_type) # Re-check origin after stripping Optional
+                   type_args = get_args(actual_type)
+                   is_annotated = origin_type is Annotated
+                   if actual_type is None: actual_type = str # Fallback if only Optional[None]
+
+                # If it was Annotated[T, ...], get the base type T
+                base_type = actual_type
+                if is_annotated:
+                    base_type = type_args[0]
+                    origin_type = get_origin(base_type) # Use origin of base type for checks
 
                 try:
                     parsed_value: Any = None
-                    if actual_type == Decimal:
+                    # Check for Literal origin *before* trying to call the type
+                    if origin_type is Literal:
+                        parsed_value = value # Assign string directly for Literal
+                    elif base_type == Decimal:
                         parsed_value = Decimal(value)
-                    elif actual_type == int:
+                    elif base_type == int:
                         parsed_value = int(value)
-                    elif actual_type == date:
+                    elif base_type == date:
                         parsed_value = date.fromisoformat(value)
-                    elif actual_type == datetime:
+                    elif base_type == datetime:
                         parsed_value = datetime.fromisoformat(value)
-                    elif actual_type == bool:
+                    elif base_type == bool:
                         parsed_value = value.lower() in ('true', '1')
-                    elif actual_type == bytes: # Handle base64Binary
+                    elif base_type == bytes: # Handle base64Binary
                          # TODO: Implement base64 decoding if needed for fileData
                          parsed_value = value # Store as string for now
                     else:
                          # Assume string or custom type derived from string
-                         # Check if actual_type is callable before calling
-                         parsed_value = actual_type(value) if callable(actual_type) else value
+                         # Check if base_type is callable before calling
+                         parsed_value = base_type(value) if callable(base_type) else value
                     data[field_name] = parsed_value
                 except (ValueError, TypeError) as e:
-                    print(f"Warning: Could not parse attribute '{name}'='{value}' as {actual_type}: {e}")
+                    print(f"Warning: Could not parse attribute '{name}'='{value}' as {base_type}: {e}")
                     unknown_attrs[name] = value
             elif name not in known_attrs:
                 # Check for XML namespace declarations if needed (e.g., xmlns:prefix=\"...\")
