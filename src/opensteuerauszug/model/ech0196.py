@@ -9,6 +9,7 @@ import lxml.etree as ET
 
 # Define namespaces used in the XSD
 NS_MAP = {
+    None: "http://www.ech.ch/xmlns/eCH-0196/2",
     'xs': "http://www.w3.org/2001/XMLSchema",
     'eCH-0007': "http://www.ech.ch/xmlns/eCH-0007/6",
     'eCH-0008': "http://www.ech.ch/xmlns/eCH-0008/3",
@@ -39,6 +40,8 @@ class DepotNumberType(str): # maxLength: 40
     pass
 class ValorType(int): # positiveInteger, maxInclusive=99999999
     pass
+class ValorNumberType(ValorType): # alias for ValorType in schema
+    pass
 class ISINType(str): # length=12, pattern="[A-Z]{2}[A-Z0-9]{9}[0-9]{1}"
     pass
 class LEIType(str): # length=20, pattern="[A-Z0-9]{18}[0-9]{2}"
@@ -47,7 +50,13 @@ class TINType(str): # maxLength=40
     pass
 class LiabilityCategoryType(str): # enumeration
     pass
-class ExpenseCategoryType(str): # enumeration
+class ExpenseTypeType(str): # enumeration with values 1-32+
+    pass
+class SecurityCategoryType(str): # enumeration
+    pass
+class SecurityTypeType(str): # enumeration
+    pass
+class QuotationTypeType(str): # enumeration "UNIT" or "PERCENT"
     pass
 
 def check_positive(v: Decimal) -> Decimal:
@@ -112,17 +121,6 @@ LastNameType = Annotated[str, StringConstraints(max_length=30)]
 
 # class ECH0010_LastNameType(str): # minLength=1, maxLength=30 - Replaced
 #     pass
-
-# Based on eCH-0097 V4.0 XSD
-class ECH0097_UidStructureType(BaseModel):
-    uidOrganisationIdCategorie: Literal["CHE", "CHE1", "ADM"] = Field(..., json_schema_extra={'tag_namespace': NS_MAP['eCH-0097']})
-    uidOrganisationId: int = Field(..., ge=0, le=999999999, json_schema_extra={'tag_namespace': NS_MAP['eCH-0097']}) # NonNegativeInteger <= 999999999
-    uidSuffix: Optional[str] = Field(default=None, max_length=3, json_schema_extra={'tag_namespace': NS_MAP['eCH-0097']})
-    xml: Optional[Any] = Field(default=None, exclude=True) # Store raw lxml element
-
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'allow' # Allow storing raw XML element if needed
 
 # Generic Type Variable for Pydantic models
 M = TypeVar('M', bound='BaseXmlModel')
@@ -206,6 +204,7 @@ class BaseXmlModel(BaseModel):
         for name, field_info in self.model_fields.items():
             if field_info.json_schema_extra and field_info.json_schema_extra.get("is_attribute"):
                 value = getattr(self, name, None)
+                print(f"Building attribute {name} with value {value}")
                 if value is not None:
                     attr_name = field_info.alias or name
                     # Basic type conversion to string
@@ -213,13 +212,18 @@ class BaseXmlModel(BaseModel):
                     if isinstance(value, (date, datetime)):
                         str_value = value.isoformat()
                     elif isinstance(value, bool):
-                        str_value = str(value).lower()
+                        if value:
+                            str_value = "1"
+                        else:
+                            str_value = "0"
                     elif isinstance(value, bytes):
                         # TODO: Implement base64 encoding if needed for fileData
-                        str_value = value.decode('utf-8') # Assume utf-8 for now
+                        raise NotImplementedError("Base64 encoding is not implemented")
                     else:
                         str_value = str(value)
+                    print("... setting attribute", attr_name, "to", str_value)
                     element.set(attr_name, str_value)
+                    print("... element attrs: ", element.items())
         # Add unknown attributes back for round-tripping
         for name, value in self.unknown_attrs.items():
              # Avoid writing xmlns attributes if they are handled by lxml nsmap
@@ -317,14 +321,20 @@ class BaseXmlModel(BaseModel):
         tag_map = {}
         for name, field_info in self.model_fields.items():
             extra = field_info.json_schema_extra or {}
-            if not extra.get("is_attribute"):
-                ns = extra.get("tag_namespace", NS_MAP['eCH-0196'])
-                local_name = field_info.alias or name
-                tag_map[name] = (ns, local_name)
+            # Skip excluded fields and attributes
+            if field_info.exclude or extra.get("is_attribute"):
+                continue
+            ns = extra.get("tag_namespace", NS_MAP['eCH-0196'])
+            local_name = field_info.alias or name
+            tag_map[name] = (ns, local_name)
 
         for name, field_info in self.model_fields.items():
+            # Skip excluded fields
+            if field_info.exclude:
+                continue
             if name in tag_map:
                 value = getattr(self, name, None)
+                print(f"Building child {name} with value {value}")  
                 if value is None:
                     continue
 
@@ -348,9 +358,7 @@ class BaseXmlModel(BaseModel):
 
                     if isinstance(item, BaseXmlModel):
                         # Pass nsmap to ensure prefix is defined if needed
-                        child_element = ET.Element(tag_name, attrib={}, nsmap=nsmap_for_element)
-                        item._build_xml_element(child_element)
-                        parent_element.append(child_element)
+                        item._build_xml_element(parent_element, tag_name)
                     else:
                         # Handle simple text content
                         child_element = ET.SubElement(parent_element, tag_name, attrib={}, nsmap=nsmap_for_element)
@@ -363,11 +371,34 @@ class BaseXmlModel(BaseModel):
             from copy import deepcopy
             parent_element.append(deepcopy(unknown))
 
-    def _build_xml_element(self, element: ET._Element):
+    def _build_xml_element(self,
+                           parent_element: Optional[ET._Element] = None, 
+                           name: Optional[str] = None) -> ET._Element:
         """Populates an existing lxml element from this model instance."""
+        # Get tag name and namespace from Config if available
+        config = getattr(self.Config, 'json_schema_extra', {})
+        tag_name = config.get('tag_name')
+        tag_ns = config.get('tag_namespace')
+
+        if not tag_name:
+            tag_name = name
+        tag = f"{{{tag_ns}}}{tag_name}" if tag_ns else tag_name
+        if name is not None:
+            if tag != name:
+                raise ValueError(f"tag_name and field name differ: {tag} and {name}")
+        
+        if parent_element is not None:
+            # Create element with proper tag name and namespace
+            element = ET.SubElement(parent_element, tag, attrib={}, 
+                                    nsmap=parent_element.nsmap)
+        else:
+            root_map = {None: tag_ns} if tag_ns else None
+            element = ET.Element(tag, attrib={}, nsmap=NS_MAP)
+        print("Created element: ", element, "with tag: ", tag)
+            
         self._build_attributes(element)
         self._build_children(element)
-
+        return element
     @classmethod
     def _from_xml_element(cls: Type[M], element: ET._Element) -> M:
         """Creates a model instance from an lxml element."""
@@ -383,136 +414,348 @@ class BaseXmlModel(BaseModel):
 
 # --- Main eCH-0196 Types (Simplified Stubs) ---
 
-class InstitutionType(BaseXmlModel):
-    uid: Optional[ECH0097_UidStructureType] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+# Based on eCH-0097 V4.0 XSD
+class Uid(BaseXmlModel):
+    uidOrganisationIdCategorie: Literal["CHE", "CHE1", "ADM"] = Field(..., json_schema_extra={'tag_namespace': NS_MAP['eCH-0097']})
+    uidOrganisationId: int = Field(..., ge=0, le=999999999, json_schema_extra={'tag_namespace': NS_MAP['eCH-0097']}) # NonNegativeInteger <= 999999999
+    uidSuffix: Optional[str] = Field(default=None, max_length=3, json_schema_extra={'tag_namespace': NS_MAP['eCH-0097']})
+    xml: Optional[Any] = Field(default=None, exclude=True) # Store raw lxml element
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = 'allow' # Allow storing raw XML element if needed
+        json_schema_extra = {'tag_name': 'uid', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class Institution(BaseXmlModel):
+    uid: Optional[Uid] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
     # attributes
     lei: Optional[LEIType] = Field(default=None, pattern=r"[A-Z0-9]{18}[0-9]{2}", json_schema_extra={'is_attribute': True}) # leiType
     name: Optional[OrganisationNameType] = Field(default=None, json_schema_extra={'is_attribute': True}) # organisationNameType, required in XSD
-    # anyAttribute: Dict[str, Any] = Field(default_factory=dict)
-    # otherElements: List[Any] = Field(default_factory=list)
+ 
+    class Config:
+        json_schema_extra = {'tag_name': 'institution', 'tag_namespace': NS_MAP['eCH-0196']}
 
-class ClientType(BaseXmlModel):
+
+class Client(BaseXmlModel):
     # attributes
     clientNumber: Optional[ClientNumberType] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True}) # required in XSD
     tin: Optional[TINType] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True}) # tinType
     salutation: Optional[MrMrsType] = Field(default=None, json_schema_extra={'is_attribute': True}) # mrMrsType
     firstName: Optional[FirstNameType] = Field(default=None, json_schema_extra={'is_attribute': True}) # firstNameType
     lastName: Optional[LastNameType] = Field(default=None, json_schema_extra={'is_attribute': True}) # lastNameType
-    # anyAttribute: Dict[str, Any] = Field(default_factory=dict)
-    # otherElements: List[Any] = Field(default_factory=list)
+    
+    class Config:
+        json_schema_extra = {'tag_name': 'client', 'tag_namespace': NS_MAP['eCH-0196']}
 
-class AccompanyingLetterType(BaseXmlModel):
+
+class AccompanyingLetter(BaseXmlModel):
     # attributes
     fileName: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True}) # MaxLength 200
     fileSize: Optional[int] = Field(default=None, json_schema_extra={'is_attribute': True})
     fileData: Optional[bytes] = Field(default=None, json_schema_extra={'is_attribute': True}) # base64Binary
-    # anyAttribute: Dict[str, Any] = Field(default_factory=dict)
-    # otherElements: List[Any] = Field(default_factory=list)
+    
+    class Config:
+        json_schema_extra = {'tag_name': 'accompanyingLetter', 'tag_namespace': NS_MAP['eCH-0196']}
 
-class BankAccountType(BaseXmlModel):
-    # Define fields based on bankAccountType in XSD
-    iban: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True}) # Consider adding IBAN validation pattern
+
+class BankAccountTaxValue(BaseXmlModel):
+    """Represents a taxValue element in a bankAccount (bankAccountTaxValueType)."""
+    # Attributes from schema
+    referenceDate: date = Field(..., json_schema_extra={'is_attribute': True})
+    name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
+    balanceCurrency: str = Field(..., json_schema_extra={'is_attribute': True})
+    balance: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    value: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+
+    class Config:
+        json_schema_extra = {'tag_name': 'taxValue', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class BankAccountPayment(BaseXmlModel):
+    """Represents a payment element in a bankAccount (bankAccountPaymentType)."""
+    # Attributes from schema
+    paymentDate: date = Field(..., json_schema_extra={'is_attribute': True})
+    name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
+    amountCurrency: str = Field(..., json_schema_extra={'is_attribute': True})
+    amount: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueA: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueACanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueBCanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    withHoldingTaxClaim: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    lumpSumTaxCredit: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    nonRecoverableTax: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    bankingExpenses: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+
+    class Config:
+        json_schema_extra = {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class BankAccount(BaseXmlModel):
+    """Represents a bankAccount element according to eCH-0196."""
+    # Child elements from schema
+    taxValue: Optional[BankAccountTaxValue] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    payment: List[BankAccountPayment] = Field(default_factory=list, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    
+    # Attributes from schema
+    iban: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True})
     bankAccountNumber: Optional[BankAccountNumberType] = Field(default=None, min_length=1, max_length=32, json_schema_extra={'is_attribute': True})
-    bankAccountName: Optional[BankAccountNameType] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True}) # Required in XSD
-    # ... other fields and attributes ...
+    bankAccountName: Optional[BankAccountNameType] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True})
+    bankAccountCountry: Optional[CountryIdISO2Type] = Field(default=None, json_schema_extra={'is_attribute': True})
+    bankAccountCurrency: Optional[CurrencyIdISO3Type] = Field(default=None, pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
+    openingDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    closingDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    totalTaxValue: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    totalGrossRevenueA: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    totalGrossRevenueACanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    totalGrossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    totalGrossRevenueBCanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    totalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    totalLumpSumTaxCredit: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+
     class Config:
         arbitrary_types_allowed = True
+        json_schema_extra = {'tag_name': 'bankAccount', 'tag_namespace': NS_MAP['eCH-0196']}
 
-class ListOfBankAccountsType(BaseXmlModel):
-    bankAccount: List[BankAccountType] = Field(default_factory=list, alias="bankAccount", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+
+class ListOfBankAccounts(BaseXmlModel):
+    bankAccount: List[BankAccount] = Field(default_factory=list, alias="bankAccount", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
     # attributes
     totalTaxValue: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
     totalGrossRevenueA: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
     totalGrossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
     totalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
-    # anyAttribute: Dict[str, Any] = Field(default_factory=dict)
-    # otherElements: List[Any] = Field(default_factory=list)
 
     class Config:
         arbitrary_types_allowed = True
+        json_schema_extra = {'tag_name': 'listOfBankAccounts', 'tag_namespace': NS_MAP['eCH-0196']}
 
-class LiabilityAccountType(BaseXmlModel):
-    # Define based on XSD - liabilityAccountType
-    # Attributes
-    id: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True}) # Required
-    # Elements
-    liabilityCategory: Optional[LiabilityCategoryType] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required, enum
-    description: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    valueAsPer: Optional[date] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    taxValue: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    interest: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    interestCredited: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
 
-class ListOfLiabilitiesType(BaseXmlModel):
-    liabilityAccount: List[LiabilityAccountType] = Field(default_factory=list, alias="liabilityAccount", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+class LiabilityAccountTaxValue(BaseXmlModel):
+    """Represents a taxValue element in a liabilityAccount (liabilityAccountTaxValueType)."""
+    # Attributes from schema
+    referenceDate: date = Field(..., json_schema_extra={'is_attribute': True})
+    name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
+    balanceCurrency: str = Field(..., json_schema_extra={'is_attribute': True})
+    balance: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    value: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+
+    class Config:
+        json_schema_extra = {'tag_name': 'taxValue', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class LiabilityAccountPayment(BaseXmlModel):
+    """Represents a payment element in a liabilityAccount (liabilityAccountPaymentType)."""
+    # Attributes from schema
+    paymentDate: date = Field(..., json_schema_extra={'is_attribute': True})
+    name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
+    amountCurrency: str = Field(..., json_schema_extra={'is_attribute': True})
+    amount: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueBCanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+
+    class Config:
+        json_schema_extra = {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class LiabilityAccount(BaseXmlModel):
+    """Represents a liabilityAccount element according to eCH-0196."""
+    # Child elements from schema
+    taxValue: Optional[LiabilityAccountTaxValue] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    payment: List[LiabilityAccountPayment] = Field(default_factory=list, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    
+    # Attributes from schema
+    iban: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True})
+    bankAccountNumber: Optional[BankAccountNumberType] = Field(default=None, min_length=1, max_length=32, json_schema_extra={'is_attribute': True})
+    bankAccountName: BankAccountNameType = Field(..., max_length=40, json_schema_extra={'is_attribute': True})
+    bankAccountCountry: CountryIdISO2Type = Field(..., json_schema_extra={'is_attribute': True})
+    bankAccountCurrency: CurrencyIdISO3Type = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
+    openingDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    
+    class Config:
+        arbitrary_types_allowed = True
+        json_schema_extra = {'tag_name': 'liabilityAccount', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class ListOfLiabilities(BaseXmlModel):
+    liabilityAccount: List[LiabilityAccount] = Field(default_factory=list, alias="liabilityAccount", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
     # attributes
     totalTaxValue: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal, required
     totalGrossRevenueB: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal, required
-    # anyAttribute: Dict[str, Any] = Field(default_factory=dict)
-    # otherElements: List[Any] = Field(default_factory=list)
 
     class Config:
         arbitrary_types_allowed = True
+        json_schema_extra = {'tag_name': 'listOfLiabilities', 'tag_namespace': NS_MAP['eCH-0196']}
 
-class ExpenseType(BaseXmlModel):
-    # Define based on XSD - expenseType
-    # Attributes
-    id: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True}) # Required
-    # Elements
-    expenseCategory: Optional[ExpenseCategoryType] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required, enum
-    description: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    amount: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    amountDeductible: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
-    amountDeductibleCanton: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
 
-class ListOfExpensesType(BaseXmlModel):
-    expense: List[ExpenseType] = Field(default_factory=list, alias="expense", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+class Expense(BaseXmlModel):
+    """Represents expense entry (expenseType) according to eCH-0196 schema."""
+    # All fields are attributes according to schema
+    referenceDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True}) # Required in XSD
+    iban: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True})
+    bankAccountNumber: Optional[BankAccountNumberType] = Field(default=None, min_length=1, max_length=32, json_schema_extra={'is_attribute': True})
+    depotNumber: Optional[DepotNumberType] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True})
+    amountCurrency: Optional[CurrencyIdISO3Type] = Field(default=None, pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True}) # Required in XSD
+    amount: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    expenses: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # Required in XSD
+    expensesDeductible: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    expensesDeductibleCanton: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    expenseType: Optional[ExpenseTypeType] = Field(default=None, json_schema_extra={'is_attribute': True}) # Required in XSD, enum type
+    
+    class Config:
+        json_schema_extra = {'tag_name': 'expense', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class ListOfExpenses(BaseXmlModel):
+    expense: List[Expense] = Field(default_factory=list, alias="expense", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
     # attributes
     totalExpenses: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal, required
     totalExpensesDeductible: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal
     totalExpensesDeductibleCanton: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal
-    # anyAttribute: Dict[str, Any] = Field(default_factory=dict)
-    # otherElements: List[Any] = Field(default_factory=list)
 
     class Config:
         arbitrary_types_allowed = True
+        json_schema_extra = {'tag_name': 'listOfExpenses', 'tag_namespace': NS_MAP['eCH-0196']}
 
-class SecuritySecurityType(BaseXmlModel):
-    # Define based on XSD - securitySecurityType
-    # Attributes
-    id: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True}) # Required
-    # Elements (Simplified - needs detailed review of XSD)
-    isin: Optional[ISINType] = Field(default=None, pattern=r"[A-Z]{2}[A-Z0-9]{9}[0-9]{1}", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
-    valor: Optional[ValorType] = Field(default=None, gt=0, le=99999999, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
-    securityName: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    quantity: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    currency: Optional[CurrencyIdISO3Type] = Field(default=None, pattern=r"[A-Z]{3}", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    price: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    priceDate: Optional[date] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    taxValue: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    grossRevenueA: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    grossRevenueACanton: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
-    grossRevenueB: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    grossRevenueBCanton: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
-    withHoldingTaxClaim: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    lumpSumTaxCredit: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    nonRecoverableTax: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    additionalWithHoldingTaxUSA: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    grossRevenueIUP: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
-    grossRevenueConversion: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']}) # Required
 
-class SecurityDepotType(BaseXmlModel):
-    security: List[SecuritySecurityType] = Field(default_factory=list, alias="security", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+class SecurityTaxValue(BaseXmlModel):
+    """Represents the tax value of a security (securityTaxValueType)."""
+    # Required attributes
+    referenceDate: date = Field(..., json_schema_extra={'is_attribute': True})
+    quotationType: QuotationTypeType = Field(..., json_schema_extra={'is_attribute': True})
+    quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
+    balanceCurrency: CurrencyIdISO3Type = Field(..., json_schema_extra={'is_attribute': True})
+    
+    # Optional attributes
+    name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
+    unitPrice: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    balance: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    value: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    blocked: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    blockingTo: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    undefined: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    kursliste: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    
+    class Config:
+        json_schema_extra = {'tag_name': 'taxValue', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class SecurityPurchaseDisposition(BaseXmlModel):
+    """Represents purchase or disposition of a security for IUP calculation."""
+    # Required attributes
+    referenceDate: date = Field(..., json_schema_extra={'is_attribute': True})
+    quotationType: QuotationTypeType = Field(..., json_schema_extra={'is_attribute': True})
+    quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
+    
+    # Optional attributes
+    amountCurrency: Optional[CurrencyIdISO3Type] = Field(default=None, json_schema_extra={'is_attribute': True})
+    amount: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    value: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    
+    class Config:
+        json_schema_extra = {'tag_name': 'purchase', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class SecurityPayment(BaseXmlModel):
+    """Represents a payment (revenue) for a security (securityPaymentType)."""
+    # Child elements
+    purchase: List[SecurityPurchaseDisposition] = Field(default_factory=list, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    disposition: Optional[SecurityPurchaseDisposition] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    
+    # Required attributes
+    paymentDate: date = Field(..., json_schema_extra={'is_attribute': True})
+    quotationType: QuotationTypeType = Field(..., json_schema_extra={'is_attribute': True})
+    quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
+    amountCurrency: CurrencyIdISO3Type = Field(..., json_schema_extra={'is_attribute': True})
+    
+    # Optional attributes
+    exDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
+    amountPerUnit: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    amount: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueA: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueACanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueBCanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    withHoldingTaxClaim: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    lumpSumTaxCredit: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    nonRecoverableTax: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    additionalWithHoldingTaxUSA: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueIUP: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    grossRevenueConversion: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    
+    class Config:
+        json_schema_extra = {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class SecurityStock(BaseXmlModel):
+    """Represents stock changes for a security (securityStockType)."""
+    # Add fields based on schema if needed
+    
+    class Config:
+        json_schema_extra = {'tag_name': 'stock', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class Security(BaseXmlModel):
+    """Represents a security element according to eCH-0196 schema (securitySecurityType)."""
+    # Child elements
+    taxValue: Optional[SecurityTaxValue] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    payment: List[SecurityPayment] = Field(default_factory=list, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    stock: List[SecurityStock] = Field(default_factory=list, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    uid: Optional[Uid] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    
+    # Required attributes
+    positionId: int = Field(..., gt=0, json_schema_extra={'is_attribute': True})
+    country: CountryIdISO2Type = Field(..., json_schema_extra={'is_attribute': True})
+    currency: CurrencyIdISO3Type = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
+    quotationType: QuotationTypeType = Field(..., json_schema_extra={'is_attribute': True})
+    securityCategory: SecurityCategoryType = Field(..., json_schema_extra={'is_attribute': True})
+    securityName: str = Field(..., max_length=60, json_schema_extra={'is_attribute': True})
+    
+    # Optional attributes
+    valorNumber: Optional[ValorNumberType] = Field(default=None, gt=0, le=99999999, json_schema_extra={'is_attribute': True})
+    isin: Optional[ISINType] = Field(default=None, pattern=r"[A-Z]{2}[A-Z0-9]{9}[0-9]{1}", json_schema_extra={'is_attribute': True})
+    city: Optional[str] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True})
+    nominalValue: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    securityType: Optional[SecurityTypeType] = Field(default=None, json_schema_extra={'is_attribute': True})
+    issueDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    redemptionDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    redemptionDateEarly: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    issuePrice: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    redemptionPrice: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    redemptionPriceEarly: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    interestRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    variableInterest: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    iup: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    bfp: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    blockingTo: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    
+    class Config:
+        json_schema_extra = {'tag_name': 'security', 'tag_namespace': NS_MAP['eCH-0196']}
+
+
+class Depot(BaseXmlModel):
+    security: List[Security] = Field(default_factory=list, alias="security", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
     # attributes
     depotNumber: Optional[DepotNumberType] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True}) # depotNumberType, required
-    # anyAttribute: Dict[str, Any] = Field(default_factory=dict)
-    # otherElements: List[Any] = Field(default_factory=list)
 
     class Config:
         arbitrary_types_allowed = True
+        json_schema_extra = {'tag_name': 'depot', 'tag_namespace': NS_MAP['eCH-0196']}
 
-class ListOfSecuritiesType(BaseXmlModel):
-    depot: List[SecurityDepotType] = Field(default_factory=list, alias="depot", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+
+class ListOfSecurities(BaseXmlModel):
+    depot: List[Depot] = Field(default_factory=list, alias="depot", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
     # attributes
     totalTaxValue: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required
     totalGrossRevenueA: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required
@@ -525,22 +768,22 @@ class ListOfSecuritiesType(BaseXmlModel):
     totalAdditionalWithHoldingTaxUSA: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required
     totalGrossRevenueIUP: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required
     totalGrossRevenueConversion: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required
-    # anyAttribute: Dict[str, Any] = Field(default_factory=dict)
-    # otherElements: List[Any] = Field(default_factory=list)
 
     class Config:
         arbitrary_types_allowed = True
+        json_schema_extra = {'tag_name': 'listOfSecurities', 'tag_namespace': NS_MAP['eCH-0196']}
+
 
 # --- Root Element Model --- Adjusted for inheritance and attributes/elements
-class TaxStatementExtension(BaseXmlModel):
+class TaxStatementBase(BaseXmlModel):
     # Elements
-    institution: Optional[InstitutionType] = Field(default=None, alias="institution", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
-    client: List[ClientType] = Field(default_factory=list, alias="client", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
-    accompanyingLetter: List[AccompanyingLetterType] = Field(default_factory=list, alias="accompanyingLetter", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
-    listOfBankAccounts: Optional[ListOfBankAccountsType] = Field(default=None, alias="listOfBankAccounts", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
-    listOfLiabilities: Optional[ListOfLiabilitiesType] = Field(default=None, alias="listOfLiabilities", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
-    listOfExpenses: Optional[ListOfExpensesType] = Field(default=None, alias="listOfExpenses", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
-    listOfSecurities: Optional[ListOfSecuritiesType] = Field(default=None, alias="listOfSecurities", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    institution: Optional[Institution] = Field(default=None, alias="institution", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    client: List[Client] = Field(default_factory=list, alias="client", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    accompanyingLetter: List[AccompanyingLetter] = Field(default_factory=list, alias="accompanyingLetter", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    listOfBankAccounts: Optional[ListOfBankAccounts] = Field(default=None, alias="listOfBankAccounts", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    listOfLiabilities: Optional[ListOfLiabilities] = Field(default=None, alias="listOfLiabilities", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    listOfExpenses: Optional[ListOfExpenses] = Field(default=None, alias="listOfExpenses", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
+    listOfSecurities: Optional[ListOfSecurities] = Field(default=None, alias="listOfSecurities", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
 
     # Base taxStatementType attributes
     id: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True}) # ID, required in XSD
@@ -569,11 +812,15 @@ class TaxStatementExtension(BaseXmlModel):
         # ... etc.
         return True
 
+
 # Final root model including the minorVersion attribute
-class TaxStatement(TaxStatementExtension):
+class TaxStatement(TaxStatementBase):
     # Attribute specific to the root 'taxStatement' element
     minorVersion: Optional[int] = Field(..., json_schema_extra={'is_attribute': True}) # required in XSD -> Changed default=None to ...
 
+    class Config:
+        json_schema_extra = {'tag_name': 'taxStatement', 'tag_namespace': NS_MAP['eCH-0196']}
+        
     @classmethod
     def from_xml_file(cls, file_path: str) -> "TaxStatement":
         """Loads the model from an eCH-0196 XML file."""
@@ -595,10 +842,7 @@ class TaxStatement(TaxStatementExtension):
 
     def to_xml_bytes(self, pretty_print=True) -> bytes:
         """Serializes the model to XML bytes."""
-        root_tag = ns_tag('eCH-0196', 'taxStatement')
-        # Create root element with namespace declarations
-        root = ET.Element(root_tag, attrib={}, nsmap=NS_MAP)
-        self._build_xml_element(root)
+        root = self._build_xml_element(None)
         return ET.tostring(root, pretty_print=pretty_print, xml_declaration=True, encoding='UTF-8') # type: ignore
 
     def to_xml_file(self, file_path: str, pretty_print=True):
@@ -617,5 +861,3 @@ class TaxStatement(TaxStatementExtension):
             print(f"Debug XML dumped to: {file_path}")
         except Exception as e:
             print(f"Error dumping debug XML to {file_path}: {e}")
-
-# Example Usage block removed, replaced by tests in tests/test_ech0196_model.py 

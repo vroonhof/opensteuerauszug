@@ -1,16 +1,21 @@
+import os
+import sys
+import glob
 import pytest
 from datetime import date, datetime
 from decimal import Decimal
-import lxml.etree as ET
+from lxml import etree as ET  # Use lxml.etree explicitly
 from pathlib import Path
+import re
 
 # Adjust import path based on your project structure if necessary
 # This assumes 'tests' is at the same level as 'src'
 from opensteuerauszug.model.ech0196 import (
     TaxStatement,
-    InstitutionType,
-    ClientType,
+    Institution,
+    Client,
     ClientNumberType,
+    BankAccount,
     NS_MAP,
     ns_tag
 )
@@ -28,9 +33,9 @@ def sample_tax_statement_data():
         periodFrom=date(2023, 1, 1),
         periodTo=date(2023, 12, 31),
         canton="ZH",
-        institution=InstitutionType(name="Test Bank AG"),
+        institution=Institution(name="Test Bank AG"),
         client=[
-            ClientType(
+            Client(
                 clientNumber=ClientNumberType("C1"), # Keep explicit cast for static type checker
                 firstName="Max",
                 lastName="Muster",
@@ -50,6 +55,39 @@ def sample_tax_statement_data():
         # totalGrossRevenueB=Decimal("50.00"),
         # totalWithHoldingTaxClaim=Decimal("35.00"),
     )
+
+sample_tax_xml_files = [
+    os.path.expanduser(os.path.expandvars(p)) for p in [
+        "~/src/steuerausweiss/samples/WIR.xml",
+        "~/src/steuerausweiss/samples/Truewealth.xml"]
+]
+
+# --- Helper functions ---
+
+def normalize_xml(xml_bytes: bytes, remove_xmlns: bool = False) -> str:
+    """Normalize XML string by parsing and re-serializing it.
+    
+    Args:
+        xml_bytes: The XML content as bytes
+        remove_xmlns: If True, remove xmlns declarations and schema locations for more robust comparison
+    """
+    # First normalize without pretty print to get consistent attribute order
+    parser = ET.XMLParser(remove_blank_text=True)
+    tree = ET.fromstring(xml_bytes, parser=parser)
+    normalized_bytes = ET.tostring(tree, method='c14n') # type: ignore
+    
+    # Re-parse and pretty print
+    tree = ET.fromstring(normalized_bytes, parser=parser) 
+    normalized = ET.tostring(tree, pretty_print=True).decode().replace('=".', '="0.') # type: ignore
+    if remove_xmlns:
+        import re
+        # Remove xmlns declarations
+        normalized = re.sub(r'\s+xmlns(?::[^=]*)?="[^"]*"', '', normalized)
+        # Remove schemaLocation and noNamespaceSchemaLocation attributes
+        normalized = re.sub(r'\s+(?:xsi:)?schemaLocation="[^"]*"', '', normalized)
+        normalized = re.sub(r'\s+(?:xsi:)?noNamespaceSchemaLocation="[^"]*"', '', normalized)
+        
+    return normalized
 
 # --- Tests ---
 
@@ -171,3 +209,152 @@ def test_tax_statement_round_trip_file(sample_tax_statement_data, tmp_path: Path
     assert loaded_statement.institution.name == statement_orig.institution.name
     assert loaded_statement.client[0].lastName == statement_orig.client[0].lastName
     assert loaded_statement.client[0].clientNumber == statement_orig.client[0].clientNumber
+
+def test_bank_account_round_trip():
+    """Tests deserializing and serializing a BankAccountType element."""
+    # Simplified XML snippet for a bankAccount element in human-readable format
+    xml_input = '''
+    <bankAccount xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
+                 iban="CH1234567890123456789"
+                 bankAccountNumber="ACC987"
+                 bankAccountName="Main Account">
+      <taxValue referenceDate="2024-12-31" balanceCurrency="CHF" balance="10000" exchangeRate="1" value="10000"/>
+      <payment paymentDate="2024-03-31" name="Habenzins mit Verrechnungssteuer" amountCurrency="CHF" amount="1.20" exchangeRate="1" grossRevenueA="1.20" grossRevenueB="0" withHoldingTaxClaim=".3"/>
+    </bankAccount>
+    '''
+    parser = ET.XMLParser(remove_blank_text=True)
+    element = ET.fromstring(xml_input, parser=parser)
+
+    # Deserialize
+    try:
+        bank_account = BankAccount._from_xml_element(element)
+    except Exception as e:
+        pytest.fail(f"Failed to deserialize BankAccountType from XML: {e}")
+
+    print("bank_account: ", bank_account)
+
+    # Check complete parse
+    assert bank_account.unknown_attrs == {}
+    assert bank_account.unknown_elements == []
+
+    # Check deserialized values
+    assert bank_account.iban == "CH1234567890123456789"
+    assert bank_account.bankAccountNumber == "ACC987"
+    assert bank_account.bankAccountName == "Main Account"
+    assert bank_account.taxValue is not None
+    assert bank_account.taxValue.balanceCurrency == "CHF"
+    assert bank_account.taxValue.balance == 10000
+    assert bank_account.taxValue.exchangeRate == 1
+    assert bank_account.taxValue.value == 10000
+    assert bank_account.taxValue.referenceDate == date(2024, 12, 31)
+ 
+    # Serialize back to XML
+    # Create a temporary parent element to build the XML correctly
+    temp_parent = ET.Element("temp", attrib={}, nsmap={None: 'http://www.ech.ch/xmlns/eCH-0196/2'})
+    bank_account._build_xml_element(temp_parent)
+    # Get the first child, which should be the serialized bankAccount
+    serialized_element = temp_parent[0]
+
+    # Compare key attributes (more robust comparisons might be needed)
+    assert serialized_element.tag == ns_tag('eCH-0196', 'bankAccount')
+    assert serialized_element.get('iban') == bank_account.iban
+    assert serialized_element.get('bankAccountNumber') == bank_account.bankAccountNumber
+    assert serialized_element.get('bankAccountName') == bank_account.bankAccountName
+    serialized_tax_value =  serialized_element.find(ns_tag('eCH-0196', 'taxValue'))
+    assert serialized_tax_value is not None
+    print("serialized_tax_value: ", serialized_tax_value.items())
+    assert serialized_tax_value.get('balanceCurrency') == "CHF"
+    assert serialized_tax_value.get('balance') == '10000'
+    assert serialized_tax_value.get('exchangeRate') == '1'
+    assert serialized_tax_value.get('value') == '10000'
+    assert serialized_tax_value.get('referenceDate') == '2024-12-31'
+    # Get serialized XML as string
+    serialized_xml = ET.tostring(serialized_element)
+    
+    # Create expected XML by removing whitespace and comments from input
+    expected_xml = normalize_xml(xml_input.encode())
+    actual_xml = normalize_xml(serialized_xml)
+    
+    assert actual_xml == expected_xml
+
+def test_institution_round_trip():
+    """Tests deserializing and serializing an InstitutionType element.
+    
+        This has sub elements that are in a different namespace.
+    """
+    # Simplified XML snippet for a bankAccount element in human-readable format
+    xml_input = '''
+      <institution 
+        xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
+        xmlns:eCH-0097="http://www.ech.ch/xmlns/eCH-0097/4"
+        lei="IDENTIFIER1234567A01" name="Test Bank">
+        <uid>
+          <eCH-0097:uidOrganisationIdCategorie>CHE</eCH-0097:uidOrganisationIdCategorie>
+          <eCH-0097:uidOrganisationId>123456789</eCH-0097:uidOrganisationId>
+        </uid>
+      </institution>
+    '''
+    parser = ET.XMLParser(remove_blank_text=True)
+    element = ET.fromstring(xml_input, parser=parser)
+
+    # Deserialize
+    try:
+        institution = Institution._from_xml_element(element)
+    except Exception as e:
+        pytest.fail(f"Failed to deserialize InsitutionType from XML: {e}")
+
+    assert institution.unknown_attrs == {}
+    assert institution.unknown_elements == []
+
+    # Check deserialized values
+    assert institution.name == "Test Bank"
+    assert institution.lei == "IDENTIFIER1234567A01"
+    assert institution.uid is not None
+    assert institution.uid.uidOrganisationIdCategorie == "CHE"
+    assert institution.uid.uidOrganisationId == 123456789
+    assert institution.uid.uidSuffix is None
+    # Serialize back to XML
+    # Create a temporary parent element to build the XML correctly
+    local_ns_map = {None: 'http://www.ech.ch/xmlns/eCH-0196/2',
+                    'eCH-0097': 'http://www.ech.ch/xmlns/eCH-0097/4'}
+    temp_parent = ET.Element("temp", attrib={}, nsmap=local_ns_map)
+    institution._build_xml_element(temp_parent)
+    # Get the first child, which should be the serialized bankAccount
+    serialized_element = temp_parent[0]
+
+    # Compare key attributes (more robust comparisons might be needed)
+    assert serialized_element.tag == ns_tag('eCH-0196', 'institution')
+    assert serialized_element.get('lei') == institution.lei
+    assert serialized_element.get('name') == institution.name
+    assert serialized_element.find(ns_tag('eCH-0196','uid')) is not None
+    # Get serialized XML as string
+    serialized_xml = ET.tostring(serialized_element)
+    
+    # Create expected XML by removing whitespace and comments from input
+    expected_xml = normalize_xml(xml_input.encode())
+    actual_xml = normalize_xml(serialized_xml)
+    
+    assert actual_xml == expected_xml
+
+
+@pytest.mark.parametrize("xml_file", sample_tax_xml_files)
+def test_xml_round_trip_files(xml_file: str, tmp_path: Path):
+    """Test round-trip XML processing (read and write) of real XML files."""
+    if not xml_file:
+        pytest.skip("No XML files provided for testing")
+
+    # Read original file
+    try:
+        statement = TaxStatement.from_xml_file(xml_file)
+    except Exception as e:
+        pytest.fail(f"Failed to read XML file {xml_file}: {e}")
+
+    output_xml = statement.to_xml_bytes()
+
+    with open(xml_file, 'rb') as f:
+        original_xml = normalize_xml(f.read(), remove_xmlns=True)
+    output_xml = normalize_xml(output_xml, remove_xmlns=True)
+
+    # Compare normalized XML
+    assert output_xml == original_xml, f"Round-trip XML differs for file {xml_file}"
+ 
