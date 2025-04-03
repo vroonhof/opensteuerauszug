@@ -6,6 +6,7 @@ from typing import List, Optional, Any, Dict, TypeVar, Type, Union, get_origin, 
 from datetime import date, datetime
 from decimal import Decimal
 import lxml.etree as ET
+from inspect import isclass  # Add import for isclass function
 
 # Define namespaces used in the XSD
 NS_MAP = {
@@ -190,6 +191,8 @@ def check_positive(v: Decimal) -> Decimal:
     if v < Decimal(0):
         raise ValueError(f"Value must be positive, got {v}")
     return v
+PositiveDecimal = Annotated[Decimal, AfterValidator(check_positive)]
+
 
 def get_expense_description(expense_code: ExpenseType) -> str:
     """Get the description of an expense type based on its code."""
@@ -206,7 +209,6 @@ def get_security_type_description(type_code: SecurityType) -> str:
 def get_liability_category_description(category_code: LiabilityCategory) -> str:
     """Get the description of a liability category based on its code."""
     return LIABILITY_CATEGORY_DESCRIPTIONS.get(category_code, "Unknown liability category")
-PositiveDecimal = Annotated[Decimal, AfterValidator(check_positive)]
 
 # --- Types based on imported eCH standards ---
 
@@ -231,6 +233,7 @@ CountryIdISO2Type = Annotated[
 
 # eCH-0010 V7.0
 OrganisationName = Annotated[str, StringConstraints(max_length=60)]
+
 MrMrs = Literal["1", "2", "3"] # 1: Unknown, 2: Mr, 3: Mrs/Ms (approximation)
 # More descriptive definition for MrMrsType
 MrMrsCodes = {
@@ -260,9 +263,26 @@ class BaseXmlModel(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+        # Flag for controlling parser strictness
+        strict_parsing = False
 
     @classmethod
-    def _parse_attributes(cls: Type[M], element: ET._Element) -> Dict[str, Any]:
+    def _parse_attributes(cls: Type[M], element: ET._Element, strict: Optional[bool] = None) -> Dict[str, Any]:
+        """Parse XML element attributes into a dictionary.
+        
+        Args:
+            element: The XML element to parse attributes from
+            strict: If True, raise errors for unknown attributes. If None, use class config.
+        
+        Returns:
+            Dictionary of attribute name to parsed value
+        
+        Raises:
+            ValueError: If strict is True and an unknown attribute is encountered
+        """
+        # Determine strictness from parameter or class config
+        strict_mode = strict if strict is not None else getattr(cls.Config, 'strict_parsing', False)
+        
         data = {}
         known_attrs = { field_info.alias or name
                         for name, field_info in cls.model_fields.items()
@@ -319,10 +339,15 @@ class BaseXmlModel(BaseModel):
                     data[field_name] = parsed_value
                 except (ValueError, TypeError) as e:
                     print(f"Warning: Could not parse attribute '{name}'='{value}' as {base_type}: {e}")
+                    if strict_mode:
+                        raise ValueError(f"Could not parse attribute '{name}'='{value}' as {base_type}: {e}")
                     unknown_attrs[name] = value
             elif name not in known_attrs:
                 # Check for XML namespace declarations if needed (e.g., xmlns:prefix=\"...\")
-                if not name.startswith('{http://www.w3.org/2000/xmlns/}'):
+                if not (name.startswith('{http://www.w3.org/2000/xmlns/}') 
+                        or name.startswith('{http://www.w3.org/2001/XMLSchema-instance}')):
+                    if strict_mode:
+                        raise ValueError(f"Unknown attribute: {name}")  
                     unknown_attrs[name] = value
         if unknown_attrs:
             data['unknown_attrs'] = unknown_attrs
@@ -359,90 +384,218 @@ class BaseXmlModel(BaseModel):
                 element.set(name, value)
 
     @classmethod
-    def _parse_children(cls: Type[M], element: ET._Element) -> Dict[str, Any]:
+    def _parse_children(cls: Type[M], element: ET._Element, strict: Optional[bool] = None) -> Dict[str, Any]:
+        """Parse XML child elements into a dictionary.
+        
+        Args:
+            element: The XML element to parse children from
+            strict: If True, raise errors for unknown elements. If None, use class config.
+        
+        Returns:
+            Dictionary of child element name to parsed value
+        
+        Raises:
+            ValueError: If strict is True and an unknown element is encountered
+        """
+        # Determine strictness from parameter or class config
+        strict_mode = strict if strict is not None else getattr(cls.Config, 'strict_parsing', False)
+        
         data = {}
-        children_data: Dict[str, list] = {}
+        # All child element fields that aren't marked as attributes
+        # Map from tag -> field name
+        tag_map = {}
+        element_fields = []
         unknown_elements = []
 
-        # Map XML tags to field names
-        tag_to_field: Dict[tuple[Optional[str], str], str] = {}
         for name, field_info in cls.model_fields.items():
-             extra = field_info.json_schema_extra or {}
-             if not extra.get("is_attribute"):
-                 # Ensure ns and local_name are strings for the key
-                 ns = str(extra.get("tag_namespace", NS_MAP['eCH-0196']))
-                 local_name = str(field_info.alias or name)
-                 tag_to_field[(ns, local_name)] = name
+            # Skip attributes
+            if field_info.json_schema_extra and field_info.json_schema_extra.get("is_attribute"):
+                continue
+            # Skip fields to exclude at XML level
+            if field_info.exclude:
+                continue
+            tag_name = None
+            tag_ns = None
+            # Check field extra info (or class extra) for tag name
+            if field_info.json_schema_extra:
+                extra_info = field_info.json_schema_extra
+                # Tag name from field's extra info
+                if isinstance(extra_info, dict) and 'tag_name' in extra_info:
+                    tag_name = extra_info.get('tag_name')
+                # Namespace from field's extra info
+                if isinstance(extra_info, dict) and 'tag_namespace' in extra_info:
+                    tag_ns = extra_info.get('tag_namespace')
 
-        for child in element: # type: ignore
-            if isinstance(child.tag, str): # Ignore comments, PIs
-                child_ns = child.nsmap.get(child.prefix) if child.prefix else element.nsmap.get(None)
-                localname = child.tag.split('}')[-1]
-                lookup_key = (child_ns, localname)
+            # Fallback: use field name or alias for tag name
+            if not tag_name:
+                tag_name = field_info.alias or name
 
-                field_name = tag_to_field.get(lookup_key)
-
-                if field_name:
-                    field_info = cls.model_fields[field_name]
-                    target_type = field_info.annotation
-                    origin_type = get_origin(target_type)
-                    type_args = get_args(target_type)
-
-                    is_list = origin_type is list or origin_type is List
-                    # Handle Optional[List[T]] or List[T]
-                    item_type = Any
-                    if is_list:
-                        list_arg = type_args[0]
-                        list_arg_origin = get_origin(list_arg)
-                        list_arg_args = get_args(list_arg)
-                        if list_arg_origin is Union and type(None) in list_arg_args:
-                             item_type = next((t for t in list_arg_args if t is not type(None)), Any) # type: ignore
-                        else:
-                             item_type = list_arg
-                    # Handle Optional[T] or T
-                    elif origin_type is Union and type(None) in type_args:
-                         item_type = next((t for t in type_args if t is not type(None)), Any) # type: ignore
-                    else:
-                        item_type = target_type
-
-                    parsed_child: Any = None
-                    try:
-                        # Simplified check: If it's a type and a subclass of BaseXmlModel
-                        if isinstance(item_type, type) and issubclass(item_type, BaseXmlModel): # type: ignore[arg-type]
-                            parsed_child = item_type._from_xml_element(child)
-                        else:
-                            # Handle simple text content or other types
-                            parsed_child = child.text # Basic handling
-                            # TODO: Add type conversion like in _parse_attributes if needed for simple content types
-                            if item_type == Decimal and parsed_child is not None:
-                                parsed_child = Decimal(parsed_child)
-                            # Add other simple type conversions here...
-                    except (TypeError, ValueError) as e:
-                         print(f"Warning: Could not parse element <{child.tag}> content '{child.text}' as {item_type}: {e}")
-                         # Store raw element if parsing fails?
-                         unknown_elements.append(child)
-                         continue # Skip adding to field data
-
-                    if is_list:
-                        if field_name not in children_data:
-                            children_data[field_name] = []
-                        if parsed_child is not None:
-                             children_data[field_name].append(parsed_child)
-                    else:
-                        if field_name in data:
-                           print(f"Warning: Multiple elements found for non-list field '{field_name}' - using last one.")
-                        data[field_name] = parsed_child
+            # If namespace provided, use qualified tag with namespace
+            if tag_ns:
+                if tag_ns in NS_MAP:
+                    ns_pfx = NS_MAP[tag_ns]
+                    qualified_tag = f"{{{ns_pfx}}}{tag_name}"
                 else:
-                     # Handle unknown elements / ##other namespace elements
-                     unknown_elements.append(child) # Store the raw lxml element
+                    qualified_tag = f"{{{tag_ns}}}{tag_name}"
             else:
-                # Store comments, PIs etc. if needed for perfect round-tripping
-                unknown_elements.append(child)
+                qualified_tag = tag_name
 
-        data.update(children_data)
+            element_fields.append((name, field_info))
+            tag_map[qualified_tag] = name
+
+        # Process all child elements
+        for child in element:
+            if child.tag in tag_map:
+                field_name = tag_map[child.tag]
+                field_info = cls.model_fields[field_name]
+                field_type = field_info.annotation
+                origin_type = get_origin(field_type)
+
+                # Handle Optional[T]
+                actual_type = field_type
+                if origin_type is Union and type(None) in get_args(field_type):
+                    # Extract the actual type from Optional[T]
+                    non_none_types = [t for t in get_args(field_type) if t is not type(None)]
+                    if non_none_types:
+                        actual_type = non_none_types[0]  # Use first non-None type
+                        origin_type = get_origin(actual_type)
+                        inner_args = get_args(actual_type)
+                        # If the actual_type is a class with _from_xml_element, we can parse it
+                        if isclass(actual_type) and hasattr(actual_type, '_from_xml_element'):
+                            try:
+                                parsed_item = actual_type._from_xml_element(child, strict=strict_mode)
+                                data[field_name] = parsed_item
+                                continue  # Successfully parsed Optional[Class] field
+                            except Exception as e:
+                                print(f"Warning: Failed to parse child element <{child.tag}> as {actual_type}: {e}")
+                                if strict_mode:
+                                    raise ValueError(f"Failed to parse child element <{child.tag}> as {actual_type}: {e}")
+                                unknown_elements.append(child)
+                                continue
+
+                # Handle Literal type
+                if origin_type is Literal:
+                    # For Literals, we just use the text value directly
+                    if child.text:
+                        literal_values = get_args(field_type)
+                        child_text = child.text.strip()
+                        if child_text in literal_values:
+                            data[field_name] = child_text
+                        else:
+                            error_msg = f"Invalid value '{child_text}' for Literal field, expected one of: {literal_values}"
+                            print(f"Warning: {error_msg}")
+                            if strict_mode:
+                                raise ValueError(error_msg)
+                            unknown_elements.append(child)
+                    continue
+
+                # List handling
+                if origin_type in (list, List):
+                    item_type = get_args(field_type)[0]
+                    if not isclass(item_type):
+                        # Handle List[Union[..]] etc.
+                        item_origin = get_origin(item_type)
+                        if item_origin:
+                            item_type = get_args(item_type)[0]  # Use first type arg (might need refinement)
+
+                    # For simple types, extract the plain text value if present
+                    if item_type in (str, int, float, bool, Decimal, date, datetime):
+                        if child.text is not None:
+                            try:
+                                # Use a conversion based on the type
+                                if item_type == str:
+                                    value = child.text.strip()
+                                elif item_type == int:
+                                    value = int(child.text.strip())
+                                elif item_type == float:
+                                    value = float(child.text.strip())
+                                elif item_type == bool:
+                                    value = child.text.strip().lower() in ('true', '1', 'yes')
+                                elif item_type == Decimal:
+                                    value = Decimal(child.text.strip())
+                                elif item_type == date:
+                                    value = date.fromisoformat(child.text.strip())
+                                elif item_type == datetime:
+                                    value = datetime.fromisoformat(child.text.strip())
+                                else:
+                                    value = child.text.strip()
+                            except (ValueError, TypeError) as e:
+                                print(f"Warning: Could not parse element <{child.tag}> content '{child.text}' as {item_type}: {e}")
+                                if strict_mode:
+                                    raise ValueError(f"Could not parse element <{child.tag}> content '{child.text}' as {item_type}: {e}")  
+                                unknown_elements.append(child)
+                                continue  # Skip adding to field data
+                            if field_name not in data:
+                                data[field_name] = []
+                            data[field_name].append(value)
+                    # For complex types, delegate to the subclass's XML parser
+                    elif hasattr(item_type, '_from_xml_element'):
+                        try:
+                            parsed_item = item_type._from_xml_element(child, strict=strict_mode)
+                            if field_name not in data:
+                                data[field_name] = []
+                            data[field_name].append(parsed_item)
+                        except Exception as e:
+                            print(f"Warning: Failed to parse child element <{child.tag}> as {item_type}: {e}")
+                            if strict_mode:
+                                raise ValueError(f"Failed to parse child element <{child.tag}> as {item_type}: {e}")
+                            unknown_elements.append(child)
+                    else:
+                        print(f"Warning: Unsupported item type for list field: {item_type} for tag {child.tag}")
+                        if strict_mode:
+                            raise ValueError(f"Unsupported item type for list field: {item_type} for tag {child.tag}")
+                        unknown_elements.append(child)
+                # Direct submodel handling
+                elif isclass(field_type) and hasattr(field_type, '_from_xml_element'):
+                    try:
+                        parsed_item = field_type._from_xml_element(child, strict=strict_mode)
+                        data[field_name] = parsed_item
+                    except Exception as e:
+                        print(f"Warning: Failed to parse child element <{child.tag}> as {field_type}: {e}")
+                        if strict_mode:
+                            raise ValueError(f"Failed to parse child element <{child.tag}> as {field_type}: {e}")
+                        unknown_elements.append(child)
+                # Simple direct value case
+                elif field_type in (str, int, float, bool, Decimal, date, datetime):
+                    if child.text is not None:
+                        try:
+                            # Use a conversion based on the type
+                            if field_type == str:
+                                value = child.text.strip()
+                            elif field_type == int:
+                                value = int(child.text.strip())
+                            elif field_type == float:
+                                value = float(child.text.strip())
+                            elif field_type == bool:
+                                value = child.text.strip().lower() in ('true', '1', 'yes')
+                            elif field_type == Decimal:
+                                value = Decimal(child.text.strip())
+                            elif field_type == date:
+                                value = date.fromisoformat(child.text.strip())
+                            elif field_type == datetime:
+                                value = datetime.fromisoformat(child.text.strip())
+                            else:
+                                value = child.text.strip()
+                            data[field_name] = value
+                        except (ValueError, TypeError) as e:
+                            print(f"Warning: Could not parse element <{child.tag}> content '{child.text}' as {field_type}: {e}")
+                            if strict_mode:
+                                raise ValueError(f"Could not parse element <{child.tag}> content '{child.text}' as {field_type}: {e}")
+                            unknown_elements.append(child)
+                else:
+                    # Unknown complex type - we might need more handling here
+                    print(f"Warning: Unsupported field type for element <{child.tag}>: {field_type}")
+                    if strict_mode:
+                        raise ValueError(f"Unsupported field type for element <{child.tag}>: {field_type}")
+                    unknown_elements.append(child)
+            else:
+                # Handle unknown elements / ##other namespace elements
+                if strict_mode:
+                    raise ValueError(f"Unknown element <{child.tag}> in namespace {child.nsmap} - content '{child.text}'") 
+                unknown_elements.append(child)  # Store the raw lxml element
+        
         if unknown_elements:
             data['unknown_elements'] = unknown_elements
-
         return data
 
     def _build_children(self, parent_element: ET._Element):
@@ -499,39 +652,75 @@ class BaseXmlModel(BaseModel):
             from copy import deepcopy
             parent_element.append(deepcopy(unknown))
 
-    def _build_xml_element(self,
-                           parent_element: Optional[ET._Element] = None, 
-                           name: Optional[str] = None) -> ET._Element:
-        """Populates an existing lxml element from this model instance."""
-        # Get tag name and namespace from Config if available
-        config = getattr(self.Config, 'json_schema_extra', {})
-        tag_name = config.get('tag_name')
-        tag_ns = config.get('tag_namespace')
-
-        if not tag_name:
-            tag_name = name
-        tag = f"{{{tag_ns}}}{tag_name}" if tag_ns else tag_name
-        if name is not None:
-            if tag != name:
-                raise ValueError(f"tag_name and field name differ: {tag} and {name}")
+    def _build_xml_element(self, 
+                   parent_element: Optional[ET._Element] = None, 
+                   name: Optional[str] = None) -> ET._Element:
+        """Build XML element from this model instance."""
+        # Determine tag name: specified name, or from config, or class name
+        tag_name = None
+        ns = NS_MAP['eCH-0196']  # Default namespace
+        config = getattr(self.__class__, 'Config', None)
         
-        if parent_element is not None:
-            # Create element with proper tag name and namespace
-            element = ET.SubElement(parent_element, tag, attrib={}, 
-                                    nsmap=parent_element.nsmap)
+        if name is not None:
+            # If name is provided externally, use it (likely already has namespace)
+            if '{' in name:
+                # If name already has namespace in {ns}localname format, extract it
+                ns, tag_name = name.split('}', 1)
+                ns = ns[1:]  # Remove leading '{'
+            else:
+                # Use name as is for tag_name
+                tag_name = name
         else:
-            root_map = {None: tag_ns} if tag_ns else None
-            element = ET.Element(tag, attrib={}, nsmap=NS_MAP)
-        print("Created element: ", element, "with tag: ", tag)
-            
+            # No name provided, get from config or class
+            if config and hasattr(config, 'tag_name'):
+                tag_name = config.tag_name
+            else:
+                # Convert class name to camelCase for tag name
+                class_name = self.__class__.__name__
+                # Convert first character to lowercase
+                tag_name = class_name[0].lower() + class_name[1:] if class_name else ''
+        
+        # Get namespace from config if available
+        if config and hasattr(config, 'tag_namespace'):
+            ns = config.tag_namespace
+        
+        # Create element with namespace
+        if parent_element is not None:
+            # For SubElement, use {namespace}localname format for the tag
+            qualified_name = f"{{{ns}}}{tag_name}"
+            element = ET.SubElement(parent_element, qualified_name, attrib={}, nsmap=parent_element.nsmap)
+        else:
+            # For root element, use the tag_name and set nsmap
+            element = ET.Element(tag_name, attrib={}, nsmap={None: ns})
+        
+        # Build attributes
         self._build_attributes(element)
+        
+        # Build children - ensure that we follow the schema order
         self._build_children(element)
+        
         return element
+
     @classmethod
-    def _from_xml_element(cls: Type[M], element: ET._Element) -> M:
-        """Creates a model instance from an lxml element."""
-        data = cls._parse_attributes(element)
-        data.update(cls._parse_children(element))
+    def _from_xml_element(cls: Type[M], element: ET._Element, strict: Optional[bool] = None) -> M:
+        """Creates a model instance from an lxml element.
+        
+        Args:
+            element: The XML element to parse
+            strict: If True, raise errors for unknown attributes and elements. 
+                   If None, use class config.
+        
+        Returns:
+            An instance of this model
+            
+        Raises:
+            ValueError: If strict is True and unknown attributes or elements are encountered
+        """
+        # Determine strictness from parameter or class config
+        strict_mode = strict if strict is not None else getattr(cls.Config, 'strict_parsing', False)
+        
+        data = cls._parse_attributes(element, strict=strict_mode)
+        data.update(cls._parse_children(element, strict=strict_mode))
         # Filter out internal fields before creating model instance
         init_data = {k: v for k, v in data.items() if k in cls.model_fields}
         instance = cls(**init_data)
@@ -704,11 +893,22 @@ class LiabilityAccount(BaseXmlModel):
     bankAccountCountry: CountryIdISO2Type = Field(..., json_schema_extra={'is_attribute': True})
     bankAccountCurrency: CurrencyId = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
     openingDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    closingDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
     liabilityCategory: Optional[LiabilityCategory] = Field(
         default=None, 
         description="The category of the liability (MORTGAGE, LOAN, or OTHER)",
         json_schema_extra={'is_attribute': True}
     )
+    totalTaxValue: PositiveDecimal = Field(
+        ..., 
+        description="Total of the tax values (absolute value ≥ 0) of negative tax values (debts), rounded according to DIN 1333",
+        json_schema_extra={'is_attribute': True}
+    ) # Required in XSD
+    totalGrossRevenueB: PositiveDecimal = Field(
+        ..., 
+        description="Total of the amounts (absolute value ≥ 0) of gross expenses (debt interest) for category B (without withholding tax claim)",
+        json_schema_extra={'is_attribute': True}
+    ) # Required in XSD
     
     class Config:
         arbitrary_types_allowed = True
@@ -929,7 +1129,7 @@ class TaxStatementBase(BaseXmlModel):
     totalTaxValue: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
     totalGrossRevenueA: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
     totalGrossRevenueACanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
-    totalGrossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
+    totalGrossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     totalGrossRevenueBCanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     totalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
 
@@ -955,23 +1155,41 @@ class TaxStatement(TaxStatementBase):
         json_schema_extra = {'tag_name': 'taxStatement', 'tag_namespace': NS_MAP['eCH-0196']}
         
     @classmethod
-    def from_xml_file(cls, file_path: str) -> "TaxStatement":
-        """Loads the model from an eCH-0196 XML file."""
+    def from_xml_file(cls, file_path: str, strict: Optional[bool] = None) -> "TaxStatement":
+        """Read a TaxStatement from an XML file.
+        
+        Args:
+            file_path: Path to the XML file
+            strict: If True, raise errors for unknown attributes and elements.
+                   If None, use class config.
+                   
+        Returns:
+            TaxStatement instance parsed from the file
+            
+        Raises:
+            ValueError: If file can't be parsed or root element is invalid
+            ValueError: If strict is True and unknown attributes or elements are encountered
+        """
+        # Parse the XML file
         try:
             parser = ET.XMLParser(remove_blank_text=True)
             tree = ET.parse(file_path, parser)
             root = tree.getroot()
-            # Basic check for root element name and namespace
+            
+            # Basic validation of root element
             expected_tag = ns_tag('eCH-0196', 'taxStatement')
             if root.tag != expected_tag:
                 raise ValueError(f"Expected root element '{expected_tag}' but found '{root.tag}'")
-            return cls._from_xml_element(root)
-        except ET.ParseError as e:
-            print(f"Error parsing XML file {file_path}: {e}")
-            raise
+            
+            # Create the TaxStatement instance from the parsed root element
+            return cls._from_xml_element(root, strict=strict)
+            
+        except ET.XMLSyntaxError as e:
+            raise ValueError(f"Failed to parse XML file: {e}")
+        except FileNotFoundError:
+            raise ValueError(f"File not found: {file_path}")
         except Exception as e:
-            print(f"Error creating model from XML {file_path}: {e}")
-            raise
+            raise ValueError(f"Error reading tax statement from file: {e}")
 
     def to_xml_bytes(self, pretty_print=True) -> bytes:
         """Serializes the model to XML bytes."""
