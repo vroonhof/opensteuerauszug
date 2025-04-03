@@ -27,20 +27,18 @@ def ns_tag(prefix: str, tag: str) -> str:
 # Specific validation (length, patterns) will be in the validate method or custom validators
 
 # Placeholder simple types - replace with actual constraints later if needed
-class BankAccountNameType(str): # maxLength: 40 - Handled by Field directly later
+class BankAccountName(str): # maxLength: 40 - Handled by Field directly later
     pass
-class BankAccountNumberType(str): # minLength: 1, maxLength: 32 - Handled by Field directly later
+class BankAccountNumber(str): # minLength: 1, maxLength: 32 - Handled by Field directly later
     pass
-class ClientNumberType(str): # maxLength: 40 - Handled by Field directly later
+class ClientNumber(str): # maxLength: 40 - Handled by Field directly later
     pass
 # Add other simple types like currencyIdISO3Type, depotNumberType, etc.
-class CurrencyIdISO3Type(str): # pattern="[A-Z]{3}"
+class CurrencyId(str): # pattern="[A-Z]{3}"
     pass
-class DepotNumberType(str): # maxLength: 40
+class DepotNumber(str): # maxLength: 40
     pass
-class ValorType(int): # positiveInteger, maxInclusive=99999999
-    pass
-class ValorNumberType(ValorType): # alias for ValorType in schema
+class ValorNumber(int): # positiveInteger, maxInclusive=99999999
     pass
 class ISINType(str): # length=12, pattern="[A-Z]{2}[A-Z0-9]{9}[0-9]{1}"
     pass
@@ -48,38 +46,173 @@ class LEIType(str): # length=20, pattern="[A-Z0-9]{18}[0-9]{2}"
     pass
 class TINType(str): # maxLength=40
     pass
-class LiabilityCategoryType(str): # enumeration
-    pass
-class ExpenseTypeType(str): # enumeration with values 1-32+
-    pass
-class SecurityCategoryType(str): # enumeration
-    pass
-class SecurityTypeType(str): # enumeration
-    pass
-class QuotationTypeType(str): # enumeration "UNIT" or "PERCENT"
-    pass
+
+# Explicit enumerations
+# LiabilityCategoryType defined as string Literal
+LiabilityCategory = Literal[
+    "MORTGAGE", "LOAN", "OTHER"
+]
+
+# Liability category description mapping
+LIABILITY_CATEGORY_DESCRIPTIONS = {
+    "MORTGAGE": "Mortgage",
+    "LOAN": "Loan",
+    "OTHER": "Other"
+}
+
+# ExpenseTypeType defined as string Literal
+ExpenseType = Literal[
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+    "11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
+    "21", "22", "23", "24", "25", "26", "27", "28", "29", "30",
+    "31", "32", "33", "34", "35", "36", "37", "38", "39", "40",
+    "41", "42", "43", "44", "99"
+]
+
+# ExpenseType description mapping
+EXPENSE_TYPE_DESCRIPTIONS = {
+    "1": "Stempelabgaben (Emissions- und Umsatzabgaben)",
+    "2": "Transaktionskosten",
+    "3": "Vorfälligkeitsentschädigungen",
+    "4": "Administrationsgebühren (Verwaltungsgebühren)",
+    "5": "Banklagernd",
+    "6": "Beratungskosten",
+    "7": "Kosten für das Ausfüllen von Formularen",
+    "8": "Kosten für die Erstellung der Steuererklärung",
+    "9": "Kosten für die Erstellung der Steuerunterlagen",
+    "10": "Kosten für die Erstellung der Steuerverzeichnisse von Banken",
+    "11": "Kosten der Vermögensumlagerung",
+    "12": "Provisionen (Agent Fee)",
+    "13": "Treuhandkommissionen / Treuhandgebühren",
+    "14": "Vermittlungsgebühren",
+    "15": "Vermögensverwaltungskosten (aktives Depotmanagement)",
+    "16": "Verrechenbare Courtagegebühren aus IUP",
+    "17": "Abgezogene Quellensteuer",
+    "18": "Affidavitspesen",
+    "19": "All-in Fee",
+    "20": "Auslieferung Edelmetalle",
+    "21": "Auslieferungsspesen / Titellieferungsgebühren",
+    "22": "Depotgebühren",
+    "23": "Gebühren für Bescheinigungen",
+    "24": "Inkassospesen",
+    "25": "Kontoführungsgebühren",
+    "26": "Kosten für eigene Bemühungen",
+    "27": "Managementgebühren",
+    "28": "Metallkontokommissionen",
+    "29": "Negativzinsen (im Privatvermögen)",
+    "30": "Nummernkontogebühren",
+    "31": "Pauschalgebühren / Verwaltungsgebühren",
+    "32": "Performanceorientierte / Erfolgsorientierte Honorare",
+    "33": "Porto / Versandkosten",
+    "34": "Saldierungsspesen",
+    "35": "Tresorfachgebühren / Schrankfachgebühren",
+    "36": "Absicherungskosten",
+    "37": "Diverse Gebühren",
+    "38": "Devisenkurssicherungskosten",
+    "39": "Externe Gebühren / Fremdspesen",
+    "40": "Kartengebühren / Kreditkartengebühren",
+    "41": "Kreditgebühren / Kreditkommissionen",
+    "42": "Nichtkündigungsabzug",
+    "43": "Zessionskommission",
+    "44": "Erstellung/Erhöhung Schuldbriefe",
+    "99": "Sonstige unqualifizierte Begriffe"
+}
+
+# SecurityCategoryType defined as string Literal
+SecurityCategory = Literal[
+    "BOND", "COINBULL", "CURRNOTE", "DEVT", "FUND", 
+    "LIBOSWAP", "OPTION", "OTHER", "SHARE"
+]
+
+# Security category description mapping
+SECURITY_CATEGORY_DESCRIPTIONS = {
+    "BOND": "Bond",
+    "COINBULL": "Coin/Bullion",
+    "CURRNOTE": "Currency/Banknote",
+    "DEVT": "Derivative",
+    "FUND": "Fund",
+    "LIBOSWAP": "LIBOR/Swap",
+    "OPTION": "Option",
+    "OTHER": "Other",
+    "SHARE": "Share"
+}
+
+# SecurityTypeType defined as string Literal
+SecurityType = Literal[
+    "BOND.BOND", "BOND.OPTION", "BOND.CONVERTIBLE",
+    "COINBULL.COINGOLD", "COINBULL.GOLD", "COINBULL.PALLADIUM", "COINBULL.PLATINUM", "COINBULL.SILVER",
+    "CURRNOTE.CURRENCY", "CURRNOTE.CURRYEAR",
+    "DEVT.COMBINEDPRODUCT", "DEVT.FUNDSIMILARASSET", "DEVT.INDEXBASKET",
+    "FUND.ACCUMULATION", "FUND.DISTRIBUTION", "FUND.REALESTATE",
+    "LIBOSWAP.LIBOR", "LIBOSWAP.SWAP",
+    "OPTION.CALL", "OPTION.PHANTOM", "OPTION.PUT",
+    "SHARE.BEARERCERT", "SHARE.BONUS", "SHARE.COMMON", "SHARE.COOP", 
+    "SHARE.LIMITED", "SHARE.NOMINAL", "SHARE.PARTCERT", "SHARE.PREFERRED", "SHARE.TRANSFERABLE"
+]
+
+# Security type description mapping
+SECURITY_TYPE_DESCRIPTIONS = {
+    "BOND.BOND": "Bond",
+    "BOND.OPTION": "Option Bond",
+    "BOND.CONVERTIBLE": "Convertible Bond",
+    "COINBULL.COINGOLD": "Gold Coin",
+    "COINBULL.GOLD": "Gold",
+    "COINBULL.PALLADIUM": "Palladium",
+    "COINBULL.PLATINUM": "Platinum",
+    "COINBULL.SILVER": "Silver",
+    "CURRNOTE.CURRENCY": "Currency",
+    "CURRNOTE.CURRYEAR": "Current Year Currency",
+    "DEVT.COMBINEDPRODUCT": "Combined Product",
+    "DEVT.FUNDSIMILARASSET": "Fund-Similar Asset",
+    "DEVT.INDEXBASKET": "Index/Basket",
+    "FUND.ACCUMULATION": "Accumulation Fund",
+    "FUND.DISTRIBUTION": "Distribution Fund",
+    "FUND.REALESTATE": "Real Estate Fund",
+    "LIBOSWAP.LIBOR": "LIBOR",
+    "LIBOSWAP.SWAP": "Swap",
+    "OPTION.CALL": "Call Option",
+    "OPTION.PHANTOM": "Phantom Option",
+    "OPTION.PUT": "Put Option",
+    "SHARE.BEARERCERT": "Bearer Certificate",
+    "SHARE.BONUS": "Bonus Share",
+    "SHARE.COMMON": "Common Share",
+    "SHARE.COOP": "Cooperative Share",
+    "SHARE.LIMITED": "Limited Share",
+    "SHARE.NOMINAL": "Nominal Share",
+    "SHARE.PARTCERT": "Participation Certificate",
+    "SHARE.PREFERRED": "Preferred Share",
+    "SHARE.TRANSFERABLE": "Transferable Share"
+}
+
+QuotationType = Literal["PIECE", "PERCENT"]
 
 def check_positive(v: Decimal) -> Decimal:
     if v < Decimal(0):
         raise ValueError(f"Value must be positive, got {v}")
     return v
 
+def get_expense_description(expense_code: ExpenseType) -> str:
+    """Get the description of an expense type based on its code."""
+    return EXPENSE_TYPE_DESCRIPTIONS.get(expense_code, "Unknown expense type")
+
+def get_security_category_description(category_code: SecurityCategory) -> str:
+    """Get the description of a security category based on its code."""
+    return SECURITY_CATEGORY_DESCRIPTIONS.get(category_code, "Unknown security category")
+
+def get_security_type_description(type_code: SecurityType) -> str:
+    """Get the description of a security type based on its code."""
+    return SECURITY_TYPE_DESCRIPTIONS.get(type_code, "Unknown security type")
+
+def get_liability_category_description(category_code: LiabilityCategory) -> str:
+    """Get the description of a liability category based on its code."""
+    return LIABILITY_CATEGORY_DESCRIPTIONS.get(category_code, "Unknown liability category")
 PositiveDecimal = Annotated[Decimal, AfterValidator(check_positive)]
 
 # --- Types based on imported eCH standards ---
 
 # eCH-0007 V6.0
-CantonAbbreviationType = Annotated[
-    str,
-    StringConstraints(
-        pattern=r"^[A-Z]{2}$", # Needs to match one of the enum values below
-        to_upper=True,
-        min_length=2,
-        max_length=2
-    )
-]
 # Use Literal for actual validation against the XSD enum
-CantonAbbreviationLiteral = Literal[
+CantonAbbreviation = Literal[
     "ZH", "BE", "LU", "UR", "SZ", "OW", "NW", "GL", "ZG", "FR", "SO",
     "BS", "BL", "SH", "AR", "AI", "SG", "GR", "AG", "TG", "TI", "VD",
     "VS", "NE", "GE", "JU"
@@ -97,30 +230,25 @@ CountryIdISO2Type = Annotated[
 ]
 
 # eCH-0010 V7.0
-OrganisationNameType = Annotated[str, StringConstraints(max_length=60)]
-MrMrsType = Literal["1", "2", "3"] # 1: Unknown, 2: Mr, 3: Mrs/Ms (approximation)
-FirstNameType = Annotated[str, StringConstraints(max_length=30)]
-LastNameType = Annotated[str, StringConstraints(max_length=30)]
+OrganisationName = Annotated[str, StringConstraints(max_length=60)]
+MrMrs = Literal["1", "2", "3"] # 1: Unknown, 2: Mr, 3: Mrs/Ms (approximation)
+# More descriptive definition for MrMrsType
+MrMrsCodes = {
+    "1": "Unknown",
+    "2": "Mr",
+    "3": "Mrs/Ms"
+}
+
+# Helper function to get salutation description
+def get_salutation_description(salutation_code: MrMrs) -> str:
+    """Get the description of a salutation based on its code."""
+    return MrMrsCodes.get(salutation_code, "Unknown salutation")
+
+FirstName = Annotated[str, StringConstraints(max_length=30)]
+LastName = Annotated[str, StringConstraints(max_length=30)]
 
 # --- Placeholder for complex types referenced by import ---
-# These would ideally be generated/defined based on the imported XSDs
-# class ECH0007_CantonAbbreviationType(str): # length=2, pattern="[A-Z]{2}" - Replaced
-#     pass
-
-# class ECH0008_CountryIdISO2Type(str): # length=2, pattern="[A-Z]{2}" - Replaced
-#     pass
-
-# class ECH0010_OrganisationNameType(str): # minLength=1, maxLength=60 - Replaced
-#     pass
-
-# class ECH0010_MrMrsType(str): # enumeration "1", "2", "3" - Replaced
-#     pass
-
-# class ECH0010_FirstNameType(str): # minLength=1, maxLength=30 - Replaced
-#     pass
-
-# class ECH0010_LastNameType(str): # minLength=1, maxLength=30 - Replaced
-#     pass
+# These would ideally be generated/defined based on the importe
 
 # Generic Type Variable for Pydantic models
 M = TypeVar('M', bound='BaseXmlModel')
@@ -431,7 +559,7 @@ class Institution(BaseXmlModel):
     uid: Optional[Uid] = Field(default=None, json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
     # attributes
     lei: Optional[LEIType] = Field(default=None, pattern=r"[A-Z0-9]{18}[0-9]{2}", json_schema_extra={'is_attribute': True}) # leiType
-    name: Optional[OrganisationNameType] = Field(default=None, json_schema_extra={'is_attribute': True}) # organisationNameType, required in XSD
+    name: Optional[OrganisationName] = Field(default=None, json_schema_extra={'is_attribute': True}) # organisationNameType, required in XSD
  
     class Config:
         json_schema_extra = {'tag_name': 'institution', 'tag_namespace': NS_MAP['eCH-0196']}
@@ -439,11 +567,11 @@ class Institution(BaseXmlModel):
 
 class Client(BaseXmlModel):
     # attributes
-    clientNumber: Optional[ClientNumberType] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True}) # required in XSD
+    clientNumber: Optional[ClientNumber] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True}) # required in XSD
     tin: Optional[TINType] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True}) # tinType
-    salutation: Optional[MrMrsType] = Field(default=None, json_schema_extra={'is_attribute': True}) # mrMrsType
-    firstName: Optional[FirstNameType] = Field(default=None, json_schema_extra={'is_attribute': True}) # firstNameType
-    lastName: Optional[LastNameType] = Field(default=None, json_schema_extra={'is_attribute': True}) # lastNameType
+    salutation: Optional[MrMrs] = Field(default=None, json_schema_extra={'is_attribute': True}) # mrMrsType
+    firstName: Optional[FirstName] = Field(default=None, json_schema_extra={'is_attribute': True}) # firstNameType
+    lastName: Optional[LastName] = Field(default=None, json_schema_extra={'is_attribute': True}) # lastNameType
     
     class Config:
         json_schema_extra = {'tag_name': 'client', 'tag_namespace': NS_MAP['eCH-0196']}
@@ -502,10 +630,10 @@ class BankAccount(BaseXmlModel):
     
     # Attributes from schema
     iban: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True})
-    bankAccountNumber: Optional[BankAccountNumberType] = Field(default=None, min_length=1, max_length=32, json_schema_extra={'is_attribute': True})
-    bankAccountName: Optional[BankAccountNameType] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True})
+    bankAccountNumber: Optional[BankAccountNumber] = Field(default=None, min_length=1, max_length=32, json_schema_extra={'is_attribute': True})
+    bankAccountName: Optional[BankAccountName] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True})
     bankAccountCountry: Optional[CountryIdISO2Type] = Field(default=None, json_schema_extra={'is_attribute': True})
-    bankAccountCurrency: Optional[CurrencyIdISO3Type] = Field(default=None, pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
+    bankAccountCurrency: Optional[CurrencyId] = Field(default=None, pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
     openingDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
     closingDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
     totalTaxValue: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
@@ -571,11 +699,16 @@ class LiabilityAccount(BaseXmlModel):
     
     # Attributes from schema
     iban: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True})
-    bankAccountNumber: Optional[BankAccountNumberType] = Field(default=None, min_length=1, max_length=32, json_schema_extra={'is_attribute': True})
-    bankAccountName: BankAccountNameType = Field(..., max_length=40, json_schema_extra={'is_attribute': True})
+    bankAccountNumber: Optional[BankAccountNumber] = Field(default=None, min_length=1, max_length=32, json_schema_extra={'is_attribute': True})
+    bankAccountName: BankAccountName = Field(..., max_length=40, json_schema_extra={'is_attribute': True})
     bankAccountCountry: CountryIdISO2Type = Field(..., json_schema_extra={'is_attribute': True})
-    bankAccountCurrency: CurrencyIdISO3Type = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
+    bankAccountCurrency: CurrencyId = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
     openingDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
+    liabilityCategory: Optional[LiabilityCategory] = Field(
+        default=None, 
+        description="The category of the liability (MORTGAGE, LOAN, or OTHER)",
+        json_schema_extra={'is_attribute': True}
+    )
     
     class Config:
         arbitrary_types_allowed = True
@@ -599,15 +732,15 @@ class Expense(BaseXmlModel):
     referenceDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
     name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True}) # Required in XSD
     iban: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True})
-    bankAccountNumber: Optional[BankAccountNumberType] = Field(default=None, min_length=1, max_length=32, json_schema_extra={'is_attribute': True})
-    depotNumber: Optional[DepotNumberType] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True})
-    amountCurrency: Optional[CurrencyIdISO3Type] = Field(default=None, pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True}) # Required in XSD
+    bankAccountNumber: Optional[BankAccountNumber] = Field(default=None, min_length=1, max_length=32, json_schema_extra={'is_attribute': True})
+    depotNumber: Optional[DepotNumber] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True})
+    amountCurrency: Optional[CurrencyId] = Field(default=None, pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True}) # Required in XSD
     amount: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     expenses: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # Required in XSD
     expensesDeductible: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     expensesDeductibleCanton: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True})
-    expenseType: Optional[ExpenseTypeType] = Field(default=None, json_schema_extra={'is_attribute': True}) # Required in XSD, enum type
+    expenseType: Optional[ExpenseType] = Field(default=None, json_schema_extra={'is_attribute': True}) # Required in XSD, enum type
     
     class Config:
         json_schema_extra = {'tag_name': 'expense', 'tag_namespace': NS_MAP['eCH-0196']}
@@ -629,9 +762,9 @@ class SecurityTaxValue(BaseXmlModel):
     """Represents the tax value of a security (securityTaxValueType)."""
     # Required attributes
     referenceDate: date = Field(..., json_schema_extra={'is_attribute': True})
-    quotationType: QuotationTypeType = Field(..., json_schema_extra={'is_attribute': True})
+    quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})
     quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
-    balanceCurrency: CurrencyIdISO3Type = Field(..., json_schema_extra={'is_attribute': True})
+    balanceCurrency: CurrencyId = Field(..., json_schema_extra={'is_attribute': True})
     
     # Optional attributes
     name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
@@ -652,11 +785,11 @@ class SecurityPurchaseDisposition(BaseXmlModel):
     """Represents purchase or disposition of a security for IUP calculation."""
     # Required attributes
     referenceDate: date = Field(..., json_schema_extra={'is_attribute': True})
-    quotationType: QuotationTypeType = Field(..., json_schema_extra={'is_attribute': True})
+    quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})
     quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
     
     # Optional attributes
-    amountCurrency: Optional[CurrencyIdISO3Type] = Field(default=None, json_schema_extra={'is_attribute': True})
+    amountCurrency: Optional[CurrencyId] = Field(default=None, json_schema_extra={'is_attribute': True})
     amount: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     value: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
@@ -673,9 +806,9 @@ class SecurityPayment(BaseXmlModel):
     
     # Required attributes
     paymentDate: date = Field(..., json_schema_extra={'is_attribute': True})
-    quotationType: QuotationTypeType = Field(..., json_schema_extra={'is_attribute': True})
+    quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})
     quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
-    amountCurrency: CurrencyIdISO3Type = Field(..., json_schema_extra={'is_attribute': True})
+    amountCurrency: CurrencyId = Field(..., json_schema_extra={'is_attribute': True})
     
     # Optional attributes
     exDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
@@ -717,17 +850,17 @@ class Security(BaseXmlModel):
     # Required attributes
     positionId: int = Field(..., gt=0, json_schema_extra={'is_attribute': True})
     country: CountryIdISO2Type = Field(..., json_schema_extra={'is_attribute': True})
-    currency: CurrencyIdISO3Type = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
-    quotationType: QuotationTypeType = Field(..., json_schema_extra={'is_attribute': True})
-    securityCategory: SecurityCategoryType = Field(..., json_schema_extra={'is_attribute': True})
+    currency: CurrencyId = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
+    quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})
+    securityCategory: SecurityCategory = Field(..., json_schema_extra={'is_attribute': True})
     securityName: str = Field(..., max_length=60, json_schema_extra={'is_attribute': True})
     
     # Optional attributes
-    valorNumber: Optional[ValorNumberType] = Field(default=None, gt=0, le=99999999, json_schema_extra={'is_attribute': True})
+    valorNumber: Optional[ValorNumber] = Field(default=None, gt=0, le=99999999, json_schema_extra={'is_attribute': True})
     isin: Optional[ISINType] = Field(default=None, pattern=r"[A-Z]{2}[A-Z0-9]{9}[0-9]{1}", json_schema_extra={'is_attribute': True})
     city: Optional[str] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True})
     nominalValue: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
-    securityType: Optional[SecurityTypeType] = Field(default=None, json_schema_extra={'is_attribute': True})
+    securityType: Optional[SecurityType] = Field(default=None, json_schema_extra={'is_attribute': True})
     issueDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
     redemptionDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
     redemptionDateEarly: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
@@ -747,7 +880,7 @@ class Security(BaseXmlModel):
 class Depot(BaseXmlModel):
     security: List[Security] = Field(default_factory=list, alias="security", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
     # attributes
-    depotNumber: Optional[DepotNumberType] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True}) # depotNumberType, required
+    depotNumber: Optional[DepotNumber] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True}) # depotNumberType, required
 
     class Config:
         arbitrary_types_allowed = True
@@ -792,7 +925,7 @@ class TaxStatementBase(BaseXmlModel):
     periodFrom: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True}) # date, required in XSD
     periodTo: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True}) # date, required in XSD
     country: Optional[CountryIdISO2Type] = Field(default="CH", json_schema_extra={'is_attribute': True})
-    canton: Optional[CantonAbbreviationLiteral] = Field(default=None, json_schema_extra={'is_attribute': True}) # cantonAbbreviationType, required in XSD
+    canton: Optional[CantonAbbreviation] = Field(default=None, json_schema_extra={'is_attribute': True}) # cantonAbbreviationType, required in XSD
     totalTaxValue: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
     totalGrossRevenueA: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
     totalGrossRevenueACanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
@@ -861,3 +994,32 @@ class TaxStatement(TaxStatementBase):
             print(f"Debug XML dumped to: {file_path}")
         except Exception as e:
             print(f"Error dumping debug XML to {file_path}: {e}")
+
+# --- Description Helper Functions ---
+class Descriptions:
+    """Helper class for getting enum descriptions."""
+    
+    @staticmethod
+    def expense(expense_code: ExpenseType) -> str:
+        """Get the description of an expense type based on its code."""
+        return EXPENSE_TYPE_DESCRIPTIONS.get(expense_code, "Unknown expense type")
+    
+    @staticmethod
+    def security_category(category_code: SecurityCategory) -> str:
+        """Get the description of a security category based on its code."""
+        return SECURITY_CATEGORY_DESCRIPTIONS.get(category_code, "Unknown security category")
+    
+    @staticmethod
+    def security_type(type_code: SecurityType) -> str:
+        """Get the description of a security type based on its code."""
+        return SECURITY_TYPE_DESCRIPTIONS.get(type_code, "Unknown security type")
+    
+    @staticmethod
+    def liability_category(category_code: LiabilityCategory) -> str:
+        """Get the description of a liability category based on its code."""
+        return LIABILITY_CATEGORY_DESCRIPTIONS.get(category_code, "Unknown liability category")
+    
+    @staticmethod
+    def salutation(salutation_code: MrMrs) -> str:
+        """Get the description of a salutation based on its code."""
+        return MrMrsCodes.get(salutation_code, "Unknown salutation")

@@ -14,7 +14,7 @@ from opensteuerauszug.model.ech0196 import (
     TaxStatement,
     Institution,
     Client,
-    ClientNumberType,
+    ClientNumber,
     BankAccount,
     NS_MAP,
     ns_tag
@@ -36,7 +36,7 @@ def sample_tax_statement_data():
         institution=Institution(name="Test Bank AG"),
         client=[
             Client(
-                clientNumber=ClientNumberType("C1"), # Keep explicit cast for static type checker
+                clientNumber=ClientNumber("C1"), # Keep explicit cast for static type checker
                 firstName="Max",
                 lastName="Muster",
                 salutation="2"
@@ -59,7 +59,8 @@ def sample_tax_statement_data():
 sample_tax_xml_files = [
     os.path.expanduser(os.path.expandvars(p)) for p in [
         "~/src/steuerausweiss/samples/WIR.xml",
-        "~/src/steuerausweiss/samples/Truewealth.xml"]
+        "~/src/steuerausweiss/samples/Truewealth.xml",
+        "~/src/steuerausweiss/samples/UBS_fixed.xml"]
 ]
 
 # --- Helper functions ---
