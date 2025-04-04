@@ -207,7 +207,6 @@ def test_tax_statement_to_xml(sample_tax_statement_data):
     except ET.XMLSyntaxError as e:
         pytest.fail(f"Generated XML is not well-formed:\n{xml_bytes.decode()}\\nError: {e}")
 
-@pytest.mark.skip(reason="Test is currently failing due to ValidationError during deserialization")
 def test_tax_statement_from_xml(sample_tax_statement_data):
     """Tests deserialization from an XML string by parsing it first."""
     statement_orig = sample_tax_statement_data
@@ -253,7 +252,6 @@ def test_tax_statement_from_xml(sample_tax_statement_data):
     assert loaded_statement.client[0].lastName == statement_orig.client[0].lastName
     assert loaded_statement.client[0].clientNumber == statement_orig.client[0].clientNumber
 
-@pytest.mark.skip(reason="Test is currently failing due to ValidationError during deserialization")
 def test_tax_statement_round_trip_file(sample_tax_statement_data, tmp_path: Path):
     """Tests writing to and reading from an XML file."""
     statement_orig = sample_tax_statement_data
