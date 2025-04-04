@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
 # Integration Tests Rule
 
 Rule for handling integration tests in the codebase
