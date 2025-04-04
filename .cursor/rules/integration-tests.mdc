@@ -1,0 +1,58 @@
+# Integration Tests Rule
+
+Rule for handling integration tests in the codebase
+
+<rule>
+name: integration_tests
+description: Rules for handling integration tests
+filters:
+  - type: file_extension
+    pattern: "\\.py$"
+  - type: file_content
+    pattern: "@pytest\\.mark\\.(integration|parametrize)"
+
+actions:
+  - type: suggest
+    message: |
+      # DO NOT MODIFY INTEGRATION TESTS
+
+      Tests marked with `@pytest.mark.integration` or `@pytest.mark.parametrize` are integration tests that verify 
+      the behavior of the system with real external data. These tests should not be modified unless the 
+      underlying integration requirements have changed.
+
+      Reasons for this rule:
+      
+      1. Integration tests validate behavior against real-world data, which may contain edge cases that aren't 
+         obvious from reading the test.
+      
+      2. Changes to integration tests may inadvertently mask actual problems with the system under test.
+      
+      3. Integration tests often serve as documentation for how the system interacts with external resources.
+
+      If the test is failing:
+      
+      - The problem is likely in the code under test, not the test itself
+      - Focus on fixing the implementation to match the expected behavior
+      - Only modify the test if there is a clear reason why the expected behavior is incorrect
+
+examples:
+  - input: |
+      @pytest.mark.parametrize("xml_file", sample_tax_xml_files)
+      def test_xml_round_trip_files(xml_file: str, tmp_path: Path):
+          """Test round-trip XML processing (read and write) of real XML files."""
+          if not xml_file:
+              pytest.skip("No XML files provided for testing")
+    output: "This is an integration test that should not be modified"
+
+  - input: |
+      @pytest.mark.integration
+      def test_real_world_api_call():
+          """Tests integration with a real API endpoint."""
+          response = api.get_data()
+          assert response.status_code == 200
+    output: "This is a marked integration test that should not be modified"
+
+metadata:
+  priority: high
+  version: 1.0
+</rule> 
