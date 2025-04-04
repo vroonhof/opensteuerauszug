@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field, validator, field_validator, StringConstraints, AfterValidator
 from pydantic.fields import FieldInfo # Import FieldInfo
+from pydantic import ConfigDict # Import ConfigDict for model_config
 from typing import List, Optional, Any, Dict, TypeVar, Type, Union, get_origin, get_args, Literal, Annotated # Import helpers & Literal, Annotated
 from datetime import date, datetime
 from decimal import Decimal
@@ -261,10 +262,14 @@ class BaseXmlModel(BaseModel):
     unknown_attrs: Dict[str, str] = Field(default_factory=dict, exclude=True)
     unknown_elements: List[Any] = Field(default_factory=list, exclude=True)
 
-    class Config:
-        arbitrary_types_allowed = True
-        # Flag for controlling parser strictness
-        strict_parsing = False
+    model_config: ConfigDict = {
+        "arbitrary_types_allowed": True,
+        "extra": "allow",  # Allow extra attributes like we had in Config
+    }
+    
+    # Class variable for strict parsing that can be overridden by subclasses
+    # Mark as excluded so it doesn't show up in XML
+    strict_parsing: bool = Field(default=False, exclude=True)
 
     @classmethod
     def _parse_attributes(cls: Type[M], element: ET._Element, strict: Optional[bool] = None) -> Dict[str, Any]:
@@ -281,7 +286,7 @@ class BaseXmlModel(BaseModel):
             ValueError: If strict is True and an unknown attribute is encountered
         """
         # Determine strictness from parameter or class config
-        strict_mode = strict if strict is not None else getattr(cls.Config, 'strict_parsing', False)
+        strict_mode = strict if strict is not None else cls.model_config.get('strict_parsing', False)
         
         data = {}
         known_attrs = { field_info.alias or name
@@ -354,7 +359,7 @@ class BaseXmlModel(BaseModel):
         return data
 
     def _build_attributes(self, element: ET._Element):
-        for name, field_info in self.model_fields.items():
+        for name, field_info in self.__class__.model_fields.items():
             if field_info.json_schema_extra and field_info.json_schema_extra.get("is_attribute"):
                 value = getattr(self, name, None)
                 print(f"Building attribute {name} with value {value}")
@@ -398,7 +403,7 @@ class BaseXmlModel(BaseModel):
             ValueError: If strict is True and an unknown element is encountered
         """
         # Determine strictness from parameter or class config
-        strict_mode = strict if strict is not None else getattr(cls.Config, 'strict_parsing', False)
+        strict_mode = strict if strict is not None else cls.model_config.get('strict_parsing', False)
         
         data = {}
         # All child element fields that aren't marked as attributes
@@ -600,7 +605,7 @@ class BaseXmlModel(BaseModel):
 
     def _build_children(self, parent_element: ET._Element):
         tag_map = {}
-        for name, field_info in self.model_fields.items():
+        for name, field_info in self.__class__.model_fields.items():
             extra = field_info.json_schema_extra or {}
             # Skip excluded fields and attributes
             if field_info.exclude or extra.get("is_attribute"):
@@ -609,7 +614,7 @@ class BaseXmlModel(BaseModel):
             local_name = field_info.alias or name
             tag_map[name] = (ns, local_name)
 
-        for name, field_info in self.model_fields.items():
+        for name, field_info in self.__class__.model_fields.items():
             # Skip excluded fields
             if field_info.exclude:
                 continue
@@ -653,8 +658,8 @@ class BaseXmlModel(BaseModel):
             parent_element.append(deepcopy(unknown))
 
     def _build_xml_element(self, 
-                   parent_element: Optional[ET._Element] = None, 
-                   name: Optional[str] = None) -> ET._Element:
+                    parent_element: Optional[ET._Element] = None, 
+                    name: Optional[str] = None) -> ET._Element:
         """Build XML element from this model instance."""
         # Determine tag name: specified name, or from config, or class name
         tag_name = None
@@ -683,6 +688,15 @@ class BaseXmlModel(BaseModel):
         # Get namespace from config if available
         if config and hasattr(config, 'tag_namespace'):
             ns = config.tag_namespace
+        
+        # Use model_config instead of Config if available
+        model_config = getattr(self.__class__, 'model_config', {})
+        json_schema_extra = model_config.get('json_schema_extra', {})
+        if json_schema_extra:
+            if 'tag_name' in json_schema_extra:
+                tag_name = json_schema_extra['tag_name']
+            if 'tag_namespace' in json_schema_extra:
+                ns = json_schema_extra['tag_namespace']
         
         # Create element with namespace
         if parent_element is not None:
@@ -717,7 +731,7 @@ class BaseXmlModel(BaseModel):
             ValueError: If strict is True and unknown attributes or elements are encountered
         """
         # Determine strictness from parameter or class config
-        strict_mode = strict if strict is not None else getattr(cls.Config, 'strict_parsing', False)
+        strict_mode = strict if strict is not None else cls.model_config.get('strict_parsing', False)
         
         data = cls._parse_attributes(element, strict=strict_mode)
         data.update(cls._parse_children(element, strict=strict_mode))
@@ -738,10 +752,11 @@ class Uid(BaseXmlModel):
     uidSuffix: Optional[str] = Field(default=None, max_length=3, json_schema_extra={'tag_namespace': NS_MAP['eCH-0097']})
     xml: Optional[Any] = Field(default=None, exclude=True) # Store raw lxml element
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'allow' # Allow storing raw XML element if needed
-        json_schema_extra = {'tag_name': 'uid', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "extra": "allow", # Allow storing raw XML element if needed
+        "json_schema_extra": {'tag_name': 'uid', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class Institution(BaseXmlModel):
@@ -750,8 +765,9 @@ class Institution(BaseXmlModel):
     lei: Optional[LEIType] = Field(default=None, pattern=r"[A-Z0-9]{18}[0-9]{2}", json_schema_extra={'is_attribute': True}) # leiType
     name: Optional[OrganisationName] = Field(default=None, json_schema_extra={'is_attribute': True}) # organisationNameType, required in XSD
  
-    class Config:
-        json_schema_extra = {'tag_name': 'institution', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'institution', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class Client(BaseXmlModel):
@@ -762,8 +778,9 @@ class Client(BaseXmlModel):
     firstName: Optional[FirstName] = Field(default=None, json_schema_extra={'is_attribute': True}) # firstNameType
     lastName: Optional[LastName] = Field(default=None, json_schema_extra={'is_attribute': True}) # lastNameType
     
-    class Config:
-        json_schema_extra = {'tag_name': 'client', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'client', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class AccompanyingLetter(BaseXmlModel):
@@ -772,8 +789,9 @@ class AccompanyingLetter(BaseXmlModel):
     fileSize: Optional[int] = Field(default=None, json_schema_extra={'is_attribute': True})
     fileData: Optional[bytes] = Field(default=None, json_schema_extra={'is_attribute': True}) # base64Binary
     
-    class Config:
-        json_schema_extra = {'tag_name': 'accompanyingLetter', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'accompanyingLetter', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class BankAccountTaxValue(BaseXmlModel):
@@ -786,8 +804,9 @@ class BankAccountTaxValue(BaseXmlModel):
     exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     value: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
 
-    class Config:
-        json_schema_extra = {'tag_name': 'taxValue', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'taxValue', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class BankAccountPayment(BaseXmlModel):
@@ -807,8 +826,9 @@ class BankAccountPayment(BaseXmlModel):
     nonRecoverableTax: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     bankingExpenses: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
 
-    class Config:
-        json_schema_extra = {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class BankAccount(BaseXmlModel):
@@ -830,12 +850,12 @@ class BankAccount(BaseXmlModel):
     totalGrossRevenueACanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     totalGrossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     totalGrossRevenueBCanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
-    totalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
-    totalLumpSumTaxCredit: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    totalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
 
-    class Config:
-        arbitrary_types_allowed = True
-        json_schema_extra = {'tag_name': 'bankAccount', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "json_schema_extra": {'tag_name': 'bankAccount', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class ListOfBankAccounts(BaseXmlModel):
@@ -846,9 +866,10 @@ class ListOfBankAccounts(BaseXmlModel):
     totalGrossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
     totalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
 
-    class Config:
-        arbitrary_types_allowed = True
-        json_schema_extra = {'tag_name': 'listOfBankAccounts', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "json_schema_extra": {'tag_name': 'listOfBankAccounts', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class LiabilityAccountTaxValue(BaseXmlModel):
@@ -861,8 +882,9 @@ class LiabilityAccountTaxValue(BaseXmlModel):
     exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     value: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
 
-    class Config:
-        json_schema_extra = {'tag_name': 'taxValue', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'taxValue', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class LiabilityAccountPayment(BaseXmlModel):
@@ -876,8 +898,9 @@ class LiabilityAccountPayment(BaseXmlModel):
     grossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     grossRevenueBCanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
 
-    class Config:
-        json_schema_extra = {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class LiabilityAccount(BaseXmlModel):
@@ -910,9 +933,10 @@ class LiabilityAccount(BaseXmlModel):
         json_schema_extra={'is_attribute': True}
     ) # Required in XSD
     
-    class Config:
-        arbitrary_types_allowed = True
-        json_schema_extra = {'tag_name': 'liabilityAccount', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "json_schema_extra": {'tag_name': 'liabilityAccount', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class ListOfLiabilities(BaseXmlModel):
@@ -921,9 +945,10 @@ class ListOfLiabilities(BaseXmlModel):
     totalTaxValue: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal, required
     totalGrossRevenueB: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal, required
 
-    class Config:
-        arbitrary_types_allowed = True
-        json_schema_extra = {'tag_name': 'listOfLiabilities', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "json_schema_extra": {'tag_name': 'listOfLiabilities', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class Expense(BaseXmlModel):
@@ -942,8 +967,9 @@ class Expense(BaseXmlModel):
     expensesDeductibleCanton: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     expenseType: Optional[ExpenseType] = Field(default=None, json_schema_extra={'is_attribute': True}) # Required in XSD, enum type
     
-    class Config:
-        json_schema_extra = {'tag_name': 'expense', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'expense', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class ListOfExpenses(BaseXmlModel):
@@ -953,9 +979,10 @@ class ListOfExpenses(BaseXmlModel):
     totalExpensesDeductible: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal
     totalExpensesDeductibleCanton: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal
 
-    class Config:
-        arbitrary_types_allowed = True
-        json_schema_extra = {'tag_name': 'listOfExpenses', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "json_schema_extra": {'tag_name': 'listOfExpenses', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class SecurityTaxValue(BaseXmlModel):
@@ -977,8 +1004,9 @@ class SecurityTaxValue(BaseXmlModel):
     undefined: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
     kursliste: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
     
-    class Config:
-        json_schema_extra = {'tag_name': 'taxValue', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'taxValue', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class SecurityPurchaseDisposition(BaseXmlModel):
@@ -994,8 +1022,9 @@ class SecurityPurchaseDisposition(BaseXmlModel):
     exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     value: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     
-    class Config:
-        json_schema_extra = {'tag_name': 'purchase', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'purchase', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class SecurityPayment(BaseXmlModel):
@@ -1027,16 +1056,18 @@ class SecurityPayment(BaseXmlModel):
     grossRevenueIUP: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     grossRevenueConversion: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     
-    class Config:
-        json_schema_extra = {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class SecurityStock(BaseXmlModel):
     """Represents stock changes for a security (securityStockType)."""
     # Add fields based on schema if needed
     
-    class Config:
-        json_schema_extra = {'tag_name': 'stock', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'stock', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class Security(BaseXmlModel):
@@ -1073,8 +1104,9 @@ class Security(BaseXmlModel):
     bfp: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
     blockingTo: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
     
-    class Config:
-        json_schema_extra = {'tag_name': 'security', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'security', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class Depot(BaseXmlModel):
@@ -1082,9 +1114,10 @@ class Depot(BaseXmlModel):
     # attributes
     depotNumber: Optional[DepotNumber] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True}) # depotNumberType, required
 
-    class Config:
-        arbitrary_types_allowed = True
-        json_schema_extra = {'tag_name': 'depot', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "json_schema_extra": {'tag_name': 'depot', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 class ListOfSecurities(BaseXmlModel):
@@ -1102,9 +1135,10 @@ class ListOfSecurities(BaseXmlModel):
     totalGrossRevenueIUP: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required
     totalGrossRevenueConversion: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required
 
-    class Config:
-        arbitrary_types_allowed = True
-        json_schema_extra = {'tag_name': 'listOfSecurities', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "json_schema_extra": {'tag_name': 'listOfSecurities', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
 
 
 # --- Root Element Model --- Adjusted for inheritance and attributes/elements
@@ -1151,8 +1185,9 @@ class TaxStatement(TaxStatementBase):
     # Attribute specific to the root 'taxStatement' element
     minorVersion: Optional[int] = Field(..., json_schema_extra={'is_attribute': True}) # required in XSD -> Changed default=None to ...
 
-    class Config:
-        json_schema_extra = {'tag_name': 'taxStatement', 'tag_namespace': NS_MAP['eCH-0196']}
+    model_config = {
+        "json_schema_extra": {'tag_name': 'taxStatement', 'tag_namespace': NS_MAP['eCH-0196']}
+    }
         
     @classmethod
     def from_xml_file(cls, file_path: str, strict: Optional[bool] = None) -> "TaxStatement":

@@ -463,9 +463,10 @@ def test_strict_mode_unknown_attribute():
 
     # Create a strict version of BankAccount for testing
     class StrictBankAccount(BankAccount):
-        class Config:
-            arbitrary_types_allowed = True
-            strict_parsing = True
+        model_config = {
+            "arbitrary_types_allowed": True,
+            "strict_parsing": True
+        }
 
     # Should raise an exception in strict mode
     with pytest.raises(ValueError, match="Unknown attribute: .*unknownAttr.*"):
@@ -490,9 +491,10 @@ def test_strict_mode_unknown_element():
 
     # Create a strict version of BankAccount for testing
     class StrictBankAccount(BankAccount):
-        class Config:
-            arbitrary_types_allowed = True
-            strict_parsing = True
+        model_config = {
+            "arbitrary_types_allowed": True,
+            "strict_parsing": True
+        }
 
     # Should raise an exception in strict mode
     with pytest.raises(ValueError, match="Unknown element.*unknownElement.*"):
@@ -517,9 +519,10 @@ def test_strict_mode_parsing_error():
 
     # Create a modified version of BankAccount for testing
     class StrictBankAccount(BankAccount):
-        class Config:
-            arbitrary_types_allowed = True
-            strict_parsing = True
+        model_config = {
+            "arbitrary_types_allowed": True,
+            "strict_parsing": True
+        }
         
         balanceCurrency: date = Field(..., json_schema_extra={'is_attribute': True})  # Invalid type on purpose
 
@@ -544,9 +547,10 @@ def test_use_strict_parameter():
     
     # Create a strict class, but override with strict=False
     class StrictBankAccount(BankAccount):
-        class Config:
-            arbitrary_types_allowed = True
-            strict_parsing = True
+        model_config = {
+            "arbitrary_types_allowed": True,
+            "strict_parsing": True
+        }
     
     # This should not raise, despite the class being strict
     bank_account = StrictBankAccount._from_xml_element(element, strict=False)
