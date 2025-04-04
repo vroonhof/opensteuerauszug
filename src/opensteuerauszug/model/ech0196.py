@@ -40,7 +40,8 @@ class CurrencyId(str): # pattern="[A-Z]{3}"
     pass
 class DepotNumber(str): # maxLength: 40
     pass
-class ValorNumber(int): # positiveInteger, maxInclusive=99999999
+class ValorNumber(int): # positiveInteger, maxInclusive=999999999999, minInclusive=100
+    """Valor number for security identification."""
     pass
 class ISINType(str): # length=12, pattern="[A-Z]{2}[A-Z0-9]{9}[0-9]{1}"
     pass
@@ -271,6 +272,15 @@ class BaseXmlModel(BaseModel):
     # Mark as excluded so it doesn't show up in XML
     strict_parsing: bool = Field(default=False, exclude=True)
 
+    @staticmethod
+    def _iter_element(element: ET._Element) -> List[ET._Element]:
+        """Helper method to get list of child elements, addressing lxml typing issue.
+        
+        This method helps with type checking when iterating over lxml elements.
+        """
+        # Use xpath to get all child elements - this is safer for typing
+        return element.xpath('./*')
+        
     @classmethod
     def _parse_attributes(cls: Type[M], element: ET._Element, strict: Optional[bool] = None) -> Dict[str, Any]:
         """Parse XML element attributes into a dictionary.
@@ -449,7 +459,7 @@ class BaseXmlModel(BaseModel):
             tag_map[qualified_tag] = name
 
         # Process all child elements
-        for child in element:
+        for child in cls._iter_element(element):
             if child.tag in tag_map:
                 field_name = tag_map[child.tag]
                 field_info = cls.model_fields[field_name]
@@ -991,7 +1001,7 @@ class SecurityTaxValue(BaseXmlModel):
     referenceDate: date = Field(..., json_schema_extra={'is_attribute': True})
     quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})
     quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
-    balanceCurrency: CurrencyId = Field(..., json_schema_extra={'is_attribute': True})
+    balanceCurrency: CurrencyId = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
     
     # Optional attributes
     name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
@@ -1050,11 +1060,24 @@ class SecurityPayment(BaseXmlModel):
     grossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     grossRevenueBCanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     withHoldingTaxClaim: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
-    lumpSumTaxCredit: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    lumpSumTaxCredit: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    lumpSumTaxCreditPercent: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    lumpSumTaxCreditAmount: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    nonRecoverableTaxPercent: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    nonRecoverableTaxAmount: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     nonRecoverableTax: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     additionalWithHoldingTaxUSA: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     grossRevenueIUP: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     grossRevenueConversion: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    iup: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    conversion: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    gratis: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    securitiesLending: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    lendingFee: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    retrocession: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    undefined: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    kursliste: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    sign: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True})
     
     model_config = {
         "json_schema_extra": {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}
@@ -1063,7 +1086,22 @@ class SecurityPayment(BaseXmlModel):
 
 class SecurityStock(BaseXmlModel):
     """Represents stock changes for a security (securityStockType)."""
-    # Add fields based on schema if needed
+    # Required attributes from XSD
+    referenceDate: date = Field(..., json_schema_extra={'is_attribute': True})
+    mutation: bool = Field(..., json_schema_extra={'is_attribute': True})
+    quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})  
+    quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
+    balanceCurrency: CurrencyId = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
+    
+    # Optional attributes from XSD
+    name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
+    unitPrice: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    balance: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    reductionCost: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    value: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
+    blocked: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    blockingTo: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
     
     model_config = {
         "json_schema_extra": {'tag_name': 'stock', 'tag_namespace': NS_MAP['eCH-0196']}
@@ -1087,7 +1125,7 @@ class Security(BaseXmlModel):
     securityName: str = Field(..., max_length=60, json_schema_extra={'is_attribute': True})
     
     # Optional attributes
-    valorNumber: Optional[ValorNumber] = Field(default=None, gt=0, le=99999999, json_schema_extra={'is_attribute': True})
+    valorNumber: Optional[ValorNumber] = Field(default=None, ge=100, le=999999999999, json_schema_extra={'is_attribute': True})
     isin: Optional[ISINType] = Field(default=None, pattern=r"[A-Z]{2}[A-Z0-9]{9}[0-9]{1}", json_schema_extra={'is_attribute': True})
     city: Optional[str] = Field(default=None, max_length=40, json_schema_extra={'is_attribute': True})
     nominalValue: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
@@ -1100,9 +1138,7 @@ class Security(BaseXmlModel):
     redemptionPriceEarly: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     interestRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     variableInterest: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
-    iup: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
     bfp: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
-    blockingTo: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
     
     model_config = {
         "json_schema_extra": {'tag_name': 'security', 'tag_namespace': NS_MAP['eCH-0196']}

@@ -414,6 +414,8 @@ def test_institution_round_trip():
     assert actual_xml == expected_xml
 
 
+# Integration tests
+# DO NOT CHANGE
 @pytest.mark.parametrize("xml_file", sample_tax_xml_files)
 def test_xml_round_trip_files(xml_file: str, tmp_path: Path):
     """Test round-trip XML processing (read and write) of real XML files."""
@@ -421,33 +423,15 @@ def test_xml_round_trip_files(xml_file: str, tmp_path: Path):
         pytest.skip("No XML files provided for testing")
 
     # First attempt with strict mode - might fail for some files
-    try:
-        statement_strict = TaxStatement.from_xml_file(xml_file, strict=True)
-        print(f"Strict mode passed for {xml_file}")
-    except ValueError as e:
-        print(f"Strict mode failed for {xml_file}: {e}")
-        # This is expected for some files, so we don't fail the test
+    statement = TaxStatement.from_xml_file(xml_file, strict=True)
 
-    # Always test with non-strict mode
-    try:
-        statement = TaxStatement.from_xml_file(xml_file, strict=False)
-    except Exception as e:
-        pytest.fail(f"Failed to read XML file {xml_file} even in non-strict mode: {e}")
+    output_xml = statement.to_xml_bytes()
 
-    # Write to a temporary file and read back
-    output_path = tmp_path / "output.xml"
-    statement.to_xml_file(str(output_path))
-    
-    # Now compare the data of the statement instead of the XML
-    roundtrip_statement = TaxStatement.from_xml_file(str(output_path))
-    
-    # Assert key fields match
-    assert statement.id == roundtrip_statement.id
-    assert statement.canton == roundtrip_statement.canton
-    assert statement.taxPeriod == roundtrip_statement.taxPeriod
-    assert statement.totalTaxValue == roundtrip_statement.totalTaxValue
-    assert statement.periodFrom == roundtrip_statement.periodFrom
-    assert statement.periodTo == roundtrip_statement.periodTo
+    with open(xml_file, 'rb') as f:
+        original_xml = normalize_xml(f.read(), remove_xmlns=True)
+    output_xml = normalize_xml(output_xml, remove_xmlns=True)
+
+    assert output_xml == original_xml
 
 def test_strict_mode_unknown_attribute():
     """Test that strict mode raises an exception for unknown attributes."""
