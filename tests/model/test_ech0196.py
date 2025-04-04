@@ -58,12 +58,17 @@ def sample_tax_statement_data():
         # totalWithHoldingTaxClaim=Decimal("35.00"),
     )
 
-sample_tax_xml_files = [
-    os.path.expanduser(os.path.expandvars(p)) for p in [
-        "~/src/steuerausweiss/samples/WIR.xml",
-        "~/src/steuerausweiss/samples/Truewealth.xml",
-        "~/src/steuerausweiss/samples/UBS_fixed.xml"]
-]
+def get_sample_tax_xml_files():
+    sample_files = [*glob.glob("tests/samples/*.xml")]
+    extra_sample_dir = os.getenv("EXTRA_SAMPLE_DIR")
+    if extra_sample_dir:
+        extra_pattern = os.path.join(
+            os.path.expanduser(
+                os.path.expandvars(extra_sample_dir)), "*.xml")
+        sample_files.extend(glob.glob(extra_pattern))
+    return sample_files
+
+
 
 # --- Helper functions ---
 
@@ -414,7 +419,7 @@ def test_institution_round_trip():
 
 # Integration tests
 # DO NOT CHANGE
-@pytest.mark.parametrize("xml_file", sample_tax_xml_files)
+@pytest.mark.parametrize("xml_file", get_sample_tax_xml_files())
 def test_xml_round_trip_files(xml_file: str, tmp_path: Path):
     """Test round-trip XML processing (read and write) of real XML files."""
     if not xml_file:
