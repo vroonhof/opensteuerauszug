@@ -27,14 +27,6 @@ from opensteuerauszug.model.ech0196 import TaxStatement
 COMPANY_NAME = "Bank WIR"
 DOC_INFO = "S. E. & O."
 
-# --- Helper Classes ---
-class DecimalEncoder(json.JSONEncoder):
-    """Custom JSON encoder for Decimal objects."""
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return float(obj)
-        return super().default(obj)
-
 # --- Helper Function for Currency Formatting ---
 def format_currency(value, default='0.00'):
     # (Same as v7)
@@ -534,6 +526,9 @@ def map_tax_statement_to_pdf_data(tax_statement: TaxStatement) -> Dict[str, Any]
         data["customer"] = {
             "name": full_name,
             "address": address,
+            "first_name": client.firstName if hasattr(client, 'firstName') else "",
+            "last_name": client.lastName if hasattr(client, 'lastName') else "",
+            "salutation": salutation,
         }
     
     # Extract institution information if available
@@ -554,9 +549,12 @@ def map_tax_statement_to_pdf_data(tax_statement: TaxStatement) -> Dict[str, Any]
     if hasattr(tax_statement, 'periodTo') and tax_statement.periodTo:
         period_to = tax_statement.periodTo.strftime("%d.%m.%Y")
     
-    period_text = f"{period_from}-{period_to}" if period_from and period_to else ""
+    data["period"] = {
+        "year": tax_statement.taxPeriod if hasattr(tax_statement, 'taxPeriod') else "",
+        "from_date": period_from,
+        "to_date": period_to,
+    }
     
-    data["period"] = period_text
     data["created_date"] = tax_statement.creationDate.strftime("%d.%m.%Y") if hasattr(tax_statement, 'creationDate') and tax_statement.creationDate else ""
     
     # Portfolio identifier can be client number or some other identifier
@@ -568,7 +566,7 @@ def map_tax_statement_to_pdf_data(tax_statement: TaxStatement) -> Dict[str, Any]
     total_gross_revenue_b = tax_statement.totalGrossRevenueB if hasattr(tax_statement, 'totalGrossRevenueB') and tax_statement.totalGrossRevenueB is not None else Decimal('0')
     
     data["summary"] = {
-        "steuerwert_ab": tax_statement.totalTaxValue if hasattr(tax_statement, 'totalTaxValue') else None,
+        "steuerwert": tax_statement.totalTaxValue if hasattr(tax_statement, 'totalTaxValue') else None,
         "steuerwert_a": total_gross_revenue_a,  # This is just a placeholder, adjust as needed
         "steuerwert_b": total_gross_revenue_b,  # This is just a placeholder, adjust as needed
         "brutto_mit_vst": total_gross_revenue_a,
