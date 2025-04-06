@@ -1,18 +1,11 @@
+
+
 import io
-import sys
-import os
-import json
-from pathlib import Path
-from typing import Dict, Any, Optional, Union
-from decimal import Decimal, ROUND_HALF_UP
 from PIL import Image as PILImage
+from decimal import Decimal, ROUND_HALF_UP
 
 # --- ReportLab Imports ---
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, 
-    PageBreak, KeepTogether, Frame, PageTemplate, FrameActionFlowable,
-    BaseDocTemplate, NextPageTemplate
-)
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.units import cm, mm
@@ -20,20 +13,10 @@ from reportlab.lib import colors
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 
-# --- Import TaxStatement model ---
-from opensteuerauszug.model.ech0196 import TaxStatement
-
 # --- Configuration ---
+FILENAME = "steuer_auszug_example_v8_shifted.pdf"
 COMPANY_NAME = "Bank WIR"
 DOC_INFO = "S. E. & O."
-
-# --- Helper Classes ---
-class DecimalEncoder(json.JSONEncoder):
-    """Custom JSON encoder for Decimal objects."""
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return float(obj)
-        return super().default(obj)
 
 # --- Helper Function for Currency Formatting ---
 def format_currency(value, default='0.00'):
@@ -45,37 +28,39 @@ def format_currency(value, default='0.00'):
         return formatted
     except: return default
 
-# --- Header/Footer Drawing Functions (for SimpleDocTemplate) ---
+# --- Header/Footer Canvas ---
+class PageNumCanvas(canvas.Canvas):
+    # (Same as v7 - handles landscape)
+    def __init__(self, *args, **kwargs):
+        canvas.Canvas.__init__(self, *args, **kwargs)
+        self._saved_page_states = []
+        self.page_width, self.page_height = landscape(A4)
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_header_footer(num_pages)
+            canvas.Canvas.showPage(self)
+        canvas.Canvas.save(self)
+    def draw_header_footer(self, page_count):
+        self.saveState()
+        self.setFont('Helvetica', 9)
+        header_text = "7010001 | 85506710549033 | 8391"
+        self.setFillColor(colors.black)
+        header_x = self.page_width - 20*mm
+        header_y = self.page_height - 15*mm
+        self.drawRightString(header_x, header_y, header_text)
+        self.setFont('Helvetica', 9)
+        self.setFillColor(colors.grey)
+        footer_y = 15*mm
+        self.drawString(20*mm, footer_y, COMPANY_NAME)
+        self.drawCentredString(self.page_width / 2.0, footer_y, DOC_INFO)
+        self.drawRightString(self.page_width - 20*mm, footer_y, f"Seite {self._pageNumber}/{page_count}")
+        self.restoreState()
 
-def draw_page_header(canvas, doc):
-    """Draws the header content on each page."""
-    canvas.saveState()
-    page_width = doc.pagesize[0]
-    page_height = doc.pagesize[1]
-    canvas.setFont('Helvetica', 9)
-    header_text = "7010001 | 85506710549033 | 8391" # Example header
-    canvas.setFillColor(colors.black)
-    header_x = page_width - doc.rightMargin
-    header_y = page_height - doc.topMargin + 10*mm # Adjust position as needed
-    canvas.drawRightString(header_x, header_y, header_text)
-    canvas.restoreState()
-
-def draw_page_footer(canvas, doc):
-    """Draws the footer content and page number on each page."""
-    canvas.saveState()
-    page_width = doc.pagesize[0]
-    canvas.setFont('Helvetica', 9)
-    canvas.setFillColor(colors.grey)
-    footer_y = doc.bottomMargin - 10*mm # Adjust position
-    # Company Name
-    canvas.drawString(doc.leftMargin, footer_y, COMPANY_NAME)
-    # Doc Info
-    canvas.drawCentredString(page_width / 2.0, footer_y, DOC_INFO)
-    # Page Number - Standard onPageEnd handlers typically only get current page number
-    page_num = canvas.getPageNumber()
-    text = f"Seite {page_num}"
-    canvas.drawRightString(page_width - doc.rightMargin, footer_y, text)
-    canvas.restoreState()
 
 # --- Table Creation Functions ---
 
@@ -258,18 +243,9 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
     footnote = Paragraph(footnote_text, val_left)
     return KeepTogether([summary_table, Spacer(1, 2*mm), footnote])
 
-# --- Liabilities Table Function ---
+# --- Liabilities Table Function (Optional) ---
 def create_liabilities_table(data, styles, usable_width):
-    """Creates a table displaying liabilities information.
-    
-    Args:
-        data: Dictionary containing the liabilities data
-        styles: Dictionary of styles for text formatting
-        usable_width: Available width for the table
-        
-    Returns:
-        A Table object containing the liabilities data or None if no data
-    """
+    # (Code remains the same as v7)
     if not data.get('liabilities'): return None
     header_style = styles['Header_CENTER']
     val_left = styles['Val_LEFT']
@@ -290,18 +266,9 @@ def create_liabilities_table(data, styles, usable_width):
     liabilities_table.setStyle(TableStyle([ ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 1), ('RIGHTPADDING', (0, 0), (-1, -1), 1), ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 1), ('LINEBELOW', (0, 0), (-1, 0), 1, colors.black), ('BOTTOMPADDING', (0, 0), (-1, 0), 3*mm), ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black), ('TOPPADDING', (0, -1), (-1, -1), 3*mm), ]))
     return liabilities_table
 
-# --- Costs Table Function ---
+# --- Costs Table Function (Optional) ---
 def create_costs_table(data, styles, usable_width):
-    """Creates a table displaying bank costs information.
-    
-    Args:
-        data: Dictionary containing the costs data
-        styles: Dictionary of styles for text formatting
-        usable_width: Available width for the table
-        
-    Returns:
-        A KeepTogether object containing the costs table and footnote or None if no data
-    """
+    # (Code remains the same as v7)
     if not data.get('costs'): return None
     header_left_style = styles['Header_LEFT']
     header_right_style = styles['Header_RIGHT']
@@ -320,61 +287,42 @@ def create_costs_table(data, styles, usable_width):
     return KeepTogether([costs_table, Spacer(1, 2*mm), Paragraph(footnote_text, val_left)])
 
 
-# --- Barcode Generation ---
+# --- Barcode Generation Placeholder ---
 def get_barcode_image(data):
-    """Generate a barcode image from the given data using Code128.
-    
-    Args:
-        data: The data to encode in the barcode
-        
-    Returns:
-        A PIL Image object containing the barcode
-    """
+    # (Same as v7)
     try:
         from barcode.writer import ImageWriter
         from barcode import Code128
         code = Code128(str(data), writer=ImageWriter())
         pil_img = code.render(writer_options={'write_text': False, 'module_height': 10.0})
+        print(f"Generated barcode for '{data}'")
         return pil_img
     except ImportError:
-        # Fallback to a placeholder if barcode library isn't available
-        img = PILImage.new('RGB', (800, 150), color='grey')
+        print("python-barcode library not found. Using placeholder image.")
+        img = PILImage.new('RGB', (800, 150), color = 'grey')
         return img
     except Exception as e:
-        # Return a red placeholder in case of errors
-        img = PILImage.new('RGB', (800, 150), color='red')
+        print(f"Error generating barcode: {e}")
+        img = PILImage.new('RGB', (800, 150), color = 'red')
         return img
 
 # --- Main Document Generation Function ---
-def generate_pdf(data, output_path=None):
-    """Generates the complete PDF document using SimpleDocTemplate with page templates."""
+def generate_pdf(data):
+    """Generates the complete PDF document in landscape with shifted totals (v8)."""
     buffer = io.BytesIO()
     page_width, page_height = landscape(A4)
     left_margin = 20*mm
     right_margin = 20*mm
-    top_margin = 25*mm  # Standard top margin
-    bottom_margin = 25*mm # Standard bottom margin
     usable_width = page_width - left_margin - right_margin
 
-    # Define frame for the main content area
-    frame = Frame(left_margin, bottom_margin, usable_width, page_height - top_margin - bottom_margin,
-                  id='normal')
+    doc = SimpleDocTemplate(buffer,
+                            pagesize=landscape(A4),
+                            leftMargin=left_margin,
+                            rightMargin=right_margin,
+                            topMargin=25*mm,
+                            bottomMargin=25*mm)
 
-    # Create the page template with header/footer functions
-    page_template = PageTemplate(id='main', frames=[frame],
-                                 onPage=draw_page_header, 
-                                 onPageEnd=draw_page_footer)
-
-    # Use BaseDocTemplate for more control with PageTemplates
-    doc = BaseDocTemplate(buffer,
-                          pagesize=landscape(A4),
-                          pageTemplates=[page_template],
-                          leftMargin=left_margin,
-                          rightMargin=right_margin,
-                          topMargin=top_margin,
-                          bottomMargin=bottom_margin)
-
-    # --- Define styles centrally (same as before) ---
+    # --- Define styles centrally ---
     styles = getSampleStyleSheet()
     base_style = styles['Normal']
     base_style.fontSize = 8
@@ -389,55 +337,47 @@ def generate_pdf(data, output_path=None):
 
     story = []
 
-    # --- Add Client Header Info (same as before) ---
+    # --- Add Client Header Info ---
     client_info_style = ParagraphStyle(name='ClientInfo', parent=styles['Normal'], fontSize=9, spaceAfter=3*mm)
-    if 'customer' in data: 
-        story.append(Paragraph(f"<b>Kunde:</b> {data['customer'].get('name', '')}", client_info_style))
-        story.append(Paragraph(f"<b>Adresse:</b> {data['customer'].get('address', '')}", client_info_style))
-    if 'portfolio' in data: 
-        story.append(Paragraph(f"<b>Portfolio:</b> {data.get('portfolio', '')}", client_info_style))
-    if 'period' in data: 
-        story.append(Paragraph(f"<b>Periode:</b> {data.get('period', '')}", client_info_style))
-    if 'created_date' in data: 
-        story.append(Paragraph(f"<b>Erstellt am:</b> {data.get('created_date', '')}", client_info_style))
+    if 'customer' in data: story.append(Paragraph(f"<b>Kunde:</b> {data['customer'].get('name', '')}", client_info_style))
+    if 'customer' in data: story.append(Paragraph(f"<b>Adresse:</b> {data['customer'].get('address', '')}", client_info_style))
+    if 'portfolio' in data: story.append(Paragraph(f"<b>Portfolio:</b> {data.get('portfolio', '')}", client_info_style))
+    if 'period' in data: story.append(Paragraph(f"<b>Periode:</b> {data.get('period', '')}", client_info_style))
+    if 'created_date' in data: story.append(Paragraph(f"<b>Erstellt am:</b> {data.get('created_date', '')}", client_info_style))
     story.append(Spacer(1, 0.5*cm))
 
-    # --- Sections (same structure as before) ---
+    # --- Sections ---
     title_style = ParagraphStyle(name='SectionTitle', parent=styles['h2'], alignment=TA_LEFT, fontSize=10, spaceAfter=4*mm)
 
     # 1. Summary
-    story.append(Paragraph("Steuerauszug | Zusammenfassung", title_style))
+    story.append(Paragraph("Steuerauszug 31.12.2024 | Zusammenfassung", title_style))
     summary_content = create_summary_table(data, styles, usable_width)
-    if summary_content: 
-        story.append(summary_content)
+    if summary_content: story.append(summary_content)
     story.append(Spacer(1, 0.5*cm))
 
-    # Add other sections conditionally (Costs, Liabilities, Barcode)
-    if 'costs' in data and data['costs']:
-        costs_content = create_costs_table(data, styles, usable_width)
-        if costs_content:
-            story.append(NextPageTemplate('main')) # Ensure template is used for next page
-            story.append(FrameActionFlowable('setNextFrame', 'normal')) # Reset frame if needed
-            story.append(PageBreak())
-            story.append(Paragraph("Steuerauszug | Bezahlte Bankspesen", title_style))
-            story.append(costs_content)
-            story.append(Spacer(1, 0.5*cm))
-
-    if 'liabilities' in data and data['liabilities']:
-        liabilities_table = create_liabilities_table(data, styles, usable_width)
-        if liabilities_table:
-            story.append(NextPageTemplate('main'))
-            story.append(FrameActionFlowable('setNextFrame', 'normal'))
-            story.append(PageBreak())
-            story.append(Paragraph("Steuerauszug | Schulden", title_style))
-            story.append(liabilities_table)
-            story.append(Spacer(1, 0.5*cm))
-
-    if 'barcode_data' in data and data['barcode_data']:
-        story.append(NextPageTemplate('main'))
-        story.append(FrameActionFlowable('setNextFrame', 'normal'))
+    # 2. Costs (Optional)
+    costs_content = create_costs_table(data, styles, usable_width)
+    if costs_content:
         story.append(PageBreak())
-        story.append(Spacer(1, 3*cm)) # Space before barcode
+        story.append(Paragraph("Steuerauszug 31.12.2024 | Bezahlte Bankspesen", title_style))
+        story.append(costs_content)
+        story.append(Spacer(1, 0.5*cm))
+
+    # 3. Accounts (Placeholder)
+    # ...
+
+    # 4. Liabilities (Optional)
+    liabilities_table = create_liabilities_table(data, styles, usable_width)
+    if liabilities_table:
+        story.append(PageBreak())
+        story.append(Paragraph("Steuerauszug 31.12.2024 | Schulden", title_style))
+        story.append(liabilities_table)
+        story.append(Spacer(1, 0.5*cm))
+
+    # 5. Barcode (Optional)
+    if data.get('barcode_data'):
+        story.append(PageBreak())
+        story.append(Spacer(1, 3*cm))
         try:
             barcode_pil_image = get_barcode_image(data['barcode_data'])
             img_buffer = io.BytesIO()
@@ -450,194 +390,39 @@ def generate_pdf(data, output_path=None):
             print(f"Error adding barcode image: {e}")
             story.append(Paragraph(f"[Error adding barcode: {e}]", styles['Italic']))
 
-    # --- Build PDF using BaseDocTemplate --- 
-    # Remove canvasmaker, it's handled by PageTemplate now
-    doc.build(story) 
+    # --- Build PDF ---
+    doc.build(story, canvasmaker=PageNumCanvas)
 
-    pdf_data = buffer.getvalue()
+    pdf_value = buffer.getvalue()
     buffer.close()
-    
-    # Write to file or return bytes (same as before)
-    if output_path:
-        with open(output_path, 'wb') as f:
-            f.write(pdf_data)
-        return None
-    return pdf_data
+    return pdf_value
 
 
-# --- Main API function to be called from steuerauszug.py ---
-def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Path]) -> Path:
-    """Render a tax statement to PDF.
-    
-    Args:
-        tax_statement: The TaxStatement model to render
-        output_path: Path where to save the generated PDF
-        
-    Returns:
-        Path to the generated PDF file
-    """
-    # Convert to string path if it's a Path object
-    output_path = str(output_path) if isinstance(output_path, Path) else output_path
-    
-    # Map the tax statement to the expected data structure for the PDF generator
-    pdf_data = map_tax_statement_to_pdf_data(tax_statement)
-    
-    # Generate the PDF and write to the output path
-    generate_pdf(pdf_data, output_path)
-    
-    return Path(output_path)
+# --- Example Data Structure ---
+# (Same as v6)
+example_data = {
+    "customer": { "name": "Herr Johannes Vroonhof und Frau Talitha Bakker", "address": "8903 Birmensdorf ZH" },
+    "portfolio": "825.829-44-00 Hauptportfolio", "period": "01.01.2024-31.12.2024", "created_date": "04.02.2025",
+    "summary": {
+        "steuerwert_ab": 10063, "steuerwert_a": 10063, "steuerwert_b": 0, "brutto_mit_vst": 5.52,
+        "brutto_ohne_vst": 0, "vst_anspruch": 1.90, "steuerwert_da1_usa": 0, "brutto_da1_usa": 0,
+        "pauschale_da1": 0, "rueckbehalt_usa": 0, "total_steuerwert": 10063, "total_brutto_mit_vst": 5.52,
+        "total_brutto_ohne_vst": 0, "total_brutto_gesamt": 5.52,
+    },
+    "costs": [ { "description": "Verwaltungskosten Kontoführungsgebühr", "type": "Kontoführungsgebühren (...)", "value_chf": 30.00 }, ],
+    "accounts": [ ],
+    "liabilities": [ {
+            "description": "Darlehen/Hypothek fest CHF VIAC GB Birmensdorf Nr. 4436\nCH39 0839 1825 8294 4380 0",
+            "currency": "CHF", "amount": 500000.00, "rate": "", "value_chf": 500000.00, "total_interest": 11500.00, "date": "31.12.2024",
+            "transactions": [ {"date": "31.03.2024", "description": "Sollzins", "amount": 2875.00}, {"date": "30.06.2024", "description": "Sollzins", "amount": 2875.00}, {"date": "30.09.2024", "description": "Sollzins", "amount": 2875.00}, {"date": "31.12.2024", "description": "Sollzins", "amount": 2875.00}, ]
+        }, ],
+    "barcode_data": "7010001855067105490338391"
+}
 
-def map_tax_statement_to_pdf_data(tax_statement: TaxStatement) -> Dict[str, Any]:
-    """Map a TaxStatement model to the data format expected by the PDF generator.
-    
-    Args:
-        tax_statement: The TaxStatement model to map
-        
-    Returns:
-        Dictionary with data formatted for the PDF generator
-    """
-    # Default empty data structure
-    data = {
-        "customer": {},
-        "institution": {},
-        "period": {},
-        "summary": {},
-        "accounts": [],
-        "securities": []
-    }
-    
-    # Extract customer information if available
-    if tax_statement.client and len(tax_statement.client) > 0:
-        client = tax_statement.client[0]  # Take the first client
-        
-        # Map salutation
-        salutation = ""
-        if hasattr(client, 'salutation') and client.salutation:
-            salutation_codes = {"1": "", "2": "Herr", "3": "Frau"}
-            salutation = salutation_codes.get(client.salutation, "")
-        
-        # Combine name parts into a full name
-        full_name_parts = []
-        if salutation:
-            full_name_parts.append(salutation)
-        if hasattr(client, 'firstName') and client.firstName:
-            full_name_parts.append(client.firstName)
-        if hasattr(client, 'lastName') and client.lastName:
-            full_name_parts.append(client.lastName)
-        
-        full_name = " ".join(full_name_parts)
-        
-        # The current model doesn't have a detailed address
-        # Just use a placeholder or empty string for now
-        address = ""
-        
-        data["customer"] = {
-            "name": full_name,
-            "address": address,
-        }
-    
-    # Extract institution information if available
-    if tax_statement.institution:
-        data["institution"] = {
-            "name": tax_statement.institution.name if hasattr(tax_statement.institution, 'name') else "",
-            "logo": None,  # Could be added later if needed
-        }
-    
-    # Extract period information and format it for display
-    year = tax_statement.taxPeriod if hasattr(tax_statement, 'taxPeriod') else ""
-    period_from = ""
-    period_to = ""
-    
-    if hasattr(tax_statement, 'periodFrom') and tax_statement.periodFrom:
-        period_from = tax_statement.periodFrom.strftime("%d.%m.%Y")
-    
-    if hasattr(tax_statement, 'periodTo') and tax_statement.periodTo:
-        period_to = tax_statement.periodTo.strftime("%d.%m.%Y")
-    
-    period_text = f"{period_from}-{period_to}" if period_from and period_to else ""
-    
-    data["period"] = period_text
-    data["created_date"] = tax_statement.creationDate.strftime("%d.%m.%Y") if hasattr(tax_statement, 'creationDate') and tax_statement.creationDate else ""
-    
-    # Portfolio identifier can be client number or some other identifier
-    if tax_statement.client and len(tax_statement.client) > 0 and hasattr(tax_statement.client[0], 'clientNumber'):
-        data["portfolio"] = str(tax_statement.client[0].clientNumber)
-    
-    # Extract summary information - these are the summary fields from the tax statement
-    total_gross_revenue_a = tax_statement.totalGrossRevenueA if hasattr(tax_statement, 'totalGrossRevenueA') and tax_statement.totalGrossRevenueA is not None else Decimal('0')
-    total_gross_revenue_b = tax_statement.totalGrossRevenueB if hasattr(tax_statement, 'totalGrossRevenueB') and tax_statement.totalGrossRevenueB is not None else Decimal('0')
-    
-    data["summary"] = {
-        "steuerwert_ab": tax_statement.totalTaxValue if hasattr(tax_statement, 'totalTaxValue') else None,
-        "steuerwert_a": total_gross_revenue_a,  # This is just a placeholder, adjust as needed
-        "steuerwert_b": total_gross_revenue_b,  # This is just a placeholder, adjust as needed
-        "brutto_mit_vst": total_gross_revenue_a,
-        "brutto_ohne_vst": total_gross_revenue_b,
-        "vst_anspruch": tax_statement.totalWithHoldingTaxClaim if hasattr(tax_statement, 'totalWithHoldingTaxClaim') else None,
-        "steuerwert_da1_usa": 0,  # Not sure where these come from in the actual model
-        "brutto_da1_usa": 0,      # Would need to calculate or extract from specific securities
-        "pauschale_da1": 0,       # Same
-        "rueckbehalt_usa": 0,     # Same
-        "total_steuerwert": tax_statement.totalTaxValue if hasattr(tax_statement, 'totalTaxValue') else None,
-        "total_brutto_mit_vst": total_gross_revenue_a,
-        "total_brutto_ohne_vst": total_gross_revenue_b,
-        "total_brutto_gesamt": total_gross_revenue_a + total_gross_revenue_b
-    }
-    
-    # Extract accounts if available
-    if hasattr(tax_statement, 'listOfBankAccounts') and tax_statement.listOfBankAccounts and hasattr(tax_statement.listOfBankAccounts, 'bankAccount'):
-        for account in tax_statement.listOfBankAccounts.bankAccount:
-            acc_data = {
-                "iban": account.iban if hasattr(account, 'iban') else "",
-                "account_number": account.accountNumber if hasattr(account, 'accountNumber') else "",
-                "balance": account.balance if hasattr(account, 'balance') else 0,
-                "currency": account.balanceCurrency if hasattr(account, 'balanceCurrency') else "CHF",
-                "interest": 0,  # Would need to extract from payment information if available
-            }
-            data["accounts"].append(acc_data)
-    
-    # Extract securities if available 
-    # (This would be more complex, simplifying for now)
-    if hasattr(tax_statement, 'listOfSecurities') and tax_statement.listOfSecurities and hasattr(tax_statement.listOfSecurities, 'security'):
-        for security in tax_statement.listOfSecurities.security:
-            sec_data = {
-                "name": security.name if hasattr(security, 'name') else "",
-                "isin": security.isin if hasattr(security, 'isin') else "",
-                "symbol": security.symbol if hasattr(security, 'symbol') else "",
-                "quantity": 0,  # Would need to extract from securityStock if available
-                "purchase_date": "",  # Same
-                "tax_value": 0,  # Same
-                "currency": "",  # Same
-            }
-            data["securities"].append(sec_data)
-    
-    return data
-
-# --- Main function for testing ---
-def main():
-    """Main function for testing the render module directly."""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='Render a tax statement to PDF')
-    parser.add_argument('--input', type=str, default='tests/samples/fake_statement.xml',
-                         help='Input XML file path (default: tests/samples/fake_statement.xml)')
-    parser.add_argument('--output', type=str, default='fake_statement_output.pdf',
-                         help='Output PDF file path (default: fake_statement_output.pdf)')
-    
-    args = parser.parse_args()
-    
-    try:
-        # Load the tax statement from XML
-        tax_statement = TaxStatement.from_xml_file(args.input)
-        
-        # Render to PDF
-        output_path = render_tax_statement(tax_statement, args.output)
-        
-        print(f"Tax statement successfully rendered to: {output_path}")
-        return 0
-    except Exception as e:
-        print(f"Error rendering tax statement: {e}", file=sys.stderr)
-        return 1
-
+# --- Generate and Save PDF ---
 if __name__ == "__main__":
-    sys.exit(main())
+    print(f"Generating PDF: {FILENAME}...")
+    pdf_data = generate_pdf(example_data)
+    with open(FILENAME, 'wb') as f:
+        f.write(pdf_data)
+    print("PDF generated successfully.")

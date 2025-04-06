@@ -5,6 +5,7 @@ import pytest
 from pathlib import Path
 from datetime import date, datetime
 from decimal import Decimal
+import PyPDF2  # For checking PDF pages
 
 from opensteuerauszug.model.ech0196 import (
     TaxStatement,
@@ -34,7 +35,7 @@ def sample_tax_statement():
                 clientNumber=ClientNumber("C1"),
                 firstName="Max",
                 lastName="Muster",
-                salutation="2"
+                salutation="2"  # "2" is code for "Mr"
             )
         ],
         totalTaxValue=Decimal("1000.50"),
@@ -55,8 +56,8 @@ def test_map_tax_statement_to_pdf_data(sample_tax_statement):
     assert "summary" in pdf_data
     
     # Check customer data
-    assert pdf_data["customer"]["firstName"] == "Max"
-    assert pdf_data["customer"]["lastName"] == "Muster"
+    assert pdf_data["customer"]["first_name"] == "Max"
+    assert pdf_data["customer"]["last_name"] == "Muster"
     assert pdf_data["customer"]["salutation"] == "Herr"
     
     # Check institution data
@@ -64,11 +65,11 @@ def test_map_tax_statement_to_pdf_data(sample_tax_statement):
     
     # Check period data
     assert pdf_data["period"]["year"] == 2023
-    assert pdf_data["period"]["from"] == "2023-01-01"
-    assert pdf_data["period"]["to"] == "2023-12-31"
+    assert pdf_data["period"]["from_date"] == "01.01.2023"
+    assert pdf_data["period"]["to_date"] == "31.12.2023"
     
     # Check summary data
-    assert pdf_data["summary"]["steuerwert_ab"] == Decimal("1000.50")
+    assert pdf_data["summary"]["steuerwert"] == Decimal("1000.50")
     assert pdf_data["summary"]["brutto_mit_vst"] == Decimal("100.00")
     assert pdf_data["summary"]["brutto_ohne_vst"] == Decimal("50.00")
     assert pdf_data["summary"]["vst_anspruch"] == Decimal("35.00")
@@ -82,15 +83,42 @@ def test_render_tax_statement(sample_tax_statement):
     
     try:
         # Render the tax statement to PDF
-        output_path = render_tax_statement(sample_tax_statement, temp_path)
+        render_tax_statement(sample_tax_statement, temp_path)
         
         # Check that the file exists and has content
-        assert os.path.exists(output_path)
-        assert os.path.getsize(output_path) > 0
-        
-        # We're not checking the content of the PDF since that would be complex
-        # Just verify that it's generated correctly
+        assert os.path.exists(temp_path)
+        assert os.path.getsize(temp_path) > 0
     finally:
         # Clean up the temporary file
         if os.path.exists(temp_path):
             os.unlink(temp_path)
+
+def test_pdf_page_count(sample_tax_statement):
+    """Test that the PDF has the correct number of pages."""
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = tmp.name
+    
+    try:
+        # Render the tax statement to PDF
+        render_tax_statement(sample_tax_statement, tmp_path)
+        
+        # Check that the file exists
+        assert os.path.exists(tmp_path)
+        
+        # Check the number of pages using PyPDF2
+        with open(tmp_path, "rb") as f:
+            pdf_reader = PyPDF2.PdfReader(f)
+            # The PDF should now have exactly one page
+            assert len(pdf_reader.pages) == 1
+            
+            # Check page content for validation
+            text = pdf_reader.pages[0].extract_text()
+            assert "Steuerauszug" in text
+            assert "Zusammenfassung" in text
+            # Standard page templates usually only show current page number
+            assert "Seite 1" in text  
+            assert "Seite 1/1" not in text # Ensure the old format is gone
+    finally:
+        # Cleanup temporary file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
