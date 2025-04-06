@@ -337,15 +337,26 @@ def get_barcode_image(data):
         img = PILImage.new('RGB', (800, 150), color='red')
         return img
 
-# --- Main Document Generation Function ---
-def generate_pdf(data, output_path=None):
-    """Generates the complete PDF document using SimpleDocTemplate with page templates."""
+# --- Main API function to be called from steuerauszug.py ---
+def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Path]) -> Path:
+    """Render a tax statement to PDF.
+    
+    Args:
+        tax_statement: The TaxStatement model to render
+        output_path: Path where to save the generated PDF
+        
+    Returns:
+        Path to the generated PDF file
+    """
+    # Convert to string path if it's a Path object
+    output_path = str(output_path) if isinstance(output_path, Path) else output_path
+    
     buffer = io.BytesIO()
     page_width, page_height = landscape(A4)
     left_margin = 20*mm
     right_margin = 20*mm
-    top_margin = 25*mm  # Standard top margin
-    bottom_margin = 25*mm # Standard bottom margin
+    top_margin = 25*mm
+    bottom_margin = 25*mm
     usable_width = page_width - left_margin - right_margin
 
     # Define frame for the main content area
@@ -381,167 +392,58 @@ def generate_pdf(data, output_path=None):
 
     story = []
 
-    # --- Add Client Header Info (same as before) ---
+    # --- Add Client Header Info ---
     client_info_style = ParagraphStyle(name='ClientInfo', parent=styles['Normal'], fontSize=9, spaceAfter=3*mm)
-    if 'customer' in data: 
-        story.append(Paragraph(f"<b>Kunde:</b> {data['customer'].get('name', '')}", client_info_style))
-        story.append(Paragraph(f"<b>Adresse:</b> {data['customer'].get('address', '')}", client_info_style))
-    if 'portfolio' in data: 
-        story.append(Paragraph(f"<b>Portfolio:</b> {data.get('portfolio', '')}", client_info_style))
-    if 'period' in data: 
-        story.append(Paragraph(f"<b>Periode:</b> {data.get('period', '')}", client_info_style))
-    if 'created_date' in data: 
-        story.append(Paragraph(f"<b>Erstellt am:</b> {data.get('created_date', '')}", client_info_style))
-    story.append(Spacer(1, 0.5*cm))
-
-    # --- Sections (same structure as before) ---
-    title_style = ParagraphStyle(name='SectionTitle', parent=styles['h2'], alignment=TA_LEFT, fontSize=10, spaceAfter=4*mm)
-
-    # 1. Summary
-    story.append(Paragraph("Steuerauszug | Zusammenfassung", title_style))
-    summary_content = create_summary_table(data, styles, usable_width)
-    if summary_content: 
-        story.append(summary_content)
-    story.append(Spacer(1, 0.5*cm))
-
-    # Add other sections conditionally (Costs, Liabilities, Barcode)
-    if 'costs' in data and data['costs']:
-        costs_content = create_costs_table(data, styles, usable_width)
-        if costs_content:
-            story.append(NextPageTemplate('main')) # Ensure template is used for next page
-            story.append(FrameActionFlowable('setNextFrame', 'normal')) # Reset frame if needed
-            story.append(PageBreak())
-            story.append(Paragraph("Steuerauszug | Bezahlte Bankspesen", title_style))
-            story.append(costs_content)
-            story.append(Spacer(1, 0.5*cm))
-
-    if 'liabilities' in data and data['liabilities']:
-        liabilities_table = create_liabilities_table(data, styles, usable_width)
-        if liabilities_table:
-            story.append(NextPageTemplate('main'))
-            story.append(FrameActionFlowable('setNextFrame', 'normal'))
-            story.append(PageBreak())
-            story.append(Paragraph("Steuerauszug | Schulden", title_style))
-            story.append(liabilities_table)
-            story.append(Spacer(1, 0.5*cm))
-
-    if 'barcode_data' in data and data['barcode_data']:
-        story.append(NextPageTemplate('main'))
-        story.append(FrameActionFlowable('setNextFrame', 'normal'))
-        story.append(PageBreak())
-        story.append(Spacer(1, 3*cm)) # Space before barcode
-        try:
-            barcode_pil_image = get_barcode_image(data['barcode_data'])
-            img_buffer = io.BytesIO()
-            barcode_pil_image.save(img_buffer, format='PNG')
-            img_buffer.seek(0)
-            barcode_img = Image(img_buffer, width=usable_width * 0.8, height=4*cm)
-            barcode_img.hAlign = 'CENTER'
-            story.append(barcode_img)
-        except Exception as e:
-            print(f"Error adding barcode image: {e}")
-            story.append(Paragraph(f"[Error adding barcode: {e}]", styles['Italic']))
-
-    # --- Build PDF using BaseDocTemplate --- 
-    # Remove canvasmaker, it's handled by PageTemplate now
-    doc.build(story) 
-
-    pdf_data = buffer.getvalue()
-    buffer.close()
     
-    # Write to file or return bytes (same as before)
-    if output_path:
-        with open(output_path, 'wb') as f:
-            f.write(pdf_data)
-        return None
-    return pdf_data
-
-
-# --- Main API function to be called from steuerauszug.py ---
-def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Path]) -> Path:
-    """Render a tax statement to PDF.
+    # Extract client data
+    client_name = ""
+    client_address = ""
+    portfolio = ""
     
-    Args:
-        tax_statement: The TaxStatement model to render
-        output_path: Path where to save the generated PDF
-        
-    Returns:
-        Path to the generated PDF file
-    """
-    # Convert to string path if it's a Path object
-    output_path = str(output_path) if isinstance(output_path, Path) else output_path
-    
-    # Map the tax statement to the expected data structure for the PDF generator
-    pdf_data = map_tax_statement_to_pdf_data(tax_statement)
-    
-    # Generate the PDF and write to the output path
-    generate_pdf(pdf_data, output_path)
-    
-    return Path(output_path)
-
-def map_tax_statement_to_pdf_data(tax_statement: TaxStatement) -> Dict[str, Any]:
-    """Map a TaxStatement model to the data format expected by the PDF generator.
-    
-    Args:
-        tax_statement: The TaxStatement model to map
-        
-    Returns:
-        Dictionary with data formatted for the PDF generator
-    """
-    # Default empty data structure
-    data = {
-        "customer": {},
-        "institution": {},
-        "period": {},
-        "summary": {},
-        "accounts": [],
-        "securities": []
-    }
-    
-    # Extract customer information if available
     if tax_statement.client and len(tax_statement.client) > 0:
-        client = tax_statement.client[0]  # Take the first client
+        client = tax_statement.client[0]
         
-        # Map salutation
+        # Prepare client name with salutation
         salutation = ""
         if hasattr(client, 'salutation') and client.salutation:
             salutation_codes = {"1": "", "2": "Herr", "3": "Frau"}
             salutation = salutation_codes.get(client.salutation, "")
         
-        # Combine name parts into a full name
-        full_name_parts = []
+        name_parts = []
         if salutation:
-            full_name_parts.append(salutation)
+            name_parts.append(salutation)
         if hasattr(client, 'firstName') and client.firstName:
-            full_name_parts.append(client.firstName)
+            name_parts.append(client.firstName)
         if hasattr(client, 'lastName') and client.lastName:
-            full_name_parts.append(client.lastName)
+            name_parts.append(client.lastName)
         
-        full_name = " ".join(full_name_parts)
+        client_name = " ".join(name_parts)
         
-        # The current model doesn't have a detailed address
-        # Just use a placeholder or empty string for now
-        address = ""
-        
-        data["customer"] = {
-            "name": full_name,
-            "address": address,
-            "first_name": client.firstName if hasattr(client, 'firstName') else "",
-            "last_name": client.lastName if hasattr(client, 'lastName') else "",
-            "salutation": salutation,
-        }
+        # Set portfolio if available
+        if hasattr(client, 'clientNumber'):
+            portfolio = str(client.clientNumber)
     
-    # Extract institution information if available
-    if tax_statement.institution:
-        data["institution"] = {
-            "name": tax_statement.institution.name if hasattr(tax_statement.institution, 'name') else "",
-            "logo": None,  # Could be added later if needed
-        }
+    # Add client info to the PDF
+    if client_name:
+        story.append(Paragraph(f"<b>Kunde:</b> {client_name}", client_info_style))
+    if client_address:
+        story.append(Paragraph(f"<b>Adresse:</b> {client_address}", client_info_style))
+    if portfolio:
+        story.append(Paragraph(f"<b>Portfolio:</b> {portfolio}", client_info_style))
     
-    # Extract period information and format it for display
-    year = tax_statement.taxPeriod if hasattr(tax_statement, 'taxPeriod') else ""
+    # Add institution information
+    if hasattr(tax_statement, 'institution') and tax_statement.institution:
+        institution_name = tax_statement.institution.name if hasattr(tax_statement.institution, 'name') else ""
+        if institution_name:
+            story.append(Paragraph(f"<b>Institution:</b> {institution_name}", client_info_style))
+    
+    # Period information
+    period_text = ""
     period_from = ""
     period_to = ""
+    
+    if hasattr(tax_statement, 'taxPeriod'):
+        story.append(Paragraph(f"<b>Steuerjahr:</b> {tax_statement.taxPeriod}", client_info_style))
     
     if hasattr(tax_statement, 'periodFrom') and tax_statement.periodFrom:
         period_from = tax_statement.periodFrom.strftime("%d.%m.%Y")
@@ -549,67 +451,63 @@ def map_tax_statement_to_pdf_data(tax_statement: TaxStatement) -> Dict[str, Any]
     if hasattr(tax_statement, 'periodTo') and tax_statement.periodTo:
         period_to = tax_statement.periodTo.strftime("%d.%m.%Y")
     
-    data["period"] = {
-        "year": tax_statement.taxPeriod if hasattr(tax_statement, 'taxPeriod') else "",
-        "from_date": period_from,
-        "to_date": period_to,
-    }
+    if period_from and period_to:
+        period_text = f"{period_from} - {period_to}"
+        story.append(Paragraph(f"<b>Periode:</b> {period_text}", client_info_style))
     
-    data["created_date"] = tax_statement.creationDate.strftime("%d.%m.%Y") if hasattr(tax_statement, 'creationDate') and tax_statement.creationDate else ""
+    # Creation date
+    if hasattr(tax_statement, 'creationDate') and tax_statement.creationDate:
+        created_date = tax_statement.creationDate.strftime("%d.%m.%Y")
+        story.append(Paragraph(f"<b>Erstellt am:</b> {created_date}", client_info_style))
     
-    # Portfolio identifier can be client number or some other identifier
-    if tax_statement.client and len(tax_statement.client) > 0 and hasattr(tax_statement.client[0], 'clientNumber'):
-        data["portfolio"] = str(tax_statement.client[0].clientNumber)
+    story.append(Spacer(1, 0.5*cm))
+
+    # --- Sections ---
+    title_style = ParagraphStyle(name='SectionTitle', parent=styles['h2'], alignment=TA_LEFT, fontSize=10, spaceAfter=4*mm)
+
+    # 1. Summary Section
+    story.append(Paragraph("Steuerauszug | Zusammenfassung", title_style))
     
-    # Extract summary information - these are the summary fields from the tax statement
+    # Extract summary data directly from tax_statement
     total_gross_revenue_a = tax_statement.totalGrossRevenueA if hasattr(tax_statement, 'totalGrossRevenueA') and tax_statement.totalGrossRevenueA is not None else Decimal('0')
     total_gross_revenue_b = tax_statement.totalGrossRevenueB if hasattr(tax_statement, 'totalGrossRevenueB') and tax_statement.totalGrossRevenueB is not None else Decimal('0')
     
-    data["summary"] = {
+    summary_data = {
         "steuerwert": tax_statement.totalTaxValue if hasattr(tax_statement, 'totalTaxValue') else None,
-        "steuerwert_a": total_gross_revenue_a,  # This is just a placeholder, adjust as needed
-        "steuerwert_b": total_gross_revenue_b,  # This is just a placeholder, adjust as needed
+        "steuerwert_a": total_gross_revenue_a,
+        "steuerwert_b": total_gross_revenue_b,
         "brutto_mit_vst": total_gross_revenue_a,
         "brutto_ohne_vst": total_gross_revenue_b,
         "vst_anspruch": tax_statement.totalWithHoldingTaxClaim if hasattr(tax_statement, 'totalWithHoldingTaxClaim') else None,
-        "steuerwert_da1_usa": 0,  # Not sure where these come from in the actual model
-        "brutto_da1_usa": 0,      # Would need to calculate or extract from specific securities
-        "pauschale_da1": 0,       # Same
-        "rueckbehalt_usa": 0,     # Same
+        "steuerwert_da1_usa": Decimal('0'),
+        "brutto_da1_usa": Decimal('0'),
+        "pauschale_da1": Decimal('0'),
+        "rueckbehalt_usa": Decimal('0'),
         "total_steuerwert": tax_statement.totalTaxValue if hasattr(tax_statement, 'totalTaxValue') else None,
         "total_brutto_mit_vst": total_gross_revenue_a,
         "total_brutto_ohne_vst": total_gross_revenue_b,
         "total_brutto_gesamt": total_gross_revenue_a + total_gross_revenue_b
     }
     
-    # Extract accounts if available
-    if hasattr(tax_statement, 'listOfBankAccounts') and tax_statement.listOfBankAccounts and hasattr(tax_statement.listOfBankAccounts, 'bankAccount'):
-        for account in tax_statement.listOfBankAccounts.bankAccount:
-            acc_data = {
-                "iban": account.iban if hasattr(account, 'iban') else "",
-                "account_number": account.accountNumber if hasattr(account, 'accountNumber') else "",
-                "balance": account.balance if hasattr(account, 'balance') else 0,
-                "currency": account.balanceCurrency if hasattr(account, 'balanceCurrency') else "CHF",
-                "interest": 0,  # Would need to extract from payment information if available
-            }
-            data["accounts"].append(acc_data)
+    # Create summary table with direct data
+    summary_table_data = create_summary_table({"summary": summary_data}, styles, usable_width)
+    if summary_table_data:
+        story.append(summary_table_data)
     
-    # Extract securities if available 
-    # (This would be more complex, simplifying for now)
-    if hasattr(tax_statement, 'listOfSecurities') and tax_statement.listOfSecurities and hasattr(tax_statement.listOfSecurities, 'security'):
-        for security in tax_statement.listOfSecurities.security:
-            sec_data = {
-                "name": security.name if hasattr(security, 'name') else "",
-                "isin": security.isin if hasattr(security, 'isin') else "",
-                "symbol": security.symbol if hasattr(security, 'symbol') else "",
-                "quantity": 0,  # Would need to extract from securityStock if available
-                "purchase_date": "",  # Same
-                "tax_value": 0,  # Same
-                "currency": "",  # Same
-            }
-            data["securities"].append(sec_data)
+    story.append(Spacer(1, 0.5*cm))
     
-    return data
+    # Build the PDF
+    doc.build(story)
+    
+    pdf_data = buffer.getvalue()
+    buffer.close()
+    
+    # Write to file
+    with open(output_path, 'wb') as f:
+        f.write(pdf_data)
+    
+    return Path(output_path)
+
 
 # --- Main function for testing ---
 def main():

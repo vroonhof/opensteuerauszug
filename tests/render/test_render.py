@@ -14,8 +14,7 @@ from opensteuerauszug.model.ech0196 import (
     ClientNumber
 )
 from opensteuerauszug.render.render import (
-    render_tax_statement,
-    map_tax_statement_to_pdf_data
+    render_tax_statement
 )
 
 @pytest.fixture
@@ -44,36 +43,48 @@ def sample_tax_statement():
         totalWithHoldingTaxClaim=Decimal("35.00")
     )
 
-def test_map_tax_statement_to_pdf_data(sample_tax_statement):
-    """Test that a tax statement can be correctly mapped to PDF data."""
-    pdf_data = map_tax_statement_to_pdf_data(sample_tax_statement)
+def test_render_tax_statement_content(sample_tax_statement):
+    """Test that a tax statement contains the expected data in the PDF."""
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
+        temp_path = temp_file.name
     
-    # Check basic structure
-    assert isinstance(pdf_data, dict)
-    assert "customer" in pdf_data
-    assert "institution" in pdf_data
-    assert "period" in pdf_data
-    assert "summary" in pdf_data
-    
-    # Check customer data
-    assert pdf_data["customer"]["first_name"] == "Max"
-    assert pdf_data["customer"]["last_name"] == "Muster"
-    assert pdf_data["customer"]["salutation"] == "Herr"
-    
-    # Check institution data
-    assert pdf_data["institution"]["name"] == "Test Bank AG"
-    
-    # Check period data
-    assert pdf_data["period"]["year"] == 2023
-    assert pdf_data["period"]["from_date"] == "01.01.2023"
-    assert pdf_data["period"]["to_date"] == "31.12.2023"
-    
-    # Check summary data
-    assert pdf_data["summary"]["steuerwert"] == Decimal("1000.50")
-    assert pdf_data["summary"]["brutto_mit_vst"] == Decimal("100.00")
-    assert pdf_data["summary"]["brutto_ohne_vst"] == Decimal("50.00")
-    assert pdf_data["summary"]["vst_anspruch"] == Decimal("35.00")
-    assert pdf_data["summary"]["total_brutto_gesamt"] == Decimal("150.00")
+    try:
+        # Render the tax statement to PDF
+        render_tax_statement(sample_tax_statement, temp_path)
+        
+        # Check that the file exists and has content
+        assert os.path.exists(temp_path)
+        assert os.path.getsize(temp_path) > 0
+        
+        # Check content in the PDF
+        with open(temp_path, "rb") as f:
+            pdf_reader = PyPDF2.PdfReader(f)
+            text = pdf_reader.pages[0].extract_text()
+            
+            # Verify client information appears in the PDF
+            assert "Max" in text
+            assert "Muster" in text
+            assert "Herr" in text
+            
+            # Verify institution information
+            assert "Test Bank AG" in text
+            
+            # Verify period information
+            assert "2023" in text
+            assert "01.01.2023" in text 
+            assert "31.12.2023" in text
+            
+            # Verify summary data (we're checking for the values, not exact format)
+            # Because the PDF might format these numbers differently
+            assert "1000" in text  # totalTaxValue
+            assert "100" in text   # totalGrossRevenueA
+            assert "50" in text    # totalGrossRevenueB
+            assert "35" in text    # totalWithHoldingTaxClaim
+            assert "150" in text   # total
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 def test_render_tax_statement(sample_tax_statement):
     """Test that a tax statement can be rendered to PDF."""
