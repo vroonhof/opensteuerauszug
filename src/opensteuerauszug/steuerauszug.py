@@ -5,6 +5,9 @@ from typing import List, Optional
 
 # Use the generated eCH-0196 model
 from .model.ech0196 import TaxStatement
+# Import the rendering functionality
+from .render.render import render_tax_statement
+
 # Keep Portfolio for now, maybe it becomes an alias or wrapper for TaxStatement?
 # Or perhaps TaxStatement becomes the internal representation?
 # For now, assume TaxStatement IS the model passed around.
@@ -122,9 +125,10 @@ def main(
                  raise ValueError("Portfolio model not loaded. Cannot run render phase.")
             if not output_file:
                  raise ValueError("Output file path must be specified for the render phase.")
-            # TODO: Implement rendering logic (e.g., to PDF)
-            # render_pdf(portfolio, output_file, ...)
-            print(f"Rendering successful to {output_file} (placeholder)." )
+            
+            # Use the render_tax_statement function to generate the PDF
+            rendered_path = render_tax_statement(portfolio, output_file)
+            print(f"Rendering successful to {rendered_path}")
             # No debug dump after render
 
         print("Processing finished successfully.")

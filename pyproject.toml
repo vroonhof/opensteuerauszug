@@ -19,6 +19,9 @@ dependencies = [
     "typer",
     "rich", # Included because requirements.txt had typer[all]
     "lxml", # Added for XML parsing and serialization
+    "Pillow>=9.0.0", # Added for image handling in render module
+    "reportlab>=4.0.0", # Added for PDF generation in render module
+    "python-barcode>=0.15.0", # Added for barcode generation in render module
 ]
 
 [project.scripts]
