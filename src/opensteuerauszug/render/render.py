@@ -27,6 +27,11 @@ from opensteuerauszug.model.ech0196 import TaxStatement
 COMPANY_NAME = "Bank WIR"
 DOC_INFO = "S. E. & O."
 
+__all__ = [
+    'render_tax_statement',
+    'render_statement_info'
+]
+
 # --- Helper Function for Currency Formatting ---
 def format_currency(value, default='0.00'):
     # (Same as v7)
@@ -337,6 +342,80 @@ def get_barcode_image(data):
         img = PILImage.new('RGB', (800, 150), color='red')
         return img
 
+def render_statement_info(tax_statement: TaxStatement, story: list, client_info_style: ParagraphStyle) -> None:
+    """Add client, institution, period, and creation date information to the PDF story.
+    
+    Args:
+        tax_statement: The TaxStatement model containing the information
+        story: The reportlab story list to append elements to
+        client_info_style: The paragraph style to use for the info elements
+    """
+    # Extract client data
+    client_name = ""
+    client_address = ""
+    portfolio = ""
+    
+    if tax_statement.client and len(tax_statement.client) > 0:
+        client = tax_statement.client[0]
+        
+        # Prepare client name with salutation
+        salutation = ""
+        if hasattr(client, 'salutation') and client.salutation:
+            salutation_codes = {"1": "", "2": "Herr", "3": "Frau"}
+            salutation = salutation_codes.get(client.salutation, "")
+        
+        name_parts = []
+        if salutation:
+            name_parts.append(salutation)
+        if hasattr(client, 'firstName') and client.firstName:
+            name_parts.append(client.firstName)
+        if hasattr(client, 'lastName') and client.lastName:
+            name_parts.append(client.lastName)
+        
+        client_name = " ".join(name_parts)
+        
+        # Set portfolio if available
+        if hasattr(client, 'clientNumber'):
+            portfolio = str(client.clientNumber)
+    
+    # Add client info to the PDF
+    if client_name:
+        story.append(Paragraph(f"<b>Kunde:</b> {client_name}", client_info_style))
+    if client_address:
+        story.append(Paragraph(f"<b>Adresse:</b> {client_address}", client_info_style))
+    if portfolio:
+        story.append(Paragraph(f"<b>Portfolio:</b> {portfolio}", client_info_style))
+    
+    # Add institution information
+    if hasattr(tax_statement, 'institution') and tax_statement.institution:
+        institution_name = tax_statement.institution.name if hasattr(tax_statement.institution, 'name') else ""
+        if institution_name:
+            story.append(Paragraph(f"<b>Institution:</b> {institution_name}", client_info_style))
+    
+    # Period information
+    period_from = ""
+    period_to = ""
+    
+    if hasattr(tax_statement, 'taxPeriod'):
+        story.append(Paragraph(f"<b>Steuerjahr:</b> {tax_statement.taxPeriod}", client_info_style))
+    
+    if hasattr(tax_statement, 'periodFrom') and tax_statement.periodFrom:
+        period_from = tax_statement.periodFrom.strftime("%d.%m.%Y")
+    
+    if hasattr(tax_statement, 'periodTo') and tax_statement.periodTo:
+        period_to = tax_statement.periodTo.strftime("%d.%m.%Y")
+    
+    if period_from and period_to:
+        period_text = f"{period_from} - {period_to}"
+        story.append(Paragraph(f"<b>Periode:</b> {period_text}", client_info_style))
+    
+    # Creation date
+    if hasattr(tax_statement, 'creationDate') and tax_statement.creationDate:
+        created_date = tax_statement.creationDate.strftime("%d.%m.%Y")
+        story.append(Paragraph(f"<b>Erstellt am:</b> {created_date}", client_info_style))
+    
+    story.append(Spacer(1, 0.5*cm))
+
 # --- Main API function to be called from steuerauszug.py ---
 def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Path]) -> Path:
     """Render a tax statement to PDF.
@@ -395,72 +474,8 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     # --- Add Client Header Info ---
     client_info_style = ParagraphStyle(name='ClientInfo', parent=styles['Normal'], fontSize=9, spaceAfter=3*mm)
     
-    # Extract client data
-    client_name = ""
-    client_address = ""
-    portfolio = ""
-    
-    if tax_statement.client and len(tax_statement.client) > 0:
-        client = tax_statement.client[0]
-        
-        # Prepare client name with salutation
-        salutation = ""
-        if hasattr(client, 'salutation') and client.salutation:
-            salutation_codes = {"1": "", "2": "Herr", "3": "Frau"}
-            salutation = salutation_codes.get(client.salutation, "")
-        
-        name_parts = []
-        if salutation:
-            name_parts.append(salutation)
-        if hasattr(client, 'firstName') and client.firstName:
-            name_parts.append(client.firstName)
-        if hasattr(client, 'lastName') and client.lastName:
-            name_parts.append(client.lastName)
-        
-        client_name = " ".join(name_parts)
-        
-        # Set portfolio if available
-        if hasattr(client, 'clientNumber'):
-            portfolio = str(client.clientNumber)
-    
-    # Add client info to the PDF
-    if client_name:
-        story.append(Paragraph(f"<b>Kunde:</b> {client_name}", client_info_style))
-    if client_address:
-        story.append(Paragraph(f"<b>Adresse:</b> {client_address}", client_info_style))
-    if portfolio:
-        story.append(Paragraph(f"<b>Portfolio:</b> {portfolio}", client_info_style))
-    
-    # Add institution information
-    if hasattr(tax_statement, 'institution') and tax_statement.institution:
-        institution_name = tax_statement.institution.name if hasattr(tax_statement.institution, 'name') else ""
-        if institution_name:
-            story.append(Paragraph(f"<b>Institution:</b> {institution_name}", client_info_style))
-    
-    # Period information
-    period_text = ""
-    period_from = ""
-    period_to = ""
-    
-    if hasattr(tax_statement, 'taxPeriod'):
-        story.append(Paragraph(f"<b>Steuerjahr:</b> {tax_statement.taxPeriod}", client_info_style))
-    
-    if hasattr(tax_statement, 'periodFrom') and tax_statement.periodFrom:
-        period_from = tax_statement.periodFrom.strftime("%d.%m.%Y")
-    
-    if hasattr(tax_statement, 'periodTo') and tax_statement.periodTo:
-        period_to = tax_statement.periodTo.strftime("%d.%m.%Y")
-    
-    if period_from and period_to:
-        period_text = f"{period_from} - {period_to}"
-        story.append(Paragraph(f"<b>Periode:</b> {period_text}", client_info_style))
-    
-    # Creation date
-    if hasattr(tax_statement, 'creationDate') and tax_statement.creationDate:
-        created_date = tax_statement.creationDate.strftime("%d.%m.%Y")
-        story.append(Paragraph(f"<b>Erstellt am:</b> {created_date}", client_info_style))
-    
-    story.append(Spacer(1, 0.5*cm))
+    # Render statement information
+    render_statement_info(tax_statement, story, client_info_style)
 
     # --- Sections ---
     title_style = ParagraphStyle(name='SectionTitle', parent=styles['h2'], alignment=TA_LEFT, fontSize=10, spaceAfter=4*mm)

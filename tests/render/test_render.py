@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import date, datetime
 from decimal import Decimal
 import PyPDF2  # For checking PDF pages
+from io import BytesIO
 
 from opensteuerauszug.model.ech0196 import (
     TaxStatement,
@@ -14,8 +15,12 @@ from opensteuerauszug.model.ech0196 import (
     ClientNumber
 )
 from opensteuerauszug.render.render import (
-    render_tax_statement
+    render_tax_statement,
+    render_statement_info
 )
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import Paragraph, Spacer, SimpleDocTemplate
+from reportlab.lib.enums import TA_LEFT
 
 @pytest.fixture
 def sample_tax_statement():
@@ -42,6 +47,38 @@ def sample_tax_statement():
         totalGrossRevenueB=Decimal("50.00"),
         totalWithHoldingTaxClaim=Decimal("35.00")
     )
+
+def test_render_statement_info(sample_tax_statement):
+    """Test that the statement info is correctly rendered to story elements without rendering a PDF."""
+    # Create a story list and style
+    story = []
+    styles = getSampleStyleSheet()
+    client_info_style = ParagraphStyle(name='ClientInfo', parent=styles['Normal'], fontSize=9)
+    
+    # Call the function
+    render_statement_info(sample_tax_statement, story, client_info_style)
+    
+    # Check that the expected elements were added to the story
+    # We should have 6 paragraphs (customer name, portfolio, institution, year, period, creation date) 
+    # and 1 spacer at the end
+    assert len(story) == 7
+    
+    # All elements except the last should be Paragraph objects
+    assert all(isinstance(elem, Paragraph) for elem in story[:-1])
+    
+    # Check the last element is a Spacer
+    assert isinstance(story[-1], Spacer)
+    
+    # Convert paragraphs to text for easier assertions
+    paragraph_texts = [p.text for p in story[:-1]]  # Exclude the Spacer
+    
+    # Check that each expected piece of information is in the paragraph texts
+    assert '<b>Kunde:</b> Herr Max Muster' in paragraph_texts
+    assert '<b>Portfolio:</b> C1' in paragraph_texts
+    assert '<b>Institution:</b> Test Bank AG' in paragraph_texts
+    assert '<b>Steuerjahr:</b> 2023' in paragraph_texts
+    assert '<b>Periode:</b> 01.01.2023 - 31.12.2023' in paragraph_texts
+    assert '<b>Erstellt am:</b> 26.10.2023' in paragraph_texts
 
 def test_render_tax_statement_content(sample_tax_statement):
     """Test that a tax statement contains the expected data in the PDF."""
