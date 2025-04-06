@@ -1,3 +1,10 @@
+# PDF files we often generate during testing
+/*.pdf
+
+# Emacs backup files
+*~
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
