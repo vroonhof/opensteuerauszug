@@ -156,16 +156,54 @@ def test_pdf_page_count(sample_tax_statement):
         # Check the number of pages using PyPDF2
         with open(tmp_path, "rb") as f:
             pdf_reader = PyPDF2.PdfReader(f)
-            # The PDF should now have exactly one page
-            assert len(pdf_reader.pages) == 1
+            # The PDF should now have exactly two pages
+            assert len(pdf_reader.pages) == 2
             
             # Check page content for validation
             text = pdf_reader.pages[0].extract_text()
             assert "Steuerauszug" in text
             assert "Zusammenfassung" in text
             # Standard page templates usually only show current page number
-            assert "Seite 1" in text  
-            assert "Seite 1/1" not in text # Ensure the old format is gone
+            assert "Seite 1" in text
+            
+            # Check the barcode page
+            text2 = pdf_reader.pages[1].extract_text()
+            assert "Barcode Page - For Scanning" in text2
+            assert "Seite 2" in text2
+    finally:
+        # Cleanup temporary file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+def test_barcode_rendering(sample_tax_statement):
+    """Test that barcodes are rendered correctly on all pages including a dedicated barcode page."""
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = tmp.name
+    
+    try:
+        # Render the tax statement (now always includes a barcode page)
+        render_tax_statement(sample_tax_statement, tmp_path)
+        
+        # Check that the file exists
+        assert os.path.exists(tmp_path)
+        
+        # Check the number of pages using PyPDF2
+        with open(tmp_path, "rb") as f:
+            pdf_reader = PyPDF2.PdfReader(f)
+            # Should have 2 pages (content + barcode page)
+            assert len(pdf_reader.pages) == 2
+            
+            # Check content in the regular page
+            text1 = pdf_reader.pages[0].extract_text()
+            assert "Steuerauszug" in text1
+            assert "Zusammenfassung" in text1
+            
+            # Check content in the barcode page
+            text2 = pdf_reader.pages[1].extract_text()
+            assert "Barcode Page - For Scanning" in text2
+            
+            # Can't check barcode directly since it's drawn on canvas, 
+            # but we can at least verify the page exists and has the expected label
     finally:
         # Cleanup temporary file
         if os.path.exists(tmp_path):

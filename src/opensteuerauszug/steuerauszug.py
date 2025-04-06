@@ -34,6 +34,7 @@ def main(
     # Add importer-specific options here later
     # Add calculation-specific options here later
     # Add render-specific options here later
+    org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
     # Determine effective phases
@@ -126,8 +127,13 @@ def main(
             if not output_file:
                  raise ValueError("Output file path must be specified for the render phase.")
             
+            # Validate org_nr format if provided
+            if org_nr is not None:
+                if not isinstance(org_nr, str) or not org_nr.isdigit() or len(org_nr) != 5:
+                    raise ValueError(f"Invalid --org-nr '{org_nr}': Must be a 5-digit string.")
+            
             # Use the render_tax_statement function to generate the PDF
-            rendered_path = render_tax_statement(portfolio, output_file)
+            rendered_path = render_tax_statement(portfolio, output_file, override_org_nr=org_nr)
             print(f"Rendering successful to {rendered_path}")
             # No debug dump after render
 

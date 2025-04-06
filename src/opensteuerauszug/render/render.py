@@ -2,6 +2,7 @@ import io
 import sys
 import os
 import json
+import hashlib
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
 from decimal import Decimal, ROUND_HALF_UP
@@ -23,6 +24,9 @@ from reportlab.lib.pagesizes import A4, landscape
 # --- Import TaxStatement model ---
 from opensteuerauszug.model.ech0196 import TaxStatement
 
+# --- Import OneDeeBarCode for barcode rendering ---
+from opensteuerauszug.render.onedee import OneDeeBarCode
+
 # --- Configuration ---
 COMPANY_NAME = "Bank WIR"
 DOC_INFO = "S. E. & O."
@@ -31,6 +35,18 @@ __all__ = [
     'render_tax_statement',
     'render_statement_info'
 ]
+
+# Custom document template with barcode support
+class BarcodeDocTemplate(BaseDocTemplate):
+    """Custom document template with support for barcode rendering."""
+    
+    def __init__(self, filename, **kwargs):
+        """Initialize with barcode attributes."""
+        super().__init__(filename, **kwargs)
+        self.barcode_generator: Optional[OneDeeBarCode] = None
+        self.org_nr: str = '00000'
+        self.page_count: int = 1
+        self.is_barcode_page: bool = False
 
 # --- Helper Function for Currency Formatting ---
 def format_currency(value, default='0.00'):
@@ -55,6 +71,20 @@ def draw_page_header(canvas, doc):
     header_x = page_width - doc.rightMargin
     header_y = page_height - doc.topMargin + 10*mm # Adjust position as needed
     canvas.drawRightString(header_x, header_y, header_text)
+    
+    # Draw the barcode if page specific data is available
+    if isinstance(doc, BarcodeDocTemplate) and doc.barcode_generator:
+        page_num = canvas.getPageNumber()
+        # Barcode page flag is true for the dedicated barcode pages at the end
+        is_barcode_page = doc.is_barcode_page and page_num > doc.page_count - 1
+        barcode_widget = doc.barcode_generator.generate_barcode(
+            page_number=page_num, 
+            is_barcode_page=is_barcode_page,
+            org_nr=doc.org_nr
+        )
+        if barcode_widget:
+            doc.barcode_generator.draw_barcode_on_canvas(canvas, barcode_widget, doc.pagesize)
+    
     canvas.restoreState()
 
 def draw_page_footer(canvas, doc):
@@ -416,13 +446,39 @@ def render_statement_info(tax_statement: TaxStatement, story: list, client_info_
     
     story.append(Spacer(1, 0.5*cm))
 
+# --- Helper functions ---
+def hash_organization_name(org_name: str) -> str:
+    """
+    Generate a 3-digit number based on a secure hash of the organization name.
+    
+    Args:
+        org_name: The name of the organization to hash
+        
+    Returns:
+        A 3-digit string derived from the hash
+    """
+    if not org_name or not isinstance(org_name, str):
+        return "000"  # Default if no name provided
+    
+    # Create a hash of the organization name
+    hash_obj = hashlib.sha256(org_name.encode('utf-8'))
+    hash_hex = hash_obj.hexdigest()
+    
+    # Take the first 6 characters of the hash (24 bits)
+    # and convert to an integer, then modulo 1000 to get 3 digits
+    hash_int = int(hash_hex[:6], 16) % 1000
+    
+    # Format as a 3-digit string with leading zeros
+    return f"{hash_int:03d}"
+
 # --- Main API function to be called from steuerauszug.py ---
-def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Path]) -> Path:
+def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Path], override_org_nr: Optional[str] = None) -> Path:
     """Render a tax statement to PDF.
     
     Args:
         tax_statement: The TaxStatement model to render
         output_path: Path where to save the generated PDF
+        override_org_nr: Optional override for organization number (5 digits)
         
     Returns:
         Path to the generated PDF file
@@ -432,7 +488,7 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     
     buffer = io.BytesIO()
     page_width, page_height = landscape(A4)
-    left_margin = 20*mm
+    left_margin = 20*mm # This leaves enough space for the barcode
     right_margin = 20*mm
     top_margin = 25*mm
     bottom_margin = 25*mm
@@ -447,15 +503,46 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
                                  onPage=draw_page_header, 
                                  onPageEnd=draw_page_footer)
 
-    # Use BaseDocTemplate for more control with PageTemplates
-    doc = BaseDocTemplate(buffer,
-                          pagesize=landscape(A4),
-                          pageTemplates=[page_template],
-                          leftMargin=left_margin,
-                          rightMargin=right_margin,
-                          topMargin=top_margin,
-                          bottomMargin=bottom_margin)
-
+    # Use BarcodeDocTemplate for barcode support
+    doc = BarcodeDocTemplate(buffer,
+                             pagesize=landscape(A4),
+                             pageTemplates=[page_template],
+                             leftMargin=left_margin,
+                             rightMargin=right_margin,
+                             topMargin=top_margin,
+                             bottomMargin=bottom_margin)
+    
+    # Set up barcode generator
+    doc.barcode_generator = OneDeeBarCode()
+    
+    # Validate and use the override_org_nr if provided
+    if override_org_nr is not None:
+        # Check if it's a valid 5-digit string
+        if not isinstance(override_org_nr, str) or not override_org_nr.isdigit() or len(override_org_nr) != 5:
+            raise ValueError(f"Invalid org_nr format: '{override_org_nr}'. Must be a 5-digit string.")
+        org_nr = override_org_nr
+    else:
+        # We need to make up a unique org_nr, the spec suggests using the Bankleitzahl/BIC.
+        # But we don't have that here, so we use the hash of the institution name and
+        # squat in the 19000 range which belongs to the Swiss National Bank and is unused.
+        # Get organization name from tax statement if available
+        org_name = ""
+        
+        if hasattr(tax_statement, 'institution') and tax_statement.institution:
+            if hasattr(tax_statement.institution, 'name') and tax_statement.institution.name:
+                org_name = tax_statement.institution.name
+        
+        # If we have an org_name, use the hash
+        if org_name:
+            # Generate the org_nr using '19' prefix and 3-digit hash
+            hash_suffix = hash_organization_name(org_name)
+            org_nr = f"19{hash_suffix}"
+        else:
+            # Default fallback if all else fails
+            org_nr = '19999'
+    
+    doc.org_nr = org_nr
+    
     # --- Define styles centrally (same as before) ---
     styles = getSampleStyleSheet()
     base_style = styles['Normal']
@@ -511,6 +598,18 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     
     story.append(Spacer(1, 0.5*cm))
     
+    # Always add one barcode page
+    # Flag to identify barcode pages
+    doc.is_barcode_page = True
+    doc.page_count = 2  # Regular content + one barcode page
+    
+    # Add barcode page
+    story.append(NextPageTemplate('main'))  # Ensure template is used
+    story.append(PageBreak())
+    story.append(Paragraph("Barcode Page - For Scanning", title_style))
+    story.append(Spacer(1, 1*cm))
+    # The actual barcode is drawn in the header/footer functions
+    
     # Build the PDF
     doc.build(story)
     
@@ -534,6 +633,8 @@ def main():
                          help='Input XML file path (default: tests/samples/fake_statement.xml)')
     parser.add_argument('--output', type=str, default='fake_statement_output.pdf',
                          help='Output PDF file path (default: fake_statement_output.pdf)')
+    parser.add_argument('--org-nr', type=str, 
+                         help='Override the organization number (must be a 5-digit string)')
     
     args = parser.parse_args()
     
@@ -541,8 +642,14 @@ def main():
         # Load the tax statement from XML
         tax_statement = TaxStatement.from_xml_file(args.input)
         
+        # Validate org_nr format if provided
+        if args.org_nr is not None:
+            if not isinstance(args.org_nr, str) or not args.org_nr.isdigit() or len(args.org_nr) != 5:
+                print(f"Error: Invalid --org-nr '{args.org_nr}': Must be a 5-digit string.", file=sys.stderr)
+                return 1
+        
         # Render to PDF
-        output_path = render_tax_statement(tax_statement, args.output)
+        output_path = render_tax_statement(tax_statement, args.output, override_org_nr=args.org_nr)
         
         print(f"Tax statement successfully rendered to: {output_path}")
         return 0
