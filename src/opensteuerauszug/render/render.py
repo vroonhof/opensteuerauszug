@@ -1,10 +1,12 @@
 import io
+from math import floor
 import sys
 import os
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
 from decimal import Decimal, ROUND_HALF_UP
+import zlib
 from PIL import Image as PILImage
 
 # --- ReportLab Imports ---
@@ -450,6 +452,63 @@ def render_statement_info(tax_statement: TaxStatement, story: list, client_info_
     
     story.append(Spacer(1, 0.5*cm))
 
+
+def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
+    """Render the tax statement to a list of barcode images.
+    
+    Args:
+        tax_statement: The TaxStatement model to render
+        
+    Returns:
+        A list of PIL Image objects containing the barcode images
+    """ 
+    from pdf417gen import encode_macro, render_image
+    
+    xml = tax_statement.to_xml_bytes()
+    data = zlib.compress(xml)
+
+    # Follow Guidance in "Beilage zu eCH-0196 V2.2.0 – Barcode Generierung – Technische Wegleitung"
+    # our library foes not allow setting the row_count, so guess by making the segments roughly
+    # right
+    # Overhead:
+    #    1  start word
+    #    1 + 2 + 1 macro pdf fields with 1 word file ID
+    #    4 for segment count
+    #    1 for possible last code marker
+    #    32 error correction at level 4
+    #    1 for specifying byte encoding
+    # gives 43 words of overhead
+    FIXED_OVERHEAD = 43
+    # Given in the guidance
+    NUM_COLUMNS = 13
+    NUM_ROWS = 35
+    CAPACTITY = NUM_COLUMNS * NUM_ROWS - FIXED_OVERHEAD
+    # Byte encodinge efficency is 6 bytes per 5 codewords
+    SEGMENT_SIZE = floor((CAPACTITY / 5) * 6)
+
+    # We want to have 13 columns, so calculate the data length per column
+    codes = encode_macro(
+        data,
+        file_id=[1],
+        columns=13,
+        security_level=4,
+        segment_size=SEGMENT_SIZE,
+        force_binary=True,
+    )
+    images = []
+    for i, barcode in enumerate(codes):
+        image = render_image(
+            barcode,
+            # generate 1 pixel for unit, we will scale later
+            scale=1,
+            # per guidance
+            ratio=2,
+            padding=0,
+        )
+        images.append(image)
+    
+    return images
+    
 def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxStatement, title_style: ParagraphStyle) -> None:
     """
     Configure the document for barcode pages and add barcode page content to the story.
@@ -460,23 +519,93 @@ def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxS
         tax_statement: The tax statement model
         title_style: Style to use for page titles
     """
-    # Set flag to identify barcode pages
-    doc.is_barcode_page = True
-    
-    # Set the total page count to 2 (main content + barcode page)
-    doc.page_count = 2
-    
-    # Force a page break for the barcode section as spec these are better
-    # not in the same frame as the summary table
-    story.append(NextPageTemplate('main'))  # Ensure template is used
-    story.append(PageBreak())
-    
-    # Add barcode page content
-    story.append(Paragraph("Barcode Page - For Scanning", title_style))
-    story.append(Spacer(1, 1*cm))
-    
-    # The actual barcodes are drawn in the header/footer functions
+    # Generate the 2D PDF417 barcodes
+    barcode_images = render_to_barcodes(tax_statement)
 
+    print(f"Number of barcode images: {len(barcode_images)}")
+    
+    # Render on page according to "Beilage zu eCH-0196 V2.2.0 – Barcode Generierung – Technische Wegleitung""
+    # Calculate how many pages we need - guidance spec says 6 barcodes per page
+    barcodes_per_page = 6
+    barcode_pages = (len(barcode_images) + barcodes_per_page - 1) // barcodes_per_page  # Ceiling division
+        
+    # Force a page break for the barcode section
+    story.append(NextPageTemplate('main'))
+    
+    # Get styles
+    styles = getSampleStyleSheet()
+    center_style = ParagraphStyle(name='Center', parent=styles['Normal'], alignment=TA_CENTER)
+    
+    # Scaling for barcodes - each module (pixel) should be 0.4 - 0,42 mm.
+    scale_factor_col = 0.42 * mm
+    scale_factor_row = 0.4 * mm
+    
+    # Calculate available width and height
+    page_width, page_height = landscape(A4)
+    available_width = page_width - (doc.leftMargin + doc.rightMargin)
+    available_height = page_height - (doc.topMargin + doc.bottomMargin)
+    
+    # Process barcodes in groups
+    for page_num in range(barcode_pages):
+        story.append(PageBreak())
+        doc.is_barcode_page = True
+        story.append(Paragraph(f"Barcode Page {page_num + 1} of {barcode_pages}", title_style))
+        story.append(Spacer(1, 0.5*cm))
+        
+        # Calculate start and end indices for this page
+        start_idx = page_num * barcodes_per_page
+        end_idx = min(start_idx + barcodes_per_page, len(barcode_images))
+        
+        # Create table for this page's barcodes
+        table_data = []
+        
+        row = []
+        for i in range(start_idx, end_idx):
+            # Get the barcode image
+            img = barcode_images[i]
+            print(f"Image size: {img.size}")
+            
+            # rotate image 90 degree clockwise
+            img = img.rotate(-90, expand=True)
+
+            # Scale dimensions
+            scaled_width = img.width * scale_factor_row
+            scaled_height = img.height * scale_factor_col
+            
+            # Convert to ReportLab image
+            img_buffer = io.BytesIO()
+            img.save(img_buffer, format='PNG')
+            img_buffer.seek(0)
+            rl_img = Image(img_buffer, width=scaled_width, height=scaled_height)
+            
+            # push in front of row
+            row.insert(0, rl_img)
+                
+        table_data.append(row)
+        
+        # Calculate column widths
+        col_width = (available_width / barcodes_per_page)
+        col_widths = [col_width] * (end_idx - start_idx)
+        
+        # Create table with proper alignment
+        table = Table(
+            table_data,
+            colWidths=col_widths,
+            spaceBefore=0.5*cm,
+            spaceAfter=1*cm,
+            hAlign='RIGHT'  # Align entire table to the right (rotated clockwise)
+        )
+        
+        # Add styling to table
+        table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),  # Left align cell contents
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),  # Vertically center content
+            ('LEFTPADDING', (0, 0), (-1, -1), 2*cm),  # Remove left padding
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),  # Remove right padding
+        ]))
+        
+        story.append(table)
+  
 # --- Main API function to be called from steuerauszug.py ---
 def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Path], override_org_nr: Optional[str] = None) -> Path:
     """Render a tax statement to PDF.
