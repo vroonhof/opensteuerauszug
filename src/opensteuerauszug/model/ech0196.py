@@ -372,7 +372,7 @@ class BaseXmlModel(BaseModel):
         for name, field_info in self.__class__.model_fields.items():
             if field_info.json_schema_extra and field_info.json_schema_extra.get("is_attribute"):
                 value = getattr(self, name, None)
-                print(f"Building attribute {name} with value {value}")
+                # print(f"Building attribute {name} with value {value}")
                 if value is not None:
                     attr_name = field_info.alias or name
                     # Basic type conversion to string
@@ -389,9 +389,7 @@ class BaseXmlModel(BaseModel):
                         raise NotImplementedError("Base64 encoding is not implemented")
                     else:
                         str_value = str(value)
-                    print("... setting attribute", attr_name, "to", str_value)
                     element.set(attr_name, str_value)
-                    print("... element attrs: ", element.items())
         # Add unknown attributes back for round-tripping
         for name, value in self.unknown_attrs.items():
              # Avoid writing xmlns attributes if they are handled by lxml nsmap
@@ -630,7 +628,6 @@ class BaseXmlModel(BaseModel):
                 continue
             if name in tag_map:
                 value = getattr(self, name, None)
-                print(f"Building child {name} with value {value}")  
                 if value is None:
                     continue
 

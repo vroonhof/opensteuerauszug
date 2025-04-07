@@ -89,9 +89,9 @@ class OneDeeBarCode:
                 quiet=False          # Disable built-in quiet zone
             )
 
-            print(f"Generated ReportLab barcode widget (no text/quiet) for page {page_number} (Data: {barcode_data})")
+            # print(f"Generated ReportLab barcode widget (no text/quiet) for page {page_number} (Data: {barcode_data})")
             # Print calculated width to check against >= 38mm requirement
-            print(f"  Widget width: {barcode_widget.width*PRINT_SCALE_CORRECTION/mm:.1f}mm") # Note: width might not account for quiet zone if quiet=True
+            # print(f"  Widget width: {barcode_widget.width*PRINT_SCALE_CORRECTION/mm:.1f}mm") # Note: width might not account for quiet zone if quiet=True
             return barcode_widget
 
         except Exception as e:
@@ -118,9 +118,6 @@ class OneDeeBarCode:
             pagesize: A tuple (width, height) representing the page dimensions
                       (e.g., landscape(A4)).
         """
-        if not barcode_widget:
-            print("Error: Invalid barcode_widget provided to draw_barcode_on_canvas.")
-            return
 
         page_width, page_height = pagesize
 
@@ -183,10 +180,10 @@ class OneDeeBarCode:
         finally:
             canvas.restoreState() # Restore the canvas state (translation, rotation)
 
-        print(f"Drew rotated barcode and manual text on canvas.")
-        print(f"  Target Text Baseline X: {margin_left/mm:.1f}mm which gives ")
-        print(f"  Calculated BL corner X: {final_bl_x/mm:.1f}mm, Y: {final_bl_y/mm:.1f}mm")
-        print(f"  Text drawn relative to BL at ({text_x/mm:.1f}mm, {text_y/mm:.1f}mm) in rotated coords (using drawCentredString)")
+        # print(f"Drew rotated barcode and manual text on canvas.")
+        # print(f"  Target Text Baseline X: {margin_left/mm:.1f}mm which gives ")
+        # print(f"  Calculated BL corner X: {final_bl_x/mm:.1f}mm, Y: {final_bl_y/mm:.1f}mm")
+        # print(f"  Text drawn relative to BL at ({text_x/mm:.1f}mm, {text_y/mm:.1f}mm) in rotated coords (using drawCentredString)")
 
 
 # --- Example Usage ---
