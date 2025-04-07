@@ -16,7 +16,9 @@ from opensteuerauszug.model.ech0196 import (
 )
 from opensteuerauszug.render.render import (
     render_tax_statement,
-    render_statement_info
+    render_statement_info,
+    make_barcode_pages,
+    BarcodeDocTemplate
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import Paragraph, Spacer, SimpleDocTemplate
@@ -208,3 +210,35 @@ def test_barcode_rendering(sample_tax_statement):
         # Cleanup temporary file
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
+def test_make_barcode_pages(sample_tax_statement):
+    """Test that make_barcode_pages correctly configures the document and story."""
+    # Create a mock story and document
+    story = []
+    buffer = BytesIO()
+    doc = BarcodeDocTemplate(buffer, pagesize=(800, 600))
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(name='SectionTitle', parent=styles['h2'], fontSize=10)
+    
+    # Call the function
+    make_barcode_pages(doc, story, sample_tax_statement, title_style)
+    
+    # Verify document configuration
+    assert doc.is_barcode_page is True
+    assert doc.page_count == 2
+    
+    # Verify story content (should have 4 elements: NextPageTemplate, PageBreak, Paragraph, Spacer)
+    assert len(story) == 4
+    
+    # The first element should be NextPageTemplate
+    assert story[0].__class__.__name__ == 'NextPageTemplate'
+    
+    # The second element should be PageBreak
+    assert story[1].__class__.__name__ == 'PageBreak'
+    
+    # The third element should be a Paragraph with "Barcode Page - For Scanning"
+    assert isinstance(story[2], Paragraph)
+    assert "Barcode Page - For Scanning" in story[2].text
+    
+    # The fourth element should be a Spacer
+    assert isinstance(story[3], Spacer)

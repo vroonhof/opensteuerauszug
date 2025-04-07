@@ -2,7 +2,6 @@ import io
 import sys
 import os
 import json
-import hashlib
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
 from decimal import Decimal, ROUND_HALF_UP
@@ -27,13 +26,18 @@ from opensteuerauszug.model.ech0196 import TaxStatement
 # --- Import OneDeeBarCode for barcode rendering ---
 from opensteuerauszug.render.onedee import OneDeeBarCode
 
+# --- Import Organisation helper functions ---
+from opensteuerauszug.core.organisation import compute_org_nr
+
 # --- Configuration ---
 COMPANY_NAME = "Bank WIR"
 DOC_INFO = "S. E. & O."
 
 __all__ = [
     'render_tax_statement',
-    'render_statement_info'
+    'render_statement_info',
+    'make_barcode_pages',
+    'BarcodeDocTemplate'
 ]
 
 # Custom document template with barcode support
@@ -43,7 +47,7 @@ class BarcodeDocTemplate(BaseDocTemplate):
     def __init__(self, filename, **kwargs):
         """Initialize with barcode attributes."""
         super().__init__(filename, **kwargs)
-        self.barcode_generator: Optional[OneDeeBarCode] = None
+        self.onedee_generator: Optional[OneDeeBarCode] = None
         self.org_nr: str = '00000'
         self.page_count: int = 1
         self.is_barcode_page: bool = False
@@ -73,17 +77,17 @@ def draw_page_header(canvas, doc):
     canvas.drawRightString(header_x, header_y, header_text)
     
     # Draw the barcode if page specific data is available
-    if isinstance(doc, BarcodeDocTemplate) and doc.barcode_generator:
+    if isinstance(doc, BarcodeDocTemplate) and doc.onedee_generator:
         page_num = canvas.getPageNumber()
         # Barcode page flag is true for the dedicated barcode pages at the end
         is_barcode_page = doc.is_barcode_page and page_num > doc.page_count - 1
-        barcode_widget = doc.barcode_generator.generate_barcode(
+        barcode_widget = doc.onedee_generator.generate_barcode(
             page_number=page_num, 
             is_barcode_page=is_barcode_page,
             org_nr=doc.org_nr
         )
         if barcode_widget:
-            doc.barcode_generator.draw_barcode_on_canvas(canvas, barcode_widget, doc.pagesize)
+            doc.onedee_generator.draw_barcode_on_canvas(canvas, barcode_widget, doc.pagesize)
     
     canvas.restoreState()
 
@@ -446,30 +450,32 @@ def render_statement_info(tax_statement: TaxStatement, story: list, client_info_
     
     story.append(Spacer(1, 0.5*cm))
 
-# --- Helper functions ---
-def hash_organization_name(org_name: str) -> str:
+def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxStatement, title_style: ParagraphStyle) -> None:
     """
-    Generate a 3-digit number based on a secure hash of the organization name.
+    Configure the document for barcode pages and add barcode page content to the story.
     
     Args:
-        org_name: The name of the organization to hash
-        
-    Returns:
-        A 3-digit string derived from the hash
+        doc: The document template to configure
+        story: The story to append to
+        tax_statement: The tax statement model
+        title_style: Style to use for page titles
     """
-    if not org_name or not isinstance(org_name, str):
-        return "000"  # Default if no name provided
+    # Set flag to identify barcode pages
+    doc.is_barcode_page = True
     
-    # Create a hash of the organization name
-    hash_obj = hashlib.sha256(org_name.encode('utf-8'))
-    hash_hex = hash_obj.hexdigest()
+    # Set the total page count to 2 (main content + barcode page)
+    doc.page_count = 2
     
-    # Take the first 6 characters of the hash (24 bits)
-    # and convert to an integer, then modulo 1000 to get 3 digits
-    hash_int = int(hash_hex[:6], 16) % 1000
+    # Force a page break for the barcode section as spec these are better
+    # not in the same frame as the summary table
+    story.append(NextPageTemplate('main'))  # Ensure template is used
+    story.append(PageBreak())
     
-    # Format as a 3-digit string with leading zeros
-    return f"{hash_int:03d}"
+    # Add barcode page content
+    story.append(Paragraph("Barcode Page - For Scanning", title_style))
+    story.append(Spacer(1, 1*cm))
+    
+    # The actual barcodes are drawn in the header/footer functions
 
 # --- Main API function to be called from steuerauszug.py ---
 def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Path], override_org_nr: Optional[str] = None) -> Path:
@@ -513,35 +519,10 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
                              bottomMargin=bottom_margin)
     
     # Set up barcode generator
-    doc.barcode_generator = OneDeeBarCode()
+    doc.onedee_generator = OneDeeBarCode()
     
-    # Validate and use the override_org_nr if provided
-    if override_org_nr is not None:
-        # Check if it's a valid 5-digit string
-        if not isinstance(override_org_nr, str) or not override_org_nr.isdigit() or len(override_org_nr) != 5:
-            raise ValueError(f"Invalid org_nr format: '{override_org_nr}'. Must be a 5-digit string.")
-        org_nr = override_org_nr
-    else:
-        # We need to make up a unique org_nr, the spec suggests using the Bankleitzahl/BIC.
-        # But we don't have that here, so we use the hash of the institution name and
-        # squat in the 19000 range which belongs to the Swiss National Bank and is unused.
-        # Get organization name from tax statement if available
-        org_name = ""
-        
-        if hasattr(tax_statement, 'institution') and tax_statement.institution:
-            if hasattr(tax_statement.institution, 'name') and tax_statement.institution.name:
-                org_name = tax_statement.institution.name
-        
-        # If we have an org_name, use the hash
-        if org_name:
-            # Generate the org_nr using '19' prefix and 3-digit hash
-            hash_suffix = hash_organization_name(org_name)
-            org_nr = f"19{hash_suffix}"
-        else:
-            # Default fallback if all else fails
-            org_nr = '19999'
-    
-    doc.org_nr = org_nr
+    # Compute the organization number
+    doc.org_nr = compute_org_nr(tax_statement, override_org_nr)
     
     # --- Define styles centrally (same as before) ---
     styles = getSampleStyleSheet()
@@ -598,17 +579,8 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     
     story.append(Spacer(1, 0.5*cm))
     
-    # Always add one barcode page
-    # Flag to identify barcode pages
-    doc.is_barcode_page = True
-    doc.page_count = 2  # Regular content + one barcode page
-    
-    # Add barcode page
-    story.append(NextPageTemplate('main'))  # Ensure template is used
-    story.append(PageBreak())
-    story.append(Paragraph("Barcode Page - For Scanning", title_style))
-    story.append(Spacer(1, 1*cm))
-    # The actual barcode is drawn in the header/footer functions
+    # Add the barcode page
+    make_barcode_pages(doc, story, tax_statement, title_style)
     
     # Build the PDF
     doc.build(story)
