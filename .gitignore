@@ -4,6 +4,8 @@
 # Emacs backup files
 *~
 
+# Real tax data for integration testing
+/private
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
