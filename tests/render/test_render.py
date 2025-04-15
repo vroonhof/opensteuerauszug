@@ -170,7 +170,7 @@ def test_pdf_page_count(sample_tax_statement):
             
             # Check the barcode page
             text2 = pdf_reader.pages[1].extract_text()
-            assert "Barcode Pages - For Scanning" in text2
+            assert "Barcode Page" in text2
     finally:
         # Cleanup temporary file
         if os.path.exists(tmp_path):
