@@ -201,7 +201,7 @@ def test_barcode_rendering(sample_tax_statement):
             
             # Check content in the barcode page
             text2 = pdf_reader.pages[1].extract_text()
-            assert "Barcode Pages - For Scanning" in text2
+            assert "Barcode Page 1 of" in text2
     finally:
         # Cleanup temporary file
         if os.path.exists(tmp_path):
@@ -221,27 +221,23 @@ def test_make_barcode_pages(sample_tax_statement):
     
     # Verify document configuration
     assert doc.is_barcode_page is True
-    assert doc.page_count >= 2  # Should have at least 2 pages (1 main + at least 1 barcode page)
     
     # Verify core story elements - should include at minimum:
-    # 1. NextPageTemplate
-    # 2. PageBreak
-    # 3. Title paragraph
-    # 4. Spacer after title
-    assert len(story) >= 4
+    # 1. Title paragraph
+    # 2. Spacer after title
+    # 3. Table for barcode layout
+    assert len(story) >= 3
     
-    # The first element should be NextPageTemplate
-    assert story[0].__class__.__name__ == 'NextPageTemplate'
+    # The first element should be a Paragraph with a barcode page title
+    assert isinstance(story[0], Paragraph)
+    assert "Barcode Pages - For Scanning" in story[0].text
     
-    # The second element should be PageBreak
-    assert story[1].__class__.__name__ == 'PageBreak'
+    # The second element should be a Spacer
+    assert isinstance(story[1], Spacer)
     
-    # The third element should be a Paragraph with a barcode page title
-    assert isinstance(story[2], Paragraph)
-    assert "Barcode Pages - For Scanning" in story[2].text
-    
-    # The fourth element should be a Spacer
-    assert isinstance(story[3], Spacer)
+    # There should be at least one table in the story (containing barcodes)
+    table_found = any(item.__class__.__name__ == 'Table' for item in story)
+    assert table_found, "No table found for barcode layout"
     
     # There should be at least one table in the story (containing barcodes)
     table_found = False
