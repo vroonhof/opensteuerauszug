@@ -490,7 +490,8 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     codes = encode_macro(
         data,
         file_id=[1],
-        columns=13,
+        columns=NUM_COLUMNS,
+        force_rows=NUM_ROWS,
         security_level=4,
         segment_size=SEGMENT_SIZE,
         force_binary=True,
