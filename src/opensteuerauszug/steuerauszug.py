@@ -7,6 +7,8 @@ from typing import List, Optional
 from .model.ech0196 import TaxStatement
 # Import the rendering functionality
 from .render.render import render_tax_statement
+# Import calculation framework
+from .calculate.base import BaseCalculator, CalculationMode
 
 # Keep Portfolio for now, maybe it becomes an alias or wrapper for TaxStatement?
 # Or perhaps TaxStatement becomes the internal representation?
@@ -114,9 +116,19 @@ def main(
             print(f"Phase: {current_phase.value}")
             if not portfolio:
                  raise ValueError("Portfolio model not loaded. Cannot run calculate phase.")
-            # TODO: Implement calculation logic
-            # calculate_tax_values(portfolio, ...)
-            print(f"Calculation successful (placeholder)." )
+            
+            # Create calculator with appropriate mode
+            calculator = BaseCalculator(mode=CalculationMode.FILL)
+            
+            # Apply calculations
+            portfolio = calculator.calculate(portfolio)
+            
+            if calculator.modified_fields:
+                print(f"Modified {len(calculator.modified_fields)} fields during calculation")
+            else:
+                print("No fields needed modification during calculation")
+            
+            print(f"Calculation successful.")
             dump_debug_model(current_phase.value, portfolio)
 
         if Phase.RENDER in run_phases:
