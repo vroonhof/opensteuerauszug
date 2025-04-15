@@ -207,7 +207,7 @@ def test_barcode_rendering(sample_tax_statement):
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
-def test_make_barcode_pages(sample_tax_statement):
+def test_make_barcode_pages(sample_tax_statement, monkeypatch):
     """Test that make_barcode_pages correctly configures the document and story."""
     # Create a mock story and document
     story = []
@@ -216,6 +216,17 @@ def test_make_barcode_pages(sample_tax_statement):
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(name='SectionTitle', parent=styles['h2'], fontSize=10)
     
+    # Mock the render_to_barcodes function to return a list of mock images
+    def mock_render_to_barcodes(tax_statement):
+        from PIL import Image
+        # Create a simple 100x100 black image
+        img = Image.new('RGB', (100, 100), color='black')
+        # Return a list with one image
+        return [img]
+    
+    # Apply the monkeypatch
+    monkeypatch.setattr('opensteuerauszug.render.render.render_to_barcodes', mock_render_to_barcodes)
+    
     # Call the function
     make_barcode_pages(doc, story, sample_tax_statement, title_style)
     
@@ -223,23 +234,32 @@ def test_make_barcode_pages(sample_tax_statement):
     assert doc.is_barcode_page is True
     
     # Verify core story elements - should include at minimum:
-    # 1. Title paragraph
-    # 2. Spacer after title
-    # 3. Table for barcode layout
-    assert len(story) >= 3
+    # 1. NextPageTemplate
+    # 2. PageBreak
+    # 3. Title paragraph
+    # 4. Spacer after title
+    # 5. Table for barcode layout
+    assert len(story) >= 5
     
-    # The first element should be a Paragraph with a barcode page title
-    assert isinstance(story[0], Paragraph)
-    assert "Barcode Pages - For Scanning" in story[0].text
+    # Find the title paragraph
+    title_found = False
+    for item in story:
+        if isinstance(item, Paragraph) and "Barcode Page" in item.text:
+            title_found = True
+            break
     
-    # The second element should be a Spacer
-    assert isinstance(story[1], Spacer)
+    assert title_found, "No barcode page title found"
     
-    # There should be at least one table in the story (containing barcodes)
-    table_found = any(item.__class__.__name__ == 'Table' for item in story)
-    assert table_found, "No table found for barcode layout"
+    # Find a spacer
+    spacer_found = False
+    for item in story:
+        if isinstance(item, Spacer):
+            spacer_found = True
+            break
     
-    # There should be at least one table in the story (containing barcodes)
+    assert spacer_found, "No spacer found"
+    
+    # Find a table
     table_found = False
     for item in story:
         if item.__class__.__name__ == 'Table':

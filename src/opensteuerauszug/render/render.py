@@ -521,8 +521,6 @@ def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxS
     """
     # Generate the 2D PDF417 barcodes
     barcode_images = render_to_barcodes(tax_statement)
-
-    print(f"Number of barcode images: {len(barcode_images)}")
     
     # Render on page according to "Beilage zu eCH-0196 V2.2.0 – Barcode Generierung – Technische Wegleitung""
     # Calculate how many pages we need - guidance spec says 6 barcodes per page
@@ -563,7 +561,6 @@ def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxS
         for i in range(start_idx, end_idx):
             # Get the barcode image
             img = barcode_images[i]
-            print(f"Image size: {img.size}")
             
             # rotate image 90 degree clockwise
             img = img.rotate(-90, expand=True)
