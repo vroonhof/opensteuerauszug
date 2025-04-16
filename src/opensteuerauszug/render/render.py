@@ -129,12 +129,12 @@ def create_summary_table(data, styles, usable_width):
     # --- Data structure based on 6 columns, with Totals shifted ---
     table_data = [
         # Row 0: A/B Headers (Indices 2 & 5 blank)
-        [Paragraph('Steuerwert der A- und B-Werte am 31.12.2024', header_style),
+        [Paragraph(f'Steuerwert der A- und B-Werte am {summary_data.get("period_end_date", "31.12")}', header_style),
          '',         
          Paragraph('A', val_center), # 'A' in its own column (index 2)
-         Paragraph('Bruttoertrag 2024 Werte mit VSt.-Abzug', header_style),
+         Paragraph(f'Bruttoertrag {summary_data.get("tax_period", "")} Werte mit VSt.-Abzug', header_style),
          Paragraph('B', val_center), # 'B' in its own column (index 2)
-         Paragraph('Bruttoertrag 2024 Werte ohne VSt.-Abzug', header_style),
+         Paragraph(f'Bruttoertrag {summary_data.get("tax_period", "")} Werte ohne VSt.-Abzug', header_style),
          Paragraph('Verrechnungs- steueranspruch', header_style), '',
          Paragraph(f'''Werte für Formular "Wertschriften- und Guthabenverzeichnis"
 (inkl. Konti, ohne Werte DA-1 und USA)
@@ -151,9 +151,9 @@ def create_summary_table(data, styles, usable_width):
         # Row 2: Spacer row (6 columns)
         ['', '', '', '', '', ''],
          # Row 3: DA-1 Headers (Indices 1 & 2 blank)
-        [Paragraph('Steuerwert der DA-1 und USA- Werte am 31.12.2024', header_style),
+        [Paragraph(f'Steuerwert der DA-1 und USA- Werte am {summary_data.get("period_end_date", "31.12")}', header_style),
          '', '', '', '',
-         Paragraph('Bruttoertrag 2024 DA-1 und USA-Werte', header_style), # Starts in Col 4
+         Paragraph(f'Bruttoertrag {summary_data.get("tax_period", "")} DA-1 und USA-Werte', header_style), # Starts in Col 4
          Paragraph('Pauschale Steueranrechnung (DA-1)', header_style), 
          Paragraph('Steuerrückbehalt USA', header_style),
          Paragraph('''Werte für zusätzliches Formular "DA-1 Antrag auf Anrechnung
@@ -318,7 +318,7 @@ def create_liabilities_table(data, styles, usable_width):
     for item in data['liabilities']:
         if 'transactions' in item:
              for trans in item['transactions']: table_data.append([ Paragraph(trans.get('date', ''), val_left), Paragraph(trans.get('description', ''), val_left), Paragraph(item.get('currency', 'CHF'), val_center), Paragraph(format_currency(trans.get('amount')), val_right), '', '', Paragraph(format_currency(trans.get('amount')), val_right) ])
-        table_data.append([ Paragraph(item.get('date', '31.12.2024'), val_left), Paragraph(item.get('description', '').replace('\n', '<br/>'), val_left), Paragraph(item.get('currency', 'CHF'), val_center), Paragraph(format_currency(item.get('amount')), val_right), Paragraph(item.get('rate', ''), val_right), Paragraph(format_currency(item.get('value_chf')), val_right), Paragraph(format_currency(item.get('total_interest')), val_right) ])
+        table_data.append([ Paragraph(item.get('date', period_end_date), val_left), Paragraph(item.get('description', '').replace('\n', '<br/>'), val_left), Paragraph(item.get('currency', 'CHF'), val_center), Paragraph(format_currency(item.get('amount')), val_right), Paragraph(item.get('rate', ''), val_right), Paragraph(format_currency(item.get('value_chf')), val_right), Paragraph(format_currency(item.get('total_interest')), val_right) ])
         total_debt += Decimal(str(item.get('value_chf', 0))); total_interest += Decimal(str(item.get('total_interest', 0)))
     table_data.append([ '', Paragraph('Total Schulden', bold_left), '', '', '', Paragraph(format_currency(total_debt), bold_right), Paragraph(format_currency(total_interest), bold_right) ])
     col_widths = [30*mm, 100*mm, 20*mm, 27*mm, 20*mm, 30*mm, 30*mm]
@@ -345,7 +345,8 @@ def create_costs_table(data, styles, usable_width):
     val_right = styles['Val_RIGHT']
     bold_left = styles['Bold_LEFT']
     bold_right = styles['Bold_RIGHT']
-    table_data = [ [Paragraph('Bezeichnung', header_left_style), Paragraph('Spesentyp', header_left_style), Paragraph('Wert<br/>31.12.2024<br/>in CHF', header_right_style)] ]
+    period_end_date = data.get('summary', {}).get('period_end_date', '31.12')
+    table_data = [ [Paragraph('Bezeichnung', header_left_style), Paragraph('Spesentyp', header_left_style), Paragraph(f'Wert<br/>{period_end_date}<br/>in CHF', header_right_style)] ]
     total_costs = Decimal(0)
     for item in data['costs']: table_data.append([ Paragraph(item.get('description', ''), val_left), Paragraph(item.get('type', ''), val_left), Paragraph(format_currency(item.get('value_chf')), val_right) ]); total_costs += Decimal(str(item.get('value_chf', 0)))
     table_data.append([ Paragraph('Total bezahlte Bankspesen', bold_left), '', Paragraph(format_currency(total_costs), bold_right) ])
@@ -685,6 +686,16 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     total_gross_revenue_a = tax_statement.totalGrossRevenueA if hasattr(tax_statement, 'totalGrossRevenueA') and tax_statement.totalGrossRevenueA is not None else Decimal('0')
     total_gross_revenue_b = tax_statement.totalGrossRevenueB if hasattr(tax_statement, 'totalGrossRevenueB') and tax_statement.totalGrossRevenueB is not None else Decimal('0')
     
+    # Extract tax period and period end date
+    tax_period = str(tax_statement.taxPeriod) if hasattr(tax_statement, 'taxPeriod') and tax_statement.taxPeriod is not None else ""
+    
+    # Format period end date (default to Dec 31 of tax period if available)
+    period_end_date = "31.12"
+    if hasattr(tax_statement, 'periodTo') and tax_statement.periodTo is not None:
+        period_end_date = tax_statement.periodTo.strftime("%d.%m")
+    elif tax_period:
+        period_end_date = f"31.12.{tax_period}"
+    
     summary_data = {
         "steuerwert": Decimal(),
         "steuerwert_a": Decimal(),
@@ -699,7 +710,9 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
         "total_steuerwert": tax_statement.totalTaxValue if hasattr(tax_statement, 'totalTaxValue') else None,
         "total_brutto_mit_vst": total_gross_revenue_a,
         "total_brutto_ohne_vst": total_gross_revenue_b,
-        "total_brutto_gesamt": total_gross_revenue_a + total_gross_revenue_b
+        "total_brutto_gesamt": total_gross_revenue_a + total_gross_revenue_b,
+        "tax_period": tax_period,
+        "period_end_date": period_end_date
     }
     
     # Create summary table with direct data
