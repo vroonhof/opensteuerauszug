@@ -172,10 +172,10 @@ USA"''', val_left)], #
         [Paragraph('Total Steuerwert der A,B,DA-1 und USA-Werte', header_style), # Col 0
          '',
          '', 
-         Paragraph('Total Bruttoertrag 2024 A-Werte mit VSt.-Abzug', header_style), # Col 3 << SHIFTED
+         Paragraph(f'Total Bruttoertrag {summary_data.get("tax_period", "")} A-Werte mit VSt.-Abzug', header_style), # Col 3 << SHIFTED
          '', 
-         Paragraph('Total Bruttoertrag 2024 B,DA-1 und USA-Werte ohne VSt.-Abzug', header_style), # Col 4 << SHIFTED
-         Paragraph('Total Bruttoertrag 2024 A.B.DA-1 und USA-Werte', header_style),
+         Paragraph(f'Total Bruttoertrag {summary_data.get("tax_period", "")} B,DA-1 und USA-Werte ohne VSt.-Abzug', header_style), # Col 4 << SHIFTED
+         Paragraph(f'Total Bruttoertrag {summary_data.get("tax_period", "")} A.B.DA-1 und USA-Werte', header_style),
          "",
                   Paragraph('''Falls keine Anrechnung ausländischer Quellensteuern (DA-1)
 geltend gemacht wird, sind diese Totalwerte im
@@ -691,9 +691,9 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     tax_period = str(tax_statement.taxPeriod) if hasattr(tax_statement, 'taxPeriod') and tax_statement.taxPeriod is not None else ""
     
     # Format period end date (default to Dec 31 of tax period if available)
-    period_end_date = "31.12"
+    period_end_date = "31.12.2024"
     if hasattr(tax_statement, 'periodTo') and tax_statement.periodTo is not None:
-        period_end_date = tax_statement.periodTo.strftime("%d.%m")
+        period_end_date = tax_statement.periodTo.strftime("%d.%m.%Y")
     elif tax_period:
         period_end_date = f"31.12.{tax_period}"
     
