@@ -137,8 +137,7 @@ def create_summary_table(data, styles, usable_width):
          Paragraph(f'Bruttoertrag {summary_data.get("tax_period", "")} Werte ohne VSt.-Abzug', header_style),
          Paragraph('Verrechnungs- steueranspruch', header_style), '',
          Paragraph(f'''Werte für Formular "Wertschriften- und Guthabenverzeichnis"
-(inkl. Konti, ohne Werte DA-1 und USA)
-(1) Davon A {steuerwert_a} und B {steuerwert_b}''', val_left)],
+(inkl. Konti, ohne Werte DA-1 und USA)''', val_left)],
         # Row 1: A/B Values (Index 2 is 'B', Index 5 blank)
         [Paragraph(format_currency(summary_data.get('steuerwert_ab')), val_right),
          Paragraph("(1)", val_left),
@@ -313,7 +312,9 @@ def create_liabilities_table(data, styles, usable_width):
     val_center = styles['Val_CENTER']
     bold_left = styles['Bold_LEFT']
     bold_right = styles['Bold_RIGHT']
-    table_data = [ [Paragraph('Datum', header_style), Paragraph('Bezeichnung<br/>Schulden<br/>Zinsen', header_style), Paragraph('Währung', header_style), Paragraph('Schulden', header_style), Paragraph('Kurs', header_style), Paragraph('Schulden<br/>31.12.2024<br/>in CHF', header_style), Paragraph('Schuldzinsen<br/>2024<br/>in CHF', header_style)] ]
+    period_end_date = data.get('summary', {}).get('period_end_date', '31.12')
+    tax_period = data.get('summary', {}).get('tax_period', '')
+    table_data = [ [Paragraph('Datum', header_style), Paragraph('Bezeichnung<br/>Schulden<br/>Zinsen', header_style), Paragraph('Währung', header_style), Paragraph('Schulden', header_style), Paragraph('Kurs', header_style), Paragraph(f'Schulden<br/>{period_end_date}<br/>in CHF', header_style), Paragraph(f'Schuldzinsen<br/>{tax_period}<br/>in CHF', header_style)] ]
     total_debt = Decimal(0); total_interest = Decimal(0)
     for item in data['liabilities']:
         if 'transactions' in item:
