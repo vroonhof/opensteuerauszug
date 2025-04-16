@@ -433,22 +433,16 @@ def render_statement_info(tax_statement: TaxStatement, story: list, client_info_
         if institution_name:
             story.append(Paragraph(f"<b>Institution:</b> {institution_name}", client_info_style))
     
-    # Period information
-    period_from = ""
-    period_to = ""
+    # Period information - these fields are mandatory in the model
+    period_from = tax_statement.periodFrom.strftime("%d.%m.%Y")
+    period_to = tax_statement.periodTo.strftime("%d.%m.%Y")
     
-    if hasattr(tax_statement, 'taxPeriod'):
-        story.append(Paragraph(f"<b>Steuerjahr:</b> {tax_statement.taxPeriod}", client_info_style))
+    # Tax period is mandatory
+    story.append(Paragraph(f"<b>Steuerjahr:</b> {tax_statement.taxPeriod}", client_info_style))
     
-    if hasattr(tax_statement, 'periodFrom') and tax_statement.periodFrom:
-        period_from = tax_statement.periodFrom.strftime("%d.%m.%Y")
-    
-    if hasattr(tax_statement, 'periodTo') and tax_statement.periodTo:
-        period_to = tax_statement.periodTo.strftime("%d.%m.%Y")
-    
-    if period_from and period_to:
-        period_text = f"{period_from} - {period_to}"
-        story.append(Paragraph(f"<b>Periode:</b> {period_text}", client_info_style))
+    # Period text with mandatory fields
+    period_text = f"{period_from} - {period_to}"
+    story.append(Paragraph(f"<b>Periode:</b> {period_text}", client_info_style))
     
     # Creation date
     if hasattr(tax_statement, 'creationDate') and tax_statement.creationDate:
@@ -687,15 +681,11 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     total_gross_revenue_a = tax_statement.totalGrossRevenueA if hasattr(tax_statement, 'totalGrossRevenueA') and tax_statement.totalGrossRevenueA is not None else Decimal('0')
     total_gross_revenue_b = tax_statement.totalGrossRevenueB if hasattr(tax_statement, 'totalGrossRevenueB') and tax_statement.totalGrossRevenueB is not None else Decimal('0')
     
-    # Extract tax period and period end date
-    tax_period = str(tax_statement.taxPeriod) if hasattr(tax_statement, 'taxPeriod') and tax_statement.taxPeriod is not None else ""
+    # Extract tax period and period end date - both are mandatory in the model
+    tax_period = str(tax_statement.taxPeriod)
     
-    # Format period end date (default to Dec 31 of tax period if available)
-    period_end_date = "31.12.2024"
-    if hasattr(tax_statement, 'periodTo') and tax_statement.periodTo is not None:
-        period_end_date = tax_statement.periodTo.strftime("%d.%m.%Y")
-    elif tax_period:
-        period_end_date = f"31.12.{tax_period}"
+    # Format period end date - periodTo is mandatory in the model
+    period_end_date = tax_statement.periodTo.strftime("%d.%m.%Y")
     
     summary_data = {
         "steuerwert": Decimal(),
