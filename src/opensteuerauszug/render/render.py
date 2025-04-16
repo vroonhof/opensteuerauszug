@@ -123,6 +123,9 @@ def create_summary_table(data, styles, usable_width):
     val_right = styles['Val_RIGHT']
     val_center = styles['Val_CENTER']
 
+    steuerwert_a = format_currency(summary_data.get('steuerwert_a'))
+    steuerwert_b = format_currency(summary_data.get('steuerwert_b'))
+
     # --- Data structure based on 6 columns, with Totals shifted ---
     table_data = [
         # Row 0: A/B Headers (Indices 2 & 5 blank)
@@ -133,9 +136,9 @@ def create_summary_table(data, styles, usable_width):
          Paragraph('B', val_center), # 'B' in its own column (index 2)
          Paragraph('Bruttoertrag 2024 Werte ohne VSt.-Abzug', header_style),
          Paragraph('Verrechnungs- steueranspruch', header_style), '',
-         Paragraph('''Werte für Formular "Wertschriften- und Guthabenverzeichnis"
+         Paragraph(f'''Werte für Formular "Wertschriften- und Guthabenverzeichnis"
 (inkl. Konti, ohne Werte DA-1 und USA)
-(1) Davon A 10'063 und B 0''', val_left)],
+(1) Davon A {steuerwert_a} und B {steuerwert_b}''', val_left)],
         # Row 1: A/B Values (Index 2 is 'B', Index 5 blank)
         [Paragraph(format_currency(summary_data.get('steuerwert_ab')), val_right),
          Paragraph("(1)", val_left),
@@ -683,11 +686,11 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     total_gross_revenue_b = tax_statement.totalGrossRevenueB if hasattr(tax_statement, 'totalGrossRevenueB') and tax_statement.totalGrossRevenueB is not None else Decimal('0')
     
     summary_data = {
-        "steuerwert": tax_statement.totalTaxValue if hasattr(tax_statement, 'totalTaxValue') else None,
-        "steuerwert_a": total_gross_revenue_a,
-        "steuerwert_b": total_gross_revenue_b,
-        "brutto_mit_vst": total_gross_revenue_a,
-        "brutto_ohne_vst": total_gross_revenue_b,
+        "steuerwert": Decimal(),
+        "steuerwert_a": Decimal(),
+        "steuerwert_b": Decimal(),
+        "brutto_mit_vst": Decimal(),
+        "brutto_ohne_vst": Decimal(),
         "vst_anspruch": tax_statement.totalWithHoldingTaxClaim if hasattr(tax_statement, 'totalWithHoldingTaxClaim') else None,
         "steuerwert_da1_usa": Decimal('0'),
         "brutto_da1_usa": Decimal('0'),
