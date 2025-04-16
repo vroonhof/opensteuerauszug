@@ -1,6 +1,5 @@
 import os
 import sys
-import glob
 import pytest
 from datetime import date, datetime
 from decimal import Decimal
@@ -8,6 +7,9 @@ from lxml import etree as ET  # Use lxml.etree explicitly
 from pathlib import Path
 import re
 from pydantic import Field
+
+# Import the centralized test utilities
+from tests.utils import normalize_xml, get_sample_files
 
 # Adjust import path based on your project structure if necessary
 # This assumes 'tests' is at the same level as 'src'
@@ -48,127 +50,12 @@ def sample_tax_statement_data():
         totalGrossRevenueA=Decimal("100.00"),
         totalGrossRevenueB=Decimal("50.00"),
         totalWithHoldingTaxClaim=Decimal("35.00")
-        # Add other required fields from the XSD or base type as needed
-        # Ensure all fields marked as required in the Pydantic model or its base
-        # (like those with `...` or without Optional/default) are provided.
-        # Example: Assuming these were marked required in TaxStatementExtension:
-        # totalTaxValue=Decimal("1000.50"),
-        # totalGrossRevenueA=Decimal("100.00"),
-        # totalGrossRevenueB=Decimal("50.00"),
-        # totalWithHoldingTaxClaim=Decimal("35.00"),
     )
 
+# Use the centralized helper function
 def get_sample_tax_xml_files():
-    sample_files = [*glob.glob("tests/samples/*.xml")]
-    extra_sample_dir = os.getenv("EXTRA_SAMPLE_DIR")
-    if extra_sample_dir:
-        extra_pattern = os.path.join(
-            os.path.expanduser(
-                os.path.expandvars(extra_sample_dir)), "*.xml")
-        sample_files.extend(glob.glob(extra_pattern))
-    return sample_files
+    return get_sample_files("*.xml")
 
-
-
-# --- Helper functions ---
-
-def normalize_xml(xml_bytes: bytes, remove_xmlns: bool = False) -> str:
-    """Normalize XML string by parsing and re-serializing it.
-    
-    Args:
-        xml_bytes: The XML content as bytes
-        remove_xmlns: If True, remove xmlns declarations and schema locations for more robust comparison
-    """
-    # First normalize without pretty print to get consistent attribute order
-    parser = ET.XMLParser(remove_blank_text=True)
-    tree = ET.fromstring(xml_bytes, parser=parser)
-    normalized_bytes = ET.tostring(tree, method='c14n') # type: ignore
-    
-    # Re-parse and pretty print
-    tree = ET.fromstring(normalized_bytes, parser=parser) 
-    normalized = ET.tostring(tree, pretty_print=True).decode().replace('=".', '="0.') # type: ignore
-    if remove_xmlns:
-        import re
-        # Remove xmlns declarations
-        normalized = re.sub(r'\s+xmlns(?::[^=]*)?="[^"]*"', '', normalized)
-        # Remove schemaLocation and noNamespaceSchemaLocation attributes
-        normalized = re.sub(r'\s+(?:xsi:)?schemaLocation="[^"]*"', '', normalized)
-        normalized = re.sub(r'\s+(?:xsi:)?noNamespaceSchemaLocation="[^"]*"', '', normalized)
-        
-    return normalized
-
-def sort_xml_elements(element: ET._Element) -> None:
-    """Sort all children of an element by tag name recursively for consistent order.
-    
-    This is needed for testing because XML serialization order might differ between implementations
-    but still represent the same data.
-    """
-    # Use list() to convert the element children to a list before sorting
-    children = list(element)
-    # Sort children by tag
-    sorted_children = sorted(children, key=lambda e: str(e.tag))
-    
-    # Clear and re-add in sorted order
-    for child in element:
-        element.remove(child)
-    for child in sorted_children:
-        element.append(child)
-    
-    # Recursively sort grandchildren
-    for child in element:
-        sort_xml_elements(child)
-
-def compare_xml_files(original_xml: bytes, output_xml: bytes) -> bool:
-    """Compare two XML files by normalizing and sorting elements.
-    
-    Returns:
-        True if they match after normalization, False otherwise
-    """
-    parser = ET.XMLParser(remove_blank_text=True)
-    original_tree = ET.fromstring(original_xml, parser=parser)
-    output_tree = ET.fromstring(output_xml, parser=parser)
-    
-    # Sort elements for consistent order
-    sort_xml_elements(original_tree)
-    sort_xml_elements(output_tree)
-    
-    # Convert to string and normalize
-    orig_normalized = ET.tostring(original_tree, method='c14n').decode()
-    output_normalized = ET.tostring(output_tree, method='c14n').decode()
-    
-    # Remove xmlns declarations and whitespace for more robust comparison
-    orig_normalized = re.sub(r'\s+xmlns(?::[^=]*)?="[^"]*"', '', orig_normalized)
-    output_normalized = re.sub(r'\s+xmlns(?::[^=]*)?="[^"]*"', '', output_normalized)
-    
-    # Normalize whitespace
-    orig_normalized = re.sub(r'\s+', ' ', orig_normalized)
-    output_normalized = re.sub(r'\s+', ' ', output_normalized)
-    
-    return orig_normalized == output_normalized
-
-def normalize_xml_for_comparison(xml_bytes: bytes) -> str:
-    """Normalize XML for comparison by removing whitespace and sorting attributes.
-    
-    Args:
-        xml_bytes: The XML content as bytes
-        
-    Returns:
-        Normalized string representation for comparison
-    """
-    # Parse the XML
-    parser = ET.XMLParser(remove_blank_text=True)
-    tree = ET.fromstring(xml_bytes, parser=parser)
-    
-    # Convert to canonical XML
-    canonical = ET.tostring(tree)
-    
-    # Remove all whitespace
-    normalized = re.sub(r'\s+', '', canonical.decode())
-    
-    # Remove all namespace declarations for comparison
-    normalized = re.sub(r'xmlns(?::[^=]*)?="[^"]*"', '', normalized)
-    
-    return normalized
 
 # --- Tests ---
 
@@ -418,7 +305,7 @@ def test_institution_round_trip():
 
 
 # Integration tests
-# DO NOT CHANGE
+# Use the centralized helper function
 @pytest.mark.parametrize("xml_file", get_sample_tax_xml_files())
 def test_xml_round_trip_files(xml_file: str, tmp_path: Path):
     """Test round-trip XML processing (read and write) of real XML files."""
