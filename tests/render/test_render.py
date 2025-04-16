@@ -87,6 +87,13 @@ def test_render_tax_statement_content(sample_tax_statement):
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
         temp_path = temp_file.name
     
+    # Set some values for the new fields
+    sample_tax_statement.steuerwert_ab = Decimal("1000.50")
+    sample_tax_statement.steuerwert_a = Decimal("800.00")
+    sample_tax_statement.steuerwert_b = Decimal("200.50")
+    sample_tax_statement.brutto_mit_vst = Decimal("100.00")
+    sample_tax_statement.brutto_ohne_vst = Decimal("50.00")
+    
     try:
         # Render the tax statement to PDF
         render_tax_statement(sample_tax_statement, temp_path)

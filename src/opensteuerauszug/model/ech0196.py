@@ -1217,6 +1217,18 @@ class TaxStatementBase(BaseXmlModel):
 class TaxStatement(TaxStatementBase):
     # Attribute specific to the root 'taxStatement' element
     minorVersion: Optional[int] = Field(..., json_schema_extra={'is_attribute': True}) # required in XSD -> Changed default=None to ...
+    
+    # Additional fields for summary data (not serialized to XML)
+    steuerwert_ab: Optional[Decimal] = Field(default=None, exclude=True)
+    steuerwert_a: Optional[Decimal] = Field(default=None, exclude=True)
+    steuerwert_b: Optional[Decimal] = Field(default=None, exclude=True)
+    brutto_mit_vst: Optional[Decimal] = Field(default=None, exclude=True)
+    brutto_ohne_vst: Optional[Decimal] = Field(default=None, exclude=True)
+    steuerwert_da1_usa: Optional[Decimal] = Field(default=Decimal('0'), exclude=True)
+    brutto_da1_usa: Optional[Decimal] = Field(default=Decimal('0'), exclude=True)
+    pauschale_da1: Optional[Decimal] = Field(default=Decimal('0'), exclude=True)
+    rueckbehalt_usa: Optional[Decimal] = Field(default=Decimal('0'), exclude=True)
+    total_brutto_gesamt: Optional[Decimal] = Field(default=None, exclude=True)
 
     model_config = {
         "json_schema_extra": {'tag_name': 'taxStatement', 'tag_namespace': NS_MAP['eCH-0196']}

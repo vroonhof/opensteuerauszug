@@ -677,31 +677,41 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     # 1. Summary Section
     story.append(Paragraph("Steuerauszug | Zusammenfassung", title_style))
     
-    # Extract summary data directly from tax_statement
-    total_gross_revenue_a = tax_statement.totalGrossRevenueA if hasattr(tax_statement, 'totalGrossRevenueA') and tax_statement.totalGrossRevenueA is not None else Decimal('0')
-    total_gross_revenue_b = tax_statement.totalGrossRevenueB if hasattr(tax_statement, 'totalGrossRevenueB') and tax_statement.totalGrossRevenueB is not None else Decimal('0')
-    
     # Extract tax period and period end date - both are mandatory in the model
     tax_period = str(tax_statement.taxPeriod)
     
     # Format period end date - periodTo is mandatory in the model
     period_end_date = tax_statement.periodTo.strftime("%d.%m.%Y")
     
+    # Calculate total gross revenue if not already set
+    if tax_statement.total_brutto_gesamt is None:
+        total_gross_revenue_a = tax_statement.totalGrossRevenueA or Decimal('0')
+        total_gross_revenue_b = tax_statement.totalGrossRevenueB or Decimal('0')
+        tax_statement.total_brutto_gesamt = total_gross_revenue_a + total_gross_revenue_b
+    
+    # Ensure the model fields are populated
+    if tax_statement.brutto_mit_vst is None:
+        tax_statement.brutto_mit_vst = tax_statement.totalGrossRevenueA or Decimal('0')
+    
+    if tax_statement.brutto_ohne_vst is None:
+        tax_statement.brutto_ohne_vst = tax_statement.totalGrossRevenueB or Decimal('0')
+    
+    # Create summary data dictionary from model fields
     summary_data = {
-        "steuerwert": Decimal(),
-        "steuerwert_a": Decimal(),
-        "steuerwert_b": Decimal(),
-        "brutto_mit_vst": Decimal(),
-        "brutto_ohne_vst": Decimal(),
-        "vst_anspruch": tax_statement.totalWithHoldingTaxClaim if hasattr(tax_statement, 'totalWithHoldingTaxClaim') else None,
-        "steuerwert_da1_usa": Decimal('0'),
-        "brutto_da1_usa": Decimal('0'),
-        "pauschale_da1": Decimal('0'),
-        "rueckbehalt_usa": Decimal('0'),
-        "total_steuerwert": tax_statement.totalTaxValue if hasattr(tax_statement, 'totalTaxValue') else None,
-        "total_brutto_mit_vst": total_gross_revenue_a,
-        "total_brutto_ohne_vst": total_gross_revenue_b,
-        "total_brutto_gesamt": total_gross_revenue_a + total_gross_revenue_b,
+        "steuerwert_ab": tax_statement.steuerwert_ab or Decimal('0'),
+        "steuerwert_a": tax_statement.steuerwert_a or Decimal('0'),
+        "steuerwert_b": tax_statement.steuerwert_b or Decimal('0'),
+        "brutto_mit_vst": tax_statement.brutto_mit_vst,
+        "brutto_ohne_vst": tax_statement.brutto_ohne_vst,
+        "vst_anspruch": tax_statement.totalWithHoldingTaxClaim,
+        "steuerwert_da1_usa": tax_statement.steuerwert_da1_usa,
+        "brutto_da1_usa": tax_statement.brutto_da1_usa,
+        "pauschale_da1": tax_statement.pauschale_da1,
+        "rueckbehalt_usa": tax_statement.rueckbehalt_usa,
+        "total_steuerwert": tax_statement.totalTaxValue,
+        "total_brutto_mit_vst": tax_statement.totalGrossRevenueA,
+        "total_brutto_ohne_vst": tax_statement.totalGrossRevenueB,
+        "total_brutto_gesamt": tax_statement.total_brutto_gesamt,
         "tax_period": tax_period,
         "period_end_date": period_end_date
     }
