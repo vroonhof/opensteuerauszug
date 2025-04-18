@@ -28,7 +28,9 @@ def create_test_tax_statement() -> TaxStatement:
             quotation=Decimal("100.00"),
             quantity=Decimal("10"),
             exchangeRate=Decimal("1.0"),
-            value=Decimal("1000.00")
+            value=Decimal("1000.00"),
+            quotationType="PIECE",
+            balanceCurrency="CHF"
         ),
         payment=[
             SecurityPayment(
@@ -225,15 +227,15 @@ class TestTotalCalculator:
         # Create a security with USA payments
         security_usa = Security(
             valorNumber=654321,
-            isin="US0001234567",
-            name="US Security",
             taxValue=SecurityTaxValue(
                 referenceDate="2023-12-31",
                 quotationCurrency="USD",
                 quotation=Decimal("50.00"),
                 quantity=Decimal("20"),
                 exchangeRate=Decimal("0.9"),
-                value=Decimal("900.00")
+                value=Decimal("900.00"),
+                quotationType="PIECE",
+                balanceCurrency="CHF"
             ),
             payment=[
                 SecurityPayment(
