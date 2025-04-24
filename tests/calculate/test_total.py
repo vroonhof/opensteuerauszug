@@ -329,13 +329,17 @@ class TestTotalCalculator:
         assert result.totalWithHoldingTaxClaim == Decimal("31.50")
 
     def test_minimal_bank_account_only(self):
-        """Test calculation with only one CHF bank account and no payments."""
+        """Test calculation with only one CHF bank account and no payments, ensuring sub-totals are calculated."""
         bank_account = BankAccount(
             bankAccountNumber=BankAccountNumber("CH1234567890123456789"),
             bankAccountName=BankAccountName("Minimal Account"),
             bankAccountCountry=CountryIdISO2Type("CH"),
             bankAccountCurrency=CurrencyId("CHF"),
-            totalWithHoldingTaxClaim=Decimal("0.00"), # Required, but should be 0
+            # Initialize optional totals as None to test FILL mode
+            totalTaxValue=None,
+            totalGrossRevenueA=None,
+            totalGrossRevenueB=None,
+            totalWithHoldingTaxClaim=Decimal("9.99"), # Required, set to implausible initially
             taxValue=BankAccountTaxValue(
                 referenceDate="2023-12-31",
                 balanceCurrency="CHF",
@@ -344,6 +348,15 @@ class TestTotalCalculator:
                 value=Decimal("1234.56")
             ),
             payment=[] # Explicitly empty
+        )
+
+        list_of_accounts = ListOfBankAccounts(
+            bankAccount=[bank_account],
+            # Initialize list totals as None to test FILL mode
+            totalTaxValue=None,
+            totalGrossRevenueA=None,
+            totalGrossRevenueB=None,
+            totalWithHoldingTaxClaim=None
         )
 
         tax_statement = TaxStatement(
@@ -356,26 +369,54 @@ class TestTotalCalculator:
             canton="ZH",
             institution={"name": "Minimal Bank"},
             client=[{
-                "clientNumber": ClientNumber("CMin"), 
-                "firstName": "Min", 
-                "lastName": "Imal", 
+                "clientNumber": ClientNumber("CMin"),
+                "firstName": "Min",
+                "lastName": "Imal",
                 "salutation": "2"
             }],
-            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+            listOfBankAccounts=list_of_accounts,
+            # Initialize statement totals as None
+            totalTaxValue=None,
+            totalGrossRevenueA=None,
+            totalGrossRevenueB=None,
+            totalWithHoldingTaxClaim=None,
             # No securities, liabilities, or expenses
         )
 
-        calculator = TotalCalculator(mode=CalculationMode.FILL)
+        calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
         result = calculator.calculate(tax_statement)
 
+        # Assert totals on TaxStatement level
         assert result.totalTaxValue == Decimal("1234.56")
         assert result.totalGrossRevenueA == Decimal("0.00")
         assert result.totalGrossRevenueB == Decimal("0.00")
         assert result.totalWithHoldingTaxClaim == Decimal("0.00")
-        assert "totalTaxValue" in calculator.modified_fields
-        assert "totalGrossRevenueA" in calculator.modified_fields
-        assert "totalGrossRevenueB" in calculator.modified_fields
-        assert "totalWithHoldingTaxClaim" in calculator.modified_fields
+
+        # Assert totals on ListOfBankAccounts level
+        assert result.listOfBankAccounts is not None
+        assert result.listOfBankAccounts.totalTaxValue == Decimal("1234.56")
+        assert result.listOfBankAccounts.totalGrossRevenueA == Decimal("0.00")
+        assert result.listOfBankAccounts.totalGrossRevenueB == Decimal("0.00")
+        assert result.listOfBankAccounts.totalWithHoldingTaxClaim == Decimal("0.00")
+
+        # Assert totals on the individual BankAccount level
+        assert len(result.listOfBankAccounts.bankAccount) == 1
+        calculated_bank_account = result.listOfBankAccounts.bankAccount[0]
+        assert calculated_bank_account.totalTaxValue == Decimal("1234.56")
+        assert calculated_bank_account.totalGrossRevenueA == Decimal("0.00")
+        assert calculated_bank_account.totalGrossRevenueB == Decimal("0.00")
+        assert calculated_bank_account.totalWithHoldingTaxClaim == Decimal("0.00")
+
+        expected_modified = {
+            "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
+            "listOfBankAccounts.totalTaxValue", "listOfBankAccounts.totalGrossRevenueA",
+            "listOfBankAccounts.totalGrossRevenueB", "listOfBankAccounts.totalWithHoldingTaxClaim",
+            "listOfBankAccounts.bankAccount[0].totalTaxValue", "listOfBankAccounts.bankAccount[0].totalGrossRevenueA",
+            "listOfBankAccounts.bankAccount[0].totalGrossRevenueB",
+            "listOfBankAccounts.bankAccount[0].totalWithHoldingTaxClaim"
+        }
+ 
+        assert calculator.modified_fields.issuperset(expected_modified)
 
 # Integration tests using real sample files
 class TestTotalCalculatorIntegration:

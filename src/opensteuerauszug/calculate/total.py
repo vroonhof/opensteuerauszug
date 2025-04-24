@@ -61,9 +61,54 @@ class TotalCalculator(BaseCalculator):
                         self._handle_Security(security, path)
 
         if tax_statement.listOfBankAccounts and tax_statement.listOfBankAccounts.bankAccount:
+            list_tax_value = Decimal('0')
+            list_revenue_a = Decimal('0')
+            list_revenue_b = Decimal('0')
+            list_withholding = Decimal('0')
+            
             for i, account in enumerate(tax_statement.listOfBankAccounts.bankAccount):
                 path = f"listOfBankAccounts.bankAccount[{i}]"
-                self._handle_BankAccount(account, path)
+                # Calculate totals for this account
+                account_tax_value = Decimal('0')
+                account_revenue_a = Decimal('0')
+                account_revenue_b = Decimal('0')
+                account_withholding = Decimal('0')  # Always start from 0, ignore any existing value
+                
+                if account.taxValue and account.taxValue.value is not None:
+                    account_tax_value = account.taxValue.value
+                
+                if account.payment:
+                    for payment in account.payment:
+                        if payment.grossRevenueA is not None:
+                            account_revenue_a += payment.grossRevenueA
+                        if payment.grossRevenueB is not None:
+                            account_revenue_b += payment.grossRevenueB
+                        if payment.withHoldingTaxClaim is not None:
+                            account_withholding += payment.withHoldingTaxClaim
+                
+                # Set individual account totals - always set all totals in FILL mode
+                self._set_field_value(account, 'totalTaxValue', account_tax_value, path)
+                self._set_field_value(account, 'totalGrossRevenueA', account_revenue_a, path)
+                self._set_field_value(account, 'totalGrossRevenueB', account_revenue_b, path)
+                self._set_field_value(account, 'totalWithHoldingTaxClaim', account_withholding, path)
+                
+                # Accumulate list totals
+                list_tax_value += account_tax_value
+                list_revenue_a += account_revenue_a
+                list_revenue_b += account_revenue_b
+                list_withholding += account_withholding
+            
+            # Set list level totals
+            self._set_field_value(tax_statement.listOfBankAccounts, 'totalTaxValue', list_tax_value, "listOfBankAccounts")
+            self._set_field_value(tax_statement.listOfBankAccounts, 'totalGrossRevenueA', list_revenue_a, "listOfBankAccounts")
+            self._set_field_value(tax_statement.listOfBankAccounts, 'totalGrossRevenueB', list_revenue_b, "listOfBankAccounts")
+            self._set_field_value(tax_statement.listOfBankAccounts, 'totalWithHoldingTaxClaim', list_withholding, "listOfBankAccounts")
+            
+            # Add to overall totals
+            self.total_tax_value += list_tax_value
+            self.total_gross_revenue_a += list_revenue_a
+            self.total_gross_revenue_b += list_revenue_b
+            self.total_withholding_tax_claim += list_withholding
 
         if tax_statement.listOfLiabilities and tax_statement.listOfLiabilities.liabilityAccount:
             for i, account in enumerate(tax_statement.listOfLiabilities.liabilityAccount):
