@@ -339,7 +339,7 @@ class TestTotalCalculator:
             totalTaxValue=None,
             totalGrossRevenueA=None,
             totalGrossRevenueB=None,
-            totalWithHoldingTaxClaim=Decimal("9.99"), # Required, set to implausible initially
+            totalWithHoldingTaxClaim=None,
             taxValue=BankAccountTaxValue(
                 referenceDate="2023-12-31",
                 balanceCurrency="CHF",
@@ -383,7 +383,7 @@ class TestTotalCalculator:
             # No securities, liabilities, or expenses
         )
 
-        calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
+        calculator = TotalCalculator(mode=CalculationMode.FILL)
         result = calculator.calculate(tax_statement)
 
         # Assert totals on TaxStatement level
