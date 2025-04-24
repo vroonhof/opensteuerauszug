@@ -5,7 +5,7 @@ from ..model.ech0196 import (
     TaxStatement, Security, BankAccount, LiabilityAccount, Expense,
     ListOfSecurities, Depot, ListOfBankAccounts, ListOfLiabilities, ListOfExpenses
 )
-from .base import BaseCalculator, CalculationMode
+from .base import BaseCalculator, CalculationMode, CalculationError
 
 class TotalCalculator(BaseCalculator):
     """
@@ -34,14 +34,13 @@ class TotalCalculator(BaseCalculator):
         self.total_flat_rate_tax_credit = Decimal('0')
         self.total_additional_withholding_tax_usa = Decimal('0')
     
-    def _handle_TaxStatement(self, tax_statement: TaxStatement, path_prefix: str) -> None:
+    def _process_tax_statement(self, tax_statement: TaxStatement) -> None: # Overrides base class method
         """
-        Process the tax statement to calculate and verify total values.
-        Delegates processing to child handlers and then sets/verifies totals.
+        Process the tax statement to calculate and verify total values by explicitly iterating children.
+        This method opts out of the base class visitor pattern for top-level traversal.
         
         Args:
             tax_statement: The tax statement to process
-            path_prefix: The path to this model from the root
         """
         # Reset accumulators before processing children
         self.total_tax_value = Decimal('0')
@@ -53,64 +52,60 @@ class TotalCalculator(BaseCalculator):
         self.total_flat_rate_tax_credit = Decimal('0')
         self.total_additional_withholding_tax_usa = Decimal('0')
         
-        # Recurse into child elements using _process_model
-        if tax_statement.listOfSecurities:
-            self._process_model(tax_statement.listOfSecurities, f"{path_prefix}.listOfSecurities")
-        if tax_statement.listOfBankAccounts:
-            self._process_model(tax_statement.listOfBankAccounts, f"{path_prefix}.listOfBankAccounts")
-        if tax_statement.listOfLiabilities:
-            self._process_model(tax_statement.listOfLiabilities, f"{path_prefix}.listOfLiabilities")
-        if tax_statement.listOfExpenses:
-            self._process_model(tax_statement.listOfExpenses, f"{path_prefix}.listOfExpenses")
+        # Explicitly iterate through children and call handlers
+        if tax_statement.listOfSecurities and tax_statement.listOfSecurities.depot:
+            for i, depot in enumerate(tax_statement.listOfSecurities.depot):
+                if depot.security:
+                    for j, security in enumerate(depot.security):
+                        path = f"listOfSecurities.depot[{i}].security[{j}]"
+                        self._handle_Security(security, path)
+
+        if tax_statement.listOfBankAccounts and tax_statement.listOfBankAccounts.bankAccount:
+            for i, account in enumerate(tax_statement.listOfBankAccounts.bankAccount):
+                path = f"listOfBankAccounts.bankAccount[{i}]"
+                self._handle_BankAccount(account, path)
+
+        if tax_statement.listOfLiabilities and tax_statement.listOfLiabilities.liabilityAccount:
+            for i, account in enumerate(tax_statement.listOfLiabilities.liabilityAccount):
+                path = f"listOfLiabilities.liabilityAccount[{i}]"
+                self._handle_LiabilityAccount(account, path)
+
+        if tax_statement.listOfExpenses and tax_statement.listOfExpenses.expense:
+             for i, expense in enumerate(tax_statement.listOfExpenses.expense):
+                 path = f"listOfExpenses.expense[{i}]"
+                 self._handle_Expense(expense, path) # Currently does nothing, but kept for structure
         
         # Set the regular totals
-        self._set_field_value(tax_statement, 'totalTaxValue', self.total_tax_value, path_prefix)
-        self._set_field_value(tax_statement, 'totalGrossRevenueA', self.total_gross_revenue_a, path_prefix)
-        self._set_field_value(tax_statement, 'totalGrossRevenueB', self.total_gross_revenue_b, path_prefix)
-        self._set_field_value(tax_statement, 'totalWithHoldingTaxClaim', self.total_withholding_tax_claim, path_prefix)
+        self._set_field_value(tax_statement, 'totalTaxValue', self.total_tax_value, "") # Path prefix is "" as we are at the root
+        self._set_field_value(tax_statement, 'totalGrossRevenueA', self.total_gross_revenue_a, "")
+        self._set_field_value(tax_statement, 'totalGrossRevenueB', self.total_gross_revenue_b, "")
+        self._set_field_value(tax_statement, 'totalWithHoldingTaxClaim', self.total_withholding_tax_claim, "")
         
-        # Set the DA1/USA totals directly since they're excluded fields
+        # Set/Verify the DA1/USA totals directly since they're excluded fields
         if self.mode == CalculationMode.FILL or self.mode == CalculationMode.OVERWRITE:
             # In FILL and OVERWRITE modes we set the values
             tax_statement.steuerwert_da1_usa = self.total_tax_value_da1
             tax_statement.brutto_da1_usa = self.total_gross_revenue_da1
             tax_statement.pauschale_da1 = self.total_flat_rate_tax_credit
             tax_statement.rueckbehalt_usa = self.total_additional_withholding_tax_usa
+            # Add modified fields tracking for DA1/USA fields
+            self.modified_fields.add("steuerwert_da1_usa")
+            self.modified_fields.add("brutto_da1_usa")
+            self.modified_fields.add("pauschale_da1")
+            self.modified_fields.add("rueckbehalt_usa")
         elif self.mode == CalculationMode.VERIFY:
             # In VERIFY mode we compare the values
-            if tax_statement.steuerwert_da1_usa != self.total_tax_value_da1:
-                self.errors.append(self._create_error("steuerwert_da1_usa", self.total_tax_value_da1, tax_statement.steuerwert_da1_usa))
-            if tax_statement.brutto_da1_usa != self.total_gross_revenue_da1:
-                self.errors.append(self._create_error("brutto_da1_usa", self.total_gross_revenue_da1, tax_statement.brutto_da1_usa))
-            if tax_statement.pauschale_da1 != self.total_flat_rate_tax_credit:
-                self.errors.append(self._create_error("pauschale_da1", self.total_flat_rate_tax_credit, tax_statement.pauschale_da1))
-            if tax_statement.rueckbehalt_usa != self.total_additional_withholding_tax_usa:
-                self.errors.append(self._create_error("rueckbehalt_usa", self.total_additional_withholding_tax_usa, tax_statement.rueckbehalt_usa))
+            if not self._compare_values(self.total_tax_value_da1, tax_statement.steuerwert_da1_usa):
+                self.errors.append(CalculationError("steuerwert_da1_usa", self.total_tax_value_da1, tax_statement.steuerwert_da1_usa))
+            if not self._compare_values(self.total_gross_revenue_da1, tax_statement.brutto_da1_usa):
+                self.errors.append(CalculationError("brutto_da1_usa", self.total_gross_revenue_da1, tax_statement.brutto_da1_usa))
+            if not self._compare_values(self.total_flat_rate_tax_credit, tax_statement.pauschale_da1):
+                self.errors.append(CalculationError("pauschale_da1", self.total_flat_rate_tax_credit, tax_statement.pauschale_da1))
+            if not self._compare_values(self.total_additional_withholding_tax_usa, tax_statement.rueckbehalt_usa):
+                self.errors.append(CalculationError("rueckbehalt_usa", self.total_additional_withholding_tax_usa, tax_statement.rueckbehalt_usa))
 
-    def _handle_ListOfSecurities(self, list_of_securities: ListOfSecurities, path_prefix: str) -> None:
-        if list_of_securities.depot:
-            for i, depot in enumerate(list_of_securities.depot):
-                self._process_model(depot, f"{path_prefix}.depot[{i}]")
-
-    def _handle_Depot(self, depot: Depot, path_prefix: str) -> None:
-        if depot.security:
-            for i, security in enumerate(depot.security):
-                self._process_model(security, f"{path_prefix}.security[{i}]")
-
-    def _handle_ListOfBankAccounts(self, list_of_bank_accounts: ListOfBankAccounts, path_prefix: str) -> None:
-        if list_of_bank_accounts.bankAccount:
-            for i, account in enumerate(list_of_bank_accounts.bankAccount):
-                self._process_model(account, f"{path_prefix}.bankAccount[{i}]")
-
-    def _handle_ListOfLiabilities(self, list_of_liabilities: ListOfLiabilities, path_prefix: str) -> None:
-        if list_of_liabilities.liabilityAccount:
-            for i, account in enumerate(list_of_liabilities.liabilityAccount):
-                self._process_model(account, f"{path_prefix}.liabilityAccount[{i}]")
-
-    def _handle_ListOfExpenses(self, list_of_expenses: ListOfExpenses, path_prefix: str) -> None:
-        if list_of_expenses.expense:
-            for i, expense in enumerate(list_of_expenses.expense):
-                self._process_model(expense, f"{path_prefix}.expense[{i}]")
+    # Note: _handle_ListOf... and _handle_Depot methods are removed as they are no longer needed
+    # The base class visitor pattern won't call them because we override _process_tax_statement
 
     def _handle_Security(self, security: Security, path_prefix: str) -> None: # Renamed from _process_security
         """

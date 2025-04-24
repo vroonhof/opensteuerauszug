@@ -44,7 +44,7 @@ class BaseCalculator:
         self.modified_fields = set()
         
         # Process the tax statement
-        self._process_model(tax_statement, "")
+        self._process_tax_statement(tax_statement)
         
         # If in VERIFY mode and there are errors, raise the first one
         if self.mode == CalculationMode.VERIFY and self.errors:
@@ -52,9 +52,13 @@ class BaseCalculator:
             
         return tax_statement
     
+    def _process_tax_statement(self, tax_statement: TaxStatement) -> None:
+        """Process the main TaxStatement object. Subclasses can override this."""
+        self._process_model(tax_statement, "")
+
     def _process_model(self, model: BaseXmlModel, path_prefix: str) -> None:
         """
-        Recursively process a model and its nested models.
+        Recursively process a model and its nested models using a visitor pattern.
         
         Args:
             model: The model to process
