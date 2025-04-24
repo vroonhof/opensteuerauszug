@@ -3,6 +3,10 @@ import pytest
 from decimal import Decimal
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from opensteuerauszug.model.ech0196 import (
+    CurrencyId, ListOfSecurities, ValorNumber, ISINType, BankAccountNumber, BankAccountName,
+    ClientNumber, CountryIdISO2Type, LiabilityCategory, PositiveDecimal
+)
 
 from opensteuerauszug.calculate.base import CalculationMode, CalculationError
 from opensteuerauszug.calculate.total import TotalCalculator
@@ -19,9 +23,15 @@ def create_test_tax_statement() -> TaxStatement:
     """Create a simple tax statement with some securities, bank accounts, and liabilities."""
     # Create a security with tax value and payments
     security1 = Security(
-        valorNumber=123456,
-        isin="CH0001234567",
+        positionId=123,  # Changed to int
+        valorNumber=ValorNumber(123456),  # Wrapped in ValorNumber
+        isin=ISINType("CH0001234567"),  # Wrapped in ISINType
         name="Test Security 1",
+        country="CH",
+        currency=CurrencyId("CHF"),
+        quotationType="PIECE",  # Added missing field
+        securityCategory="SHARE",  # Changed from EQUITY
+        securityName="Test Security 1",
         taxValue=SecurityTaxValue(
             referenceDate="2023-12-31",
             quotationCurrency="CHF",
@@ -30,36 +40,43 @@ def create_test_tax_statement() -> TaxStatement:
             exchangeRate=Decimal("1.0"),
             value=Decimal("1000.00"),
             quotationType="PIECE",
-            balanceCurrency="CHF"
+            balanceCurrency=CurrencyId("CHF")
         ),
         payment=[
             SecurityPayment(
                 paymentDate="2023-06-30",
                 name="Dividend",
-                amountCurrency="CHF",
+                amountCurrency=CurrencyId("CHF"),
                 amount=Decimal("50.00"),
                 exchangeRate=Decimal("1.0"),
                 grossRevenueA=Decimal("50.00"),
                 grossRevenueB=Decimal("0.00"),
-                withHoldingTaxClaim=Decimal("17.50")
+                withHoldingTaxClaim=Decimal("17.50"),
+                quotationType="PIECE",
+                quantity=Decimal("10")
             ),
             SecurityPayment(
                 paymentDate="2023-12-31",
                 name="Interest",
-                amountCurrency="CHF",
+                amountCurrency=CurrencyId("CHF"),
                 amount=Decimal("30.00"),
                 exchangeRate=Decimal("1.0"),
                 grossRevenueA=Decimal("0.00"),
                 grossRevenueB=Decimal("30.00"),
-                withHoldingTaxClaim=Decimal("10.50")
+                withHoldingTaxClaim=Decimal("10.50"),
+                quotationType="PIECE",
+                quantity=Decimal("10")
             )
         ]
     )
     
     # Create a bank account with tax value and payments
     bank_account1 = BankAccount(
-        bankAccountNumber="123456789",
-        bankAccountName="Test Account",
+        bankAccountNumber=BankAccountNumber("123456789"),  # Wrapped in type
+        bankAccountName=BankAccountName("Test Account"),  # Wrapped in type
+        bankAccountCountry=CountryIdISO2Type("CH"),  # Added missing required field
+        bankAccountCurrency=CurrencyId("CHF"),  # Added missing required field
+        totalWithHoldingTaxClaim=Decimal("8.75"),  # Added missing required field
         taxValue=BankAccountTaxValue(
             referenceDate="2023-12-31",
             balanceCurrency="CHF",
@@ -83,9 +100,13 @@ def create_test_tax_statement() -> TaxStatement:
     
     # Create a liability with tax value
     liability1 = LiabilityAccount(
-        liabilityAccountNumber="L123456",
-        liabilityAccountName="Test Mortgage",
-        category="MORTGAGE",
+        bankAccountNumber=BankAccountNumber("L123456"),  # Wrapped in type, field renamed
+        bankAccountName=BankAccountName("Test Mortgage"),  # Wrapped in type
+        bankAccountCountry=CountryIdISO2Type("CH"),  # Added missing required field
+        bankAccountCurrency=CurrencyId("CHF"),  # Added missing required field
+        liabilityCategory="MORTGAGE",  # Assign literal directly
+        totalTaxValue=PositiveDecimal("200000.00"),  # Added missing required field, wrapped
+        totalGrossRevenueB=PositiveDecimal("2000.00"),  # Added missing required field, wrapped
         taxValue=LiabilityAccountTaxValue(
             referenceDate="2023-12-31",
             balanceCurrency="CHF",
@@ -97,12 +118,10 @@ def create_test_tax_statement() -> TaxStatement:
             LiabilityAccountPayment(
                 paymentDate="2023-06-30",
                 name="Interest Payment",
-                amountCurrency="CHF",
+                amountCurrency=CurrencyId("CHF"),
                 amount=Decimal("2000.00"),
                 exchangeRate=Decimal("1.0"),
-                grossRevenueA=Decimal("0.00"),
-                grossRevenueB=Decimal("2000.00"),
-                withHoldingTaxClaim=Decimal("0.00")
+                grossRevenueB=Decimal("2000.00")
             )
         ]
     )
@@ -117,7 +136,12 @@ def create_test_tax_statement() -> TaxStatement:
         periodTo="2023-12-31",
         canton="ZH",
         institution={"name": "Test Bank AG"},
-        client=[{"clientNumber": "C1", "firstName": "Max", "lastName": "Muster", "salutation": "2"}],
+        client=[{
+            "clientNumber": ClientNumber("C1"), 
+            "firstName": "Max", 
+            "lastName": "Muster", 
+            "salutation": "2"
+        }],
         listOfSecurities=ListOfSecurities(security=[security1]),
         listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account1]),
         listOfLiabilities=ListOfLiabilities(liabilityAccount=[liability1]),
@@ -133,10 +157,10 @@ class TestTotalCalculator:
         tax_statement = create_test_tax_statement()
         
         # Expected values based on the test data
-        expected_tax_value = Decimal("1000.00") + Decimal("5000.00") - Decimal("200000.00")
-        expected_gross_revenue_a = Decimal("50.00") + Decimal("25.00") + Decimal("0.00")
-        expected_gross_revenue_b = Decimal("30.00") + Decimal("0.00") + Decimal("2000.00")
-        expected_withholding_tax_claim = Decimal("17.50") + Decimal("10.50") + Decimal("8.75") + Decimal("0.00")
+        expected_tax_value = Decimal("-194000.00")  # 1000 + 5000 - 200000
+        expected_gross_revenue_a = Decimal("75.00")  # 50 + 25
+        expected_gross_revenue_b = Decimal("2030.00")  # 30 + 2000
+        expected_withholding_tax_claim = Decimal("36.75")  # 17.50 + 10.50 + 8.75
         
         # Calculate in FILL mode
         calculator = TotalCalculator(mode=CalculationMode.FILL)
@@ -226,7 +250,15 @@ class TestTotalCalculator:
         """Test USA-specific calculations (DA-1)."""
         # Create a security with USA payments
         security_usa = Security(
-            valorNumber=654321,
+            positionId=999,  # Changed to int
+            isin=ISINType("US0006543210"),  # Wrapped in ISINType
+            name="Test US Security",
+            country="US",
+            currency=CurrencyId("USD"),
+            quotationType="PIECE",  # Added missing field
+            securityCategory="SHARE",  # Changed from EQUITY
+            securityName="Test US Security",
+            valorNumber=ValorNumber(654321),  # Wrapped in ValorNumber
             taxValue=SecurityTaxValue(
                 referenceDate="2023-12-31",
                 quotationCurrency="USD",
@@ -235,21 +267,22 @@ class TestTotalCalculator:
                 exchangeRate=Decimal("0.9"),
                 value=Decimal("900.00"),
                 quotationType="PIECE",
-                balanceCurrency="CHF"
+                balanceCurrency=CurrencyId("CHF")
             ),
-            payment=[
-                SecurityPayment(
+            payment = [ SecurityPayment(
                     paymentDate="2023-06-30",
                     name="US Dividend",
-                    country="US",
-                    amountCurrency="USD",
+                    country="US",  # This might belong here or on Security, check definition
+                    amountCurrency=CurrencyId("USD"),  # Correct place for amountCurrency
                     amount=Decimal("100.00"),
                     exchangeRate=Decimal("0.9"),
                     grossRevenueA=Decimal("90.00"),
                     grossRevenueB=Decimal("0.00"),
                     withHoldingTaxClaim=Decimal("31.50"),
-                    additionalWithHoldingTax=Decimal("15.00"),
-                    flatRateTaxCredit=Decimal("5.00")
+                    additionalWithHoldingTax=Decimal("15.00"),  # These seem specific to payment
+                    flatRateTaxCredit=Decimal("5.00"),  # These seem specific to payment
+                    quotationType="PIECE",  # Correct place for quotationType
+                    quantity=Decimal("20")  # Correct place for quantity
                 )
             ]
         )
@@ -263,10 +296,14 @@ class TestTotalCalculator:
             periodFrom="2023-01-01",
             periodTo="2023-12-31",
             canton="ZH",
-            institution={"name": "Test Bank AG"},
-            client=[{"clientNumber": "C1", "firstName": "Max", "lastName": "Muster", "salutation": "2"}],
-            listOfSecurities=ListOfSecurities(security=[security_usa]),
-            # Leave totals empty for calculator to fill
+            institution={"name": "Test Bank AG"},  # Added missing institution
+            client=[{
+                "clientNumber": ClientNumber("C1"), 
+                "firstName": "Max", 
+                "lastName": "Muster", 
+                "salutation": "2"
+            }],
+            listOfSecurities=ListOfSecurities(security=[security_usa])
         )
         
         # Calculate in FILL mode
@@ -274,10 +311,10 @@ class TestTotalCalculator:
         result = calculator.calculate(tax_statement)
         
         # Check USA-specific totals
-        assert result.totalGrossRevenueDA1 == Decimal("90.00")
-        assert result.totalTaxValueDA1 == Decimal("900.00")
-        assert result.totalFlatRateTaxCredit == Decimal("5.00")
-        assert result.totalAdditionalWithHoldingTaxUSA == Decimal("15.00")
+        assert result.brutto_da1_usa == Decimal("90.00")
+        assert result.steuerwert_da1_usa == Decimal("900.00")
+        assert result.pauschale_da1 == Decimal("5.00")
+        assert result.rueckbehalt_usa == Decimal("15.00")
         
         # Check regular totals
         assert result.totalTaxValue == Decimal("900.00")
@@ -296,18 +333,18 @@ class TestTotalCalculatorIntegration:
         
         # Load the sample file
         tax_statement = TaxStatement.from_xml_file(sample_file)
-        
+
+        # We assume these real world files have correct totals       
         # First, calculate in FILL mode to ensure all totals are populated
+        # whilst verifying values that exist.
         fill_calculator = TotalCalculator(mode=CalculationMode.FILL)
         filled_statement = fill_calculator.calculate(tax_statement)
         
         # Then verify the filled values
         verify_calculator = TotalCalculator(mode=CalculationMode.VERIFY)
-        try:
-            verify_calculator.calculate(filled_statement)
-        except CalculationError as e:
-            pytest.fail(f"Verification failed for {sample_file}: {e}")
-    
+        verify_calculator.calculate(filled_statement)
+        # Check that no errors were raised 
+   
     @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
     def test_calculation_consistency(self, sample_file):
         """Test that calculations are consistent when applied multiple times."""
@@ -327,10 +364,10 @@ class TestTotalCalculatorIntegration:
             "totalGrossRevenueA": first_result.totalGrossRevenueA,
             "totalGrossRevenueB": first_result.totalGrossRevenueB,
             "totalWithHoldingTaxClaim": first_result.totalWithHoldingTaxClaim,
-            "totalGrossRevenueDA1": first_result.totalGrossRevenueDA1,
-            "totalTaxValueDA1": first_result.totalTaxValueDA1,
-            "totalFlatRateTaxCredit": first_result.totalFlatRateTaxCredit,
-            "totalAdditionalWithHoldingTaxUSA": first_result.totalAdditionalWithHoldingTaxUSA
+            "steuerwert_da1_usa": first_result.steuerwert_da1_usa,
+            "brutto_da1_usa": first_result.brutto_da1_usa,
+            "pauschale_da1": first_result.pauschale_da1,
+            "rueckbehalt_usa": first_result.rueckbehalt_usa
         }
         
         # Calculate again
@@ -342,10 +379,10 @@ class TestTotalCalculatorIntegration:
             "totalGrossRevenueA": second_result.totalGrossRevenueA,
             "totalGrossRevenueB": second_result.totalGrossRevenueB,
             "totalWithHoldingTaxClaim": second_result.totalWithHoldingTaxClaim,
-            "totalGrossRevenueDA1": second_result.totalGrossRevenueDA1,
-            "totalTaxValueDA1": second_result.totalTaxValueDA1,
-            "totalFlatRateTaxCredit": second_result.totalFlatRateTaxCredit,
-            "totalAdditionalWithHoldingTaxUSA": second_result.totalAdditionalWithHoldingTaxUSA
+            "steuerwert_da1_usa": second_result.steuerwert_da1_usa,
+            "brutto_da1_usa": second_result.brutto_da1_usa,
+            "pauschale_da1": second_result.pauschale_da1,
+            "rueckbehalt_usa": second_result.rueckbehalt_usa
         }
         
         # Compare the two sets of totals
