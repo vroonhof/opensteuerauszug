@@ -8,7 +8,8 @@ from .model.ech0196 import TaxStatement
 # Import the rendering functionality
 from .render.render import render_tax_statement
 # Import calculation framework
-from .calculate.base import BaseCalculator, CalculationMode
+from .calculate.base import CalculationMode
+from .calculate.total import TotalCalculator
 
 # Keep Portfolio for now, maybe it becomes an alias or wrapper for TaxStatement?
 # Or perhaps TaxStatement becomes the internal representation?
@@ -21,6 +22,7 @@ app = typer.Typer()
 class Phase(str, Enum):
     IMPORT = "import"
     VALIDATE = "validate"
+    VERIFY = "verify"
     CALCULATE = "calculate"
     RENDER = "render"
 
@@ -118,7 +120,7 @@ def main(
                  raise ValueError("Portfolio model not loaded. Cannot run calculate phase.")
             
             # Create calculator with appropriate mode
-            calculator = BaseCalculator(mode=CalculationMode.FILL)
+            calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
             
             # Apply calculations
             portfolio = calculator.calculate(portfolio)
@@ -128,6 +130,28 @@ def main(
             else:
                 print("No fields needed modification during calculation")
             
+            print(f"Calculation successful.")
+            dump_debug_model(current_phase.value, portfolio)
+
+        if Phase.VERIFY in run_phases:
+            current_phase = Phase.VERIFY
+            print(f"Phase: {current_phase.value}")
+            if not portfolio:
+                 raise ValueError("Portfolio model not loaded. Cannot run calculate phase.")
+            
+            calculator = TotalCalculator(mode=CalculationMode.VERIFY)
+            calculator.calculate(portfolio)
+            
+            if calculator.errors:
+                print(f"Encountered {len(calculator.errors)} fields during calculation")
+                for error in calculator.errors:
+                    print(f"Error: {error}")
+            else:
+                print("No errors calculation")
+            
+            # Fill in missing fields to make rendering possible
+            calulator = TotalCalculator(mode=CalculationMode.FILL)
+            portfolio = calculator.calculate(portfolio)
             print(f"Calculation successful.")
             dump_debug_model(current_phase.value, portfolio)
 
