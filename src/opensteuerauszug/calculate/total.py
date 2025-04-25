@@ -139,46 +139,21 @@ class TotalCalculator(BaseCalculator):
                                     if is_usa and payment.additionalWithHoldingTaxUSA is not None:
                                         self.total_additional_withholding_tax_usa += payment.additionalWithHoldingTaxUSA
 
-                            # Round security totals before setting them
-                            sec_tax_value_rounded = self._round_sub_total(sec_tax_value)
-                            sec_revenue_a_rounded = self._round_sub_total(sec_revenue_a)
-                            sec_revenue_b_rounded = self._round_sub_total(sec_revenue_b)
-                            sec_withholding_rounded = self._round_sub_total(sec_withholding)
-
-                            # Set individual security totals (rounded)
-                            self._round_and_set_field(security, 'totalTaxValue', sec_tax_value_rounded, path)
-                            self._round_and_set_field(security, 'totalGrossRevenueA', sec_revenue_a_rounded, path)
-                            self._round_and_set_field(security, 'totalGrossRevenueB', sec_revenue_b_rounded, path)
-                            self._round_and_set_field(security, 'totalWithHoldingTaxClaim', sec_withholding_rounded, path)
-
                             # Accumulate depot totals using rounded security totals
-                            depot_tax_value += sec_tax_value_rounded
-                            depot_revenue_a += sec_revenue_a_rounded
-                            depot_revenue_b += sec_revenue_b_rounded
-                            depot_withholding += sec_withholding_rounded
+                            depot_tax_value += sec_tax_value
+                            depot_revenue_a += sec_revenue_a
+                            depot_revenue_b += sec_revenue_b
+                            depot_withholding += sec_withholding
 
                             # Accumulate global USA-specific totals (will be rounded at the end)
                             if is_usa:
                                 self.total_tax_value_da1 += sec_tax_value
 
-                    # Round depot totals before setting them
-                    depot_tax_value_rounded = self._round_sub_total(depot_tax_value)
-                    depot_revenue_a_rounded = self._round_sub_total(depot_revenue_a)
-                    depot_revenue_b_rounded = self._round_sub_total(depot_revenue_b)
-                    depot_withholding_rounded = self._round_sub_total(depot_withholding)
-
-                    # Set depot level totals (rounded)
-                    depot_path = f"listOfSecurities.depot[{i}]"
-                    self._round_and_set_field(depot, 'totalTaxValue', depot_tax_value_rounded, depot_path)
-                    self._round_and_set_field(depot, 'totalGrossRevenueA', depot_revenue_a_rounded, depot_path)
-                    self._round_and_set_field(depot, 'totalGrossRevenueB', depot_revenue_b_rounded, depot_path)
-                    self._round_and_set_field(depot, 'totalWithHoldingTaxClaim', depot_withholding_rounded, depot_path)
-
-                    # Accumulate list totals from depot totals (use rounded values)
-                    list_tax_value += depot_tax_value_rounded
-                    list_revenue_a += depot_revenue_a_rounded
-                    list_revenue_b += depot_revenue_b_rounded
-                    list_withholding += depot_withholding_rounded
+                    # Accumulate list totals from depot totals
+                    list_tax_value += depot_tax_value
+                    list_revenue_a += depot_revenue_a
+                    list_revenue_b += depot_revenue_b
+                    list_withholding += depot_withholding
 
             # Round list totals before setting them
             list_tax_value_rounded = self._round_sub_total(list_tax_value)
@@ -186,7 +161,7 @@ class TotalCalculator(BaseCalculator):
             list_revenue_b_rounded = self._round_sub_total(list_revenue_b)
             list_withholding_rounded = self._round_sub_total(list_withholding)
 
-            # Set list level totals for securities (now using rounded depot totals)
+            # Set list level totals for securities
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalTaxValue', list_tax_value_rounded, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueA', list_revenue_a_rounded, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueB', list_revenue_b_rounded, "listOfSecurities")

@@ -781,11 +781,6 @@ class TestTotalCalculator:
         depot = Depot(
             depotNumber=DepotNumber("D1"), # Add a depot number
             security=[security],
-            # Initialize depot totals as None
-            totalTaxValue=None,
-            totalGrossRevenueA=None,
-            totalGrossRevenueB=None,
-            totalWithHoldingTaxClaim=None
         )
 
         # Create list of securities containing the depot
@@ -838,20 +833,6 @@ class TestTotalCalculator:
         assert result.listOfSecurities.totalGrossRevenueB == Decimal("0.00")
         assert result.listOfSecurities.totalWithHoldingTaxClaim == Decimal("70.00")
 
-        # Assert totals on individual Depot level
-        calculated_depot = result.listOfSecurities.depot[0]
-        assert calculated_depot.totalTaxValue == Decimal("5000.00")
-        assert calculated_depot.totalGrossRevenueA == Decimal("200.00")
-        assert calculated_depot.totalGrossRevenueB == Decimal("0.00")
-        assert calculated_depot.totalWithHoldingTaxClaim == Decimal("70.00")
-
-        # Assert totals on individual Security level (accessed via depot)
-        calculated_security = result.listOfSecurities.depot[0].security[0]
-        assert calculated_security.totalTaxValue == Decimal("5000.00")
-        assert calculated_security.totalGrossRevenueA == Decimal("200.00")
-        assert calculated_security.totalGrossRevenueB == Decimal("0.00")
-        assert calculated_security.totalWithHoldingTaxClaim == Decimal("70.00")
-
         # Verify DA-1 specific fields remain None or zero (since we're ignoring DA-1)
         assert result.brutto_da1_usa is None or result.brutto_da1_usa == Decimal("0.00")
         assert result.steuerwert_da1_usa is None or result.steuerwert_da1_usa == Decimal("0.00")
@@ -863,11 +844,6 @@ class TestTotalCalculator:
             "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
             "listOfSecurities.totalTaxValue", "listOfSecurities.totalGrossRevenueA",
             "listOfSecurities.totalGrossRevenueB", "listOfSecurities.totalWithHoldingTaxClaim",
-            "listOfSecurities.depot[0].totalTaxValue", "listOfSecurities.depot[0].totalGrossRevenueA", # Added depot totals
-            "listOfSecurities.depot[0].totalGrossRevenueB", "listOfSecurities.depot[0].totalWithHoldingTaxClaim", # Added depot totals
-            "listOfSecurities.depot[0].security[0].totalTaxValue", "listOfSecurities.depot[0].security[0].totalGrossRevenueA", # Updated security path
-            "listOfSecurities.depot[0].security[0].totalGrossRevenueB", # Updated security path
-            "listOfSecurities.depot[0].security[0].totalWithHoldingTaxClaim" # Updated security path
         }
         
         assert calculator.modified_fields.issuperset(expected_modified)
