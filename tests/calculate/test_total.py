@@ -949,11 +949,11 @@ class TestTotalCalculator:
         calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
         result = calculator.calculate(tax_statement)
 
-        # Assert totals on TaxStatement level - liabilities have negative impact on tax value
-        # TODO: Check if this is correct behavior against spec.
-        assert result.totalTaxValue == Decimal("-120000.00")  # Negative since it's a liability
+        # Assert totals on TaxStatement level - 
+        # liabilities don not impact them
+        assert result.totalTaxValue == Decimal("0.00")
         assert result.totalGrossRevenueA == Decimal("0.00")
-        assert result.totalGrossRevenueB == Decimal("1800.00")  # Sum of interest payments
+        assert result.totalGrossRevenueB == Decimal("0.00")
         assert result.totalWithHoldingTaxClaim == Decimal("0.00")  # Liabilities don't have withholding tax
 
         # Assert totals on ListOfLiabilities level
