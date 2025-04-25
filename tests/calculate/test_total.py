@@ -832,7 +832,10 @@ class TestTotalCalculator:
         assert result.listOfSecurities.totalGrossRevenueA == Decimal("200.00")
         assert result.listOfSecurities.totalGrossRevenueB == Decimal("0.00")
         assert result.listOfSecurities.totalWithHoldingTaxClaim == Decimal("70.00")
-
+        # Without DA-1 values these should still set
+        assert result.listOfSecurities.totalLumpSumTaxCredit == Decimal("0.00")
+        assert result.listOfSecurities.totalAdditionalWithHoldingTaxUSA == Decimal("0.00")
+    
         # Verify DA-1 specific fields remain None or zero (since we're ignoring DA-1)
         assert result.brutto_da1_usa is None or result.brutto_da1_usa == Decimal("0.00")
         assert result.steuerwert_da1_usa is None or result.steuerwert_da1_usa == Decimal("0.00")

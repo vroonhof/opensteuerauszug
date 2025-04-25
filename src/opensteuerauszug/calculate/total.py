@@ -96,14 +96,12 @@ class TotalCalculator(BaseCalculator):
             list_revenue_a = Decimal('0')
             list_revenue_b = Decimal('0')
             list_withholding = Decimal('0')
+            list_lump_sum_tax_credit = Decimal('0')
+            list_additional_withholding_tax_usa = Decimal('0')
 
             # Process securities in depots
             if tax_statement.listOfSecurities.depot:
                 for i, depot in enumerate(tax_statement.listOfSecurities.depot):
-                    depot_tax_value = Decimal('0')
-                    depot_revenue_a = Decimal('0')
-                    depot_revenue_b = Decimal('0')
-                    depot_withholding = Decimal('0')
 
                     if depot.security:
                         for j, security in enumerate(depot.security):
@@ -114,6 +112,8 @@ class TotalCalculator(BaseCalculator):
                             sec_revenue_a = Decimal('0')
                             sec_revenue_b = Decimal('0')
                             sec_withholding = Decimal('0')
+                            sec_lump_sum_tax_credit = Decimal('0')
+                            sec_additional_withholding_tax_usa = Decimal('0')
 
                             if security.taxValue and security.taxValue.value is not None:
                                 sec_tax_value = security.taxValue.value
@@ -134,26 +134,22 @@ class TotalCalculator(BaseCalculator):
                                         sec_withholding += payment.withHoldingTaxClaim
 
                                     if payment.lumpSumTaxCreditAmount is not None:
-                                        self.total_flat_rate_tax_credit += payment.lumpSumTaxCreditAmount
+                                        sec_lump_sum_tax_credit += payment.lumpSumTaxCreditAmount
 
                                     if is_usa and payment.additionalWithHoldingTaxUSA is not None:
-                                        self.total_additional_withholding_tax_usa += payment.additionalWithHoldingTaxUSA
+                                        sec_additional_withholding_tax_usa += payment.additionalWithHoldingTaxUSA
 
                             # Accumulate depot totals using rounded security totals
-                            depot_tax_value += sec_tax_value
-                            depot_revenue_a += sec_revenue_a
-                            depot_revenue_b += sec_revenue_b
-                            depot_withholding += sec_withholding
+                            list_tax_value += sec_tax_value
+                            list_revenue_a += sec_revenue_a
+                            list_revenue_b += sec_revenue_b
+                            list_withholding += sec_withholding
+                            list_lump_sum_tax_credit += sec_lump_sum_tax_credit
+                            list_additional_withholding_tax_usa += sec_additional_withholding_tax_usa
 
                             # Accumulate global USA-specific totals (will be rounded at the end)
                             if is_usa:
                                 self.total_tax_value_da1 += sec_tax_value
-
-                    # Accumulate list totals from depot totals
-                    list_tax_value += depot_tax_value
-                    list_revenue_a += depot_revenue_a
-                    list_revenue_b += depot_revenue_b
-                    list_withholding += depot_withholding
 
             # Round list totals before setting them
             list_tax_value_rounded = self._round_sub_total(list_tax_value)
@@ -161,11 +157,14 @@ class TotalCalculator(BaseCalculator):
             list_revenue_b_rounded = self._round_sub_total(list_revenue_b)
             list_withholding_rounded = self._round_sub_total(list_withholding)
 
+
             # Set list level totals for securities
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalTaxValue', list_tax_value_rounded, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueA', list_revenue_a_rounded, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueB', list_revenue_b_rounded, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalWithHoldingTaxClaim', list_withholding_rounded, "listOfSecurities")
+            self._round_and_set_field(tax_statement.listOfSecurities, 'totalLumpSumTaxCredit', list_lump_sum_tax_credit, "listOfSecurities")
+            self._round_and_set_field(tax_statement.listOfSecurities, 'totalAdditionalWithHoldingTaxUSA', list_additional_withholding_tax_usa, "listOfSecurities")
 
             # Accumulate global totals from list totals (use rounded values)
             self.total_tax_value += list_tax_value_rounded
