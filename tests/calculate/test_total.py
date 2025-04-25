@@ -143,7 +143,7 @@ def create_test_tax_statement() -> TaxStatement:
             "lastName": "Muster", 
             "salutation": "2"
         }],
-        listOfSecurities=ListOfSecurities(security=[security1]),
+        listOfSecurities=ListOfSecurities(depot=[Depot(security=[security1])]),
         listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account1]),
         listOfLiabilities=ListOfLiabilities(liabilityAccount=[liability1]),
         # Leave totals empty for calculator to fill
@@ -152,16 +152,15 @@ def create_test_tax_statement() -> TaxStatement:
 # Unit tests for TotalCalculator
 class TestTotalCalculator:
     
-    @pytest.mark.skip(reason="Temporarily disabled for fixing")
     def test_calculate_fill_mode(self):
         """Test that the calculator correctly fills in missing total values."""
         # Create a tax statement with no totals
         tax_statement = create_test_tax_statement()
         
         # Expected values based on the test data
-        expected_tax_value = Decimal("-194000.00")  # 1000 + 5000 - 200000
+        expected_tax_value = Decimal("6000.00")  # 1000 + 5000
         expected_gross_revenue_a = Decimal("75.00")  # 50 + 25
-        expected_gross_revenue_b = Decimal("2030.00")  # 30 + 2000
+        expected_gross_revenue_b = Decimal("30.00")  # 30 
         expected_withholding_tax_claim = Decimal("36.75")  # 17.50 + 10.50 + 8.75
         
         # Calculate in FILL mode
@@ -180,14 +179,13 @@ class TestTotalCalculator:
         assert "totalGrossRevenueB" in calculator.modified_fields
         assert "totalWithHoldingTaxClaim" in calculator.modified_fields
     
-    @pytest.mark.skip(reason="Temporarily disabled for fixing")
     def test_calculate_verify_mode_success(self):
         """Test that the calculator correctly verifies existing total values."""
         # Create a tax statement with correct totals
         tax_statement = create_test_tax_statement()
-        tax_statement.totalTaxValue = Decimal("-194000.00")  # 1000 + 5000 - 200000
+        tax_statement.totalTaxValue = Decimal("6000.00")  # 1000 + 5000 
         tax_statement.totalGrossRevenueA = Decimal("75.00")  # 50 + 25
-        tax_statement.totalGrossRevenueB = Decimal("2030.00")  # 30 + 2000
+        tax_statement.totalGrossRevenueB = Decimal("30.00")  # 30
         tax_statement.totalWithHoldingTaxClaim = Decimal("36.75")  # 17.50 + 10.50 + 8.75
         
         # Calculate in VERIFY mode
@@ -198,41 +196,41 @@ class TestTotalCalculator:
         assert len(calculator.modified_fields) == 0
         assert len(calculator.errors) == 0
     
-    @pytest.mark.skip(reason="Temporarily disabled for fixing")
     def test_calculate_verify_mode_failure(self):
-        """Test that the calculator raises an error when verification fails."""
+        """Test that the calculator collects error when verification fails."""
         # Create a tax statement with incorrect totals
         tax_statement = create_test_tax_statement()
-        tax_statement.totalTaxValue = Decimal("-194000.00")  # Correct
+        tax_statement.totalTaxValue = Decimal("6000.00")  # Correct
         tax_statement.totalGrossRevenueA = Decimal("100.00")  # Incorrect (should be 75)
-        tax_statement.totalGrossRevenueB = Decimal("2030.00")  # Correct
+        tax_statement.totalGrossRevenueB = Decimal("30.00")  # Correct
         tax_statement.totalWithHoldingTaxClaim = Decimal("36.75")  # Correct
         
         # Calculate in VERIFY mode
         calculator = TotalCalculator(mode=CalculationMode.VERIFY)
+        result = calculator.calculate(tax_statement)
         
-        # Should raise a CalculationError
-        with pytest.raises(CalculationError) as excinfo:
-            calculator.calculate(tax_statement)
-        
+        assert len(calculator.errors) == 1
+
         # Check the error details
-        assert "totalGrossRevenueA" in str(excinfo.value)
-        assert "expected 75.00" in str(excinfo.value).lower() or "expected 75" in str(excinfo.value).lower()
-    
-    @pytest.mark.skip(reason="Temporarily disabled for fixing")
+        error = calculator.errors[0]
+        assert "totalGrossRevenueA" in str(error)
+        assert "expected 75.00" in str(error)
+
     def test_calculate_overwrite_mode(self):
         """Test that the calculator correctly overwrites existing total values."""
         # Create a tax statement with incorrect totals
         tax_statement = create_test_tax_statement()
+
+        
         tax_statement.totalTaxValue = Decimal("0.00")  # Incorrect
         tax_statement.totalGrossRevenueA = Decimal("0.00")  # Incorrect
         tax_statement.totalGrossRevenueB = Decimal("0.00")
         tax_statement.totalWithHoldingTaxClaim = Decimal("0.00")  # Incorrect
         
         # Expected values based on the test data
-        expected_tax_value = Decimal("-194000.00")  # 1000 + 5000 - 200000
+        expected_tax_value = Decimal("6000.00")  # 1000 + 5000
         expected_gross_revenue_a = Decimal("75.00")  # 50 + 25
-        expected_gross_revenue_b = Decimal("2030.00")  # 30 + 2000
+        expected_gross_revenue_b = Decimal("30.00")  # 30 
         expected_withholding_tax_claim = Decimal("36.75")  # 17.50 + 10.50 + 8.75
         
         # Calculate in OVERWRITE mode
@@ -1014,7 +1012,6 @@ class TestTotalCalculatorIntegration:
             error_details = "\n".join(error_messages)
             pytest.fail(f"Verification failed for {sample_file} with {len(verify_calculator.errors)} errors:\n{error_details}")
 
-    @pytest.mark.skip(reason="Temporarily disabled for fixing")
     @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
     def test_calculation_consistency(self, sample_file):
         """Test that calculations are consistent when applied multiple times."""
