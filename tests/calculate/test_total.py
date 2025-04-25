@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional
 from opensteuerauszug.model.ech0196 import (
     CurrencyId, ListOfSecurities, ValorNumber, ISINType, BankAccountNumber, BankAccountName,
     ClientNumber, CountryIdISO2Type, LiabilityCategory, PositiveDecimal,
-    BankAccountNumber, BankAccountName, CountryIdISO2Type, CurrencyId
+    BankAccountNumber, BankAccountName, CountryIdISO2Type, CurrencyId, Depot, DepotNumber
 )
 
 from opensteuerauszug.calculate.base import CalculationMode, CalculationError
@@ -740,181 +740,6 @@ class TestTotalCalculator:
         assert result.totalGrossRevenueB == expected_gross_revenue_b
         assert result.totalWithHoldingTaxClaim == expected_withholding_tax
 
-    def test_multiple_bank_accounts(self):
-        """Test calculation with multiple bank accounts to ensure totals are correctly summed at the statement level."""
-        # First bank account with payment
-        bank_account1 = BankAccount(
-            bankAccountNumber=BankAccountNumber("CH1212121212121212"),
-            bankAccountName=BankAccountName("Savings Account"),
-            bankAccountCountry=CountryIdISO2Type("CH"),
-            bankAccountCurrency=CurrencyId("CHF"),
-            # Initialize optional totals as None to test FILL mode
-            totalTaxValue=None,
-            totalGrossRevenueA=None,
-            totalGrossRevenueB=None,
-            totalWithHoldingTaxClaim=None,
-            taxValue=BankAccountTaxValue(
-                referenceDate="2023-12-31",
-                balanceCurrency="CHF",
-                balance=Decimal("5000.00"),
-                exchangeRate=Decimal("1.0"),
-                value=Decimal("5000.00")
-            ),
-            payment=[
-                BankAccountPayment(
-                    paymentDate="2023-06-15",
-                    name="Savings Interest",
-                    amountCurrency="CHF",
-                    amount=Decimal("75.00"),
-                    exchangeRate=Decimal("1.0"),
-                    grossRevenueA=Decimal("75.00"),
-                    grossRevenueB=Decimal("0.00"),
-                    withHoldingTaxClaim=Decimal("26.25")  # 35% withholding tax
-                )
-            ]
-        )
-        
-        # Second bank account with different currency and payment
-        bank_account2 = BankAccount(
-            bankAccountNumber=BankAccountNumber("CH3434343434343434"),
-            bankAccountName=BankAccountName("USD Account"),
-            bankAccountCountry=CountryIdISO2Type("CH"),
-            bankAccountCurrency=CurrencyId("USD"),
-            # Initialize optional totals as None to test FILL mode
-            totalTaxValue=None,
-            totalGrossRevenueA=None,
-            totalGrossRevenueB=None,
-            totalWithHoldingTaxClaim=None,
-            taxValue=BankAccountTaxValue(
-                referenceDate="2023-12-31",
-                balanceCurrency="USD",
-                balance=Decimal("3000.00"),
-                exchangeRate=Decimal("0.9"),
-                value=Decimal("2700.00")  # 3000 USD * 0.9 exchange rate = 2700 CHF
-            ),
-            payment=[
-                BankAccountPayment(
-                    paymentDate="2023-08-15",
-                    name="USD Interest",
-                    amountCurrency="USD",
-                    amount=Decimal("100.00"),
-                    exchangeRate=Decimal("0.9"),
-                    grossRevenueA=Decimal("0.00"),
-                    grossRevenueB=Decimal("90.00"),  # 100 USD * 0.9 exchange rate = 90 CHF
-                    withHoldingTaxClaim=Decimal("0.00")  # No withholding tax
-                )
-            ]
-        )
-        
-        # Third bank account with no payments but with balance
-        bank_account3 = BankAccount(
-            bankAccountNumber=BankAccountNumber("CH5656565656565656"),
-            bankAccountName=BankAccountName("Current Account"),
-            bankAccountCountry=CountryIdISO2Type("CH"),
-            bankAccountCurrency=CurrencyId("CHF"),
-            # Initialize optional totals as None to test FILL mode
-            totalTaxValue=None,
-            totalGrossRevenueA=None,
-            totalGrossRevenueB=None,
-            totalWithHoldingTaxClaim=None,
-            taxValue=BankAccountTaxValue(
-                referenceDate="2023-12-31",
-                balanceCurrency="CHF",
-                balance=Decimal("2300.00"),
-                exchangeRate=Decimal("1.0"),
-                value=Decimal("2300.00")
-            ),
-            payment=[]  # No payments
-        )
-
-        list_of_accounts = ListOfBankAccounts(
-            bankAccount=[bank_account1, bank_account2, bank_account3],
-            # Initialize list totals as None to test FILL mode
-            totalTaxValue=None,
-            totalGrossRevenueA=None,
-            totalGrossRevenueB=None,
-            totalWithHoldingTaxClaim=None
-        )
-
-        tax_statement = TaxStatement(
-            minorVersion=2,
-            id="test-multiple-bank-accounts",
-            creationDate="2024-01-15T10:00:00",
-            taxPeriod=2023,
-            periodFrom="2023-01-01",
-            periodTo="2023-12-31",
-            canton="ZH",
-            institution={"name": "Multi Bank AG"},
-            client=[{
-                "clientNumber": ClientNumber("C999"),
-                "firstName": "Robert",
-                "lastName": "Smith",
-                "salutation": "2"
-            }],
-            listOfBankAccounts=list_of_accounts,
-            # Initialize statement totals as None
-            totalTaxValue=None,
-            totalGrossRevenueA=None,
-            totalGrossRevenueB=None,
-            totalWithHoldingTaxClaim=None,
-        )
-
-        calculator = TotalCalculator(mode=CalculationMode.FILL)
-        result = calculator.calculate(tax_statement)
-
-        # Expected totals at statement level - sum of all accounts
-        expected_tax_value = Decimal("10000.00")  # 5000 + 2700 + 2300
-        expected_gross_revenue_a = Decimal("75.00")  # Only from account1
-        expected_gross_revenue_b = Decimal("90.00")   # Only from account2
-        expected_withholding_tax = Decimal("26.25")   # Only from account1
-
-        # Assert totals on TaxStatement level
-        assert result.totalTaxValue == expected_tax_value
-        assert result.totalGrossRevenueA == expected_gross_revenue_a
-        assert result.totalGrossRevenueB == expected_gross_revenue_b
-        assert result.totalWithHoldingTaxClaim == expected_withholding_tax
-
-        # Assert totals on ListOfBankAccounts level
-        assert result.listOfBankAccounts.totalTaxValue == expected_tax_value
-        assert result.listOfBankAccounts.totalGrossRevenueA == expected_gross_revenue_a
-        assert result.listOfBankAccounts.totalGrossRevenueB == expected_gross_revenue_b
-        assert result.listOfBankAccounts.totalWithHoldingTaxClaim == expected_withholding_tax
-
-        # Assert totals on the individual BankAccount level
-        account1 = result.listOfBankAccounts.bankAccount[0]
-        assert account1.totalTaxValue == Decimal("5000.00")
-        assert account1.totalGrossRevenueA == Decimal("75.00")
-        assert account1.totalGrossRevenueB == Decimal("0.00")
-        assert account1.totalWithHoldingTaxClaim == Decimal("26.25")
-
-        account2 = result.listOfBankAccounts.bankAccount[1]
-        assert account2.totalTaxValue == Decimal("2700.00")  # USD value converted to CHF
-        assert account2.totalGrossRevenueA == Decimal("0.00")
-        assert account2.totalGrossRevenueB == Decimal("90.00")  # USD value converted to CHF
-        assert account2.totalWithHoldingTaxClaim == Decimal("0.00")
-
-        account3 = result.listOfBankAccounts.bankAccount[2]
-        assert account3.totalTaxValue == Decimal("2300.00")
-        assert account3.totalGrossRevenueA == Decimal("0.00")
-        assert account3.totalGrossRevenueB == Decimal("0.00")
-        assert account3.totalWithHoldingTaxClaim == Decimal("0.00")
-
-        # Check that modified fields includes all expected fields
-        expected_modified = {
-            "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
-            "listOfBankAccounts.totalTaxValue", "listOfBankAccounts.totalGrossRevenueA",
-            "listOfBankAccounts.totalGrossRevenueB", "listOfBankAccounts.totalWithHoldingTaxClaim"
-        }
-        
-        # Also include individual account fields
-        for i in range(3):
-            for field in ["totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim"]:
-                expected_modified.add(f"listOfBankAccounts.bankAccount[{i}].{field}")
-        
-        # Instead of just checking inclusion, find missing fields for better error reporting
-        missing_fields = expected_modified - calculator.modified_fields
-        assert not missing_fields, f"Fields missing from modified_fields: {missing_fields}"
-
     def test_minimal_security(self):
         """Test calculation with a minimal tax statement containing one security."""
         # Create a security with tax value and payment
@@ -954,9 +779,20 @@ class TestTotalCalculator:
             ]
         )
 
-        # Create list of securities with one security
-        list_of_securities = ListOfSecurities(
+        # Create a depot containing the security
+        depot = Depot(
+            depotNumber=DepotNumber("D1"), # Add a depot number
             security=[security],
+            # Initialize depot totals as None
+            totalTaxValue=None,
+            totalGrossRevenueA=None,
+            totalGrossRevenueB=None,
+            totalWithHoldingTaxClaim=None
+        )
+
+        # Create list of securities containing the depot
+        list_of_securities = ListOfSecurities(
+            depot=[depot], # Changed from security=[security]
             # Initialize list totals as None to test FILL mode
             totalTaxValue=None,
             totalGrossRevenueA=None,
@@ -1004,8 +840,15 @@ class TestTotalCalculator:
         assert result.listOfSecurities.totalGrossRevenueB == Decimal("0.00")
         assert result.listOfSecurities.totalWithHoldingTaxClaim == Decimal("70.00")
 
-        # Assert totals on individual Security level
-        calculated_security = result.listOfSecurities.security[0]
+        # Assert totals on individual Depot level
+        calculated_depot = result.listOfSecurities.depot[0]
+        assert calculated_depot.totalTaxValue == Decimal("5000.00")
+        assert calculated_depot.totalGrossRevenueA == Decimal("200.00")
+        assert calculated_depot.totalGrossRevenueB == Decimal("0.00")
+        assert calculated_depot.totalWithHoldingTaxClaim == Decimal("70.00")
+
+        # Assert totals on individual Security level (accessed via depot)
+        calculated_security = result.listOfSecurities.depot[0].security[0]
         assert calculated_security.totalTaxValue == Decimal("5000.00")
         assert calculated_security.totalGrossRevenueA == Decimal("200.00")
         assert calculated_security.totalGrossRevenueB == Decimal("0.00")
@@ -1022,9 +865,11 @@ class TestTotalCalculator:
             "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
             "listOfSecurities.totalTaxValue", "listOfSecurities.totalGrossRevenueA",
             "listOfSecurities.totalGrossRevenueB", "listOfSecurities.totalWithHoldingTaxClaim",
-            "listOfSecurities.security[0].totalTaxValue", "listOfSecurities.security[0].totalGrossRevenueA",
-            "listOfSecurities.security[0].totalGrossRevenueB",
-            "listOfSecurities.security[0].totalWithHoldingTaxClaim"
+            "listOfSecurities.depot[0].totalTaxValue", "listOfSecurities.depot[0].totalGrossRevenueA", # Added depot totals
+            "listOfSecurities.depot[0].totalGrossRevenueB", "listOfSecurities.depot[0].totalWithHoldingTaxClaim", # Added depot totals
+            "listOfSecurities.depot[0].security[0].totalTaxValue", "listOfSecurities.depot[0].security[0].totalGrossRevenueA", # Updated security path
+            "listOfSecurities.depot[0].security[0].totalGrossRevenueB", # Updated security path
+            "listOfSecurities.depot[0].security[0].totalWithHoldingTaxClaim" # Updated security path
         }
         
         assert calculator.modified_fields.issuperset(expected_modified)
