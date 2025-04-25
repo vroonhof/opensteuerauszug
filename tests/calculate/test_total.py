@@ -226,7 +226,7 @@ class TestTotalCalculator:
         tax_statement = create_test_tax_statement()
         tax_statement.totalTaxValue = Decimal("0.00")  # Incorrect
         tax_statement.totalGrossRevenueA = Decimal("0.00")  # Incorrect
-        tax_statement.totalGrossRevenueB = Decimal("0.00")  # Incorrect
+        tax_statement.totalGrossRevenueB = Decimal("0.00")
         tax_statement.totalWithHoldingTaxClaim = Decimal("0.00")  # Incorrect
         
         # Expected values based on the test data
@@ -978,7 +978,7 @@ class TestTotalCalculator:
 # Integration tests using real sample files
 class TestTotalCalculatorIntegration:
     
-    @pytest.mark.skip(reason="Temporarily disabled for fixing")
+    # @pytest.mark.skip(reason="Temporarily disabled for fixing")
     @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
     def test_calculation_verify_with_samples(self, sample_file):
         """Test that calculations verify correctly against real sample files."""
@@ -996,8 +996,14 @@ class TestTotalCalculatorIntegration:
         
         # Then verify the filled values
         verify_calculator = TotalCalculator(mode=CalculationMode.VERIFY)
-        verify_calculator.calculate(filled_statement)
-   
+        verify_calculator.calculate(filled_statement) # This no longer raises an exception
+
+        # Check if any errors were found during verification
+        if verify_calculator.errors:
+            error_messages = [str(e) for e in verify_calculator.errors]
+            error_details = "\n".join(error_messages)
+            pytest.fail(f"Verification failed for {sample_file} with {len(verify_calculator.errors)} errors:\n{error_details}")
+
     @pytest.mark.skip(reason="Temporarily disabled for fixing")
     @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
     def test_calculation_consistency(self, sample_file):

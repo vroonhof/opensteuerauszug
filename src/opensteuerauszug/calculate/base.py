@@ -46,10 +46,6 @@ class BaseCalculator:
         # Process the tax statement
         self._process_tax_statement(tax_statement)
         
-        # If in VERIFY mode and there are errors, raise the first one
-        if self.mode == CalculationMode.VERIFY and self.errors:
-            raise self.errors[0]
-            
         return tax_statement
     
     def _process_tax_statement(self, tax_statement: TaxStatement) -> None:
