@@ -53,12 +53,81 @@ class TotalCalculator(BaseCalculator):
         self.total_additional_withholding_tax_usa = Decimal('0')
         
         # Explicitly iterate through children and call handlers
-        if tax_statement.listOfSecurities and tax_statement.listOfSecurities.depot:
-            for i, depot in enumerate(tax_statement.listOfSecurities.depot):
-                if depot.security:
-                    for j, security in enumerate(depot.security):
-                        path = f"listOfSecurities.depot[{i}].security[{j}]"
-                        self._handle_Security(security, path)
+        if tax_statement.listOfSecurities:
+            # Process securities in depots
+            if tax_statement.listOfSecurities.depot:
+                for i, depot in enumerate(tax_statement.listOfSecurities.depot):
+                    if depot.security:
+                        for j, security in enumerate(depot.security):
+                            path = f"listOfSecurities.depot[{i}].security[{j}]"
+                            self._handle_Security(security, path)
+            
+            # Process securities directly in listOfSecurities.security
+            if tax_statement.listOfSecurities.security:
+                sec_list_tax_value = Decimal('0')
+                sec_list_revenue_a = Decimal('0')
+                sec_list_revenue_b = Decimal('0')
+                sec_list_withholding = Decimal('0')
+                
+                for i, security in enumerate(tax_statement.listOfSecurities.security):
+                    path = f"listOfSecurities.security[{i}]"
+                    
+                    # Calculate totals for this security
+                    sec_tax_value = Decimal('0')
+                    sec_revenue_a = Decimal('0')
+                    sec_revenue_b = Decimal('0')
+                    sec_withholding = Decimal('0')
+                    
+                    if security.taxValue and security.taxValue.value is not None:
+                        sec_tax_value = security.taxValue.value
+                    
+                    is_usa = security.country == "US"
+                    
+                    if security.payment:
+                        for payment in security.payment:
+                            if payment.grossRevenueA is not None:
+                                sec_revenue_a += payment.grossRevenueA
+                                if is_usa:
+                                    self.total_gross_revenue_da1 += payment.grossRevenueA
+                            
+                            if payment.grossRevenueB is not None:
+                                sec_revenue_b += payment.grossRevenueB
+                            
+                            if payment.withHoldingTaxClaim is not None:
+                                sec_withholding += payment.withHoldingTaxClaim
+                            
+                            if payment.lumpSumTaxCreditAmount is not None:
+                                self.total_flat_rate_tax_credit += payment.lumpSumTaxCreditAmount
+                            
+                            if is_usa and payment.additionalWithHoldingTaxUSA is not None:
+                                self.total_additional_withholding_tax_usa += payment.additionalWithHoldingTaxUSA
+                    
+                    # Set individual security totals
+                    self._set_field_value(security, 'totalTaxValue', sec_tax_value, path)
+                    self._set_field_value(security, 'totalGrossRevenueA', sec_revenue_a, path)
+                    self._set_field_value(security, 'totalGrossRevenueB', sec_revenue_b, path)
+                    self._set_field_value(security, 'totalWithHoldingTaxClaim', sec_withholding, path)
+                    
+                    # Accumulate list totals
+                    sec_list_tax_value += sec_tax_value
+                    sec_list_revenue_a += sec_revenue_a
+                    sec_list_revenue_b += sec_revenue_b
+                    sec_list_withholding += sec_withholding
+                    
+                    # Add to global totals (USA-specific handling already done above)
+                    self.total_tax_value += sec_tax_value
+                    self.total_gross_revenue_a += sec_revenue_a
+                    self.total_gross_revenue_b += sec_revenue_b
+                    self.total_withholding_tax_claim += sec_withholding
+                    
+                    if is_usa:
+                        self.total_tax_value_da1 += sec_tax_value
+                
+                # Set list level totals for securities
+                self._set_field_value(tax_statement.listOfSecurities, 'totalTaxValue', sec_list_tax_value, "listOfSecurities")
+                self._set_field_value(tax_statement.listOfSecurities, 'totalGrossRevenueA', sec_list_revenue_a, "listOfSecurities")
+                self._set_field_value(tax_statement.listOfSecurities, 'totalGrossRevenueB', sec_list_revenue_b, "listOfSecurities")
+                self._set_field_value(tax_statement.listOfSecurities, 'totalWithHoldingTaxClaim', sec_list_withholding, "listOfSecurities")
 
         if tax_statement.listOfBankAccounts and tax_statement.listOfBankAccounts.bankAccount:
             list_tax_value = Decimal('0')
@@ -111,9 +180,34 @@ class TotalCalculator(BaseCalculator):
             self.total_withholding_tax_claim += list_withholding
 
         if tax_statement.listOfLiabilities and tax_statement.listOfLiabilities.liabilityAccount:
+            liability_list_tax_value = Decimal('0')
+            liability_list_revenue_b = Decimal('0')
+            
             for i, account in enumerate(tax_statement.listOfLiabilities.liabilityAccount):
                 path = f"listOfLiabilities.liabilityAccount[{i}]"
-                self._handle_LiabilityAccount(account, path)
+                
+                # Instead of just calling the handler, let's directly process liabilities and also track list totals
+                if account.taxValue and account.taxValue.value is not None:
+                    liability_value = account.taxValue.value
+                    liability_list_tax_value += liability_value  # Add to list total (positive)
+                    self.total_tax_value -= liability_value      # Subtract from overall total (negative impact)
+                
+                # Process payments for gross revenue B
+                account_revenue_b = Decimal('0')
+                if account.payment:
+                    for payment in account.payment:
+                        if payment.grossRevenueB is not None:
+                            account_revenue_b += payment.grossRevenueB
+                            liability_list_revenue_b += payment.grossRevenueB  # Add to list total
+                            self.total_gross_revenue_b += payment.grossRevenueB  # Add to overall total
+                
+                # Set account totals
+                self._set_field_value(account, 'totalTaxValue', liability_value, path)
+                self._set_field_value(account, 'totalGrossRevenueB', account_revenue_b, path)
+            
+            # Set list level totals for liabilities
+            self._set_field_value(tax_statement.listOfLiabilities, 'totalTaxValue', liability_list_tax_value, "listOfLiabilities")
+            self._set_field_value(tax_statement.listOfLiabilities, 'totalGrossRevenueB', liability_list_revenue_b, "listOfLiabilities")
 
         if tax_statement.listOfExpenses and tax_statement.listOfExpenses.expense:
              for i, expense in enumerate(tax_statement.listOfExpenses.expense):

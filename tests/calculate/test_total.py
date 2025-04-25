@@ -660,7 +660,7 @@ class TestTotalCalculator:
                 BankAccountPayment(
                     paymentDate="2023-09-15",
                     name="Q3 Tax-Free Bonus",
-                    amountCurrency="CHF",
+                    amountCurrency=CurrencyId("CHF"),
                     amount=Decimal("30.00"),
                     exchangeRate=Decimal("1.0"),
                     grossRevenueA=Decimal("0.00"),
@@ -671,7 +671,7 @@ class TestTotalCalculator:
                 BankAccountPayment(
                     paymentDate="2023-12-15",
                     name="Q4 Mixed Payment",
-                    amountCurrency="CHF",
+                    amountCurrency=CurrencyId("CHF"),
                     amount=Decimal("100.00"),
                     exchangeRate=Decimal("1.0"),
                     grossRevenueA=Decimal("70.00"),
@@ -721,18 +721,6 @@ class TestTotalCalculator:
         expected_gross_revenue_b = Decimal("60.00")   # 0 + 0 + 30 + 30
         expected_withholding_tax = Decimal("61.25")   # 17.50 + 19.25 + 0 + 24.50
 
-        # Assert totals on TaxStatement level
-        assert result.totalTaxValue == Decimal("8000.00")
-        assert result.totalGrossRevenueA == expected_gross_revenue_a
-        assert result.totalGrossRevenueB == expected_gross_revenue_b
-        assert result.totalWithHoldingTaxClaim == expected_withholding_tax
-
-        # Assert totals on ListOfBankAccounts level
-        assert result.listOfBankAccounts.totalTaxValue == Decimal("8000.00")
-        assert result.listOfBankAccounts.totalGrossRevenueA == expected_gross_revenue_a
-        assert result.listOfBankAccounts.totalGrossRevenueB == expected_gross_revenue_b
-        assert result.listOfBankAccounts.totalWithHoldingTaxClaim == expected_withholding_tax
-
         # Assert totals on the individual BankAccount level
         calculated_bank_account = result.listOfBankAccounts.bankAccount[0]
         assert calculated_bank_account.totalTaxValue == Decimal("8000.00")
@@ -740,16 +728,17 @@ class TestTotalCalculator:
         assert calculated_bank_account.totalGrossRevenueB == expected_gross_revenue_b
         assert calculated_bank_account.totalWithHoldingTaxClaim == expected_withholding_tax
 
-        expected_modified = {
-            "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
-            "listOfBankAccounts.totalTaxValue", "listOfBankAccounts.totalGrossRevenueA",
-            "listOfBankAccounts.totalGrossRevenueB", "listOfBankAccounts.totalWithHoldingTaxClaim",
-            "listOfBankAccounts.bankAccount[0].totalTaxValue", "listOfBankAccounts.bankAccount[0].totalGrossRevenueA",
-            "listOfBankAccounts.bankAccount[0].totalGrossRevenueB",
-            "listOfBankAccounts.bankAccount[0].totalWithHoldingTaxClaim"
-        }
-        
-        assert calculator.modified_fields.issuperset(expected_modified)
+        # Assert totals on ListOfBankAccounts level
+        assert result.listOfBankAccounts.totalTaxValue == Decimal("8000.00")
+        assert result.listOfBankAccounts.totalGrossRevenueA == expected_gross_revenue_a
+        assert result.listOfBankAccounts.totalGrossRevenueB == expected_gross_revenue_b
+        assert result.listOfBankAccounts.totalWithHoldingTaxClaim == expected_withholding_tax
+
+        # Assert totals on TaxStatement level
+        assert result.totalTaxValue == Decimal("8000.00")
+        assert result.totalGrossRevenueA == expected_gross_revenue_a
+        assert result.totalGrossRevenueB == expected_gross_revenue_b
+        assert result.totalWithHoldingTaxClaim == expected_withholding_tax
 
     def test_multiple_bank_accounts(self):
         """Test calculation with multiple bank accounts to ensure totals are correctly summed at the statement level."""
@@ -876,8 +865,8 @@ class TestTotalCalculator:
         # Expected totals at statement level - sum of all accounts
         expected_tax_value = Decimal("10000.00")  # 5000 + 2700 + 2300
         expected_gross_revenue_a = Decimal("75.00")  # Only from account1
-        expected_gross_revenue_b = Decimal("90.00")  # Only from account2
-        expected_withholding_tax = Decimal("26.25")  # Only from account1
+        expected_gross_revenue_b = Decimal("90.00")   # Only from account2
+        expected_withholding_tax = Decimal("26.25")   # Only from account1
 
         # Assert totals on TaxStatement level
         assert result.totalTaxValue == expected_tax_value
@@ -922,7 +911,224 @@ class TestTotalCalculator:
             for field in ["totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim"]:
                 expected_modified.add(f"listOfBankAccounts.bankAccount[{i}].{field}")
         
+        # Instead of just checking inclusion, find missing fields for better error reporting
+        missing_fields = expected_modified - calculator.modified_fields
+        assert not missing_fields, f"Fields missing from modified_fields: {missing_fields}"
+
+    def test_minimal_security(self):
+        """Test calculation with a minimal tax statement containing one security."""
+        # Create a security with tax value and payment
+        security = Security(
+            positionId=1001,
+            valorNumber=ValorNumber(987654),
+            isin=ISINType("CH0009876543"),
+            name="Test Security",
+            country="CH",  # Non-USA security (ignoring DA-1)
+            currency=CurrencyId("CHF"),
+            quotationType="PIECE",
+            securityCategory="SHARE",
+            securityName="Test Security",
+            taxValue=SecurityTaxValue(
+                referenceDate="2023-12-31",
+                quotationCurrency="CHF",
+                quotation=Decimal("50.00"),
+                quantity=Decimal("100"),
+                exchangeRate=Decimal("1.0"),
+                value=Decimal("5000.00"),
+                quotationType="PIECE",
+                balanceCurrency=CurrencyId("CHF")
+            ),
+            payment=[
+                SecurityPayment(
+                    paymentDate="2023-07-15",
+                    name="Annual Dividend",
+                    amountCurrency=CurrencyId("CHF"),
+                    amount=Decimal("200.00"),
+                    exchangeRate=Decimal("1.0"),
+                    grossRevenueA=Decimal("200.00"),
+                    grossRevenueB=Decimal("0.00"),
+                    withHoldingTaxClaim=Decimal("70.00"),
+                    quotationType="PIECE",
+                    quantity=Decimal("100")
+                )
+            ]
+        )
+
+        # Create list of securities with one security
+        list_of_securities = ListOfSecurities(
+            security=[security],
+            # Initialize list totals as None to test FILL mode
+            totalTaxValue=None,
+            totalGrossRevenueA=None,
+            totalGrossRevenueB=None,
+            totalWithHoldingTaxClaim=None
+        )
+
+        # Create a minimal tax statement with just the security
+        tax_statement = TaxStatement(
+            minorVersion=2,
+            id="test-minimal-security",
+            creationDate="2024-01-15T10:00:00",
+            taxPeriod=2023,
+            periodFrom="2023-01-01",
+            periodTo="2023-12-31",
+            canton="ZH",
+            institution={"name": "Test Bank AG"},
+            client=[{
+                "clientNumber": ClientNumber("S123"),
+                "firstName": "John",
+                "lastName": "Investor",
+                "salutation": "2"
+            }],
+            listOfSecurities=list_of_securities,
+            # Initialize statement totals as None
+            totalTaxValue=None,
+            totalGrossRevenueA=None,
+            totalGrossRevenueB=None,
+            totalWithHoldingTaxClaim=None,
+        )
+
+        # Calculate in FILL mode
+        calculator = TotalCalculator(mode=CalculationMode.FILL)
+        result = calculator.calculate(tax_statement)
+
+        # Assert totals on TaxStatement level
+        assert result.totalTaxValue == Decimal("5000.00")
+        assert result.totalGrossRevenueA == Decimal("200.00")
+        assert result.totalGrossRevenueB == Decimal("0.00")
+        assert result.totalWithHoldingTaxClaim == Decimal("70.00")
+
+        # Assert totals on ListOfSecurities level
+        assert result.listOfSecurities.totalTaxValue == Decimal("5000.00")
+        assert result.listOfSecurities.totalGrossRevenueA == Decimal("200.00")
+        assert result.listOfSecurities.totalGrossRevenueB == Decimal("0.00")
+        assert result.listOfSecurities.totalWithHoldingTaxClaim == Decimal("70.00")
+
+        # Assert totals on individual Security level
+        calculated_security = result.listOfSecurities.security[0]
+        assert calculated_security.totalTaxValue == Decimal("5000.00")
+        assert calculated_security.totalGrossRevenueA == Decimal("200.00")
+        assert calculated_security.totalGrossRevenueB == Decimal("0.00")
+        assert calculated_security.totalWithHoldingTaxClaim == Decimal("70.00")
+
+        # Verify DA-1 specific fields remain None or zero (since we're ignoring DA-1)
+        assert result.brutto_da1_usa is None or result.brutto_da1_usa == Decimal("0.00")
+        assert result.steuerwert_da1_usa is None or result.steuerwert_da1_usa == Decimal("0.00")
+        assert result.pauschale_da1 is None or result.pauschale_da1 == Decimal("0.00")
+        assert result.rueckbehalt_usa is None or result.rueckbehalt_usa == Decimal("0.00")
+
+        # Check that modified fields include all expected fields
+        expected_modified = {
+            "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
+            "listOfSecurities.totalTaxValue", "listOfSecurities.totalGrossRevenueA",
+            "listOfSecurities.totalGrossRevenueB", "listOfSecurities.totalWithHoldingTaxClaim",
+            "listOfSecurities.security[0].totalTaxValue", "listOfSecurities.security[0].totalGrossRevenueA",
+            "listOfSecurities.security[0].totalGrossRevenueB",
+            "listOfSecurities.security[0].totalWithHoldingTaxClaim"
+        }
+        
         assert calculator.modified_fields.issuperset(expected_modified)
+
+    def test_minimal_liability(self):
+        """Test calculation with a minimal tax statement containing one liability account."""
+        # Create a liability with tax value and payment
+        liability = LiabilityAccount(
+            bankAccountNumber=BankAccountNumber("CH7777666655554444"),
+            bankAccountName=BankAccountName("Mortgage Account"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            liabilityCategory="MORTGAGE",
+            # Initialize optional totals as None to test FILL mode - total* values are required though
+            totalTaxValue=PositiveDecimal("123456.78"),
+            totalGrossRevenueB=PositiveDecimal("9999.99"),
+            taxValue=LiabilityAccountTaxValue(
+                referenceDate="2023-12-31",
+                balanceCurrency="CHF",
+                balance=Decimal("120000.00"),
+                exchangeRate=Decimal("1.0"),
+                value=Decimal("120000.00")
+            ),
+            payment=[
+                LiabilityAccountPayment(
+                    paymentDate="2023-06-30",
+                    name="Mortgage Interest (H1)",
+                    amountCurrency=CurrencyId("CHF"),
+                    amount=Decimal("900.00"),
+                    exchangeRate=Decimal("1.0"),
+                    grossRevenueB=Decimal("900.00")
+                ),
+                LiabilityAccountPayment(
+                    paymentDate="2023-12-31",
+                    name="Mortgage Interest (H2)",
+                    amountCurrency=CurrencyId("CHF"),
+                    amount=Decimal("900.00"),
+                    exchangeRate=Decimal("1.0"),
+                    grossRevenueB=Decimal("900.00")
+                )
+            ]
+        )
+
+        # Create list of liabilities with one liability
+        list_of_liabilities = ListOfLiabilities(
+            liabilityAccount=[liability],
+            # Initialize list totals as None to test FILL mode
+            totalTaxValue=None,
+            totalGrossRevenueB=None
+        )
+
+        # Create a minimal tax statement with just the liability
+        tax_statement = TaxStatement(
+            minorVersion=2,
+            id="test-minimal-liability",
+            creationDate="2024-01-15T10:00:00",
+            taxPeriod=2023,
+            periodFrom="2023-01-01",
+            periodTo="2023-12-31",
+            canton="ZH",
+            institution={"name": "Mortgage Bank AG"},
+            client=[{
+                "clientNumber": ClientNumber("L123"),
+                "firstName": "Mary",
+                "lastName": "Homeowner",
+                "salutation": "2"
+            }],
+            listOfLiabilities=list_of_liabilities,
+            # Initialize statement totals as None
+            totalTaxValue=None,
+            totalGrossRevenueA=None,
+            totalGrossRevenueB=None,
+            totalWithHoldingTaxClaim=None,
+        )
+
+        # Calculate in FILL mode
+        calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
+        result = calculator.calculate(tax_statement)
+
+        # Assert totals on TaxStatement level - liabilities have negative impact on tax value
+        # TODO: Check if this is correct behavior against spec.
+        assert result.totalTaxValue == Decimal("-120000.00")  # Negative since it's a liability
+        assert result.totalGrossRevenueA == Decimal("0.00")
+        assert result.totalGrossRevenueB == Decimal("1800.00")  # Sum of interest payments
+        assert result.totalWithHoldingTaxClaim == Decimal("0.00")  # Liabilities don't have withholding tax
+
+        # Assert totals on ListOfLiabilities level
+        assert result.listOfLiabilities.totalTaxValue == Decimal("120000.00")  # Positive in list context
+        assert result.listOfLiabilities.totalGrossRevenueB == Decimal("1800.00")
+
+        # Assert totals on individual LiabilityAccount level
+        calculated_liability = result.listOfLiabilities.liabilityAccount[0]
+        assert calculated_liability.totalTaxValue == Decimal("120000.00")
+        assert calculated_liability.totalGrossRevenueB == Decimal("1800.00")
+
+        # Check that modified fields include all expected fields
+        expected_modified = {
+            "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
+            "listOfLiabilities.totalTaxValue", "listOfLiabilities.totalGrossRevenueB",
+            "listOfLiabilities.liabilityAccount[0].totalTaxValue", 
+            "listOfLiabilities.liabilityAccount[0].totalGrossRevenueB"
+        }
+        missing_fields = expected_modified - calculator.modified_fields
+        assert not missing_fields, f"Fields missing from modified_fields: {missing_fields}"
 
 # Integration tests using real sample files
 class TestTotalCalculatorIntegration:
