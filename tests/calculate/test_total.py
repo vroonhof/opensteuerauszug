@@ -988,14 +988,24 @@ class TestTotalCalculatorIntegration:
         # Load the sample file
         tax_statement = TaxStatement.from_xml_file(sample_file)
 
+        # Our reading of the spec (and for nice composition) is that
+        # this is the correct behavior
+        round_sub_total = True
+        # However some real world statements seem to disagree
+        if tax_statement.institution:
+            # Truewealth
+            if tax_statement.institution.name == "True Wealth AG":
+                # Truewealth seems compute all sums with rounding the intermediates
+                round_sub_total = False
+ 
         # We assume these real world files have correct totals       
         # First, calculate in FILL mode to ensure all totals are populated
         # whilst verifying values that exist.
-        fill_calculator = TotalCalculator(mode=CalculationMode.FILL)
+        fill_calculator = TotalCalculator(mode=CalculationMode.FILL, round_sub_total=round_sub_total)
         filled_statement = fill_calculator.calculate(tax_statement)
         
         # Then verify the filled values
-        verify_calculator = TotalCalculator(mode=CalculationMode.VERIFY)
+        verify_calculator = TotalCalculator(mode=CalculationMode.VERIFY, round_sub_total=round_sub_total)
         verify_calculator.calculate(filled_statement) # This no longer raises an exception
 
         # Check if any errors were found during verification
