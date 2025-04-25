@@ -11,7 +11,7 @@
               canton="ZH"
               totalTaxValue="185500.00"
               totalGrossRevenueA="1500.00"
-              totalGrossRevenueB="550.00"
+              totalGrossRevenueB="549.00"
               totalWithHoldingTaxClaim="525.00"
               minorVersion="22">
   <institution name="Swiss Sample Bank AG" lei="529900T8BM45JSL86F38">
@@ -21,8 +21,8 @@
     </uid>
   </institution>
   <client clientNumber="987654" salutation="2" firstName="Max" lastName="Muster"/>
-  <listOfBankAccounts totalTaxValue="35000.00" totalGrossRevenueA="500.00" totalGrossRevenueB="50.00" totalWithHoldingTaxClaim="175.00">
-    <bankAccount bankAccountName="Private Account" bankAccountCountry="CH" bankAccountCurrency="CHF" totalTaxValue="35000.00" totalGrossRevenueA="500.00" totalGrossRevenueB="50.00" totalWithHoldingTaxClaim="175.00" iban="CH9300762011623852957" bankAccountNumber="11623852957">
+  <listOfBankAccounts totalTaxValue="35000.00" totalGrossRevenueA="500.00" totalGrossRevenueB="49.00" totalWithHoldingTaxClaim="175.00">
+    <bankAccount bankAccountName="Private Account" bankAccountCountry="CH" bankAccountCurrency="CHF" totalTaxValue="35000.00" totalGrossRevenueA="500.00" totalGrossRevenueB="49.00" totalWithHoldingTaxClaim="175.00" iban="CH9300762011623852957" bankAccountNumber="11623852957">
       <taxValue referenceDate="2024-12-31" balanceCurrency="CHF" balance="35000.00" value="35000.00"/>
       <payment paymentDate="2024-06-30" name="Interest Credit" amountCurrency="CHF" amount="500.00" grossRevenueA="500.00" grossRevenueB="0.00" withHoldingTaxClaim="175.00"/>
       <payment paymentDate="2024-03-15" name="Foreign Interest" amountCurrency="EUR" amount="50.00" exchangeRate="0.98" grossRevenueA="0.00" grossRevenueB="49.00" withHoldingTaxClaim="0.00"/>
