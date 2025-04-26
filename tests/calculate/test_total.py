@@ -249,7 +249,6 @@ class TestTotalCalculator:
         assert "totalGrossRevenueB" in calculator.modified_fields
         assert "totalWithHoldingTaxClaim" in calculator.modified_fields
     
-    @pytest.mark.skip(reason="Temporarily disabled for fixing")
     def test_usa_specific_calculations(self):
         """Test USA-specific calculations (DA-1)."""
         # Create a security with USA payments
@@ -280,13 +279,15 @@ class TestTotalCalculator:
                     amountCurrency=CurrencyId("USD"),  # Correct place for amountCurrency
                     amount=Decimal("100.00"),
                     exchangeRate=Decimal("0.9"),
-                    grossRevenueA=Decimal("90.00"),
-                    grossRevenueB=Decimal("0.00"),
+                    grossRevenueA=Decimal("0.00"),
+                    grossRevenueB=Decimal("90.00"),
                     withHoldingTaxClaim=Decimal("31.50"),
-                    additionalWithHoldingTax=Decimal("15.00"),  # These seem specific to payment
-                    flatRateTaxCredit=Decimal("5.00"),  # These seem specific to payment
-                    quotationType="PIECE",  # Correct place for quotationType
-                    quantity=Decimal("20")  # Correct place for quantity
+                    lumpSumTaxCredit=True,
+                    lumpSumTaxCreditPercent=Decimal("15.00"),
+                    lumpSumTaxCreditAmount=Decimal("5.000"),      
+                    additionalWithHoldingTaxUSA=Decimal("15.00"),
+                    quotationType="PIECE",
+                    quantity=Decimal("20")  
                 )
             ]
         )
@@ -307,7 +308,7 @@ class TestTotalCalculator:
                 "lastName": "Muster", 
                 "salutation": "2"
             }],
-            listOfSecurities=ListOfSecurities(security=[security_usa])
+            listOfSecurities=ListOfSecurities(depot=[Depot(security=[security_usa])])
         )
         
         # Calculate in FILL mode
@@ -315,15 +316,15 @@ class TestTotalCalculator:
         result = calculator.calculate(tax_statement)
         
         # Check USA-specific totals
-        assert result.brutto_da1_usa == Decimal("90.00")
-        assert result.steuerwert_da1_usa == Decimal("900.00")
-        assert result.pauschale_da1 == Decimal("5.00")
-        assert result.rueckbehalt_usa == Decimal("15.00")
+        assert result.da_GrossRevenue == Decimal("90.00")
+        assert result.da1TaxValue == Decimal("900.00")
+        assert result.listOfSecurities.totalLumpSumTaxCredit == Decimal("5.00")
+        assert result.listOfSecurities.totalAdditionalWithHoldingTaxUSA == Decimal("15.00")
         
         # Check regular totals
         assert result.totalTaxValue == Decimal("900.00")
-        assert result.totalGrossRevenueA == Decimal("90.00")
-        assert result.totalGrossRevenueB == Decimal("0.00")
+        assert result.totalGrossRevenueA == Decimal("0.00")
+        assert result.totalGrossRevenueB == Decimal("90.00")
         assert result.totalWithHoldingTaxClaim == Decimal("31.50")
 
     def test_minimal_bank_account_only(self):
@@ -836,11 +837,15 @@ class TestTotalCalculator:
         assert result.listOfSecurities.totalLumpSumTaxCredit == Decimal("0.00")
         assert result.listOfSecurities.totalAdditionalWithHoldingTaxUSA == Decimal("0.00")
     
+        # Check internal SV split
+        assert result.svTaxValueA == Decimal("5000.00")
+        assert result.svTaxValueB == Decimal("0.00")
+        assert result.svGrossRevenueA == Decimal("200.00")
+        assert result.svGrossRevenueB == Decimal("0.00")
+
         # Verify DA-1 specific fields remain None or zero (since we're ignoring DA-1)
-        assert result.brutto_da1_usa is None or result.brutto_da1_usa == Decimal("0.00")
-        assert result.steuerwert_da1_usa is None or result.steuerwert_da1_usa == Decimal("0.00")
-        assert result.pauschale_da1 is None or result.pauschale_da1 == Decimal("0.00")
-        assert result.rueckbehalt_usa is None or result.rueckbehalt_usa == Decimal("0.00")
+        assert result.da_GrossRevenue is None or result.da_GrossRevenue == Decimal("0.00")
+        assert result.da1TaxValue is None or result.da1TaxValue == Decimal("0.00")
 
         # Check that modified fields include all expected fields
         expected_modified = {
@@ -976,14 +981,8 @@ class TestTotalCalculatorIntegration:
                 round_sub_total = False
  
         # We assume these real world files have correct totals       
-        # First, calculate in FILL mode to ensure all totals are populated
-        # whilst verifying values that exist.
-        fill_calculator = TotalCalculator(mode=CalculationMode.FILL, round_sub_total=round_sub_total)
-        filled_statement = fill_calculator.calculate(tax_statement)
-        
-        # Then verify the filled values
         verify_calculator = TotalCalculator(mode=CalculationMode.VERIFY, round_sub_total=round_sub_total)
-        verify_calculator.calculate(filled_statement) # This no longer raises an exception
+        verify_calculator.calculate(tax_statement)
 
         # Check if any errors were found during verification
         if verify_calculator.errors:
@@ -1010,8 +1009,8 @@ class TestTotalCalculatorIntegration:
             "totalGrossRevenueA": first_result.totalGrossRevenueA,
             "totalGrossRevenueB": first_result.totalGrossRevenueB,
             "totalWithHoldingTaxClaim": first_result.totalWithHoldingTaxClaim,
-            "steuerwert_da1_usa": first_result.steuerwert_da1_usa,
-            "brutto_da1_usa": first_result.brutto_da1_usa,
+            "steuerwert_da1_usa": first_result.da1TaxValue,
+            "brutto_da1_usa": first_result.da_GrossRevenue,
             "pauschale_da1": first_result.pauschale_da1,
             "rueckbehalt_usa": first_result.rueckbehalt_usa
         }
@@ -1025,8 +1024,8 @@ class TestTotalCalculatorIntegration:
             "totalGrossRevenueA": second_result.totalGrossRevenueA,
             "totalGrossRevenueB": second_result.totalGrossRevenueB,
             "totalWithHoldingTaxClaim": second_result.totalWithHoldingTaxClaim,
-            "steuerwert_da1_usa": second_result.steuerwert_da1_usa,
-            "brutto_da1_usa": second_result.brutto_da1_usa,
+            "steuerwert_da1_usa": second_result.da1TaxValue,
+            "brutto_da1_usa": second_result.da_GrossRevenue,
             "pauschale_da1": second_result.pauschale_da1,
             "rueckbehalt_usa": second_result.rueckbehalt_usa
         }

@@ -690,24 +690,25 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
         tax_statement.total_brutto_gesamt = total_gross_revenue_a + total_gross_revenue_b
     
     # Ensure the model fields are populated
-    if tax_statement.brutto_mit_vst is None:
-        tax_statement.brutto_mit_vst = tax_statement.totalGrossRevenueA or Decimal('0')
+    if tax_statement.svGrossRevenueA is None:
+        tax_statement.svGrossRevenueA = tax_statement.totalGrossRevenueA or Decimal('0')
     
-    if tax_statement.brutto_ohne_vst is None:
-        tax_statement.brutto_ohne_vst = tax_statement.totalGrossRevenueB or Decimal('0')
+    if tax_statement.svGrossRevenueB is None:
+        tax_statement.svGrossRevenueB = tax_statement.totalGrossRevenueB or Decimal('0')
     
     # Create summary data dictionary from model fields
     summary_data = {
-        "steuerwert_ab": tax_statement.steuerwert_ab or Decimal('0'),
-        "steuerwert_a": tax_statement.steuerwert_a or Decimal('0'),
-        "steuerwert_b": tax_statement.steuerwert_b or Decimal('0'),
-        "brutto_mit_vst": tax_statement.brutto_mit_vst,
-        "brutto_ohne_vst": tax_statement.brutto_ohne_vst,
+        "steuerwert_ab": ((tax_statement.svTaxValueA or Decimal('0'))
+                          + (tax_statement.svTaxValueB or Decimal('0'))),
+        "steuerwert_a": tax_statement.svTaxValueA or Decimal('0'),
+        "steuerwert_b": tax_statement.svTaxValueB or Decimal('0'),
+        "brutto_mit_vst": tax_statement.svGrossRevenueA,
+        "brutto_ohne_vst": tax_statement.svGrossRevenueB,
         "vst_anspruch": tax_statement.totalWithHoldingTaxClaim,
-        "steuerwert_da1_usa": tax_statement.steuerwert_da1_usa,
-        "brutto_da1_usa": tax_statement.brutto_da1_usa,
-        "pauschale_da1": tax_statement.pauschale_da1,
-        "rueckbehalt_usa": tax_statement.rueckbehalt_usa,
+        "steuerwert_da1_usa": tax_statement.da1TaxValue,
+        "brutto_da1_usa": tax_statement.da_GrossRevenue,
+        "pauschale_da1": tax_statement.listOfSecurities.totalNonRecoverableTax if tax_statement.listOfSecurities else Decimal('0'),  
+        "rueckbehalt_usa": tax_statement.listOfSecurities.totalAdditionalWithHoldingTaxUSA if tax_statement.listOfSecurities else Decimal('0'),
         "total_steuerwert": tax_statement.totalTaxValue,
         "total_brutto_mit_vst": tax_statement.totalGrossRevenueA,
         "total_brutto_ohne_vst": tax_statement.totalGrossRevenueB,

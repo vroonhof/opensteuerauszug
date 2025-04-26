@@ -177,6 +177,9 @@ def main(
 
     except Exception as e:
         print(f"Error during phase {current_phase.value if current_phase else 'startup'}: {e}")
+        print("Stack trace:")
+        import traceback
+        traceback.print_exc(limit=3)
         if portfolio and debug_dump_path:
             error_phase_str = f"{current_phase.value}_error" if current_phase else "startup_error"
             try:
