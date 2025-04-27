@@ -62,5 +62,6 @@ disallow_incomplete_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 python_files = ["test_*.py"]
 addopts = "-v --cov=opensteuerauszug --cov-report=term-missing" 
