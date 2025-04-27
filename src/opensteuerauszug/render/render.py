@@ -13,7 +13,7 @@ from PIL import Image as PILImage
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, 
     PageBreak, KeepTogether, Frame, PageTemplate, FrameActionFlowable,
-    BaseDocTemplate, NextPageTemplate
+    BaseDocTemplate
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -32,8 +32,7 @@ from opensteuerauszug.render.onedee import OneDeeBarCode
 from opensteuerauszug.core.organisation import compute_org_nr
 
 # --- Configuration ---
-COMPANY_NAME = "Bank WIR"
-DOC_INFO = "S. E. & O."
+DOC_INFO = "TODO: Place some compact info here"
 
 __all__ = [
     'render_tax_statement',
@@ -51,8 +50,8 @@ class BarcodeDocTemplate(BaseDocTemplate):
         super().__init__(filename, **kwargs)
         self.onedee_generator: Optional[OneDeeBarCode] = None
         self.org_nr: str = '00000'
-        self.page_count: int = 1
         self.is_barcode_page: bool = False
+        self.company_name: Optional[str] = None
 
 # --- Helper Function for Currency Formatting ---
 def format_currency(value, default='0.00'):
@@ -66,7 +65,7 @@ def format_currency(value, default='0.00'):
 
 # --- Header/Footer Drawing Functions (for SimpleDocTemplate) ---
 
-def draw_page_header(canvas, doc):
+def draw_page_header(canvas, doc, is_barcode_page: bool = False):
     """Draws the header content on each page."""
     canvas.saveState()
     page_width = doc.pagesize[0]
@@ -82,7 +81,6 @@ def draw_page_header(canvas, doc):
     if isinstance(doc, BarcodeDocTemplate) and doc.onedee_generator:
         page_num = canvas.getPageNumber()
         # Barcode page flag is true for the dedicated barcode pages at the end
-        is_barcode_page = doc.is_barcode_page and page_num > doc.page_count - 1
         barcode_widget = doc.onedee_generator.generate_barcode(
             page_number=page_num, 
             is_barcode_page=is_barcode_page,
@@ -93,6 +91,10 @@ def draw_page_header(canvas, doc):
     
     canvas.restoreState()
 
+def draw_page_header_barcode(canvas, doc):
+    """Draws the header and barcode on the barcode pages."""
+    draw_page_header(canvas, doc, is_barcode_page=True)
+
 def draw_page_footer(canvas, doc):
     """Draws the footer content and page number on each page."""
     canvas.saveState()
@@ -101,9 +103,10 @@ def draw_page_footer(canvas, doc):
     canvas.setFillColor(colors.grey)
     footer_y = doc.bottomMargin - 10*mm # Adjust position
     # Company Name
-    canvas.drawString(doc.leftMargin, footer_y, COMPANY_NAME)
+    if doc.company_name:
+        canvas.drawString(doc.leftMargin, footer_y, f"{doc.company_name} convertiert mit OpenSteuerauszug")
     # Doc Info
-    canvas.drawCentredString(page_width / 2.0, footer_y, DOC_INFO)
+    # canvas.drawCentredString(page_width / 2.0, footer_y, DOC_INFO)
     # Page Number - Standard onPageEnd handlers typically only get current page number
     page_num = canvas.getPageNumber()
     text = f"Seite {page_num}"
@@ -527,8 +530,6 @@ def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxS
     barcodes_per_page = 6
     barcode_pages = (len(barcode_images) + barcodes_per_page - 1) // barcodes_per_page  # Ceiling division
         
-    # Force a page break for the barcode section
-    story.append(NextPageTemplate('main'))
     
     # Get styles
     styles = getSampleStyleSheet()
@@ -545,7 +546,7 @@ def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxS
     
     # Process barcodes in groups
     for page_num in range(barcode_pages):
-        story.append(PageBreak())
+        story.append(PageBreak('barcode'))
         doc.is_barcode_page = True
         story.append(Paragraph(f"Barcode Page {page_num + 1} of {barcode_pages}", title_style))
         story.append(Spacer(1, 0.5*cm))
@@ -631,14 +632,17 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
                   id='normal')
 
     # Create the page template with header/footer functions
-    page_template = PageTemplate(id='main', frames=[frame],
+    main_page_template = PageTemplate(id='main', frames=[frame],
                                  onPage=draw_page_header, 
+                                 onPageEnd=draw_page_footer)
+    barcode_page_template = PageTemplate(id='barcode', frames=[frame],
+                                 onPage=draw_page_header_barcode, 
                                  onPageEnd=draw_page_footer)
 
     # Use BarcodeDocTemplate for barcode support
     doc = BarcodeDocTemplate(buffer,
                              pagesize=landscape(A4),
-                             pageTemplates=[page_template],
+                             pageTemplates=[main_page_template, barcode_page_template],
                              leftMargin=left_margin,
                              rightMargin=right_margin,
                              topMargin=top_margin,
@@ -649,6 +653,7 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     
     # Compute the organization number
     doc.org_nr = compute_org_nr(tax_statement, override_org_nr)
+    doc.company_name = tax_statement.institution.name if tax_statement.institution else ""
     
     # --- Define styles centrally (same as before) ---
     styles = getSampleStyleSheet()
