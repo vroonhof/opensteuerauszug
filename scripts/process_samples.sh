@@ -12,6 +12,14 @@ PHASES="-p calculate -p render"
 # Ensure output directory exists
 mkdir -p "$OUTPUT_DIR"
 
+# Load EXTRA_SAMPLE_DIR from .env if set
+if [ -f "$ROOT_DIR/.env" ]; then
+  # shellcheck disable=SC1090
+  set -a
+  . "$ROOT_DIR/.env"
+  set +a
+fi
+
 echo "Starting batch processing of XML files..."
 
 # Process files in test/samples
@@ -25,9 +33,17 @@ for xml_file in "$ROOT_DIR/tests/samples/"*.xml; do
   fi
 done
 
-# Process files in private/samples
-echo "Processing files from private/samples..."
-for xml_file in "$ROOT_DIR/private/samples/"*.xml; do
+# Process files in EXTRA_SAMPLE_DIR if set, otherwise private/samples
+PRIVATE_SAMPLE_DIR="$ROOT_DIR/private/samples"
+if [[ -n "$EXTRA_SAMPLE_DIR" ]]; then
+  # Expand tilde if present
+  SAMPLE_DIR=$(eval echo "$EXTRA_SAMPLE_DIR")
+  echo "Processing files from EXTRA_SAMPLE_DIR: $SAMPLE_DIR..."
+else
+  SAMPLE_DIR="$PRIVATE_SAMPLE_DIR"
+  echo "Processing files from private/samples..."
+fi
+for xml_file in "$SAMPLE_DIR"/*.xml; do
   if [[ -f "$xml_file" ]]; then
     filename=$(basename "$xml_file")
     pdf_name="${filename%.xml}.pdf"
