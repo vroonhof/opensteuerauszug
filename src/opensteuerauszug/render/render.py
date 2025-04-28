@@ -317,27 +317,6 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
         ('LINEBELOW', (2, 7), (3, 7), *line_style),
         ('LINEABOVE', (5, 7), (6, 7), *line_style),
         ('LINEBELOW', (5, 7), (6, 7), *line_style),
-        # ('LINEBELOW', (1, 0), (2, 0), *no_line_style), 
-        #('LINEBELOW', (3, 0), (3, 0), *no_line_style),
-        # Add more ('LINEBELOW', (col_index, 0), (col_index, 0), *no_line_style) for other cols if needed
-
-        # Row 3 Headers (DA-1) 
-        #('LINEBELOW', (0, 3), (-1, 3), *line_style), # Apply to whole row
-        #('LINEBELOW', (1, 3), (3, 3), *no_line_style), # Remove from col 1
-
-        # Row 6 Headers (Totals) - Apply line above all, then below specific cols
-        #('LINEABOVE', (0, 6), (-1, 6), *line_style), # Line above all total headers
-        #('LINEBELOW', (0, 6), (-1, 6), *line_style), # Apply below all initially
-        #('LINEBELOW', (1, 6), (2, 6), *no_line_style), # Remove from cols 1, 2
-       # ('LINEBELOW', (3, 6), (4, 6), *no_line_style), # Remove from col 3
-        # Footnotes column 
-        # ('LINEBELOW', (1, 0), (1, -1), *no_line_style),
-        # A column 
-        # ('LINEBELOW', (2, 0), (2, -1), *no_line_style),
-        # B column 
-        #('LINEBELOW', (4, 0), (4, -1), *no_line_style),
-        # Description column 
-        #('LINEBELOW', (8, 0), (8, -1), *no_line_style),
     ]
 
     # --- Combine all styles ---
