@@ -13,7 +13,7 @@ from PIL import Image as PILImage
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, 
     PageBreak, KeepTogether, Frame, PageTemplate, FrameActionFlowable,
-    BaseDocTemplate
+    BaseDocTemplate, DocAssign
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -30,6 +30,9 @@ from opensteuerauszug.render.onedee import OneDeeBarCode
 
 # --- Import Organisation helper functions ---
 from opensteuerauszug.core.organisation import compute_org_nr
+
+# --- Import styles utility ---
+from opensteuerauszug.util.styles import get_custom_styles
 
 # --- Configuration ---
 DOC_INFO = "TODO: Place some compact info here"
@@ -52,14 +55,44 @@ class BarcodeDocTemplate(BaseDocTemplate):
         self.org_nr: str = '00000'
         self.is_barcode_page: bool = False
         self.company_name: Optional[str] = None
+        self.section_name: str = 'SECTION NAME'
 
 # --- Helper Function for Currency Formatting ---
-def format_currency(value, default='0.00'):
-    # (Same as v7)
+def format_currency_rounded(value: Decimal, default='0.00'):
+    """Format currency with 0 decimals, for summary table only."""
     if value is None or value == '': return default
     try:
         decimal_value = Decimal(str(value)).quantize(Decimal('0'), rounding=ROUND_HALF_UP)
         formatted = '{:,.0f}'.format(decimal_value).replace(',', "'")
+        return formatted
+    except: return default
+
+def format_currency_2dp(value: Decimal, default='0.00'):
+    """Format currency with 2 decimals, for detail tables."""
+    if value is None or value == '': return default
+    try:
+        decimal_value = Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        formatted = '{:,.2f}'.format(decimal_value).replace(',', "'")
+        return formatted
+    except: return default
+
+# For most values we use 2 decimals, or leave blank it None or zero
+def format_currency(value: Decimal, default=''):
+    """Format currency with 2 decimals, for detail tables."""
+    if value is None or value == Decimal(0): return default
+    try:
+        decimal_value = Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        formatted = '{:,.2f}'.format(decimal_value).replace(',', "'")
+        return formatted
+    except: return default
+
+# For exchange rates we limit to 4 decimals, don't show if 1
+def format_exchange_rate(value: Decimal, default=''):
+    """Format exchange rate with 4 decimals, for detail tables."""
+    if value is None or value == Decimal(1): return default
+    try:
+        decimal_value = Decimal(str(value)).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+        formatted = '{:,.4f}'.format(decimal_value).replace(',', "'")
         return formatted
     except: return default
 
@@ -90,7 +123,7 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
             doc.onedee_generator.draw_barcode_on_canvas(canvas, barcode_widget, doc.pagesize)
     
     canvas.restoreState()
-
+ 
 def draw_page_header_barcode(canvas, doc):
     """Draws the header and barcode on the barcode pages."""
     draw_page_header(canvas, doc, is_barcode_page=True)
@@ -126,8 +159,8 @@ def create_summary_table(data, styles, usable_width):
     val_right = styles['Val_RIGHT']
     val_center = styles['Val_CENTER']
 
-    steuerwert_a = format_currency(summary_data.get('steuerwert_a'))
-    steuerwert_b = format_currency(summary_data.get('steuerwert_b'))
+    steuerwert_a = format_currency_rounded(summary_data.get('steuerwert_a'))
+    steuerwert_b = format_currency_rounded(summary_data.get('steuerwert_b'))
 
     # --- Data structure based on 6 columns, with Totals shifted ---
     table_data = [
@@ -142,13 +175,13 @@ def create_summary_table(data, styles, usable_width):
          Paragraph(f'''Werte für Formular "Wertschriften- und Guthabenverzeichnis"
 (inkl. Konti, ohne Werte DA-1 und USA)''', val_left)],
         # Row 1: A/B Values (Index 2 is 'B', Index 5 blank)
-        [Paragraph(format_currency(summary_data.get('steuerwert_ab')), val_right),
+        [Paragraph(format_currency_rounded(summary_data.get('steuerwert_ab')), val_right),
          Paragraph("(1)", val_left),
          '',
-         Paragraph(format_currency(summary_data.get('brutto_mit_vst')), val_right),
+         Paragraph(format_currency_rounded(summary_data.get('brutto_mit_vst')), val_right),
          '',
-         Paragraph(format_currency(summary_data.get('brutto_ohne_vst')), val_right),
-         Paragraph(format_currency(summary_data.get('vst_anspruch')), val_right),
+         Paragraph(format_currency_rounded(summary_data.get('brutto_ohne_vst')), val_right),
+         Paragraph(format_currency_rounded(summary_data.get('vst_anspruch')), val_right),
          ''],
         # Row 2: Spacer row (6 columns)
         ['', '', '', '', '', ''],
@@ -162,11 +195,11 @@ def create_summary_table(data, styles, usable_width):
 ausländischer Quellensteuer und zusätzlichen Steuerrückbehalt
 USA"''', val_left)], #
          # Row 4: DA-1 Values (Indices 1 & 2 blank)
-        [Paragraph(format_currency(summary_data.get('steuerwert_da1_usa')), val_right),
+        [Paragraph(format_currency_rounded(summary_data.get('steuerwert_da1_usa')), val_right),
          '', '', '', '',
-         Paragraph(format_currency(summary_data.get('brutto_da1_usa')), val_right), # Starts in Col 3
-         Paragraph(format_currency(summary_data.get('pauschale_da1')), val_right), # Col 4
-         Paragraph(format_currency(summary_data.get('rueckbehalt_usa')), val_right),
+         Paragraph(format_currency_rounded(summary_data.get('brutto_da1_usa')), val_right), # Starts in Col 3
+         Paragraph(format_currency_rounded(summary_data.get('pauschale_da1')), val_right), # Col 4
+         Paragraph(format_currency_rounded(summary_data.get('rueckbehalt_usa')), val_right),
          '',
 ], # Col 5
         # Row 5: Spacer row (6 columns)
@@ -184,13 +217,13 @@ USA"''', val_left)], #
 geltend gemacht wird, sind diese Totalwerte im
 Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
          # Row 7: Total Values (** SHIFTED RIGHT **, Indices 1, 2, 5 blank)
-        [Paragraph(format_currency(summary_data.get('total_steuerwert')), val_right), # Col 0
+        [Paragraph(format_currency_rounded(summary_data.get('total_steuerwert')), val_right), # Col 0
          '',
          '', 
-         Paragraph(format_currency(summary_data.get('total_brutto_mit_vst')), val_right), # Col 3 << SHIFTED
+         Paragraph(format_currency_rounded(summary_data.get('total_brutto_mit_vst')), val_right), # Col 3 << SHIFTED
          '', 
-         Paragraph(format_currency(summary_data.get('total_brutto_ohne_vst')), val_right),# Col 4 << SHIFTED
-         Paragraph(format_currency(summary_data.get('total_brutto_gesamt')), val_right)],   # Col 5 << SHIFTED
+         Paragraph(format_currency_rounded(summary_data.get('total_brutto_ohne_vst')), val_right),# Col 4 << SHIFTED
+         Paragraph(format_currency_rounded(summary_data.get('total_brutto_gesamt')), val_right)],   # Col 5 << SHIFTED
     ]
 
     usable_width = usable_width - 2.5*8 - 8 - 16
@@ -290,8 +323,8 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
 
     # Footnote
     footnote_text = "(1) Davon A {} und B {}".format(
-        format_currency(summary_data.get('steuerwert_a', '')),
-        format_currency(summary_data.get('steuerwert_b', ''))
+        format_currency_rounded(summary_data.get('steuerwert_a', '')),
+        format_currency_rounded(summary_data.get('steuerwert_b', ''))
     )
     footnote = Paragraph(footnote_text, val_left)
     return KeepTogether([summary_table, Spacer(1, 2*mm), footnote])
@@ -321,10 +354,35 @@ def create_liabilities_table(data, styles, usable_width):
     total_debt = Decimal(0); total_interest = Decimal(0)
     for item in data['liabilities']:
         if 'transactions' in item:
-             for trans in item['transactions']: table_data.append([ Paragraph(trans.get('date', ''), val_left), Paragraph(trans.get('description', ''), val_left), Paragraph(item.get('currency', 'CHF'), val_center), Paragraph(format_currency(trans.get('amount')), val_right), '', '', Paragraph(format_currency(trans.get('amount')), val_right) ])
-        table_data.append([ Paragraph(item.get('date', period_end_date), val_left), Paragraph(item.get('description', '').replace('\n', '<br/>'), val_left), Paragraph(item.get('currency', 'CHF'), val_center), Paragraph(format_currency(item.get('amount')), val_right), Paragraph(item.get('rate', ''), val_right), Paragraph(format_currency(item.get('value_chf')), val_right), Paragraph(format_currency(item.get('total_interest')), val_right) ])
+            for trans in item['transactions']:
+                table_data.append([
+                    Paragraph(trans.get('date', ''), val_left),
+                    Paragraph(trans.get('description', ''), val_left),
+                    Paragraph(item.get('currency', 'CHF'), val_center),
+                    Paragraph(format_currency_2dp(trans.get('amount')), val_right),
+                    Paragraph('', val_right),
+                    Paragraph('', val_right),
+                    Paragraph(format_currency_2dp(trans.get('amount')), val_right)
+                ])
+        table_data.append([
+            Paragraph(item.get('date', period_end_date), val_left),
+            Paragraph(item.get('description', '').replace('\n', '<br/>'), val_left),
+            Paragraph(item.get('currency', 'CHF'), val_center),
+            Paragraph(format_currency_2dp(item.get('amount')), val_right),
+            Paragraph(item.get('rate', ''), val_right),
+            Paragraph(format_currency_2dp(item.get('value_chf')), val_right),
+            Paragraph(format_currency_2dp(item.get('total_interest')), val_right)
+        ])
         total_debt += Decimal(str(item.get('value_chf', 0))); total_interest += Decimal(str(item.get('total_interest', 0)))
-    table_data.append([ '', Paragraph('Total Schulden', bold_left), '', '', '', Paragraph(format_currency(total_debt), bold_right), Paragraph(format_currency(total_interest), bold_right) ])
+    table_data.append([
+        Paragraph('', val_left),
+        Paragraph('Total Schulden', bold_left),
+        Paragraph('', val_left),
+        Paragraph('', val_right),
+        Paragraph('', val_right),
+        Paragraph(format_currency_2dp(total_debt), bold_right),
+        Paragraph(format_currency_2dp(total_interest), bold_right)
+    ])
     col_widths = [30*mm, 100*mm, 20*mm, 27*mm, 20*mm, 30*mm, 30*mm]
     liabilities_table = Table(table_data, colWidths=col_widths)
     liabilities_table.setStyle(TableStyle([ ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 1), ('RIGHTPADDING', (0, 0), (-1, -1), 1), ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 1), ('LINEBELOW', (0, 0), (-1, 0), 1, colors.black), ('BOTTOMPADDING', (0, 0), (-1, 0), 3*mm), ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black), ('TOPPADDING', (0, -1), (-1, -1), 3*mm), ]))
@@ -352,8 +410,8 @@ def create_costs_table(data, styles, usable_width):
     period_end_date = data.get('summary', {}).get('period_end_date', '31.12')
     table_data = [ [Paragraph('Bezeichnung', header_left_style), Paragraph('Spesentyp', header_left_style), Paragraph(f'Wert<br/>{period_end_date}<br/>in CHF', header_right_style)] ]
     total_costs = Decimal(0)
-    for item in data['costs']: table_data.append([ Paragraph(item.get('description', ''), val_left), Paragraph(item.get('type', ''), val_left), Paragraph(format_currency(item.get('value_chf')), val_right) ]); total_costs += Decimal(str(item.get('value_chf', 0)))
-    table_data.append([ Paragraph('Total bezahlte Bankspesen', bold_left), '', Paragraph(format_currency(total_costs), bold_right) ])
+    for item in data['costs']: table_data.append([ Paragraph(item.get('description', ''), val_left), Paragraph(item.get('type', ''), val_left), Paragraph(format_currency_2dp(item.get('value_chf')), val_right) ]); total_costs += Decimal(str(item.get('value_chf', 0)))
+    table_data.append([ Paragraph('Total bezahlte Bankspesen', bold_left), Paragraph('', val_left), Paragraph(format_currency_2dp(total_costs), bold_right) ])
     col_widths = [110*mm, 97*mm, 50*mm]
     costs_table = Table(table_data, colWidths=col_widths)
     costs_table.setStyle(TableStyle([ ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('LEFTPADDING', (0, 0), (-1, -1), 1), ('RIGHTPADDING', (0, 0), (-1, -1), 1), ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 1), ('LINEBELOW', (0, 0), (-1, 0), 1, colors.black), ('BOTTOMPADDING', (0, 0), (-1, 0), 3*mm), ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black), ('TOPPADDING', (0, -1), (-1, -1), 3*mm), ]))
@@ -532,7 +590,7 @@ def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxS
         
     
     # Get styles
-    styles = getSampleStyleSheet()
+    styles = get_custom_styles()
     center_style = ParagraphStyle(name='Center', parent=styles['Normal'], alignment=TA_CENTER)
     
     # Scaling for barcodes - each module (pixel) should be 0.4 - 0,42 mm.
@@ -547,8 +605,9 @@ def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxS
     # Process barcodes in groups
     for page_num in range(barcode_pages):
         story.append(PageBreak('barcode'))
-        doc.is_barcode_page = True
-        story.append(Paragraph(f"Barcode Page {page_num + 1} of {barcode_pages}", title_style))
+
+        story.append(DocAssign("section_name", f"'Barcode Seite {page_num + 1} von {barcode_pages}'"))
+        story.append(Paragraph(f"Barcode Seite {page_num + 1} von {barcode_pages}", title_style))
         story.append(Spacer(1, 0.5*cm))
         
         # Calculate start and end indices for this page
@@ -604,6 +663,139 @@ def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxS
         
         story.append(table)
   
+def create_bank_accounts_table(tax_statement, styles, usable_width):
+    """Creates a table displaying bank accounts information as per user specification."""
+    if not tax_statement.listOfBankAccounts or not tax_statement.listOfBankAccounts.bankAccount:
+        return None
+    bank_accounts = tax_statement.listOfBankAccounts.bankAccount
+    period_end_date = tax_statement.periodTo.strftime("%d.%m.%Y") if tax_statement.periodTo else "31.12"
+    year = str(tax_statement.taxPeriod) if tax_statement.taxPeriod else ""
+
+    header_style = styles['Header_RIGHT']
+    header_left = styles['Header_LEFT']
+    val_left = styles['Val_LEFT']
+    val_right = styles['Val_RIGHT']
+    val_center = styles['Val_CENTER']
+    bold_left = styles['Bold_LEFT']
+    bold_right = styles['Bold_RIGHT']
+
+    # Table header as specified
+    table_data = [
+        [
+            Paragraph('Datum', header_left),
+            Paragraph('Bezeichnung<br/>Bankkonto<br/>Zinsen', header_left),
+            Paragraph('Währung', header_style),
+            Paragraph(f'Steuerwert/Ertag<br/>{period_end_date}<br/>in CHF', header_style),
+            Paragraph('Kurs', header_style),
+            Paragraph('<strong>Steuerwert</strong>', header_style),
+            '',
+            Paragraph('<strong>A</strong>', header_style),
+            Paragraph(f'<strong>Bruttoertrag</strong><br/>{year}<br/>mit VSt.', header_style),
+            '',
+            Paragraph('<strong>B</strong>', header_style),
+            Paragraph(f'<strong>Bruttoertrag</strong><br/>{year}<br/>ohne VSt.', header_style),
+        ]
+    ]
+
+    intermediate_total_rows = []
+    current_row = 1  # Start after header
+
+    for account in bank_accounts:
+        table_data.append([
+            '',
+            Paragraph(f"<strong>{account.bankAccountName}</strong><br/> {account.iban or account.bankAccountNumber or ''}", val_left),
+            '',
+            '',
+            '',
+            '',
+            '', '', '', '', '', '',
+        ])
+        current_row += 1
+        # Payment rows
+        for payment in account.payment:
+            table_data.append([
+                Paragraph(payment.paymentDate.strftime("%d.%m.%Y"), val_left) if payment.paymentDate else Paragraph('', val_left),
+                Paragraph(payment.name or '', val_left),
+                Paragraph(payment.amountCurrency or account.bankAccountCurrency or '', val_center),
+                Paragraph(format_currency_2dp(payment.amount), val_right),
+                Paragraph(format_exchange_rate(payment.exchangeRate), val_right),
+                '', 
+                '',
+                '',
+                Paragraph(format_currency(payment.grossRevenueA), val_right),
+                '',
+                '',
+                Paragraph(format_currency(payment.grossRevenueB), val_right),
+            ])
+            current_row += 1
+        if account.closingDate:
+            date_str = account.closingDate.strftime("%d.%m.%Y")
+        elif ( account.taxValue and account.taxValue.referenceDate):
+            date_str = account.taxValue.referenceDate.strftime("%d.%m.%Y")
+        else:
+            date_str = ""
+        if account.taxValue:
+            balance_str = format_currency_2dp(account.taxValue.balance)
+            exchange_rate_str = format_currency_2dp(account.taxValue.exchangeRate)
+            currency_str = account.taxValue.balanceCurrency or account.bankAccountCurrency or ''
+        else:
+            balance_str = ''
+            exchange_rate_str = ''
+            currency_str = ''
+        table_data.append([
+            Paragraph(date_str, val_left),
+            Paragraph('Auflösung / Ertrag' if account.closingDate else 'Steuerwert / Ertrag', bold_left),
+            Paragraph(currency_str, val_center),
+            Paragraph(balance_str, val_right),
+            Paragraph(exchange_rate_str, val_right),
+            Paragraph(format_currency_2dp(account.totalTaxValue), bold_right),
+            '', '', Paragraph(format_currency(account.totalGrossRevenueA), bold_right),
+            '', '', Paragraph(format_currency(account.totalGrossRevenueB), bold_right),
+        ])
+        intermediate_total_rows.append(current_row)
+        current_row += 1
+        # Seperator row after each account
+        table_data.append([])
+        current_row += 1
+
+    # add a final with totals for the list of bank accounts
+    table_data.append([
+        "",
+        Paragraph("Total Bankkonten ", val_left),
+        '',
+        '',
+        '',
+        Paragraph(format_currency_2dp(tax_statement.listOfBankAccounts.totalTaxValue), bold_right),
+        '', '', Paragraph(format_currency(tax_statement.listOfBankAccounts.totalGrossRevenueA), bold_right),
+        '', '', Paragraph(format_currency(tax_statement.listOfBankAccounts.totalGrossRevenueB), bold_right),
+    ])
+
+    # Column widths (adjust as needed for layout)
+    col_widths = [20*mm, 65*mm, 18*mm, 28*mm, 18*mm, 28*mm, 5*mm, 8, 23*mm, 5*mm,  8 , 23*mm]
+    bank_table = Table(table_data, colWidths=col_widths)
+    # --- Table style for header and intermediate totals ---
+    table_style = [
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 1),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 1),
+        ('TOPPADDING', (0, 0), (-1, -1), 1),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+        # First content row
+        ('TOPPADDING', (0, 1), (-1, 1), 3*mm),
+        # Last content row
+        # For now handled by the extra seperator row
+        # ('BOTTOMPADDING', (0, -2), (-1, -2), 3*mm),
+        # Header row background (light grey)
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e0e0e0')),
+        # Finla totals 
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#e0e0e0')),
+    ]
+    # Add even lighter grey background to each intermediate total row (after each account)
+    for idx in intermediate_total_rows:
+        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#f5f5f5')))
+    bank_table.setStyle(TableStyle(table_style))
+    return bank_table
+
 # --- Main API function to be called from steuerauszug.py ---
 def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Path], override_org_nr: Optional[str] = None) -> Path:
     """Render a tax statement to PDF.
@@ -656,17 +848,7 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     doc.company_name = tax_statement.institution.name if tax_statement.institution else ""
     
     # --- Define styles centrally (same as before) ---
-    styles = getSampleStyleSheet()
-    base_style = styles['Normal']
-    base_style.fontSize = 8
-    styles.add(ParagraphStyle(name='Header_LEFT', parent=base_style, alignment=TA_LEFT, fontName='Helvetica'))
-    styles.add(ParagraphStyle(name='Header_CENTER', parent=base_style, alignment=TA_CENTER, fontName='Helvetica'))
-    styles.add(ParagraphStyle(name='Header_RIGHT', parent=base_style, alignment=TA_RIGHT, fontName='Helvetica'))
-    styles.add(ParagraphStyle(name='Val_LEFT', parent=base_style, alignment=TA_LEFT))
-    styles.add(ParagraphStyle(name='Val_RIGHT', parent=base_style, alignment=TA_RIGHT))
-    styles.add(ParagraphStyle(name='Val_CENTER', parent=base_style, alignment=TA_CENTER))
-    styles.add(ParagraphStyle(name='Bold_LEFT', parent=styles['Val_LEFT'], fontName='Helvetica-Bold'))
-    styles.add(ParagraphStyle(name='Bold_RIGHT', parent=styles['Val_RIGHT'], fontName='Helvetica-Bold'))
+    styles = get_custom_styles()
 
     story = []
 
@@ -728,7 +910,15 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
         story.append(summary_table_data)
     
     story.append(Spacer(1, 0.5*cm))
-    
+
+    # --- Bank Accounts Section ---
+    bank_table = create_bank_accounts_table(tax_statement, styles, usable_width)
+    if bank_table:
+        story.append(PageBreak())
+        story.append(Paragraph("Bankkonten", title_style))
+        story.append(bank_table)
+        story.append(Spacer(1, 0.5*cm))
+
     # Add the barcode page
     make_barcode_pages(doc, story, tax_statement, title_style)
     

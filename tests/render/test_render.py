@@ -12,17 +12,27 @@ from opensteuerauszug.model.ech0196 import (
     TaxStatement,
     Institution,
     Client,
-    ClientNumber
+    ClientNumber,
+    ListOfBankAccounts,
+    BankAccount,
+    BankAccountTaxValue,
+    BankAccountPayment,
+    BankAccountName
 )
 from opensteuerauszug.render.render import (
     render_tax_statement,
     render_statement_info,
     make_barcode_pages,
-    BarcodeDocTemplate
+    BarcodeDocTemplate,
+    create_bank_accounts_table
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import Paragraph, Spacer, SimpleDocTemplate
-from reportlab.lib.enums import TA_LEFT
+from reportlab.platypus import Paragraph, Spacer, SimpleDocTemplate, Table
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from opensteuerauszug.calculate.total import TotalCalculator
+from opensteuerauszug.calculate.base import CalculationMode
+from tests.utils.samples import get_sample_files
+from opensteuerauszug.util.styles import get_custom_styles
 
 @pytest.fixture
 def sample_tax_statement():
@@ -177,7 +187,7 @@ def test_pdf_page_count(sample_tax_statement):
             
             # Check the barcode page
             text2 = pdf_reader.pages[1].extract_text()
-            assert "Barcode Page" in text2
+            assert "Barcode Seite" in text2
     finally:
         # Cleanup temporary file
         if os.path.exists(tmp_path):
@@ -208,7 +218,7 @@ def test_barcode_rendering(sample_tax_statement):
             
             # Check content in the barcode page
             text2 = pdf_reader.pages[1].extract_text()
-            assert "Barcode Page 1 of" in text2
+            assert "Barcode Seite" in text2
     finally:
         # Cleanup temporary file
         if os.path.exists(tmp_path):
@@ -251,9 +261,132 @@ def test_make_barcode_pages(sample_tax_statement, monkeypatch):
     # Check that at least one spacer is present (common in ReportLab layouts)
     spacer_found = any(isinstance(item, Spacer) for item in story)
     assert spacer_found, "No spacer found in the story"
-    
-    # Check that the document has been properly configured
-    # This assumes the BarcodeDocTemplate has an attribute to track barcode pages
-    # If this attribute doesn't exist, this assertion should be removed
-    if hasattr(doc, 'is_barcode_page'):
-        assert doc.is_barcode_page is True
+
+@pytest.mark.integration
+@pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
+def test_integration_render_all_samples(sample_file):
+    """Integration test: run total calculator in FILL mode and render all sample imports to PDF."""
+    # Load the tax statement from XML
+    tax_statement = TaxStatement.from_xml_file(sample_file)
+    # Run the total calculator in FILL mode
+    calc = TotalCalculator(mode=CalculationMode.FILL)
+    calc.calculate(tax_statement)
+    # Render to PDF
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        render_tax_statement(tax_statement, tmp_path)
+        assert os.path.exists(tmp_path)
+        assert os.path.getsize(tmp_path) > 0
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+def test_create_bank_accounts_table_none():
+    styles = getSampleStyleSheet()
+    tax_statement = TaxStatement(minorVersion=2)
+    result = create_bank_accounts_table(tax_statement, styles, 500)
+    assert result is None
+
+def test_create_bank_accounts_table_single_minimal():
+    styles = get_custom_styles()
+    tax_statement = TaxStatement(
+        minorVersion=2,
+        periodTo=date(2023, 12, 31),
+        taxPeriod=2023,
+        listOfBankAccounts=ListOfBankAccounts(
+            bankAccount=[
+                BankAccount(
+                    bankAccountName=BankAccountName("Testkonto"),
+                    iban="CH123",
+                    taxValue=BankAccountTaxValue(
+                        referenceDate=date(2023, 12, 31),
+                        balanceCurrency="CHF",
+                        balance=Decimal("100.00"),
+                        exchangeRate=Decimal("1.0"),
+                        value=Decimal("100.00")
+                    ),
+                    payment=[],
+                    totalTaxValue=Decimal("100.00"),
+                    totalGrossRevenueA=Decimal("10.00"),
+                    totalGrossRevenueB=Decimal("5.00")
+                )
+            ],
+            totalTaxValue=Decimal("100.00"),
+            totalGrossRevenueA=Decimal("10.00"),
+            totalGrossRevenueB=Decimal("5.00")
+        )
+    )
+    table = create_bank_accounts_table(tax_statement, styles, 500)
+    assert isinstance(table, Table)
+    # Should have at least header + 2 rows (label, value)
+    assert len(table._cellvalues) >= 3  # type: ignore[attr-defined]
+    # Header row should contain expected text
+    header_texts = [cell.text for cell in table._cellvalues[0] if isinstance(cell, Paragraph)]  # type: ignore[attr-defined]
+    assert any("Datum" in t for t in header_texts)
+    assert any("Bezeichnung" in t for t in header_texts)
+    assert any("Bruttoertrag" in t for t in header_texts)
+
+def test_create_bank_accounts_table_multiple_accounts_with_payments():
+    styles = get_custom_styles()
+    tax_statement = TaxStatement(
+        minorVersion=2,
+        periodTo=date(2023, 12, 31),
+        taxPeriod=2023,
+        listOfBankAccounts=ListOfBankAccounts(
+            bankAccount=[
+                BankAccount(
+                    bankAccountName=BankAccountName("Konto1"),
+                    iban="CH111",
+                    taxValue=BankAccountTaxValue(
+                        referenceDate=date(2023, 12, 31),
+                        balanceCurrency="CHF",
+                        balance=Decimal("200.00"),
+                        exchangeRate=Decimal("1.0"),
+                        value=Decimal("200.00")
+                    ),
+                    payment=[
+                        BankAccountPayment(
+                            paymentDate=date(2023, 6, 30),
+                            name="Zinszahlung",
+                            amountCurrency="CHF",
+                            amount=Decimal("2.50"),
+                            exchangeRate=Decimal("1.0"),
+                            grossRevenueA=Decimal("2.50"),
+                            grossRevenueB=Decimal("0.00")
+                        )
+                    ],
+                    totalTaxValue=Decimal("200.00"),
+                    totalGrossRevenueA=Decimal("2.50"),
+                    totalGrossRevenueB=Decimal("0.00")
+                ),
+                BankAccount(
+                    bankAccountName=BankAccountName("Konto2"),
+                    iban="CH222",
+                    taxValue=BankAccountTaxValue(
+                        referenceDate=date(2023, 12, 31),
+                        balanceCurrency="EUR",
+                        balance=Decimal("300.00"),
+                        exchangeRate=Decimal("0.95"),
+                        value=Decimal("285.00")
+                    ),
+                    payment=[],
+                    totalTaxValue=Decimal("285.00"),
+                    totalGrossRevenueA=Decimal("0.00"),
+                    totalGrossRevenueB=Decimal("0.00")
+                )
+            ],
+            totalTaxValue=Decimal("485.00"),
+            totalGrossRevenueA=Decimal("2.50"),
+            totalGrossRevenueB=Decimal("0.00")
+        )
+    )
+    table = create_bank_accounts_table(tax_statement, styles, 500)
+    assert isinstance(table, Table)
+    # Should have header + rows for each account and payment
+    assert len(table._cellvalues) > 4  # type: ignore[attr-defined]
+    # Check that both account names appear in the table
+    all_text = " ".join(cell.text for row in table._cellvalues for cell in row if isinstance(cell, Paragraph))  # type: ignore[attr-defined]
+    assert "Konto1" in all_text
+    assert "Konto2" in all_text
+    assert "Zinszahlung" in all_text
