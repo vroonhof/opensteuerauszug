@@ -55,6 +55,8 @@ def sample_tax_statement():
             )
         ],
         totalTaxValue=Decimal("1000.50"),
+        svTaxValueA=Decimal("900.00"),
+        svTaxValueB=Decimal("100.50"),
         totalGrossRevenueA=Decimal("100.00"),
         totalGrossRevenueB=Decimal("50.00"),
         totalWithHoldingTaxClaim=Decimal("35.00")
@@ -132,7 +134,7 @@ def test_render_tax_statement_content(sample_tax_statement):
             
             # Verify summary data (we're checking for the values, not exact format)
             # Because the PDF might format these numbers differently
-            assert "1000" in text  # totalTaxValue
+            assert "1'001" in text  # totalTaxValue
             assert "100" in text   # totalGrossRevenueA
             assert "50" in text    # totalGrossRevenueB
             assert "35" in text    # totalWithHoldingTaxClaim

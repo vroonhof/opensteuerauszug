@@ -1134,7 +1134,12 @@ class Security(BaseXmlModel):
     interestRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     variableInterest: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
     bfp: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
-    
+    # Internal totals for rendering
+    totalGrossRevenueA: Optional[Decimal] = Field(default=None, exclude=True)
+    totalGrossRevenueB: Optional[Decimal] = Field(default=None, exclude=True)
+    totalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, exclude=True)
+    totalNonRecoverableTax: Optional[Decimal] = Field(default=None, exclude=True)
+    totalAdditionalWithHoldingTaxUSA: Optional[Decimal] = Field(default=None, exclude=True)
     model_config = {
         "json_schema_extra": {'tag_name': 'security', 'tag_namespace': NS_MAP['eCH-0196']}
     }

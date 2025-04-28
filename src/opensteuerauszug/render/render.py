@@ -31,8 +31,12 @@ from opensteuerauszug.render.onedee import OneDeeBarCode
 # --- Import Organisation helper functions ---
 from opensteuerauszug.core.organisation import compute_org_nr
 
+# --- Import Security type utilities ---
+from opensteuerauszug.core.security import determine_security_type, SecurityType
+
 # --- Import styles utility ---
 from opensteuerauszug.util.styles import get_custom_styles
+from opensteuerauszug.util import round_accounting
 
 # --- Configuration ---
 DOC_INFO = "TODO: Place some compact info here"
@@ -77,12 +81,12 @@ def format_currency_2dp(value: Decimal, default='0.00'):
     except: return default
 
 # For most values we use 2 decimals, or leave blank it None or zero
-def format_currency(value: Decimal, default=''):
+def format_currency(value: Optional[Decimal], default=''):
     """Format currency with 2 decimals, for detail tables."""
     if value is None or value == Decimal(0): return default
     try:
-        decimal_value = Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        formatted = '{:,.2f}'.format(decimal_value).replace(',', "'")
+        decimal_value = round_accounting(value)
+        formatted = '{:,f}'.format(decimal_value).replace(',', "'")
         return formatted
     except: return default
 
@@ -96,6 +100,25 @@ def format_exchange_rate(value: Decimal, default=''):
         return formatted
     except: return default
 
+# For Stock quantities quantize to a shared template, if argument mutation is true
+# then always render a sign in front of the number
+def format_stock_quantity(value: Decimal, mutation: bool = False, template: Decimal = Decimal('0.0000'), default=''):
+    """Format stock quantity with 4 decimals, if mutation is true, render a sign in front of the number."""
+    if value is None or value == Decimal(0): return default
+    decimal_value = Decimal(str(value)).quantize(template, rounding=ROUND_HALF_UP)
+    if mutation:
+        return f"{decimal_value:+,}".replace(',', "'")
+    else:
+        return f"{decimal_value:,}".replace(',', "'")
+    
+# Find the minimal number of decimals required to represent the value
+def find_minimal_decimals(value: Optional[Decimal]):
+    """Find the minimal number of decimals required to represent the value."""
+    if value is None or value == Decimal(0): return 0
+    exponent = value.normalize().as_tuple().exponent
+    if isinstance(exponent, int): return max(0, -exponent)
+    return 4
+
 # --- Header/Footer Drawing Functions (for SimpleDocTemplate) ---
 
 def draw_page_header(canvas, doc, is_barcode_page: bool = False):
@@ -104,7 +127,7 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
     page_width = doc.pagesize[0]
     page_height = doc.pagesize[1]
     canvas.setFont('Helvetica', 9)
-    header_text = "7010001 | 85506710549033 | 8391" # Example header
+    header_text = "TODO: Add header text here" # Example header
     canvas.setFillColor(colors.black)
     header_x = page_width - doc.rightMargin
     header_y = page_height - doc.topMargin + 10*mm # Adjust position as needed
@@ -161,6 +184,11 @@ def create_summary_table(data, styles, usable_width):
 
     steuerwert_a = format_currency_rounded(summary_data.get('steuerwert_a'))
     steuerwert_b = format_currency_rounded(summary_data.get('steuerwert_b'))
+    # Footnote
+    footnote_text = "(1) Davon A {} und B {}".format(
+        format_currency_rounded(summary_data.get('steuerwert_a', '')),
+        format_currency_rounded(summary_data.get('steuerwert_b', ''))
+    )
 
     # --- Data structure based on 6 columns, with Totals shifted ---
     table_data = [
@@ -182,7 +210,8 @@ def create_summary_table(data, styles, usable_width):
          '',
          Paragraph(format_currency_rounded(summary_data.get('brutto_ohne_vst')), val_right),
          Paragraph(format_currency_rounded(summary_data.get('vst_anspruch')), val_right),
-         ''],
+         '',
+         Paragraph(footnote_text, val_left)],
         # Row 2: Spacer row (6 columns)
         ['', '', '', '', '', ''],
          # Row 3: DA-1 Headers (Indices 1 & 2 blank)
@@ -239,7 +268,7 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
                   2*base_col_width, # Col 8: Description / Istrunctions
                   ] 
 
-    row_heights = [15*mm, 6*mm, 2*mm, 15*mm, 6*mm, 2*mm, 15*mm, 6*mm]
+    row_heights = [15*mm, 6*mm, 2*mm, 15*mm, 6*mm, 2*mm, 20*mm, 6*mm]
     summary_table = Table(table_data, colWidths=col_widths, rowHeights=row_heights)
 
     # --- Table Style ---
@@ -253,7 +282,7 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
     ]
     common_valign = ('VALIGN', (0, 0), (-1, -1), 'BOTTOM')
     line_style = (0.7, colors.black)
-    no_line_style = (0, colors.white) # Or use (0.5, colors.white) if background isn't white
+    no_line_style = (0, colors.black) # Or use (0.5, colors.white) if background isn't white
 
     # --- Define spacer row styles ---
     spacer_row_2_style = [
@@ -266,29 +295,49 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
     # --- Define line styles ---
     # Apply lines generally first, then remove where needed
     line_commands = [
-        # Row 0 Headers (A/B) 
-        ('LINEBELOW', (0, 0), (-1, 0), *line_style), # Apply to whole row
-        ('LINEBELOW', (1, 0), (2, 0), *no_line_style), 
-        ('LINEBELOW', (3, 0), (3, 0), *no_line_style),
+        # First row of values
+        ('LINEABOVE', (0, 1), (0, 1), *line_style),
+        ('LINEBELOW', (0, 1), (0, 1), *line_style),
+        ('LINEABOVE', (2, 1), (3, 1), *line_style),
+        ('LINEBELOW', (2, 1), (3, 1), *line_style),
+        ('LINEABOVE', (5, 1), (6, 1), *line_style),
+        ('LINEBELOW', (5, 1), (6, 1), *line_style),
+        # 2nd row of values
+        ('LINEABOVE', (0, 4), (0, 4), *line_style),
+        ('LINEBELOW', (0, 4), (0, 4), *line_style),
+        # No A values for DA-1
+        ('LINEABOVE', (5, 4), (6, 4), *line_style),
+        ('LINEBELOW', (5, 4), (6, 4), *line_style),
+        ('LINEABOVE', (7, 4), (7, 4), *line_style),
+        ('LINEBELOW', (7, 4), (7, 4), *line_style),
+        # Totals
+        ('LINEABOVE', (0, 7), (0, 7), *line_style),
+        ('LINEBELOW', (0, 7), (0, 7), *line_style),
+        ('LINEABOVE', (2, 7), (3, 7), *line_style),
+        ('LINEBELOW', (2, 7), (3, 7), *line_style),
+        ('LINEABOVE', (5, 7), (6, 7), *line_style),
+        ('LINEBELOW', (5, 7), (6, 7), *line_style),
+        # ('LINEBELOW', (1, 0), (2, 0), *no_line_style), 
+        #('LINEBELOW', (3, 0), (3, 0), *no_line_style),
         # Add more ('LINEBELOW', (col_index, 0), (col_index, 0), *no_line_style) for other cols if needed
 
         # Row 3 Headers (DA-1) 
-        ('LINEBELOW', (0, 3), (-1, 3), *line_style), # Apply to whole row
-        ('LINEBELOW', (1, 3), (3, 3), *no_line_style), # Remove from col 1
+        #('LINEBELOW', (0, 3), (-1, 3), *line_style), # Apply to whole row
+        #('LINEBELOW', (1, 3), (3, 3), *no_line_style), # Remove from col 1
 
         # Row 6 Headers (Totals) - Apply line above all, then below specific cols
-        ('LINEABOVE', (0, 6), (-1, 6), *line_style), # Line above all total headers
-        ('LINEBELOW', (0, 6), (-1, 6), *line_style), # Apply below all initially
-        ('LINEBELOW', (1, 6), (2, 6), *no_line_style), # Remove from cols 1, 2
-        ('LINEBELOW', (3, 6), (4, 6), *no_line_style), # Remove from col 3
+        #('LINEABOVE', (0, 6), (-1, 6), *line_style), # Line above all total headers
+        #('LINEBELOW', (0, 6), (-1, 6), *line_style), # Apply below all initially
+        #('LINEBELOW', (1, 6), (2, 6), *no_line_style), # Remove from cols 1, 2
+       # ('LINEBELOW', (3, 6), (4, 6), *no_line_style), # Remove from col 3
         # Footnotes column 
-        ('LINEBELOW', (1, 0), (1, -1), *no_line_style),
+        # ('LINEBELOW', (1, 0), (1, -1), *no_line_style),
         # A column 
-        ('LINEBELOW', (2, 0), (2, -1), *no_line_style),
+        # ('LINEBELOW', (2, 0), (2, -1), *no_line_style),
         # B column 
-        ('LINEBELOW', (4, 0), (4, -1), *no_line_style),
+        #('LINEBELOW', (4, 0), (4, -1), *no_line_style),
         # Description column 
-        ('LINEBELOW', (8, 0), (8, -1), *no_line_style),
+        #('LINEBELOW', (8, 0), (8, -1), *no_line_style),
     ]
 
     # --- Combine all styles ---
@@ -298,36 +347,15 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
         *spacer_row_2_style,
         *spacer_row_5_style,
         *line_commands,
+        ('BACKGROUND', (0, 0), (-1, 5), colors.HexColor('#e0e0e0')),
+
         # ('GRID', (0,0), (-1,-1), 0.2, colors.lightgrey) # Debug grid
     ]
 
     # --- Apply the combined style ---
     summary_table.setStyle(TableStyle(style_commands))
 
-    # --- Explanation ---
-    # How it works:
-    # 1. We define styles for padding, alignment, spacers, and lines separately for clarity.
-    # 2. For rows where you want lines under *most* columns (like rows 0, 3, 6):
-    #    - We first apply 'LINEBELOW' to the entire row using `(0, row_index), (-1, row_index)`.
-    #    - Then, for specific columns where you *don't* want the line, we add another
-    #      'LINEBELOW' command targeting just that cell (or range of cells) but set the
-    #      line width to 0 or the color to match the background (e.g., colors.white).
-    #      This effectively "erases" the line drawn by the previous command for that cell.
-    # 3. This makes adding/removing columns easier:
-    #    - If you add a column and want a line below it in row 0, you don't need to do anything
-    #      if it's not column 2 (as the general rule covers it).
-    #    - If you remove column 3, you just need to adjust the ranges in the "remove" commands
-    #      if necessary (e.g., if column 4 becomes the new column 3).
-    #    - You primarily manage the exceptions (where lines are removed) rather than adding
-    #      individual lines for most columns.
-
-    # Footnote
-    footnote_text = "(1) Davon A {} und B {}".format(
-        format_currency_rounded(summary_data.get('steuerwert_a', '')),
-        format_currency_rounded(summary_data.get('steuerwert_b', ''))
-    )
-    footnote = Paragraph(footnote_text, val_left)
-    return KeepTogether([summary_table, Spacer(1, 2*mm), footnote])
+    return KeepTogether([summary_table, Spacer(1, 2*mm)])
 
 # --- Liabilities Table Function ---
 def create_liabilities_table(data, styles, usable_width):
@@ -494,9 +522,9 @@ def render_statement_info(tax_statement: TaxStatement, story: list, client_info_
         if institution_name:
             story.append(Paragraph(f"<b>Institution:</b> {institution_name}", client_info_style))
     
-    # Period information - these fields are mandatory in the model
-    period_from = tax_statement.periodFrom.strftime("%d.%m.%Y")
-    period_to = tax_statement.periodTo.strftime("%d.%m.%Y")
+    # Period information with safe date handling
+    period_from = tax_statement.periodFrom.strftime("%d.%m.%Y") if tax_statement.periodFrom else ""
+    period_to = tax_statement.periodTo.strftime("%d.%m.%Y") if tax_statement.periodTo else ""
     
     # Tax period is mandatory
     story.append(Paragraph(f"<b>Steuerjahr:</b> {tax_statement.taxPeriod}", client_info_style))
@@ -796,6 +824,243 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
     bank_table.setStyle(TableStyle(table_style))
     return bank_table
 
+# --- Securities/Depots Table Function ---
+def create_securities_table(tax_statement, styles, usable_width, security_type: SecurityType):
+    """
+    Creates a table displaying securities information filtered by security type.
+    
+    Args:
+        tax_statement: The tax statement containing securities data
+        styles: Dictionary of text styles
+        usable_width: Available width for the table
+        security_type: Type of securities to include ("A", "B", or "DA1")
+        
+    Returns:
+        A Table object with the filtered securities or None if no matching securities
+    """
+    if not tax_statement.listOfSecurities or not tax_statement.listOfSecurities.depot:
+        return None
+    depots = tax_statement.listOfSecurities.depot
+    period_end_date = tax_statement.periodTo.strftime("%d.%m.%Y") if tax_statement.periodTo else "31.12.2024"
+    year = str(tax_statement.taxPeriod) if tax_statement.taxPeriod else "2024"
+
+    header_style = styles['Header_RIGHT']
+    header_left = styles['Header_LEFT']
+    val_left = styles['Val_LEFT']
+    val_right = styles['Val_RIGHT']
+    val_center = styles['Val_CENTER']
+    bold_left = styles['Bold_LEFT']
+    bold_right = styles['Bold_RIGHT']
+
+    # Table header with security type in the title
+    type_label = {"A": "mit VSt.-Abzug", "B": "ohne VSt.-Abzug", "DA1": "DA-1 und USA-Werte"}
+    
+    table_header = [
+        Paragraph('Valoren-Nr<br/>Datum', header_left),
+        Paragraph('Depot-Nr<br/>Bezeichnung<br/>ISIN', header_left),
+        Paragraph('Anzahl<br/>Nominal', header_style),
+        Paragraph('Währung<br/>Land', header_style),
+        Paragraph('Stückpreis<br/>Ertrag', header_style),
+        Paragraph('ExDatum', header_style),
+        Paragraph('Kurs', header_style),
+        Paragraph(f'Steuerwert {period_end_date}<br/>in CHF', header_style),
+        Paragraph('A', header_style),
+        Paragraph(f'Bruttoertrag {year}<br/>mit VSt.in CHF', header_style),
+        Paragraph('B', header_style),
+        Paragraph(f'Bruttoertrag {year}<br/>ohne VSt.in CHF', header_style),
+        Paragraph('Anrechenbare ausl. Quellensteuer<br/> in CHF', header_style),
+        Paragraph('Steuerrückbehalt USA<br/> in CHF', header_style),
+    ]
+    
+    col_widths = [18*mm, 50*mm, 16*mm, 18*mm, 18*mm, 18*mm, 18*mm, 22*mm, 8, 22*mm, 8, 22*mm, 25*mm, 25*mm]
+    col_widths = [1.0*w for w in col_widths]
+    assert len(col_widths) == len(table_header)
+    # Hide columns not used in this table
+    if security_type != "DA1":
+        col_widths[-1] = 0
+        col_widths[-2] = 0
+    else:
+        col_widths[-4] = 0 # A
+        col_widths[-5] = 0  # Ertrag mit VSt.
+        col_widths[-6] = 0  # B
+    assert sum(col_widths) < usable_width
+    
+    # Collect securities of the specified type
+    filtered_securities = []
+    for depot in depots:
+        for security in depot.security:
+            if determine_security_type(security) == security_type:
+                filtered_securities.append((depot, security))
+    
+    # Return None if no matching securities
+    if not filtered_securities:
+        return None
+
+    table_data = []
+    intermediate_total_rows = []
+    current_row = 1  # Start after header
+
+    
+    for depot, security in filtered_securities:
+        # Description/header row for the security
+        if security.country != "CH" and security.country != None:
+            cur_country = f"{security.currency or ''}<br/>{security.country}"
+        else:
+            cur_country = security.currency
+        table_data.append([
+            Paragraph(f"{security.valorNumber or ''}", bold_left),
+            Paragraph(f"<strong>{security.securityName or ''}</strong><br/>{security.isin or ''}", val_left),
+            Paragraph('', val_right),
+            Paragraph(cur_country, val_right),
+            Paragraph('', val_right),
+            Paragraph('', val_right),
+            Paragraph('', val_left),
+            Paragraph('', val_right),
+            Paragraph('', val_right),
+            Paragraph('', val_right),
+            Paragraph('', val_right),
+            Paragraph('', val_right),
+        ])
+        current_row += 1
+        # Collect all payments and stock entries, sort by date
+        entries = []
+        precision = find_minimal_decimals(security.nominalValue)
+        if getattr(security, 'payment', None):
+            for payment in security.payment:
+                entries.append(('payment', payment.paymentDate, payment))
+                precision = max(precision, find_minimal_decimals(payment.quantity))
+        if getattr(security, 'stock', None):
+            for stock in security.stock:
+                entries.append(('stock', stock.referenceDate, stock))
+                precision = max(precision, find_minimal_decimals(stock.quantity))
+        if precision > 0:
+            stock_quantity_template = Decimal('0.' + '0' * precision)
+        else:
+            stock_quantity_template = Decimal('0')
+        entries.sort(key=lambda x: x[1] or '')
+        
+        # Render each entry
+        for entry_type, entry_date, entry in entries:
+            if entry_type == 'payment':
+                table_data.append([
+                    Paragraph(entry.paymentDate.strftime("%d.%m.%Y") if entry.paymentDate else '', val_left),
+                    Paragraph(entry.name or '', val_left),
+                    Paragraph(format_stock_quantity(entry.quantity, False, stock_quantity_template), val_right),
+                    Paragraph(entry.amountCurrency or '', val_right),
+                    Paragraph(format_currency(entry.amount) if getattr(entry, 'amount', None) else '', val_right),
+                    Paragraph(entry.exDate.strftime("%d.%m") if getattr(entry, 'exDate', None) else '', val_right),
+                    Paragraph(format_exchange_rate(entry.exchangeRate) if getattr(entry, 'exchangeRate', None) else '', val_right),
+                    Paragraph('', val_right),
+                    '',
+                    Paragraph(format_currency_2dp(entry.grossRevenueA) if getattr(entry, 'grossRevenueA', None) else '', val_right),
+                    '',
+                    Paragraph(format_currency_2dp(entry.grossRevenueB) if getattr(entry, 'grossRevenueB', None) else '', val_right),
+                    Paragraph(format_currency_2dp(entry.nonRecoverableTaxAmount), val_right),
+                    Paragraph(format_currency_2dp(entry.additionalWithHoldingTaxUSA), val_right),
+                ])
+            elif entry_type == 'stock':
+                if entry.quotationType != 'PIECE':
+                    raise NotImplementedError("Cannot render stock type")
+                if entry.mutation:
+                    name = entry.name
+                else:
+                    name = "Bestand"
+                table_data.append([
+                    Paragraph(entry.referenceDate.strftime("%d.%m.%Y") if entry.referenceDate else '', val_left),
+                    Paragraph(name, val_left),
+                    Paragraph(format_stock_quantity(entry.quantity, entry.mutation, stock_quantity_template), val_right),
+                    Paragraph(entry.balanceCurrency if entry.unitPrice else '', val_right),
+                    # TODO: What should the resolution of unit price be? UK stocks can have fractions of a penny
+                    Paragraph(format_currency(entry.unitPrice) if getattr(entry, 'unitPrice', None) else '', val_right),
+                    Paragraph('', val_left),
+                    Paragraph(format_exchange_rate(entry.exchangeRate) if getattr(entry, 'exchangeRate', None) else '', val_right),
+                    Paragraph(format_currency_2dp(entry.value) if getattr(entry, 'value', None) else '', val_right),
+                    Paragraph('', val_right),
+                    Paragraph('', val_right),
+                    Paragraph('', val_right),
+                    Paragraph('', val_right),
+                    '',
+                    ''
+                ])
+            current_row += 1
+            
+        # Subtotal row for the security
+        tax_value = security.taxValue
+        if tax_value and tax_value.referenceDate:
+            date_str = tax_value.referenceDate.strftime("%d.%m.%Y")
+        else:
+            date_str = ""
+        table_data.append([
+            Paragraph(date_str, bold_left),
+            Paragraph('Bestand / Steuerwert / Ertrag', bold_left),
+            Paragraph(format_stock_quantity(tax_value.quantity, False, stock_quantity_template) if tax_value else '', val_right),
+            Paragraph(tax_value.balanceCurrency or '' if tax_value else '', val_right),
+            Paragraph(format_currency(tax_value.unitPrice) if tax_value and getattr(tax_value, 'unitPrice', None) else '', val_right),
+            Paragraph('', val_left),
+            Paragraph('', val_right),
+            Paragraph(format_currency_2dp(tax_value.value) if tax_value and getattr(tax_value, 'value', None) else '', bold_right),
+            '',
+            Paragraph(format_currency(security.totalGrossRevenueA), bold_right),
+            '',
+            Paragraph(format_currency(security.totalGrossRevenueB), bold_right),
+            Paragraph(format_currency(security.totalNonRecoverableTax), val_right),
+            Paragraph(format_currency(security.totalAdditionalWithHoldingTaxUSA), val_right),
+        ])
+        intermediate_total_rows.append(current_row)
+        current_row += 1
+        # Separator row
+        table_data.append([Paragraph('')]*len(table_header))
+        current_row += 1
+
+    # TOOD read pre-submmed totals from the model
+    if security_type == "A":
+        total_tax_value = tax_statement.svTaxValueA
+        total_gross_revenueA = tax_statement.svGrossRevenueA
+        total_gross_revenueB = None
+    elif security_type == "B":
+        total_tax_value = tax_statement.svTaxValueB
+        total_gross_revenueA = None
+        total_gross_revenueB = tax_statement.svGrossRevenueB
+    elif security_type == "DA1":
+        total_tax_value = tax_statement.da1TaxValue
+        total_gross_revenueA = None
+        total_gross_revenueB = tax_statement.da_GrossRevenue
+    # Add a total row
+    table_data.append([
+        Paragraph('', val_left),
+        Paragraph(f'Total {security_type}-Werte', bold_left),
+        Paragraph('', val_right),
+        Paragraph('', val_center),
+        Paragraph('', val_right),
+        Paragraph('', val_left),
+        Paragraph('', val_right),
+        Paragraph(format_currency_2dp(total_tax_value), bold_right),
+        '',
+        Paragraph(format_currency(total_gross_revenueA), bold_right),
+        '',
+        Paragraph(format_currency(total_gross_revenueB), bold_right),
+        Paragraph(format_currency(tax_statement.listOfSecurities.totalNonRecoverableTax), bold_right),
+        Paragraph(format_currency(tax_statement.listOfSecurities.totalAdditionalWithHoldingTaxUSA), bold_right),
+    ])
+    intermediate_total_rows.append(current_row)
+    current_row += 1
+
+    # Table style
+    table_style = [
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 1),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 1),
+        ('TOPPADDING', (0, 0), (-1, -1), 1),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+        ('TOPPADDING', (0, -2), (-1, -2), 3*mm),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e0e0e0')),
+    ]
+    for idx in intermediate_total_rows:
+        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#f5f5f5')))
+    securities_table = Table([table_header] + table_data, colWidths=col_widths, repeatRows=1, splitByRow=1)
+    securities_table.setStyle(TableStyle(table_style))
+    return securities_table
+
 # --- Main API function to be called from steuerauszug.py ---
 def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Path], override_org_nr: Optional[str] = None) -> Path:
     """Render a tax statement to PDF.
@@ -868,7 +1133,10 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     tax_period = str(tax_statement.taxPeriod)
     
     # Format period end date - periodTo is mandatory in the model
-    period_end_date = tax_statement.periodTo.strftime("%d.%m.%Y")
+    if tax_statement.periodTo:
+        period_end_date = tax_statement.periodTo.strftime("%d.%m.%Y")
+    else:
+        raise ValueError("PeriodTo is mandatory in the model")
     
     # Calculate total gross revenue if not already set
     if tax_statement.total_brutto_gesamt is None:
@@ -917,6 +1185,30 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
         story.append(PageBreak())
         story.append(Paragraph("Bankkonten", title_style))
         story.append(bank_table)
+        story.append(Spacer(1, 0.5*cm))
+
+    # --- Securities/Depots Section for Type A ---
+    securities_table_a = create_securities_table(tax_statement, styles, usable_width, "A")
+    if securities_table_a:
+        story.append(PageBreak())
+        story.append(Paragraph("Wertschriften A-Werte (mit VSt.-Abzug)", title_style))
+        story.append(securities_table_a)
+        story.append(Spacer(1, 0.5*cm))
+    
+    # --- Securities/Depots Section for Type B ---
+    securities_table_b = create_securities_table(tax_statement, styles, usable_width, "B")
+    if securities_table_b:
+        story.append(PageBreak())
+        story.append(Paragraph("Wertschriften B-Werte (ohne VSt.-Abzug)", title_style))
+        story.append(securities_table_b)
+        story.append(Spacer(1, 0.5*cm))
+    
+    # --- Securities/Depots Section for Type DA1 ---
+    securities_table_da1 = create_securities_table(tax_statement, styles, usable_width, "DA1")
+    if securities_table_da1:
+        story.append(PageBreak())
+        story.append(Paragraph("Wertschriften DA-1 und USA-Werte", title_style))
+        story.append(securities_table_da1)
         story.append(Spacer(1, 0.5*cm))
 
     # Add the barcode page

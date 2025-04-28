@@ -123,6 +123,7 @@ class TotalCalculator(BaseCalculator):
                             sec_withholding = Decimal('0')
                             sec_lump_sum_tax_credit = Decimal('0')
                             sec_additional_withholding_tax_usa = Decimal('0')
+                            sec_non_recoverable_tax = Decimal('0')
 
                             if security.taxValue and security.taxValue.value is not None:
                                 sec_tax_value = security.taxValue.value
@@ -146,7 +147,7 @@ class TotalCalculator(BaseCalculator):
                                         sec_additional_withholding_tax_usa += payment.additionalWithHoldingTaxUSA
 
                                     if payment.nonRecoverableTaxAmount is not None:
-                                        list_non_recoverable_tax += payment.nonRecoverableTaxAmount
+                                        sec_non_recoverable_tax += payment.nonRecoverableTaxAmount
                             
                                     # For all unsupported fields raise an exception
                                     unsupported_fields = [
@@ -157,7 +158,13 @@ class TotalCalculator(BaseCalculator):
                                     for field in unsupported_fields:
                                         if hasattr(payment, field) and not (getattr(payment, field) in  [None, Decimal('0')]):
                                             raise NotImplementedError(f"Field '{field}' with value '{getattr(payment, field)}'' is not supported yet in {path}.payment")
-
+                                # Set the security totals for use rendering
+                                if self.mode == CalculationMode.FILL or self.mode == CalculationMode.OVERWRITE:                                   
+                                    security.totalGrossRevenueA = round_accounting(sec_revenue_a)
+                                    security.totalGrossRevenueB = round_accounting(sec_revenue_b)
+                                    security.totalWithHoldingTaxClaim = round_accounting(sec_withholding)
+                                    security.totalNonRecoverableTax = round_accounting(sec_non_recoverable_tax)
+                                    security.totalAdditionalWithHoldingTaxUSA = round_accounting(sec_additional_withholding_tax_usa)
                             # Accumulate depot totals using rounded security totals
                             list_tax_value += sec_tax_value
                             list_revenue_a += sec_revenue_a
@@ -165,6 +172,7 @@ class TotalCalculator(BaseCalculator):
                             list_withholding += sec_withholding
                             list_lump_sum_tax_credit += sec_lump_sum_tax_credit
                             list_additional_withholding_tax_usa += sec_additional_withholding_tax_usa
+                            list_non_recoverable_tax += sec_non_recoverable_tax
 
                             # Split WV and DA1 tax values
                             if sec_lump_sum_tax_credit > 0 or sec_additional_withholding_tax_usa > 0:
