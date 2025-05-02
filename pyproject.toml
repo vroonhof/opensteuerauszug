@@ -65,3 +65,6 @@ testpaths = ["tests"]
 pythonpath = ["."]
 python_files = ["test_*.py"]
 addopts = "-v --cov=opensteuerauszug --cov-report=term-missing" 
+markers = [
+    "integration: marks tests as integration tests",
+]
