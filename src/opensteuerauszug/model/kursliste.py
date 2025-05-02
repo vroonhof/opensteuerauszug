@@ -214,7 +214,7 @@ class KurslisteMetadata(PydanticXmlModel, tag="metadata"):
 # Define the namespace URI
 KURSLISTE_NS = "http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste"
 
-class Kursliste(PydanticXmlModel, tag="kursliste", ns=KURSLISTE_NS):
+class Kursliste(PydanticXmlModel, tag="kursliste"):
     """
     Model for the Swiss "Kursliste" (price list).
     
