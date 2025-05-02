@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from opensteuerauszug.model.kursliste import KurslisteManager
+from opensteuerauszug.core.kursliste_manager import KurslisteManager
 
 
 @pytest.fixture

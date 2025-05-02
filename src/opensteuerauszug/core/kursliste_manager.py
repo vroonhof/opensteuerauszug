@@ -6,6 +6,8 @@ for different tax years.
 """
 
 import os
+import datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -83,3 +85,36 @@ class KurslisteManager:
             List of available tax years, sorted
         """
         return sorted(self.kurslisten.keys())
+        
+    def get_security_price(self, tax_year: int, isin: str, date: Optional[datetime.date] = None) -> Optional[Decimal]:
+        """
+        Get the price of a security for a specific tax year and ISIN.
+        
+        Args:
+            tax_year: The tax year to retrieve the price for
+            isin: The ISIN of the security
+            date: Optional specific date to get price for, defaults to latest available
+            
+        Returns:
+            Price in CHF if available, otherwise None
+        """
+        # Get all Kurslisten for the specified year
+        kurslisten = self.get_kurslisten_for_year(tax_year)
+        if not kurslisten:
+            return None
+            
+        # Look for the security in all Kurslisten
+        for kursliste in kurslisten:
+            security = kursliste.get_security_by_isin(isin)
+            if security and security.prices:
+                # If a specific date is requested, try to get that price
+                if date:
+                    price_info = kursliste.get_price_at_date(security, date)
+                    if price_info:
+                        # Return price in CHF if available, otherwise the original price
+                        return price_info.priceInCHF or price_info.price
+                # Otherwise return the most recent price
+                latest_price = max(security.prices, key=lambda p: p.date)
+                return latest_price.priceInCHF or latest_price.price
+                
+        return None
