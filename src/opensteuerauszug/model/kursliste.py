@@ -116,7 +116,7 @@ class SecurityPrice(BaseModel):
     
     date: date = Field(..., description="Date of the price")
     price: Decimal = Field(..., description="Price value", ge=0)
-    currency_code: Currency = Field(..., description="Currency of the price", alias="currency")
+    currency_code: Currency = Field(..., description="Currency of the price")
     priceType: PriceType = Field(..., description="Type of price")
     source: PriceSource = Field(..., description="Source of the price information")
     exchangeRate: Optional[Decimal] = Field(
