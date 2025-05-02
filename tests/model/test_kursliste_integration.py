@@ -29,14 +29,50 @@ def kursliste_dir() -> Path:
     return kursliste_dir
 
 
-def test_kursliste_manager_loads_directory(kursliste_dir: Path):
+def test_kursliste_manager_loads_directory(kursliste_dir: Path, tmp_path: Path):
     """Test that KurslisteManager can load files from the kursliste directory."""
     # Count XML files in the directory
     xml_files = list(kursliste_dir.glob("*.xml"))
     
-    # Skip test if no XML files found
+    # If no XML files found, create a test file
     if not xml_files:
-        pytest.skip(f"No XML files found in {kursliste_dir}")
+        # Create a test directory if needed
+        test_dir = tmp_path / "test_kursliste"
+        test_dir.mkdir(exist_ok=True)
+        
+        # Create a simple test XML file
+        test_file = test_dir / "test_kursliste_2023.xml"
+        test_file.write_text("""<?xml version="1.0" encoding="UTF-8"?>
+<kursliste>
+  <metadata>
+    <issuer>Test Bank</issuer>
+    <issueDate>2023-12-31</issueDate>
+    <validForTaxYear>2023</validForTaxYear>
+    <version>1.0</version>
+  </metadata>
+  <securities>
+    <security>
+      <name>Test Security</name>
+      <identifiers>
+        <valorNumber>12345678</valorNumber>
+        <isin>CH0123456789</isin>
+      </identifiers>
+      <category>SHARE</category>
+      <prices>
+        <price>
+          <date>2023-12-31</date>
+          <value>100.00</value>
+          <currencyCode>CHF</currencyCode>
+          <priceType>CLOSING</priceType>
+          <source>OTHER</source>
+        </price>
+      </prices>
+    </security>
+  </securities>
+</kursliste>
+""")
+        kursliste_dir = test_dir
+        xml_files = [test_file]
     
     # Create manager and load directory
     manager = KurslisteManager()
