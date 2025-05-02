@@ -221,9 +221,10 @@ class Kursliste(PydanticXmlModel, tag="kursliste", ns=KURSLISTE_NS):
     The Kursliste contains security prices used for tax purposes.
     """
     
-    metadata: KurslisteMetadata = element()
+    metadata: KurslisteMetadata = element(ns=KURSLISTE_NS)
     securities: List[KurslisteSecurity] = element(
         tag="securities",
+        ns=KURSLISTE_NS,
         default_factory=list,
         description="List of securities with their prices"
     )
