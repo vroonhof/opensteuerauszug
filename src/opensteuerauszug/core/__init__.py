@@ -10,9 +10,12 @@ from opensteuerauszug.core.security import (
     SecurityType
 )
 
+from opensteuerauszug.core.kursliste_manager import KurslisteManager
+
 __all__ = [
     'compute_org_nr',
     'hash_organization_name',
     'determine_security_type',
     'SecurityType',
+    'KurslisteManager',
 ] 
