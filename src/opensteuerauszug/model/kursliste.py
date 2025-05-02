@@ -7,7 +7,7 @@ to report security prices for tax purposes.
 
 import os
 import xml.etree.ElementTree as ET
-from datetime import date
+import datetime
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
@@ -112,12 +112,12 @@ class SecurityIdentifier(BaseModel):
 
 
 class SecurityPrice(BaseModel):
-    """Price information for a security at a specific date."""
+    """Price information for a security at a specific datetime.date."""
     
-    date: date = Field(..., description="Date of the price")
+    date: datetime.date = Field(..., description="Date of the price")
     price: Decimal = Field(..., description="Price value", ge=0)
     currency_code: Currency = Field(..., description="Currency of the price")
-    priceType: PriceType = Field(..., description="Type of price")
+    price_type: PriceType = Field(..., description="Type of price", alias="priceType")
     source: PriceSource = Field(..., description="Source of the price information")
     exchangeRate: Optional[Decimal] = Field(
         None, 
@@ -180,7 +180,7 @@ class KurslisteMetadata(BaseModel):
         ..., 
         description="Issuing institution"
     )
-    issueDate: date = Field(
+    issueDate: datetime.date = Field(
         ..., 
         description="Date when the Kursliste was issued"
     )
@@ -234,10 +234,10 @@ class Kursliste(BaseModel):
                 return security
         return None
     
-    def get_price_at_date(self, security: KurslisteSecurity, target_date: date) -> Optional[SecurityPrice]:
+    def get_price_at_date(self, security: KurslisteSecurity, target_date: datetime.date) -> Optional[SecurityPrice]:
         """
-        Get the price closest to the target date, preferring earlier dates.
-        Returns None if no price is available before or on the target date.
+        Get the price closest to the target datetime.date, preferring earlier datetime.dates.
+        Returns None if no price is available before or on the target datetime.date.
         """
         valid_prices = [p for p in security.prices if p.date <= target_date]
         if not valid_prices:
@@ -293,32 +293,8 @@ class KurslisteManager:
         """
         # This is a placeholder for actual XML parsing logic
         # In a real implementation, this would parse the XML into the Kursliste model
+        raise NotImplementedError("XML parsing not implemented")
         
-        # For now, we'll create a simple Kursliste with metadata from the filename
-        filename = file_path.stem
-        parts = filename.split('_')
-        
-        # Extract year from filename (assuming format like "kursliste_2023_...")
-        year = None
-        for part in parts:
-            if part.isdigit() and len(part) == 4 and 1900 <= int(part) <= 2100:
-                year = int(part)
-                break
-        
-        if year is None:
-            # Default to current year if we can't extract from filename
-            year = date.today().year
-        
-        # Create a basic Kursliste with metadata
-        return Kursliste(
-            metadata=KurslisteMetadata(
-                issuer="Extracted from " + file_path.name,
-                issueDate=date.today(),
-                validForTaxYear=year
-            ),
-            securities=[]
-        )
-    
     def get_kurslisten_for_year(self, tax_year: int) -> List[Kursliste]:
         """
         Get all Kursliste instances for a specific tax year.
@@ -331,47 +307,6 @@ class KurslisteManager:
         """
         return self.kurslisten.get(tax_year, [])
     
-    def get_security_price(self, 
-                          tax_year: int, 
-                          isin: Optional[str] = None,
-                          valor: Optional[str] = None,
-                          price_date: Optional[date] = None) -> Optional[SecurityPrice]:
-        """
-        Find a security price across all Kurslisten for a given year.
-        
-        Args:
-            tax_year: Tax year to search in
-            isin: ISIN of the security (optional)
-            valor: Valor number of the security (optional)
-            price_date: Date for which to get the price (defaults to Dec 31 of tax year)
-            
-        Returns:
-            SecurityPrice if found, None otherwise
-        """
-        if isin is None and valor is None:
-            raise ValueError("Either ISIN or valor must be provided")
-        
-        # Default to December 31st of the tax year if no date provided
-        if price_date is None:
-            price_date = date(tax_year, 12, 31)
-        
-        kurslisten = self.get_kurslisten_for_year(tax_year)
-        
-        for kursliste in kurslisten:
-            security = None
-            
-            if isin is not None:
-                security = kursliste.get_security_by_isin(isin)
-            
-            if security is None and valor is not None:
-                security = kursliste.get_security_by_valor(valor)
-            
-            if security is not None:
-                price = kursliste.get_price_at_date(security, price_date)
-                if price is not None:
-                    return price
-        
-        return None
     
     def get_available_years(self) -> List[int]:
         """
