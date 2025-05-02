@@ -226,12 +226,6 @@ class Kursliste(BaseModel):
                 return security
         return None
     
-    def get_latest_price(self, security: KurslisteSecurity) -> Optional[SecurityPrice]:
-        """Get the latest price for a security."""
-        if not security.prices:
-            return None
-        return max(security.prices, key=lambda p: p.date)
-    
     def get_price_at_date(self, security: KurslisteSecurity, target_date: date) -> Optional[SecurityPrice]:
         """
         Get the price closest to the target date, preferring earlier dates.
