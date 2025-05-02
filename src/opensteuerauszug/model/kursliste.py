@@ -116,7 +116,7 @@ class SecurityPrice(BaseModel):
     
     date: date = Field(..., description="Date of the price")
     price: Decimal = Field(..., description="Price value", ge=0)
-    currency: Currency = Field(..., description="Currency of the price")
+    currency_code: Currency = Field(..., description="Currency of the price", alias="currency")
     priceType: PriceType = Field(..., description="Type of price")
     source: PriceSource = Field(..., description="Source of the price information")
     exchangeRate: Optional[Decimal] = Field(
@@ -150,18 +150,20 @@ class KurslisteSecurity(BaseModel):
         ..., 
         description="Category of the security"
     )
-    type: Optional[SecurityType] = Field(
+    security_type: Optional[SecurityType] = Field(
         None, 
-        description="Type of the security"
+        description="Type of the security",
+        alias="type"
     )
     nominalValue: Optional[Decimal] = Field(
         None, 
         description="Nominal value of the security",
         ge=0
     )
-    nominalCurrency: Optional[Currency] = Field(
+    nominal_currency_code: Optional[Currency] = Field(
         None, 
-        description="Currency of the nominal value"
+        description="Currency of the nominal value",
+        alias="nominalCurrency"
     )
     prices: List[SecurityPrice] = Field(
         default_factory=list,
