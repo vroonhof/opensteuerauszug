@@ -152,8 +152,7 @@ class KurslisteSecurity(BaseModel):
     )
     security_type: Optional[SecurityType] = Field(
         None, 
-        description="Type of the security",
-        alias="type"
+        description="Type of the security"
     )
     nominalValue: Optional[Decimal] = Field(
         None, 
@@ -162,8 +161,7 @@ class KurslisteSecurity(BaseModel):
     )
     nominal_currency_code: Optional[Currency] = Field(
         None, 
-        description="Currency of the nominal value",
-        alias="nominalCurrency"
+        description="Currency of the nominal value"
     )
     prices: List[SecurityPrice] = Field(
         default_factory=list,
