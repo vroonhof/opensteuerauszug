@@ -106,8 +106,9 @@ class SecurityIdentifier(BaseModel):
         pattern=r"^[A-Z0-9]{6}$"
     )
     
-    class Config:
-        validate_assignment = True
+    model_config = {
+        "validate_assignment": True
+    }
 
 
 class SecurityPrice(BaseModel):
@@ -129,8 +130,9 @@ class SecurityPrice(BaseModel):
         ge=0
     )
     
-    class Config:
-        validate_assignment = True
+    model_config = {
+        "validate_assignment": True
+    }
 
 
 class KurslisteSecurity(BaseModel):
@@ -166,8 +168,9 @@ class KurslisteSecurity(BaseModel):
         description="Historical prices for the security"
     )
     
-    class Config:
-        validate_assignment = True
+    model_config = {
+        "validate_assignment": True
+    }
 
 
 class KurslisteMetadata(BaseModel):
@@ -192,8 +195,9 @@ class KurslisteMetadata(BaseModel):
         description="Version of the Kursliste format"
     )
     
-    class Config:
-        validate_assignment = True
+    model_config = {
+        "validate_assignment": True
+    }
 
 
 class Kursliste(BaseModel):
@@ -212,8 +216,9 @@ class Kursliste(BaseModel):
         description="List of securities with their prices"
     )
     
-    class Config:
-        validate_assignment = True
+    model_config = {
+        "validate_assignment": True
+    }
     
     def get_security_by_isin(self, isin: str) -> Optional[KurslisteSecurity]:
         """Get a security by its ISIN."""
