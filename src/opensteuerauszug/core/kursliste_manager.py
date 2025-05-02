@@ -60,75 +60,12 @@ class KurslisteManager:
         Returns:
             Parsed Kursliste object
         """
-        import xml.etree.ElementTree as ET
-        
-        # Parse the XML file
-        tree = ET.parse(file_path)
-        root = tree.getroot()
-        
-        # Extract metadata
-        metadata_elem = root.find("metadata")
-        if metadata_elem is None:
-            raise ValueError(f"Missing metadata element in {file_path}")
-        
-        metadata = KurslisteMetadata(
-            issuer=metadata_elem.findtext("issuer", "Unknown"),
-            issueDate=datetime.date.fromisoformat(metadata_elem.findtext("issueDate", datetime.date.today().isoformat())),
-            validForTaxYear=int(metadata_elem.findtext("validForTaxYear", "2023")),
-            version=metadata_elem.findtext("version", "1.0")
-        )
-        
-        # Create Kursliste object
-        kursliste = Kursliste(metadata=metadata)
-        
-        # Extract securities
-        securities_elem = root.find("securities")
-        if securities_elem is not None:
-            for security_elem in securities_elem.findall("security"):
-                # Extract security identifiers
-                identifiers_elem = security_elem.find("identifiers")
-                if identifiers_elem is None:
-                    continue
-                
-                identifiers = SecurityIdentifier(
-                    valorNumber=identifiers_elem.findtext("valorNumber"),
-                    isin=identifiers_elem.findtext("isin"),
-                    ticker=identifiers_elem.findtext("ticker"),
-                    cusip=identifiers_elem.findtext("cusip"),
-                    sedol=identifiers_elem.findtext("sedol"),
-                    wkn=identifiers_elem.findtext("wkn")
-                )
-                
-                # Create security object
-                security = KurslisteSecurity(
-                    name=security_elem.findtext("name", "Unknown Security"),
-                    identifiers=identifiers,
-                    category=security_elem.findtext("category", "OTHER"),
-                    security_type=security_elem.findtext("securityType")
-                )
-                
-                # Extract prices
-                prices_elem = security_elem.find("prices")
-                if prices_elem is not None:
-                    for price_elem in prices_elem.findall("price"):
-                        try:
-                            price = SecurityPrice(
-                                date=datetime.date.fromisoformat(price_elem.findtext("date", datetime.date.today().isoformat())),
-                                price=Decimal(price_elem.findtext("value", "0")),
-                                currency_code=price_elem.findtext("currencyCode", "CHF"),
-                                price_type=price_elem.findtext("priceType", "CLOSING"),
-                                source=price_elem.findtext("source", "OTHER"),
-                                exchangeRate=Decimal(price_elem.findtext("exchangeRate", "0")) if price_elem.findtext("exchangeRate") else None,
-                                priceInCHF=Decimal(price_elem.findtext("priceInCHF", "0")) if price_elem.findtext("priceInCHF") else None
-                            )
-                            security.prices.append(price)
-                        except (ValueError, TypeError) as e:
-                            # Skip invalid prices but continue processing
-                            print(f"Error parsing price in {file_path}: {e}")
-                
-                kursliste.securities.append(security)
-        
-        return kursliste
+        try:
+            # Use the from_xml_file class method to parse the XML file
+            return Kursliste.from_xml_file(file_path)
+        except Exception as e:
+            # Provide more context about the error
+            raise ValueError(f"Error parsing Kursliste from {file_path}: {str(e)}") from e
         
     def get_kurslisten_for_year(self, tax_year: int) -> List[Kursliste]:
         """
