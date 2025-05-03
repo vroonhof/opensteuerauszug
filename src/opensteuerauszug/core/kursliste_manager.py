@@ -40,7 +40,7 @@ class KurslisteManager:
         for file_path in directory.glob("*.xml"):
             try:
                 kursliste = self._load_kursliste_from_file(file_path)
-                tax_year = kursliste.metadata.validForTaxYear
+                tax_year = kursliste.year
                 
                 if tax_year not in self.kurslisten:
                     self.kurslisten[tax_year] = []
