@@ -13,12 +13,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, ConfigDict
 from typing_extensions import Annotated
 from pydantic_xml import BaseXmlModel as PydanticXmlModel, element, attr
 
 from opensteuerauszug.model.ech0196 import (
-    BaseXmlModel,
     SecurityCategory,
     SecurityType,
     check_positive,
@@ -194,17 +193,6 @@ class KurslisteMetadata(PydanticXmlModel, tag="metadata"):
         tag="issueDate", 
         description="Date when the Kursliste was issued"
     )
-    validForTaxYear: int = element(
-        tag="validForTaxYear", 
-        description="Tax year for which this Kursliste is valid",
-        ge=1900,
-        le=2100
-    )
-    version: str = element(
-        tag="version",
-        default="1.0", 
-        description="Version of the Kursliste format"
-    )
     
     model_config = {
         "validate_assignment": True
@@ -214,23 +202,45 @@ class KurslisteMetadata(PydanticXmlModel, tag="metadata"):
 # Define the namespace URI
 KURSLISTE_NS = "http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste"
 
-class Kursliste(PydanticXmlModel, tag="kursliste"):
+class Kursliste(PydanticXmlModel, tag="kursliste", nsmap = {'' : KURSLISTE_NS}):
     """
     Model for the Swiss "Kursliste" (price list).
     
     The Kursliste contains security prices used for tax purposes.
     """
     
-    metadata: KurslisteMetadata = element(ns=KURSLISTE_NS)
+    version: str = attr(
+        tag="version",
+        default="1.0", 
+        description="Version of the Kursliste format"
+    )
+
+    creationDate: datetime.date = attr(
+        tag="issueDate", 
+        description="Date when the Kursliste was issued"
+    )
+    
+    referingToDate: datetime.date = attr(
+        tag="referingToDate",
+        description="Date this is a delta from?"
+    )
+    
+    year: int = attr(
+        tag="year", 
+        description="Tax year for which this Kursliste is valid",
+        ge=1900,
+        le=2100
+    )
+
     securities: List[KurslisteSecurity] = element(
         tag="securities",
-        ns=KURSLISTE_NS,
         default_factory=list,
         description="List of securities with their prices"
     )
     
     model_config = {
-        "validate_assignment": True
+        "validate_assignment": True,
+        "extra": "forbid"
     }
     
     @classmethod
