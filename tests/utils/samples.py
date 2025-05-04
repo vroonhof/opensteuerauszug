@@ -5,14 +5,13 @@ from pathlib import Path
 
 def get_sample_files(pattern: str, base_dir: str = "tests/samples/") -> List[str]:
     """Get sample files matching the given pattern from both the repository and external directories.
-    
     Args:
-        pattern: Glob pattern to match files (e.g., "*.xml")
+        pattern: Glob pattern to match files (e.g., "*.xml" or "import/schwab/*.pdf")
         base_dir: Base directory for repository samples
-        
     Returns:
         List of file paths matching the pattern
     """
+    # If pattern does not contain '**', add it for recursive search
     # Get samples from the repository
     sample_files = glob.glob(os.path.join(base_dir, pattern))
     
@@ -25,3 +24,29 @@ def get_sample_files(pattern: str, base_dir: str = "tests/samples/") -> List[str
         sample_files.extend(glob.glob(extra_pattern))
     
     return sample_files
+
+def get_sample_dirs(subdir: str) -> List[str]:
+    """
+    Return a list of sample directories to test: the given subdirectory under the repo and, if set, under EXTRA_SAMPLE_DIR.
+    Only include directories that exist and are not empty (contain at least one .pdf or .json file).
+    Args:
+        subdir: Subdirectory path (relative to samples root) to look for sample files (e.g. 'import/schwab')
+    Returns:
+        List of directories containing at least one .pdf or .json file
+    """
+    dirs = []
+    # Default repo directory
+    repo_dir = os.path.join("tests/samples", subdir)
+    if os.path.isdir(repo_dir):
+        files = [f for f in os.listdir(repo_dir) if f.lower().endswith('.pdf') or f.lower().endswith('.json')]
+        if files:
+            dirs.append(repo_dir)
+    # External sample directory
+    extra_sample_dir = os.getenv("EXTRA_SAMPLE_DIR")
+    if extra_sample_dir:
+        extra_dir = os.path.join(os.path.expanduser(os.path.expandvars(extra_sample_dir)), subdir)
+        if os.path.isdir(extra_dir):
+            files = [f for f in os.listdir(extra_dir) if f.lower().endswith('.pdf') or f.lower().endswith('.json')]
+            if files:
+                dirs.append(extra_dir)
+    return dirs
