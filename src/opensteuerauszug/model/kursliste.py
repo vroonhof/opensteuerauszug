@@ -1,277 +1,776 @@
 """
-Model for the Swiss "Kursliste" (price list) format.
+Model for the Swiss "Kursliste" (price list) format based on kursliste-2.0.0.xsd.
 
 The Kursliste is a standardized format used by Swiss financial institutions
 to report security prices for tax purposes.
 """
-
-import os
-import xml.etree.ElementTree as ET
 import datetime
+import xml.etree.ElementTree as ET
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Union
+# Add Any for type hinting the validator function
+from typing import Any, List, Literal, Optional, Union
+# Removed io import as debugging is removed
 
-from pydantic import BaseModel, Field, StringConstraints, ConfigDict
+from pydantic import (BaseModel, ConfigDict, Field, StringConstraints,
+                      ValidationError, field_validator)
 from typing_extensions import Annotated
-from pydantic_xml import BaseXmlModel as PydanticXmlModel, element, attr
+from pydantic_xml import BaseXmlModel as PydanticXmlModel, attr, element
 
-from opensteuerauszug.model.ech0196 import (
-    SecurityCategory,
-    SecurityType,
-    check_positive,
-)
-
-
-class PriceType(str, Enum):
-    """Type of price quotation."""
-    
-    CLOSING = "CLOSING"  # Closing price
-    AVERAGE = "AVERAGE"  # Average price
-    BID = "BID"          # Bid price
-    ASK = "ASK"          # Ask price
-    MID = "MID"          # Mid price
-    NAV = "NAV"          # Net asset value
-    OTHER = "OTHER"      # Other price type
-
-
-class PriceSource(str, Enum):
-    """Source of the price information."""
-    
-    SIX = "SIX"          # SIX Swiss Exchange
-    BLOOMBERG = "BLOOMBERG"  # Bloomberg
-    REUTERS = "REUTERS"  # Reuters
-    TELEKURS = "TELEKURS"  # Telekurs
-    BANK = "BANK"        # Bank's own valuation
-    OTHER = "OTHER"      # Other source
-
-
-class Currency(str, Enum):
-    """ISO 4217 currency codes for the most common currencies."""
-    
-    CHF = "CHF"  # Swiss Franc
-    EUR = "EUR"  # Euro
-    USD = "USD"  # US Dollar
-    GBP = "GBP"  # British Pound
-    JPY = "JPY"  # Japanese Yen
-    AUD = "AUD"  # Australian Dollar
-    CAD = "CAD"  # Canadian Dollar
-    CNY = "CNY"  # Chinese Yuan
-    DKK = "DKK"  # Danish Krone
-    HKD = "HKD"  # Hong Kong Dollar
-    NOK = "NOK"  # Norwegian Krone
-    NZD = "NZD"  # New Zealand Dollar
-    SEK = "SEK"  # Swedish Krona
-    SGD = "SGD"  # Singapore Dollar
-    ZAR = "ZAR"  # South African Rand
-
-
-class SecurityIdentifier(PydanticXmlModel, tag="identifiers"):
-    """Identifiers for a security."""
-    
-    valorNumber: Optional[str] = element(
-        tag="valorNumber",
-        default=None, 
-        description="Swiss valor number",
-        max_length=12,
-        pattern=r"^\d+$"
-    )
-    isin: Optional[str] = element(
-        tag="isin",
-        default=None, 
-        description="International Securities Identification Number",
-        max_length=12,
-        pattern=r"^[A-Z]{2}[A-Z0-9]{9}\d$"
-    )
-    ticker: Optional[str] = element(
-        tag="ticker",
-        default=None, 
-        description="Ticker symbol",
-        max_length=20
-    )
-    cusip: Optional[str] = element(
-        tag="cusip",
-        default=None, 
-        description="Committee on Uniform Security Identification Procedures number",
-        max_length=9,
-        pattern=r"^[A-Z0-9]{9}$"
-    )
-    sedol: Optional[str] = element(
-        tag="sedol",
-        default=None, 
-        description="Stock Exchange Daily Official List number",
-        max_length=7,
-        pattern=r"^[A-Z0-9]{7}$"
-    )
-    wkn: Optional[str] = element(
-        tag="wkn",
-        default=None, 
-        description="Wertpapierkennnummer (German security identification code)",
-        max_length=6,
-        pattern=r"^[A-Z0-9]{6}$"
-    )
-    
-    model_config = {
-        "validate_assignment": True
-    }
-
-
-class SecurityPrice(PydanticXmlModel, tag="price"):
-    """Price information for a security at a specific datetime.date."""
-    
-    date: datetime.date = element(tag="date", description="Date of the price")
-    price: Decimal = element(tag="value", description="Price value", ge=0)
-    currency_code: Currency = element(tag="currencyCode", description="Currency of the price")
-    price_type: PriceType = element(tag="priceType", description="Type of price")
-    source: PriceSource = element(tag="source", description="Source of the price information")
-    exchangeRate: Optional[Decimal] = element(
-        tag="exchangeRate",
-        default=None, 
-        description="Exchange rate to CHF if price is in foreign currency",
-        ge=0
-    )
-    priceInCHF: Optional[Decimal] = element(
-        tag="priceInCHF",
-        default=None, 
-        description="Price converted to CHF",
-        ge=0
-    )
-    
-    model_config = {
-        "validate_assignment": True
-    }
-
-
-class KurslisteSecurity(PydanticXmlModel, tag="security"):
-    """Security entry in the Kursliste."""
-    
-    name: Annotated[str, StringConstraints(max_length=255)] = element(
-        tag="name", 
-        description="Name of the security"
-    )
-    identifiers: SecurityIdentifier = element()
-    category: SecurityCategory = element(
-        tag="category", 
-        description="Category of the security"
-    )
-    security_type: Optional[SecurityType] = element(
-        tag="securityType",
-        default=None, 
-        description="Type of the security"
-    )
-    nominalValue: Optional[Decimal] = element(
-        tag="nominalValue",
-        default=None, 
-        description="Nominal value of the security",
-        ge=0
-    )
-    nominal_currency_code: Optional[Currency] = element(
-        tag="nominalCurrencyCode",
-        default=None, 
-        description="Currency of the nominal value"
-    )
-    prices: List[SecurityPrice] = element(
-        tag="prices",
-        default_factory=list,
-        description="Historical prices for the security"
-    )
-    
-    model_config = {
-        "validate_assignment": True
-    }
-
-
-class KurslisteMetadata(PydanticXmlModel, tag="metadata"):
-    """Metadata for the Kursliste."""
-    
-    issuer: Annotated[str, StringConstraints(max_length=255)] = element(
-        tag="issuer", 
-        description="Issuing institution"
-    )
-    issueDate: datetime.date = element(
-        tag="issueDate", 
-        description="Date when the Kursliste was issued"
-    )
-    
-    model_config = {
-        "validate_assignment": True
-    }
-
-
-# Define the namespace URI
+# --- Namespace ---
 KURSLISTE_NS = "http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste"
+XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
+NSMAP = {'': KURSLISTE_NS, 'xsi': XSI_NS}
 
-class Kursliste(PydanticXmlModel, tag="kursliste", nsmap = {'' : KURSLISTE_NS}):
+# --- Base Types & Enums based on XSD Simple Types ---
+
+class CantonBFS(str, Enum):
+    AG = "AG"; AI = "AI"; AR = "AR"; BE = "BE"; BL = "BL"; BS = "BS"; FR = "FR"; GE = "GE"
+    GL = "GL"; GR = "GR"; JU = "JU"; LU = "LU"; NE = "NE"; NW = "NW"; OW = "OW"; SG = "SG"
+    SH = "SH"; SO = "SO"; SZ = "SZ"; TG = "TG"; TI = "TI"; UR = "UR"; VD = "VD"; VS = "VS"
+    ZG = "ZG"; ZH = "ZH"
+
+class CapitalContributionStatus(str, Enum):
+    APPROVED = "APPROVED"
+    NOTAPPROVED = "NOTAPPROVED"
+
+class CountryISO2(str):
+    pass
+
+class CurrencyISO3(str):
+    pass
+
+class Da1RateType(str, Enum):
+    T10P = "10%+"
+    T10P_1Y = "10%+.1Y"; T10P_2Y = "10%+.2Y"
+    T20P = "20%+"
+    T20P_1Y = "20%+.1Y"; T20P_2Y = "20%+.2Y"
+    T25P = "25%+"
+    T25P_1Y = "25%+.1Y"; T25P_2Y = "25%+.2Y"
+    T50P = "50%+"
+    T50P_1Y = "50%+.1Y"; T50P_2Y = "50%+.2Y"
+    LP = "LP"
+    LP_10P = "LP.10%+"; LP_20P = "LP.20%+"; LP_25P = "LP.25%+"; LP_50P = "LP.50%+"
+    RPF = "RPF"
+    RPF_10P = "RPF.10%+"; RPF_20P = "RPF.20%+"; RPF_25P = "RPF.25%+"; RPF_50P = "RPF.50%+"
+    OTHER = "OTHER"
+
+class IncomeType(str, Enum):
+    DIVIDEND = "DIVIDEND"
+    INTEREST = "INTEREST"
+    MIXED = "MIXED"
+
+class InterestType(str, Enum):
+    FIX = "FIX"
+    VAR = "VAR"
+
+class LangISO2(str, Enum):
+    DE = "de"; EN = "en"; FR = "fr"; IT = "it"
+
+class LegalFormBUR(str, Enum):
+    F01="01"; F02="02"; F03="03"; F04="04"; F05="05"; F06="06"; F07="07"; F08="08"; F09="09"
+    F10="10"; F11="11"; F12="12"; F13="13"; F20="20"; F21="21"; F22="22"; F23="23"; F24="24"
+    F25="25"; F27="27"; F28="28"; F29="29"; F30="30"; F31="31"; F32="32"; F33="33"; F34="34"
+
+class PaymentTypeESTV(str, Enum):
+    STANDARD = "0"
+    GRATIS = "1"
+    OTHER_BENEFIT = "2"
+    AGIO = "3"
+    FUND_ACCUMULATION = "5"
+
+class QuotationType(str, Enum):
+    PERCENT = "PERCENT"
+    PIECE = "PIECE"
+
+class SectorISIC(str, Enum):
+    A="A"; B="B"; C="C"; D="D"; E="E"; F="F"; G="G"; H="H"; I="I"; J="J"
+
+class SecurityGroupESTV(str, Enum):
+    BOND="BOND"; COINBULL="COINBULL"; CURRNOTE="CURRNOTE"; DEVT="DEVT"; FUND="FUND"
+    LIBOSWAP="LIBOSWAP"; OPTION="OPTION"; OTHER="OTHER"; SHARE="SHARE"
+
+class SecurityTypeESTV(str, Enum):
+    BOND_BOND="BOND.BOND"; BOND_CONVERTIBLE="BOND.CONVERTIBLE"; BOND_OPTION="BOND.OPTION"
+    COINBULL_COINGOLD="COINBULL.COINGOLD"; COINBULL_GOLD="COINBULL.GOLD"
+    COINBULL_PALLADIUM="COINBULL.PALLADIUM"; COINBULL_PLATINUM="COINBULL.PLATINUM"
+    COINBULL_SILVER="COINBULL.SILVER"; CURRNOTE_CURRENCY="CURRNOTE.CURRENCY"
+    CURRNOTE_CURRYEAR="CURRNOTE.CURRYEAR"; CURRNOTE_TOKEN="CURRNOTE.TOKEN"
+    DEVT_COMBINEDPRODUCT="DEVT.COMBINEDPRODUCT"; DEVT_FUNDSIMILARASSET="DEVT.FUNDSIMILARASSET"
+    DEVT_INDEXBASKET="DEVT.INDEXBASKET"; FUND_ACCUMULATION="FUND.ACCUMULATION"
+    FUND_DISTRIBUTION="FUND.DISTRIBUTION"; FUND_REALESTATE="FUND.REALESTATE"
+    LIBOSWAP_LIBOR="LIBOSWAP.LIBOR"; LIBOSWAP_SWAP="LIBOSWAP.SWAP"
+    OPTION_CALL="OPTION.CALL"; OPTION_PHANTOM="OPTION.PHANTOM"; OPTION_PUT="OPTION.PUT"
+    SHARE_BEARERCERT="SHARE.BEARERCERT"; SHARE_BONUS="SHARE.BONUS"; SHARE_COMMON="SHARE.COMMON"
+    SHARE_COOP="SHARE.COOP"; SHARE_LIMITED="SHARE.LIMITED"; SHARE_LIMITEDOLD="SHARE.LIMITEDOLD"
+    SHARE_NOMINAL="SHARE.NOMINAL"; SHARE_PARTCERT="SHARE.PARTCERT"
+    SHARE_PREFERRED="SHARE.PREFERRED"; SHARE_TRANSFERABLE="SHARE.TRANSFERABLE"
+
+class Source(str, Enum):
+    KURSLISTE = "KURSLISTE"
+    OTHERQUOTED = "OTHERQUOTED"
+    NONQUOTED = "NONQUOTED"
+
+class Validity(str, Enum):
+    PROVISIONAL = "PROVISIONAL"
+    DEFINITIVE = "DEFINITIVE"
+    DEFINITIVE_CORRECTION = "DEFINITIVE.CORRECTION"
+    DEFINITIVE_EXTENSION = "DEFINITIVE.EXTENSION"
+
+class WeightUnit(str, Enum):
+    GRAM = "GRAM"; OUNCE = "OUNCE"; TOLA = "TOLA"
+
+# Annotated Types for Constraints
+Percent = Decimal #Annotated[Decimal, Field(decimal_places=10, max_digits=25)]
+ValorNumber = Annotated[int, Field(ge=1, le=999999999999)]
+IsinStr = Annotated[str, StringConstraints(min_length=12, max_length=12)]
+CurrencyCode = Annotated[str, StringConstraints(min_length=3, max_length=3)]
+CountryCode = Annotated[str, StringConstraints(min_length=2, max_length=2)]
+Text4000 = Annotated[str, StringConstraints(min_length=1, max_length=4000)]
+InstitutionNameStr = Annotated[str, StringConstraints(min_length=1, max_length=120)]
+SecurityNameStr = Annotated[str, StringConstraints(min_length=1, max_length=120)]
+UidStr = Annotated[str, StringConstraints(min_length=12, max_length=12)]
+TidType = Annotated[int, Field(ge=15000000, le=17999999)]
+
+# --- Base Model for Entities with ID ---
+class Entity(PydanticXmlModel, nsmap=NSMAP):
+    """Base type for elements with id and deleted attributes."""
+    id: int = attr(use="required")
+    deleted: Optional[bool] = attr(default=False)
+
+# --- Complex Types from XSD ---
+
+class LangName(PydanticXmlModel, nsmap=NSMAP):
+    """kursliste:langName complex type"""
+    lang: LangISO2 = attr(use="required")
+    name: Text4000 = attr(use="required")
+
+class LangText(PydanticXmlModel):
+    """kursliste:langText complex type"""
+    lang: LangISO2 = attr(use="required")
+    canton: Optional[CantonBFS] = attr(default=None)
+    entryDate: Optional[datetime.datetime] = attr(default=None)
+    email: Optional[Annotated[str, StringConstraints(pattern=r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9._-]+\.[A-Za-z]{2,5}")]] = attr(default=None)
+    text: Text4000 = attr(use="required")
+
+class LangTextMixed(PydanticXmlModel):
+    """kursliste:langTextMixed complex type"""
+    lang: Optional[LangISO2] = attr(default=None)
+    canton: Optional[CantonBFS] = attr(default=None)
+    entryDate: Optional[datetime.datetime] = attr(default=None)
+    email: Optional[Annotated[str, StringConstraints(pattern=r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9._-]+\.[A-Za-z]{2,5}")]] = attr(default=None)
+    value: str = Field(alias='__text__')
+
+class Remark(LangText):
+    pass
+
+class Legend(Entity, tag="legend"):
+    """kursliste:legend complex type"""
+    text: List[LangTextMixed] = element(tag="text", default_factory=list)
+    effectiveDate: Optional[datetime.date] = attr(default=None)
+    effectiveDateTo: Optional[datetime.date] = attr(default=None)
+    effectiveOrder: Optional[Annotated[int, Field(ge=1)]] = attr(default=1)
+    exchangeRatioAvailable: Optional[bool] = attr(default=None)
+    exchangeRatioPresent: Optional[Decimal] = attr(default=None)
+    exchangeRatioNew: Optional[Decimal] = attr(default=None)
+    valorNumberNew: Optional[ValorNumber] = attr(default=None)
+    sign: Optional[Annotated[str, StringConstraints(min_length=3, max_length=4)]] = attr(default=None)
+    currencyOld: Optional[CurrencyCode] = attr(default=None)
+    currencyNew: Optional[CurrencyCode] = attr(default=None)
+    nominalValueOld: Optional[Decimal] = attr(default=None)
+    nominalValueNew: Optional[Decimal] = attr(default=None)
+
+
+
+class Daily(PydanticXmlModel, tag="daily"):
+    """kursliste:daily complex type"""
+    remark: List[Remark] = element(tag="remark", default_factory=list)
+    date: datetime.date = attr(use="required")
+    currency: CurrencyCode = attr(use="required")
+    quotationType: QuotationType = attr(use="required")
+    nominalValue: Optional[Decimal] = attr(default=None)
+    percent: Optional[Percent] = attr(default=None)
+    taxValue: Optional[Decimal] = attr(default=None)
+    exchangeRate: Optional[Decimal] = attr(default=None)
+    taxValueCHF: Optional[Decimal] = attr(default=None)
+    taxValueCHFBL: Optional[Decimal] = attr(default=None)
+    undefined: Optional[bool] = attr(default=False)
+
+
+
+class Bondfloor(PydanticXmlModel, tag="bondfloor"):
+    """kursliste:bondfloor complex type"""
+    remark: List[Remark] = element(tag="remark", default_factory=list)
+    date: datetime.date = attr(use="required")
+    currency: CurrencyCode = attr(use="required")
+    quotationType: Optional[QuotationType] = attr(default=QuotationType.PERCENT)
+    nominalValue: Optional[Decimal] = attr(default=None)
+    percent: Optional[Percent] = attr(default=None)
+    taxValue: Optional[Decimal] = attr(default=None)
+    exchangeRate: Optional[Decimal] = attr(default=None)
+    taxValueCHF: Optional[Decimal] = attr(default=None)
+    undefined: Optional[bool] = attr(default=False)
+
+
+
+class Yearend(Entity, tag="yearend"):
+    """kursliste:yearend complex type"""
+    remark: List[Remark] = element(tag="remark", default_factory=list)
+    quotationType: QuotationType = attr(use="required")
+    percent: Optional[Percent] = attr(default=None)
+    taxValue: Optional[Decimal] = attr(default=None)
+    exchangeRate: Optional[Decimal] = attr(default=None)
+    taxValueCHF: Optional[Decimal] = attr(default=None)
+    taxValueCHFBL: Optional[Decimal] = attr(default=None)
+    undefined: Optional[bool] = attr(default=False)
+
+
+
+class YearendCurrencyNote(Yearend, tag="yearend"):
+    """kursliste:yearendCurrencyNote complex type"""
+    taxValueCHFNote: Optional[Decimal] = attr(default=None)
+    taxValueCHFMiddle: Optional[Decimal] = attr(default=None)
+
+
+class YearendGrossNet(Yearend, tag="yearend"):
+    """kursliste:yearendGrossNet complex type"""
+    percentNet: Optional[Percent] = attr(default=None)
+    percentNetNet: Optional[Percent] = attr(default=None)
+    taxValueCHFNet: Optional[Decimal] = attr(default=None)
+    taxValueCHFNetNet: Optional[Decimal] = attr(default=None)
+    rectificate: Optional[bool] = attr(default=False)
+    rectificateInProgress: Optional[bool] = attr(default=False)
+    taxRelevantChange: Optional[bool] = attr(default=False)
+    usePreviousYear: Optional[bool] = attr(default=False)
+    canton: Optional[CantonBFS] = attr(default=None)
+    uid: Optional[UidStr] = attr(default=None)
+    ahvNumber: Optional[Annotated[str, StringConstraints(min_length=13, max_length=13)]] = attr(default=None)
+
+
+
+class YearendInstitution(Entity, tag="yearend"):
+     """kursliste:yearendInstitution complex type"""
+     quotationType: QuotationType = attr(use="required")
+     percent: Optional[Percent] = attr(default=None)
+     totalTaxValue: Optional[Decimal] = attr(default=None)
+     exchangeRate: Optional[Decimal] = attr(default=None)
+     totalTaxValueCHF: Optional[Decimal] = attr(default=None)
+     undefined: Optional[bool] = attr(default=False)
+
+
+
+class Payment(Entity, tag="payment"): # Abstract base in XSD
+    """kursliste:payment complex type (abstract base)"""
+    remark: List[Remark] = element(tag="remark", default_factory=list)
+    paymentNumber: Optional[int] = attr(default=None)
+    paymentDate: Optional[datetime.date] = attr(default=None)
+    currency: CurrencyCode = attr(use="required")
+    percent: Optional[Percent] = attr(default=None)
+    paymentValue: Optional[Decimal] = attr(default=None)
+    exchangeRate: Optional[Decimal] = attr(default=None)
+    paymentValueCHF: Optional[Decimal] = attr(default=None)
+    withHoldingTax: Optional[bool] = attr(default=False)
+    undefined: Optional[bool] = attr(default=False)
+    sign: Optional[Annotated[str, StringConstraints(min_length=3, max_length=4)]] = attr(default=None)
+    paymentType: Optional[PaymentTypeESTV] = attr(default=PaymentTypeESTV.STANDARD)
+    taxEvent: Optional[bool] = attr(default=False)
+    variant: Optional[Annotated[int, Field(ge=1, le=99999)]] = attr(default=None)
+
+
+
+class PaymentBond(Payment, tag="payment"):
+    """kursliste:paymentBond complex type"""
+    legend: List[Legend] = element(tag="legend", default_factory=list)
+    issueDisagio: Optional[Percent] = attr(default=None)
+    redemptionAgio: Optional[Percent] = attr(default=None)
+
+
+class PaymentCurrencyNote(Payment, tag="payment"):
+     """kursliste:paymentCurrencyNote complex type"""
+     legend: List[Legend] = element(tag="legend", default_factory=list)
+
+
+class PaymentDerivative(Payment, tag="payment"):
+    """kursliste:paymentDerivative complex type"""
+    legend: List[Legend] = element(tag="legend", default_factory=list)
+    exDate: Optional[datetime.date] = attr(default=None)
+    coupon: Optional[Annotated[str, StringConstraints(min_length=1, max_length=12)]] = attr(default=None)
+
+
+class PaymentFund(Payment, tag="payment"):
+    """kursliste:paymentFund complex type"""
+    legend: List[Legend] = element(tag="legend", default_factory=list)
+    exDate: Optional[datetime.date] = attr(default=None)
+    coupon: Optional[Annotated[str, StringConstraints(min_length=1, max_length=12)]] = attr(default=None)
+    capitalGain: Optional[bool] = attr(default=False)
+    incomeType: Optional[IncomeType] = attr(default=None)
+    deduction: Optional[Decimal] = attr(default=None)
+    deductionCHF: Optional[Decimal] = attr(default=None)
+    deductionDividend: Optional[Decimal] = attr(default=None)
+    deductionDividendCHF: Optional[Decimal] = attr(default=None)
+    deductionInterest: Optional[Decimal] = attr(default=None)
+    deductionInterestCHF: Optional[Decimal] = attr(default=None)
+
+
+
+class PaymentShare(Payment, tag="payment"):
+    """kursliste:paymentShare complex type"""
+    legend: List[Legend] = element(tag="legend", default_factory=list)
+    exDate: Optional[datetime.date] = attr(default=None)
+    coupon: Optional[Annotated[str, StringConstraints(min_length=1, max_length=12)]] = attr(default=None)
+    gratis: Optional[bool] = attr(default=False)
+    portefeuille: Optional[bool] = attr(default=False)
+    quantity: Optional[Decimal] = attr(default=None)
+    paymentValueTotalCHF: Optional[Decimal] = attr(default=None)
+    balanceSheetDate: Optional[datetime.date] = attr(default=None)
+    provisionallyConfirmed: Optional[datetime.date] = attr(default=None)
+
+
+
+class PaymentInstitution(Entity, tag="payment"): # Different base in XSD
+    """kursliste:paymentInstitution complex type"""
+    paymentNumber: Optional[int] = attr(default=None)
+    paymentDate: Optional[datetime.date] = attr(default=None)
+    currency: CurrencyCode = attr(use="required")
+    percent: Optional[Percent] = attr(default=None)
+    paymentValueTotal: Optional[Decimal] = attr(default=None)
+    exchangeRate: Optional[Decimal] = attr(default=None)
+    paymentValueTotalCHF: Optional[Decimal] = attr(default=None)
+    withHoldingTax: Optional[bool] = attr(default=False)
+    undefined: Optional[bool] = attr(default=False)
+    sign: Optional[Annotated[str, StringConstraints(min_length=3, max_length=4)]] = attr(default=None)
+    paymentType: Optional[PaymentTypeESTV] = attr(default=PaymentTypeESTV.STANDARD)
+    taxEvent: Optional[bool] = attr(default=False)
+    exDate: Optional[datetime.date] = attr(default=None)
+    gratis: Optional[bool] = attr(default=False)
+    portefeuille: Optional[bool] = attr(default=False)
+    balanceSheetDate: Optional[datetime.date] = attr(default=None)
+
+
+
+class Quarterly(Daily, tag="quarterly"):
+    """kursliste:quarterly complex type"""
+    quarter: int = attr(use="required")
+    # This seems to not pass validation even on valid values
+    # quarter: Annotated[int, Field(ge=1, le=4)] = attr(use="required")
+
+
+class Security(Entity, tag="security"): # Abstract base in XSD
+    """kursliste:security complex type (abstract base)"""
+    remark: List[Remark] = element(tag="remark", default_factory=list)
+    valorNumber: Optional[ValorNumber] = attr(default=None)
+    isin: Optional[IsinStr] = attr(default=None)
+    securityGroup: SecurityGroupESTV = attr(use="required")
+    securityType: Optional[SecurityTypeESTV] = attr(default=None)
+    securityName: Optional[SecurityNameStr] = attr(default=None)
+    securityAppendix: Optional[Annotated[str, StringConstraints(min_length=1, max_length=60)]] = attr(default=None)
+    sign: Optional[Annotated[str, StringConstraints(min_length=3, max_length=4)]] = attr(default=None)
+    iup: Optional[bool] = attr(default=False)
+    bfp: Optional[bool] = attr(default=False)
+    validity: Optional[Validity] = attr(default=Validity.DEFINITIVE)
+    quoted: Optional[bool] = attr(default=True)
+    quantity: Optional[Decimal] = attr(default=None)
+    source: Optional[Source] = attr(default=Source.KURSLISTE)
+    indefaultDate: Optional[datetime.date] = attr(default=None)
+    liquidationDate: Optional[datetime.date] = attr(default=None)
+    inactiveDate: Optional[datetime.date] = attr(default=None)
+
+
+
+class BondIncrease(Entity, tag="increase"):
+    """kursliste:bondIncrease complex type"""
+    valorNumber: ValorNumber = attr(use="required")
+
+
+class Bond(Security, tag="bond"):
+    """kursliste:bond complex type"""
+    yearend: Optional[Yearend] = element( default=None)
+    daily: List[Daily] = element( default_factory=list)
+    bondfloor: List[Bondfloor] = element( default_factory=list)
+    payment: List[PaymentBond] = element( default_factory=list)
+    legend: List[Legend] = element( default_factory=list)
+    increase: List[BondIncrease] = element( default_factory=list)
+    institutionId: int = attr(use="required")
+    institutionName: InstitutionNameStr = attr(use="required")
+    institutionAppendix: Optional[Annotated[str, StringConstraints(min_length=1, max_length=80)]] = attr(default=None)
+    country: CountryCode = attr(use="required")
+    currency: CurrencyCode = attr(use="required")
+    issueDate: Optional[datetime.date] = attr(default=None)
+    redemptionDate: Optional[datetime.date] = attr(default=None)
+    redemptionDateEarly: Optional[datetime.date] = attr(default=None)
+    issuePrice: Optional[Percent] = attr(default=None)
+    redemptionPrice: Optional[Percent] = attr(default=None)
+    redemptionPriceEarly: Optional[Percent] = attr(default=None)
+    nominalValue: Decimal = attr(use="required")
+    interestRate: Optional[Decimal] = attr(default=None)
+    interestType: Optional[InterestType] = attr(default=None)
+    classicalBond: Optional[bool] = attr(default=False)
+    maturityUnlimited: Optional[bool] = attr(default=False)
+    liberalized: Optional[Percent] = attr(default=Decimal("100"))
+    accruedInterest: Optional[bool] = attr(default=False)
+    issuePriceAverage: Optional[Percent] = attr(default=None)
+    redemptionDateNoConversion: Optional[bool] = attr(default=False)
+    pureDifferentialFrom: Optional[datetime.date] = attr(default=None)
+
+
+
+class CoinBullion(Security, tag="coinBullion"):
+    """kursliste:coinBullion complex type"""
+    yearend: Optional[Yearend] = element( default=None)
+    daily: List[Daily] = element( default_factory=list)
+    legend: List[Legend] = element( default_factory=list)
+    country: Optional[CountryCode] = attr(default=None)
+    currency: Optional[CurrencyCode] = attr(default=None)
+    weight: Optional[Decimal] = attr(default=None)
+    weightUnit: Optional[WeightUnit] = attr(default=None)
+
+
+
+class CurrencyNote(Security, tag="currencyNote"):
+    """kursliste:currencyNote complex type"""
+    yearend: Optional[YearendCurrencyNote] = element( default=None)
+    daily: List[Daily] = element( default_factory=list)
+    payment: List[PaymentCurrencyNote] = element( default_factory=list)
+    legend: List[Legend] = element( default_factory=list)
+    country: Optional[CountryCode] = attr(default=None)
+    currency: CurrencyCode = attr(use="required")
+    denomination: Annotated[int, Field(ge=1, le=1000)] = attr(use="required")
+
+
+
+class Derivative(Security, tag="derivative"):
+    """kursliste:derivative complex type"""
+    yearend: Optional[Yearend] = element( default=None)
+    daily: List[Daily] = element( default_factory=list)
+    bondfloor: List[Bondfloor] = element( default_factory=list)
+    payment: List[PaymentDerivative] = element( default_factory=list)
+    legend: List[Legend] = element( default_factory=list)
+    institutionId: int = attr(use="required")
+    institutionName: InstitutionNameStr = attr(use="required")
+    institutionAppendix: Optional[Annotated[str, StringConstraints(min_length=1, max_length=80)]] = attr(default=None)
+    country: CountryCode = attr(use="required")
+    currency: CurrencyCode = attr(use="required")
+    issueDate: Optional[datetime.date] = attr(default=None)
+    redemptionDate: Optional[datetime.date] = attr(default=None)
+    redemptionDateEarly: Optional[datetime.date] = attr(default=None)
+    issuePrice: Optional[Percent] = attr(default=None)
+    redemptionPrice: Optional[Percent] = attr(default=None)
+    redemptionPriceEarly: Optional[Percent] = attr(default=None)
+    nominalValue: Decimal = attr(use="required")
+    interestRate: Optional[Decimal] = attr(default=None)
+    interestRateInterest: Optional[Decimal] = attr(default=None)
+    interestRateOption: Optional[Decimal] = attr(default=None)
+    interestType: Optional[InterestType] = attr(default=None)
+    maturityUnlimited: Optional[bool] = attr(default=False)
+    pureDifferentialFrom: Optional[datetime.date] = attr(default=None)
+
+
+
+class Fund(Security, tag="fund"):
+    """kursliste:fund complex type"""
+    yearend: Optional[Yearend] = element( default=None)
+    daily: List[Daily] = element( default_factory=list)
+    payment: List[PaymentFund] = element( default_factory=list)
+    legend: List[Legend] = element( default_factory=list)
+    institutionId: int = attr(use="required")
+    institutionName: InstitutionNameStr = attr(use="required")
+    institutionAppendix: Optional[Annotated[str, StringConstraints(min_length=1, max_length=80)]] = attr(default=None)
+    country: CountryCode = attr(use="required")
+    currency: CurrencyCode = attr(use="required")
+    nominalValue: Decimal = attr(use="required")
+
+
+
+class LiborSwap(Security, tag="liborSwap"):
+    """kursliste:liborSwap complex type"""
+    daily: List[Daily] = element( default_factory=list)
+    quarterly: List[Quarterly] = element( default_factory=list)
+    legend: List[Legend] = element( default_factory=list)
+    country: Optional[CountryCode] = attr(default=None)
+    currency: CurrencyCode = attr(use="required")
+    period: str = attr(use="required")
+
+
+class Share(Security, tag="share"):
+    """kursliste:share complex type"""
+    yearend: List[YearendGrossNet] = element( default_factory=list)
+    daily: List[Daily] = element( default_factory=list)
+    payment: List[PaymentShare] = element( default_factory=list)
+    legend: List[Legend] = element( default_factory=list)
+    institutionId: int = attr(use="required")
+    institutionName: InstitutionNameStr = attr(use="required")
+    institutionAppendix: Optional[Annotated[str, StringConstraints(min_length=1, max_length=80)]] = attr(default=None)
+    country: CountryCode = attr(use="required")
+    currency: CurrencyCode = attr(use="required")
+    nominalValue: Optional[Decimal] = attr(default=None)
+    liberalized: Optional[Percent] = attr(default=Decimal("100"))
+    gratis: Optional[bool] = attr(default=False)
+    capitalKey: Optional[Annotated[int, Field(ge=1110, le=9959)]] = attr(default=None)
+    valorNumberUnderlying: Optional[ValorNumber] = attr(default=None)
+    ratioUnderlying: Optional[Decimal] = attr(default=None)
+    quotedDate: Optional[datetime.date] = attr(default=None)
+    nonQuotedDate: Optional[datetime.date] = attr(default=None)
+    tid: Optional[TidType] = attr(default=None)
+
+
+
+class CapitalContribution(Entity, tag="capitalContribution"):
+    """kursliste:capitalContribution complex type"""
+    referenceDate: datetime.date = attr(use="required")
+    currency: Optional[CurrencyCode] = attr(default="CHF")
+    openingBalance: Optional[Decimal] = attr(default=None)
+    closingBalance: Optional[Decimal] = attr(default=None)
+    deposit: Optional[Decimal] = attr(default=None)
+    repayment: Optional[Decimal] = attr(default=None)
+    status: Optional[CapitalContributionStatus] = attr(default=None)
+
+
+
+class Institution(Entity, tag="institution"):
+    """kursliste:institution complex type"""
+    yearend: Optional[YearendInstitution] = element( default=None)
+    payment: List[PaymentInstitution] = element( default_factory=list)
+    capitalContribution: List[CapitalContribution] = element( default_factory=list)
+    remark: List[Remark] = element(tag="remark", default_factory=list)
+    uid: Optional[UidStr] = attr(default=None)
+    institutionName: InstitutionNameStr = attr(use="required")
+    institutionAppendix: Optional[Annotated[str, StringConstraints(min_length=1, max_length=80)]] = attr(default=None)
+    additionalPart: Optional[Annotated[str, StringConstraints(min_length=1, max_length=40)]] = attr(default=None)
+    street: Optional[Annotated[str, StringConstraints(min_length=1, max_length=40)]] = attr(default=None)
+    zip: Optional[Annotated[str, StringConstraints(min_length=1, max_length=12)]] = attr(default=None)
+    city: Optional[Annotated[str, StringConstraints(min_length=1, max_length=40)]] = attr(default=None)
+    canton: Optional[CantonBFS] = attr(default=None)
+    country: CountryCode = attr(use="required")
+    municipalNumber: Optional[Annotated[int, Field(ge=1, le=9999)]] = attr(default=None)
+    currency: Optional[CurrencyCode] = attr(default=None)
+    domain: Optional[Annotated[str, StringConstraints(pattern=r"[A-Za-z0-9._-]+\.[A-Za-z]{2,4}")]] = attr(default=None)
+    legalForm: Optional[LegalFormBUR] = attr(default=None)
+    sector: Optional[SectorISIC] = attr(default=None)
+    institutionNameOld: Optional[InstitutionNameStr] = attr(default=None)
+    dossierNumber: Optional[int] = attr(default=None)
+    valuationCanton: Optional[CantonBFS] = attr(default=None)
+    mandatoryRegistration: Optional[bool] = attr(default=False)
+    balanceSheetDate: Optional[str] = attr(default=None)
+    source: Optional[Source] = attr(default=Source.KURSLISTE)
+    estvId: Optional[Annotated[str, StringConstraints(max_length=80)]] = attr(default=None)
+    subsidiary: Optional[bool] = attr(default=False)
+    parentUid: Optional[UidStr] = attr(default=None)
+    taxExempt: Optional[bool] = attr(default=False)
+    totalCapital: Optional[Decimal] = attr(default=None)
+    totalCapitalShares: Optional[Decimal] = attr(default=None)
+    totalLiberalizedCapital: Optional[Decimal] = attr(default=None)
+    totalVotingCapital: Optional[Decimal] = attr(default=None)
+    totalPartReceiptCapital: Optional[Decimal] = attr(default=None)
+
+
+
+# --- Definition Types ---
+
+class Canton(Entity, tag="canton", nsmap=NSMAP):
+    """kursliste:canton complex type"""
+    cantonName: List[LangName] = element()
+    canton: CantonBFS = attr(use="required")
+
+class CapitalKeyDescription(Entity, tag="capitalKey", nsmap=NSMAP):
+    """kursliste:capitalKey complex type"""
+    capitalKeyName: List[LangName] = element()
+    capitalKey: int = attr(use="required")
+    # For some reason usign the field validator here causes a newline to be parsed independently of the input
+    # capitalKey: Annotated[int, Field(ge=1110, le=9959)] = attr(use="required")
+
+
+class Country(Entity, tag="country"):
+    """kursliste:country complex type"""
+    countryName: List[LangName] = element()
+    country: CountryCode = attr(use="required")
+    currency: Optional[CurrencyCode] = attr(default=None)
+
+class DefinitionCurrency(Entity, tag="currency"):
+    """kursliste:currency complex type"""
+    currencyName: List[LangName] = element()
+    currency: CurrencyCode = attr(use="required")
+
+class DefinitionSecurityGroup(Entity, tag="securityGroup"):
+    """kursliste:securityGroup complex type"""
+    securityGroupName: List[LangName] = element()
+    securityGroup: SecurityGroupESTV = attr(use="required")
+
+class DefinitionSecurityType(Entity, tag="securityType"):
+    """kursliste:securityType complex type"""
+    securityTypeName: List[LangName] = element()
+    securityType: SecurityTypeESTV = attr(use="required")
+
+class DefinitionLegalForm(Entity, tag="legalForm"):
+    """kursliste:legalForm complex type"""
+    legalFormName: List[LangName] = element()
+    legalForm: LegalFormBUR = attr(use="required")
+
+class Sector(Entity, tag="sector"):
+    """kursliste:sector complex type"""
+    sectorName: List[LangName] = element()
+    sector: SectorISIC = attr(use="required")
+
+class ShortCut(Entity, tag="shortCut"):
+    """kursliste:shortCut complex type"""
+    shortCutName: List[LangName] = element()
+    shortCut: Annotated[str, StringConstraints(min_length=1, max_length=5)] = attr(use="required")
+
+class Sign(Entity, tag="sign"):
+    """kursliste:sign complex type"""
+    signName: List[LangName] = element()
+    sign: Annotated[str, StringConstraints(min_length=3, max_length=4)] = attr(use="required")
+
+class Da1Rate(Entity, tag="da1Rate", nsmap=NSMAP):
+    """kursliste:da1Rate complex type"""
+    country: CountryCode = attr(use="required")
+    securityGroup: SecurityGroupESTV = attr(use="required")
+    securityType: Optional[SecurityTypeESTV] = attr(default=None)
+    da1RateType: Optional[Da1RateType] = attr(default=Da1RateType.OTHER)
+    validFrom: Optional[datetime.date] = attr(default=None)
+    validTo: Optional[datetime.date] = attr(default=None)
+    value: Percent = attr()
+    release: Percent = attr()
+    nonRecoverable: Percent = attr()
+
+
+class MediumTermBond(Entity, tag="mediumTermBond"):
+    """kursliste:mediumTermBond complex type"""
+    maturityFrom: datetime.date = attr(use="required")
+    maturityTo: datetime.date = attr(use="required")
+    interestRate: Percent = attr(use="required")
+    andHigher: Optional[bool] = attr(default=None)
+    price: Percent = attr(use="required")
+
+
+
+class ExchangeRate(PydanticXmlModel, tag="exchangeRate"): # Not an Entity
+    """kursliste:exchangeRate complex type"""
+    currency: CurrencyCode = attr(use="required")
+    date: datetime.date = attr(use="required")
+    denomination: Optional[Annotated[int, Field(ge=1, le=1000)]] = attr(default=1)
+    value: Optional[Decimal] = attr(default=None)
+
+
+
+class ExchangeRateMonthly(PydanticXmlModel, tag="exchangeRateMonthly"): # Not an Entity
+    """kursliste:exchangeRateMonthly complex type"""
+    currency: CurrencyCode = attr(use="required")
+    year: int = attr(use="required")
+    month: Annotated[str, StringConstraints(pattern=r"0[1-9]|1[0-2]")] = attr(use="required")
+    denomination: Optional[Annotated[int, Field(ge=1, le=1000)]] = attr(default=1)
+    value: Optional[Decimal] = attr(default=None)
+
+
+
+class ExchangeRateYearEnd(PydanticXmlModel, tag="exchangeRateYearEnd"): # Not an Entity
+    """kursliste:exchangeRateYearEnd complex type"""
+    currency: CurrencyCode = attr(use="required")
+    year: int = attr(use="required")
+    denomination: Optional[Annotated[int, Field(ge=1, le=1000)]] = attr(default=1)
+    value: Optional[Decimal] = attr(default=None)
+    valueMiddle: Optional[Decimal] = attr(default=None)
+
+
+
+# --- Main Kursliste Model ---
+
+class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
     """
-    Model for the Swiss "Kursliste" (price list).
-    
-    The Kursliste contains security prices used for tax purposes.
+    Model for the Swiss "Kursliste" (price list) based on kursliste-2.0.0.xsd.
+    Reflects the XSD structure with separate lists for definitions and security types.
     """
+
+    # --- Attributes aligned with XSD ---
+    version: Annotated[str, StringConstraints(pattern=r"2\.0\.0\.\d")] = attr()
+    creationDate: datetime.datetime = attr()
+    referingToDate: Optional[datetime.date] = attr(default=None)
+    year: int = attr()
+    # --- End Attributes ---
+
+    # Pydantic-XML does not know how to ignore meta-attributes like this
+    schemaLocation: Optional[str] = attr(
+        name="schemaLocation",  # The actual attribute name
+        ns='xsi',              # The namespace URI for xsi
+        default=None            # Make it optional
+    )
     
-    version: str = attr(
-        tag="version",
-        default="1.0", 
-        description="Version of the Kursliste format"
+    # --- Elements based on XSD Sequence ---
+    cantons: List[Canton] = element(tag="canton", default_factory=list)
+    capitalKeys: List[CapitalKeyDescription] = element(tag="capitalKey", default_factory=list)
+    countries: List[Country] = element(tag="country", default_factory=list)
+    currencies: List[DefinitionCurrency] = element(tag="currency", default_factory=list)
+    securityGroups: List[DefinitionSecurityGroup] = element(tag="securityGroup", default_factory=list)
+    securityTypes: List[DefinitionSecurityType] = element(tag="securityType", default_factory=list)
+    legalForms: List[DefinitionLegalForm] = element(tag="legalForm", default_factory=list)
+    sectors: List[Sector] = element(tag="sector", default_factory=list)
+    shortCuts: List[ShortCut] = element(tag="shortCut", default_factory=list)
+    signs: List[Sign] = element(tag="sign", default_factory=list)
+    da1Rates: List[Da1Rate] = element(tag="da1Rate", default_factory=list)
+    mediumTermBonds: List[MediumTermBond] = element(tag="mediumTermBond", default_factory=list)
+
+    institutions: List[Institution] = element(tag="institution", default_factory=list)
+    bonds: List[Bond] = element(tag="bond", default_factory=list)
+    coinBullions: List[CoinBullion] = element(tag="coinBullion", default_factory=list)
+    currencyNotes: List[CurrencyNote] = element(tag="currencyNote", default_factory=list)
+    derivatives: List[Derivative] = element(tag="derivative", default_factory=list)
+    funds: List[Fund] = element(tag="fund", default_factory=list)
+    liborSwaps: List[LiborSwap] = element(tag="liborSwap", default_factory=list)
+    shares: List[Share] = element(tag="share", default_factory=list)
+    exchangeRates: List[ExchangeRate] = element(tag="exchangeRate", default_factory=list)
+    exchangeRatesMonthly: List[ExchangeRateMonthly] = element(tag="exchangeRateMonthly", default_factory=list)
+    exchangeRatesYearEnd: List[ExchangeRateYearEnd] = element(tag="exchangeRateYearEnd", default_factory=list)
+    # --- End Elements ---
+
+    model_config = ConfigDict(
+        # validate_assignment=True,
+        # extra="forbid"
     )
 
-    creationDate: datetime.date = attr(
-        tag="issueDate", 
-        description="Date when the Kursliste was issued"
-    )
-    
-    referingToDate: datetime.date = attr(
-        tag="referingToDate",
-        description="Date this is a delta from?"
-    )
-    
-    year: int = attr(
-        tag="year", 
-        description="Tax year for which this Kursliste is valid",
-        ge=1900,
-        le=2100
-    )
 
-    securities: List[KurslisteSecurity] = element(
-        tag="securities",
-        default_factory=list,
-        description="List of securities with their prices"
-    )
-    
-    model_config = {
-        "validate_assignment": True,
-        "extra": "forbid"
-    }
-    
+
     @classmethod
-    def from_xml_file(cls, file_path: Path) -> "Kursliste":
-        """Load a Kursliste from an XML file."""
-        with open(file_path, "rb") as f:
-            xml_content = f.read()
-        return cls.from_xml(xml_content)
-    
-    def get_security_by_isin(self, isin: str) -> Optional[KurslisteSecurity]:
-        """Get a security by its ISIN."""
-        for security in self.securities:
-            if security.identifiers.isin == isin:
-                return security
-        return None
-    
-    def get_security_by_valor(self, valor: str) -> Optional[KurslisteSecurity]:
-        """Get a security by its valor number."""
-        for security in self.securities:
-            if security.identifiers.valorNumber == valor:
-                return security
-        return None
-    
-    def get_price_at_date(self, security: KurslisteSecurity, target_date: datetime.date) -> Optional[SecurityPrice]:
-        """
-        Get the price closest to the target datetime.date, preferring earlier datetime.dates.
-        Returns None if no price is available before or on the target datetime.date.
-        """
-        valid_prices = [p for p in security.prices if p.date <= target_date]
-        if not valid_prices:
-            return None
-        return max(valid_prices, key=lambda p: p.date)
+    def from_xml_file(cls, file_path: Union[str, Path]) -> "Kursliste":
+        """Load a Kursliste from an XML file using raw bytes."""
+        if isinstance(file_path, str):
+            file_path = Path(file_path)
 
+        if not file_path.is_file():
+            raise FileNotFoundError(f"XML file not found at path: {file_path}")
+
+        try:
+            with open(file_path, "rb") as f:
+                xml_content_bytes = f.read()
+
+            # REMOVED DEBUGGING CODE
+
+            # Pass raw bytes to from_xml; pydantic-xml handles encoding
+            instance = cls.from_xml(xml_content_bytes)
+            return instance
+        except ET.ParseError as e:
+            raise ValueError(f"XML parsing error in file {file_path}: {e}") from e
+        except ValidationError as e:
+             print(f"Pydantic Validation Errors:\n{e}")
+             raise ValueError(f"Data validation error loading XML file {file_path}: {e}") from e
+        except Exception as e:
+            raise RuntimeError(f"An unexpected error occurred while processing {file_path}: {e}") from e
+
+
+    def to_xml_file(self, file_path: Union[str, Path], pretty_print: bool = True):
+        """Save the Kursliste instance to an XML file."""
+        if isinstance(file_path, str):
+            file_path = Path(file_path)
+
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            xml_bytes = self.to_xml(
+                pretty_print=pretty_print,
+                encoding='iso-8859-1', # Match XSD encoding declaration
+                xml_declaration=True
+            )
+            with open(file_path, "wb") as f:
+                f.write(xml_bytes)
+        except Exception as e:
+            raise RuntimeError(f"An error occurred while saving XML to {file_path}: {e}") from e
 
