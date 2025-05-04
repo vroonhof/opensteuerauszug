@@ -5,7 +5,7 @@ The Kursliste is a standardized format used by Swiss financial institutions
 to report security prices for tax purposes.
 """
 import datetime
-import xml.etree.ElementTree as ET
+import lxml.etree as ET
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
@@ -122,15 +122,16 @@ class WeightUnit(str, Enum):
     GRAM = "GRAM"; OUNCE = "OUNCE"; TOLA = "TOLA"
 
 # Annotated Types for Constraints
+# Annotated[..., Field(...)] seems to see corrupted data in some cases???
 Percent = Decimal #Annotated[Decimal, Field(decimal_places=10, max_digits=25)]
-ValorNumber = Annotated[int, Field(ge=1, le=999999999999)]
+ValorNumber = int # bAnnotated[int, Field(ge=1, le=999999999999)]
 IsinStr = Annotated[str, StringConstraints(min_length=12, max_length=12)]
 CurrencyCode = Annotated[str, StringConstraints(min_length=3, max_length=3)]
 CountryCode = Annotated[str, StringConstraints(min_length=2, max_length=2)]
 Text4000 = Annotated[str, StringConstraints(min_length=1, max_length=4000)]
 InstitutionNameStr = Annotated[str, StringConstraints(min_length=1, max_length=120)]
 SecurityNameStr = Annotated[str, StringConstraints(min_length=1, max_length=120)]
-UidStr = Annotated[str, StringConstraints(min_length=12, max_length=12)]
+UidStr = str # Annotated[str, StringConstraints(min_length=12, max_length=12)]
 TidType = Annotated[int, Field(ge=15000000, le=17999999)]
 
 # --- Base Model for Entities with ID ---
@@ -723,17 +724,37 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
     # --- End Elements ---
 
     model_config = ConfigDict(
-        # validate_assignment=True,
+        validate_assignment=False,
         # extra="forbid"
     )
 
 
 
-    # Default denylist of elements to exclude when parsing
+    # Save memory tim by handling only common types while we have our in memory representation
     DEFAULT_DENYLIST: ClassVar[Set[str]] = {
-        "cantons", "capitalKeys", "countries", "currencies", 
-        "securityGroups", "securityTypes", "legalForms", "sectors", 
-        "shortCuts", "signs", "da1Rates", "mediumTermBonds"
+        "canton",
+        "capitalKey",
+        "country",
+        "currency", 
+        "securityGroup",
+        "securityType",
+        "legalForm",
+        "sector", 
+        "shortCut",
+        "sign",
+        "da1Rate",
+        "mediumTermBond",
+        "institution",
+        "bond",
+        "coinBullion",
+        "currencyNote", 
+        "derivative",
+        "fund",
+        "liborSwap",
+        # "share",
+        "exchangeRate",
+        "exchangeRateMonthly",
+        "exchangeRateYearEnd"
     }
     
     @staticmethod
@@ -748,20 +769,29 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         Returns:
             The filtered XML element tree
         """
-        # Create a new root element with the same tag and attributes
-        new_root = ET.Element(root.tag, root.attrib)
-        
+        # Modify the tree in place to keep source line annotations
+        # (otherwise pydantic-xml's error reporting fails).
+
+        to_remove = []
         # Copy only the elements that are not in the denylist
         for child in root:
             tag = child.tag
             # Remove namespace prefix if present
             if "}" in tag:
                 tag = tag.split("}")[1]
+
+            if tag in denylist:
+                to_remove.append(child)
+
+        if len(to_remove) == 0:
+            raise ValueError("No elements to remove from XML tree")
                 
-            if tag not in denylist:
-                new_root.append(child)
-                
-        return new_root
+        for child in to_remove:
+            root.remove(child)
+
+        print(f"Filtered {len(to_remove)} elements")
+            
+        return root
     
     @classmethod
     def from_xml_file(cls, file_path: Union[str, Path], denylist: Optional[Set[str]] = None) -> "Kursliste":
@@ -783,23 +813,16 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
             raise FileNotFoundError(f"XML file not found at path: {file_path}")
 
         try:
-            with open(file_path, "rb") as f:
-                xml_content_bytes = f.read()
-
+            
             # Parse the XML first to filter elements
-            root = ET.fromstring(xml_content_bytes)
+            root = ET.parse(file_path).getroot()
             
             # Use the default denylist if none provided
             if denylist is None:
                 denylist = cls.DEFAULT_DENYLIST
                 
-            # Filter the XML tree
-            if denylist:
-                filtered_root = cls._filter_xml_elements(root, denylist)
-            else:
-                filtered_root = root
+            filtered_root = cls._filter_xml_elements(root, denylist)
 
-            # Use pydantic_xml's from_xml_tree method to parse directly from ElementTree
             instance = cls.from_xml_tree(filtered_root)
             return instance
         except ET.ParseError as e:
@@ -811,66 +834,4 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
             raise RuntimeError(f"An unexpected error occurred while processing {file_path}: {e}") from e
 
 
-    @classmethod
-    def from_xml_file_with_elements(cls, file_path: Union[str, Path], include_elements: Set[str]) -> "Kursliste":
-        """
-        Load a Kursliste from an XML file, including only specified elements.
-        
-        Args:
-            file_path: Path to the XML file
-            include_elements: Set of element names to include in parsing
-            
-        Returns:
-            Kursliste instance
-        """
-        # Create a denylist that excludes everything except the specified elements
-        all_elements = {
-            "cantons", "capitalKeys", "countries", "currencies", 
-            "securityGroups", "securityTypes", "legalForms", "sectors", 
-            "shortCuts", "signs", "da1Rates", "mediumTermBonds",
-            "institutions", "bonds", "coinBullions", "currencyNotes", 
-            "derivatives", "funds", "liborSwaps", "shares",
-            "exchangeRates", "exchangeRatesMonthly", "exchangeRatesYearEnd"
-        }
-        denylist = all_elements - include_elements
-        return cls.from_xml_file(file_path, denylist)
-    
-    def to_xml_file(self, file_path: Union[str, Path], pretty_print: bool = True):
-        """Save the Kursliste instance to an XML file."""
-        if isinstance(file_path, str):
-            file_path = Path(file_path)
-
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        try:
-            xml_bytes = self.to_xml(
-                pretty_print=pretty_print,
-                encoding='iso-8859-1', # Match XSD encoding declaration
-                xml_declaration=True
-            )
-            with open(file_path, "wb") as f:
-                f.write(xml_bytes)
-        except Exception as e:
-            raise RuntimeError(f"An error occurred while saving XML to {file_path}: {e}") from e
-            
-    @classmethod
-    def load_optimized(cls, file_path: Union[str, Path], needed_elements: Optional[Set[str]] = None) -> "Kursliste":
-        """
-        Optimized loader that only includes elements that are needed.
-        
-        Args:
-            file_path: Path to the XML file
-            needed_elements: Set of element names that are needed. If None, loads only securities.
-            
-        Returns:
-            Kursliste instance with only the needed elements
-        """
-        if needed_elements is None:
-            # Default to loading only securities and exchange rates
-            needed_elements = {
-                "bonds", "coinBullions", "currencyNotes", "derivatives", 
-                "funds", "liborSwaps", "shares", "exchangeRates"
-            }
-            
-        return cls.from_xml_file_with_elements(file_path, needed_elements)
 
