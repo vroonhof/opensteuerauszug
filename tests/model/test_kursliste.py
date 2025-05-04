@@ -2,7 +2,7 @@ import pytest
 from decimal import Decimal
 from pathlib import Path
 
-from src.opensteuerauszug.model.kursliste import (
+from opensteuerauszug.model.kursliste import (
     Kursliste, Security, Bond, Share, Fund
 )
 

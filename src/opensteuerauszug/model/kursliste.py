@@ -844,6 +844,7 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
             The security if found, None otherwise
         """
         # Search in all security types
+        # TODO this does not handle special issues etc, that are subelemts
         for security_list in [
             self.bonds, 
             self.shares, 
