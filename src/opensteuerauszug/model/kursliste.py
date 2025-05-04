@@ -833,5 +833,104 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         except Exception as e:
             raise RuntimeError(f"An unexpected error occurred while processing {file_path}: {e}") from e
 
+    def find_security_by_valor(self, valor_number: int) -> Optional[Security]:
+        """
+        Find a security by its valor number.
+        
+        Args:
+            valor_number: The valor number to search for
+            
+        Returns:
+            The security if found, None otherwise
+        """
+        # Search in all security types
+        for security_list in [
+            self.bonds, 
+            self.shares, 
+            self.funds, 
+            self.derivatives, 
+            self.coinBullions, 
+            self.currencyNotes, 
+            self.liborSwaps
+        ]:
+            for security in security_list:
+                if security.valorNumber == valor_number:
+                    return security
+        return None
+    
+    def find_security_by_isin(self, isin: str) -> Optional[Security]:
+        """
+        Find a security by its ISIN.
+        
+        Args:
+            isin: The ISIN to search for
+            
+        Returns:
+            The security if found, None otherwise
+        """
+        # Search in all security types
+        for security_list in [
+            self.bonds, 
+            self.shares, 
+            self.funds, 
+            self.derivatives, 
+            self.coinBullions, 
+            self.currencyNotes, 
+            self.liborSwaps
+        ]:
+            for security in security_list:
+                if security.isin == isin:
+                    return security
+        return None
+    
+    def find_securities_by_valor(self, valor_number: int) -> List[Security]:
+        """
+        Find all securities with the given valor number.
+        
+        Args:
+            valor_number: The valor number to search for
+            
+        Returns:
+            List of securities with the matching valor number
+        """
+        results = []
+        for security_list in [
+            self.bonds, 
+            self.shares, 
+            self.funds, 
+            self.derivatives, 
+            self.coinBullions, 
+            self.currencyNotes, 
+            self.liborSwaps
+        ]:
+            for security in security_list:
+                if security.valorNumber == valor_number:
+                    results.append(security)
+        return results
+    
+    def find_securities_by_isin(self, isin: str) -> List[Security]:
+        """
+        Find all securities with the given ISIN.
+        
+        Args:
+            isin: The ISIN to search for
+            
+        Returns:
+            List of securities with the matching ISIN
+        """
+        results = []
+        for security_list in [
+            self.bonds, 
+            self.shares, 
+            self.funds, 
+            self.derivatives, 
+            self.coinBullions, 
+            self.currencyNotes, 
+            self.liborSwaps
+        ]:
+            for security in security_list:
+                if security.isin == isin:
+                    results.append(security)
+        return results
 
 
