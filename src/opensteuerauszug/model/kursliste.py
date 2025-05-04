@@ -10,7 +10,7 @@ from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 # Add Any for type hinting the validator function
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Set, Union
 # Removed io import as debugging is removed
 
 from pydantic import (BaseModel, ConfigDict, Field, StringConstraints,
@@ -729,9 +729,53 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
 
 
 
+    # Default denylist of elements to exclude when parsing
+    DEFAULT_DENYLIST = {
+        "cantons", "capitalKeys", "countries", "currencies", 
+        "securityGroups", "securityTypes", "legalForms", "sectors", 
+        "shortCuts", "signs", "da1Rates", "mediumTermBonds"
+    }
+    
+    @staticmethod
+    def _filter_xml_elements(root: ET.Element, denylist: Set[str]) -> ET.Element:
+        """
+        Filter out elements from the XML tree based on the denylist.
+        
+        Args:
+            root: The root XML element
+            denylist: Set of element tag names to remove
+            
+        Returns:
+            The filtered XML element tree
+        """
+        # Create a new root element with the same tag and attributes
+        new_root = ET.Element(root.tag, root.attrib)
+        
+        # Copy only the elements that are not in the denylist
+        for child in root:
+            tag = child.tag
+            # Remove namespace prefix if present
+            if "}" in tag:
+                tag = tag.split("}")[1]
+                
+            if tag not in denylist:
+                new_root.append(child)
+                
+        return new_root
+    
     @classmethod
-    def from_xml_file(cls, file_path: Union[str, Path]) -> "Kursliste":
-        """Load a Kursliste from an XML file using raw bytes."""
+    def from_xml_file(cls, file_path: Union[str, Path], denylist: Optional[Set[str]] = None) -> "Kursliste":
+        """
+        Load a Kursliste from an XML file using raw bytes.
+        
+        Args:
+            file_path: Path to the XML file
+            denylist: Optional set of element names to exclude from parsing.
+                      If None, uses DEFAULT_DENYLIST.
+        
+        Returns:
+            Kursliste instance
+        """
         if isinstance(file_path, str):
             file_path = Path(file_path)
 
@@ -742,10 +786,23 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
             with open(file_path, "rb") as f:
                 xml_content_bytes = f.read()
 
-            # REMOVED DEBUGGING CODE
+            # Parse the XML first to filter elements
+            root = ET.fromstring(xml_content_bytes)
+            
+            # Use the default denylist if none provided
+            if denylist is None:
+                denylist = cls.DEFAULT_DENYLIST
+                
+            # Filter the XML tree
+            if denylist:
+                filtered_root = cls._filter_xml_elements(root, denylist)
+                # Convert back to bytes
+                filtered_xml = ET.tostring(filtered_root, encoding='iso-8859-1')
+            else:
+                filtered_xml = xml_content_bytes
 
-            # Pass raw bytes to from_xml; pydantic-xml handles encoding
-            instance = cls.from_xml(xml_content_bytes)
+            # Pass filtered XML to from_xml; pydantic-xml handles encoding
+            instance = cls.from_xml(filtered_xml)
             return instance
         except ET.ParseError as e:
             raise ValueError(f"XML parsing error in file {file_path}: {e}") from e
@@ -756,6 +813,30 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
             raise RuntimeError(f"An unexpected error occurred while processing {file_path}: {e}") from e
 
 
+    @classmethod
+    def from_xml_file_with_elements(cls, file_path: Union[str, Path], include_elements: Set[str]) -> "Kursliste":
+        """
+        Load a Kursliste from an XML file, including only specified elements.
+        
+        Args:
+            file_path: Path to the XML file
+            include_elements: Set of element names to include in parsing
+            
+        Returns:
+            Kursliste instance
+        """
+        # Create a denylist that excludes everything except the specified elements
+        all_elements = {
+            "cantons", "capitalKeys", "countries", "currencies", 
+            "securityGroups", "securityTypes", "legalForms", "sectors", 
+            "shortCuts", "signs", "da1Rates", "mediumTermBonds",
+            "institutions", "bonds", "coinBullions", "currencyNotes", 
+            "derivatives", "funds", "liborSwaps", "shares",
+            "exchangeRates", "exchangeRatesMonthly", "exchangeRatesYearEnd"
+        }
+        denylist = all_elements - include_elements
+        return cls.from_xml_file(file_path, denylist)
+    
     def to_xml_file(self, file_path: Union[str, Path], pretty_print: bool = True):
         """Save the Kursliste instance to an XML file."""
         if isinstance(file_path, str):
@@ -773,4 +854,25 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
                 f.write(xml_bytes)
         except Exception as e:
             raise RuntimeError(f"An error occurred while saving XML to {file_path}: {e}") from e
+            
+    @classmethod
+    def load_optimized(cls, file_path: Union[str, Path], needed_elements: Optional[Set[str]] = None) -> "Kursliste":
+        """
+        Optimized loader that only includes elements that are needed.
+        
+        Args:
+            file_path: Path to the XML file
+            needed_elements: Set of element names that are needed. If None, loads only securities.
+            
+        Returns:
+            Kursliste instance with only the needed elements
+        """
+        if needed_elements is None:
+            # Default to loading only securities and exchange rates
+            needed_elements = {
+                "bonds", "coinBullions", "currencyNotes", "derivatives", 
+                "funds", "liborSwaps", "shares", "exchangeRates"
+            }
+            
+        return cls.from_xml_file_with_elements(file_path, needed_elements)
 
