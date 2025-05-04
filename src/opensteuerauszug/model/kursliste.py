@@ -10,7 +10,7 @@ from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 # Add Any for type hinting the validator function
-from typing import Any, Dict, List, Literal, Optional, Set, Union
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Set, Union
 # Removed io import as debugging is removed
 
 from pydantic import (BaseModel, ConfigDict, Field, StringConstraints,
@@ -730,7 +730,7 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
 
 
     # Default denylist of elements to exclude when parsing
-    DEFAULT_DENYLIST = {
+    DEFAULT_DENYLIST: ClassVar[Set[str]] = {
         "cantons", "capitalKeys", "countries", "currencies", 
         "securityGroups", "securityTypes", "legalForms", "sectors", 
         "shortCuts", "signs", "da1Rates", "mediumTermBonds"
@@ -796,13 +796,11 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
             # Filter the XML tree
             if denylist:
                 filtered_root = cls._filter_xml_elements(root, denylist)
-                # Convert back to bytes
-                filtered_xml = ET.tostring(filtered_root, encoding='iso-8859-1')
             else:
-                filtered_xml = xml_content_bytes
+                filtered_root = root
 
-            # Pass filtered XML to from_xml; pydantic-xml handles encoding
-            instance = cls.from_xml(filtered_xml)
+            # Use pydantic_xml's from_xml_tree method to parse directly from ElementTree
+            instance = cls.from_xml_tree(filtered_root)
             return instance
         except ET.ParseError as e:
             raise ValueError(f"XML parsing error in file {file_path}: {e}") from e
