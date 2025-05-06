@@ -1,7 +1,7 @@
 import os
 import pytest
 from datetime import date
-from src.opensteuerauszug.importers.schwab.SchwabImporter import SchwabImporter
+from src.opensteuerauszug.importers.schwab.schwab_importer import SchwabImporter
 from opensteuerauszug.model.ech0196 import TaxStatement
 from tests.utils.samples import get_sample_dirs
 

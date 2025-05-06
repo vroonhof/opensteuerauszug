@@ -1,6 +1,6 @@
 import re
 import decimal
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import argparse # Added for command-line arguments
 
@@ -15,6 +15,9 @@ CLOSING_PRICE_PATTERN = r"Closing Price on (\d{2}/\d{2}/\d{4}) *: (\$[\d,.]+)"
 ACCOUNT_SUMMARY_PATTERN = r"Account Summary: \w+"
 PERIOD_PATTERN =  r"For Period: (\d{2}/\d{2}/\d{4}) - (\d{2}/\d{2}/\d{4})"
 STOCK_HEADER_PATTERN = r'Opening\s*Closing\s*Closing\s+Share Price\s*Closing\s+Value\s+'
+
+from opensteuerauszug.model.position import SecurityPosition, CashPosition
+from opensteuerauszug.model.ech0196 import SecurityStock, CurrencyId
 
 class StatementExtractor:
     """
@@ -47,7 +50,7 @@ class StatementExtractor:
         try:
             with open(self.pdf_path, "rb") as f:
                 reader = PyPDF2.PdfReader(f)
-                self.pdf_author = reader.metadata.author if reader.metadata.author else "Unknown"
+                self.pdf_author = reader.metadata.author if reader.metadata.author else "Unknown" # type: ignore
                 num_pages = len(reader.pages)
                 print(f"Reading {num_pages} pages from '{self.pdf_path}'...")
                 for i, page in enumerate(reader.pages):
@@ -93,7 +96,7 @@ class StatementExtractor:
         Returns:
             bool: True if the content matches expected patterns, False otherwise.
         """
-        if not re.match(r".*SCHWAB.*", self.pdf_author, re.IGNORECASE):
+        if self.pdf_author is None or not re.search(r"SCHWAB", self.pdf_author, re.IGNORECASE):
             print(f"Warning: Author {self.pdf_author} does not contain SCHWAB, skipping format check.")
             return False
         
@@ -288,6 +291,71 @@ class StatementExtractor:
              print(f"Error: Could not perform verification due to invalid numeric data or operation error: {e}")
              return False
 
+    def extract_positions(self):
+        """
+        Extracts positions in the same format as PositionExtractor:
+        Returns a tuple: (positions, open_date, close_date_plus1, depot)
+        positions: List of (Position, SecurityStock) for both open and close+1 dates
+        open_date: The opening date (start_date)
+        close_date_plus1: The day after the closing date (end_date+1)
+        depot: The magic depot name 'AWARDS'
+        """
+        data = self.extract_data()
+        if not data:
+            return None
+        positions = []
+        depot = 'AWARDS'
+        open_date = data.get('start_date')
+        close_date = data.get('end_date')
+        if not open_date or not close_date:
+            return None
+        close_date_plus1 = close_date + timedelta(days=1)
+        # Security position (if symbol and closing_shares)
+        symbol = data.get('symbol')
+        closing_shares = data.get('closing_shares')
+        closing_value = data.get('closing_value')
+        closing_price = data.get('closing_price')
+        if symbol and closing_shares is not None:
+            pos = SecurityPosition(depot=depot, symbol=symbol, securityType=None)
+            stock_open = SecurityStock(
+                referenceDate=open_date,
+                mutation=False,
+                quotationType='PIECE',
+                quantity=closing_shares,
+                balanceCurrency=CurrencyId('USD')
+            )
+            stock_close = SecurityStock(
+                referenceDate=close_date_plus1,
+                mutation=False,
+                quotationType='PIECE',
+                quantity=closing_shares,
+                balanceCurrency=CurrencyId('USD')
+            )
+            positions.append((pos, stock_open))
+            positions.append((pos, stock_close))
+        # Cash position (if closing_cash)
+        closing_cash = data.get('closing_cash')
+        if closing_cash is not None:
+            pos = CashPosition(depot=depot, currentCy='USD')
+            stock_open = SecurityStock(
+                referenceDate=open_date,
+                mutation=False,
+                quotationType='PIECE',
+                quantity=closing_cash,
+                balanceCurrency=CurrencyId('USD'),
+                balance=closing_cash
+            )
+            stock_close = SecurityStock(
+                referenceDate=close_date_plus1,
+                mutation=False,
+                quotationType='PIECE',
+                quantity=closing_cash,
+                balanceCurrency=CurrencyId('USD'),
+                balance=closing_cash
+            )
+            positions.append((pos, stock_open))
+            positions.append((pos, stock_close))
+        return positions, open_date, close_date_plus1, depot
 
 # --- Sample Main Function ---
 def main():

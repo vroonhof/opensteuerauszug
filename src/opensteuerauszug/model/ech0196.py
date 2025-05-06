@@ -1082,6 +1082,8 @@ class SecurityPayment(BaseXmlModel):
 class SecurityStock(BaseXmlModel):
     """Represents stock changes for a security (securityStockType)."""
     # Required attributes from XSD
+    # For balances (mutation=False) the value is at the start of the referenceDate unlike
+    # what is common for stock statements.
     referenceDate: date = Field(..., json_schema_extra={'is_attribute': True})
     mutation: bool = Field(..., json_schema_extra={'is_attribute': True})
     quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})  
