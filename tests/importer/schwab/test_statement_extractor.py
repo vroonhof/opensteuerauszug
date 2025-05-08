@@ -63,7 +63,7 @@ def test_extract_positions_format():
     positions, open_date, close_date_plus1, depot = result
     assert depot == 'AWARDS'
     assert str(open_date) == '2024-01-01'
-    assert str(close_date_plus1) == '2025-01-01'  # 2024-12-31 + 1 day
+    assert str(close_date_plus1) == '2025-01-01'
     # Should have 4 positions: security open, security close, cash open, cash close
     assert len(positions) == 4
     # Security positions
@@ -88,4 +88,21 @@ def test_extract_positions_format():
     assert cash_stock_open.balanceCurrency == 'USD'
     assert cash_stock_close.balanceCurrency == 'USD'
     assert cash_stock_open.balance == 600
-    assert cash_stock_close.balance == 600 
+    assert cash_stock_close.balance == 600
+
+def test_next_business_day_skips_weekend():
+    text = (
+        "Account Statement\n"
+        "Account Summary: AAPL\n"
+        "For Period: 01/01/2024 - 12/27/2024\n"  # 2024-12-27 is a Friday
+        "Closing Price on 12/27/2024 : $100.00\n"
+        "Stock Summary: Opening Closing Closing Share Price Closing Value\n"
+        "10 10 $100.00 $1000.00\n"
+        "Cash Summary: $500.00 $600.00 $600.00\n"
+    )
+    extractor = DummyStatementExtractor(text)
+    result = extractor.extract_positions()
+    assert result is not None
+    positions, open_date, close_date_plus1, depot = result
+    # 2024-12-27 is Friday, next business day is 2024-12-30 (Monday)
+    assert str(close_date_plus1) == '2024-12-30' 

@@ -290,6 +290,13 @@ class StatementExtractor:
              print(f"Error: Could not perform verification due to invalid numeric data or operation error: {e}")
              return False
 
+    def _next_business_day(self, d):
+        """Returns the next business day after the given date (skipping Sat/Sun)."""
+        next_day = d + timedelta(days=1)
+        while next_day.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+            next_day += timedelta(days=1)
+        return next_day
+
     def extract_positions(self):
         """
         Extracts positions in the same format as PositionExtractor:
@@ -308,7 +315,7 @@ class StatementExtractor:
         close_date = data.get('end_date')
         if not open_date or not close_date:
             return None
-        close_date_plus1 = close_date + timedelta(days=1)
+        close_date_plus1 = self._next_business_day(close_date)
         # Security position (if symbol and closing_shares)
         symbol = data.get('symbol')
         closing_shares = data.get('closing_shares')
