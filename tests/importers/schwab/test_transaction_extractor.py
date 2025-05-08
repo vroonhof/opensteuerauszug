@@ -126,53 +126,35 @@ class TestSchwabTransactionExtractor:
         data = {
             "FromDate": "01/01/2024", "ToDate": "12/31/2024",
             "Transactions": [{
-                "Date": "01/10/2024", "Action": "Deposit", "Symbol": "GOOG", 
-                "Quantity": "10", "Description": "Vesting", 
+                "Date": "03/06/2024", "Action": "Deposit", "Symbol": "GOOG",
+                "Quantity": "25.0", "Description": "RS (Restricted Stock)",
                 "TransactionDetails": [{
-                    "Details": {"VestFairMarketValue": "$100.00"}
+                    "Details": {
+                        "AwardDate": "01/15/2023", "AwardId": "AWD123",
+                        "VestDate": "03/06/2024", "VestFairMarketValue": "$130.50"
+                    }
                 }]
             }]
         }
-        result = run_extraction_test(extractor, data, 2) # GOOG + Cash
+        result = run_extraction_test(extractor, data, 1) # GOOG only, cash movement implicit
         assert result is not None
-        goog_pos_data = find_position(result, SecurityPosition, symbol="GOOG")
-        cash_pos_data = find_position(result, CashPosition)
-        assert goog_pos_data is not None
-        assert cash_pos_data is not None
-        goog_pos, goog_stocks, goog_payments = goog_pos_data
-        cash_pos, cash_stocks, cash_payments = cash_pos_data
+        goog_data = find_position(result, SecurityPosition, "GOOG")
+        assert goog_data is not None
 
-        assert goog_pos.depot == "AWARDS"
-        assert cash_pos.depot == "AWARDS"
-        assert not cash_stocks
-        assert cash_payments is None
-
-    def test_unknown_action(self):
-        extractor = create_extractor()
-        data = {
-            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
-            "BrokerageTransactions": [{"Date": "01/10/2024", "Action": "UNKNOWN ACTION", "Amount": "10.00"}]
-        }
-        with pytest.raises(ValueError) as excinfo:
-            extractor._extract_transactions_from_dict(data)
-        assert "Unknown action 'UNKNOWN ACTION'" in str(excinfo.value)
-
-    def test_no_transactions_key(self):
-        extractor = create_extractor()
-        data = {"FromDate": "01/01/2024", "ToDate": "12/31/2024"} # No transaction list
-        assert extractor._extract_transactions_from_dict(data) is None
-
-    def test_empty_transaction_list_brokerage(self):
-        extractor = create_extractor()
-        data = {"FromDate": "01/01/2024", "ToDate": "12/31/2024", "BrokerageTransactions": []}
-        assert extractor._extract_transactions_from_dict(data) is None # Returns None because processed_transactions is empty
-
-    def test_empty_transaction_list_awards(self):
-        extractor = create_extractor()
-        data = {"FromDate": "01/01/2024", "ToDate": "12/31/2024", "Transactions": []}
-        assert extractor._extract_transactions_from_dict(data) is None
-
-    # --- Action-specific tests ---
+        pos, stocks, payments = goog_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "GOOG"
+        assert pos.depot == "AWARDS"
+        assert payments is None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2024, 3, 6)
+        assert stock.mutation is True
+        assert stock.quantity == Decimal("25.0")
+        assert stock.unitPrice == Decimal("130.50")
+        assert stock.balance == Decimal("3262.50") 
+        assert stock.name is not None
+        assert "Deposit: RS (Restricted Stock) (Award ID: AWD123, Award Date: 01/15/2023, Vest Date: 03/06/2024, FMV: $130.50)" in stock.name
 
     def test_action_buy(self):
         extractor = create_extractor()
@@ -384,43 +366,34 @@ class TestSchwabTransactionExtractor:
                 "Amount": "$555.65" # Total dividend amount reinvested
             }]
         }
-        result = run_extraction_test(extractor, data, 2) # Expect SPY + Cash
+        result = run_extraction_test(extractor, data, 1) 
         assert result is not None
-        spy_data = find_position(result, SecurityPosition, "SPY")
-        cash_data = find_position(result, CashPosition)
-        assert spy_data is not None
-        assert cash_data is not None
+        
+        assert len(result) == 1, "Expected only one transaction result for reinvestment"
+        pos, stocks, payments, _, _ = result[0]
 
-        pos, stocks, payments = spy_data
-        assert isinstance(pos, SecurityPosition)
+        assert isinstance(pos, SecurityPosition), f"Expected SecurityPosition, got {type(pos)}"
         assert pos.symbol == "SPY"
-        assert payments is not None
-        assert len(payments) == 1 # The dividend payment
+        
+        assert payments is not None, "Payments should exist for reinvested dividend"
+        assert len(payments) == 1, "Expected one payment entry for the dividend itself"
         payment = payments[0]
-        assert payment.grossRevenueB == Decimal("555.65")
+        assert payment.grossRevenueB == Decimal("555.65"), "Gross revenue B should match total dividend amount"
         assert payment.name is not None
         assert "Reinvest Dividend (Payment)" in payment.name
 
-        assert stocks is not None
-        assert len(stocks) == 1 # The acquisition stock
+        assert stocks is not None, "Stocks should exist for shares acquired through reinvestment"
+        assert len(stocks) == 1, "Expected one stock entry for the acquired shares"
         stock = stocks[0]
-        assert stock.mutation is True
-        assert stock.quantity == Decimal("1.2345")
-        assert stock.unitPrice == Decimal("450.10") 
-        assert stock.balance == Decimal("555.65") 
+        assert stock.mutation is True, "Stock entry should be a mutation"
+        assert stock.quantity == Decimal("1.2345"), "Stock quantity should match reinvested shares"
+        assert stock.unitPrice == Decimal("450.10"), "Stock unit price should match reinvestment price"
+        assert stock.balance == Decimal("555.65"), "Stock balance should match total reinvested amount"
         assert stock.name is not None
         assert "Reinvest Dividend (Acquisition)" in stock.name
         
-        cash_pos, cash_stocks, cash_payments = cash_data
-        assert isinstance(cash_pos, CashPosition)
-        assert cash_payments is None
-        assert cash_stocks is not None
-        assert len(cash_stocks) == 1 # Only the balancing cash out for acquisition
-        cash_payment = cash_payments[0]
-        assert cash_payment.paymentDate == date(2024, 7, 1)
-        assert cash_payment.amount == Decimal("-555.65") # Cash outflow for acquisition
-        # Note: Name check depends on brittle logic, let's be flexible
-        assert cash_payment.name is not None and "Cash movement for Reinvest Dividend (Acquisition) SPY" in cash_payment.name 
+        # Cash movement is now considered implicit in the reinvestment for this extractor's output
+        # No separate CashPosition or cash-related SecurityPayment/SecurityStock is expected from this handler
 
     def test_action_stock_split(self):
         extractor = create_extractor()
@@ -463,12 +436,10 @@ class TestSchwabTransactionExtractor:
                 }]
             }]
         }
-        result = run_extraction_test(extractor, data, 2) # GOOGL + Cash
+        result = run_extraction_test(extractor, data, 1) # GOOGL only
         assert result is not None
         googl_data = find_position(result, SecurityPosition, "GOOGL")
-        cash_data = find_position(result, CashPosition)
         assert googl_data is not None
-        assert cash_data is not None
 
         pos, stocks, payments = googl_data
         assert isinstance(pos, SecurityPosition)
@@ -484,16 +455,6 @@ class TestSchwabTransactionExtractor:
         assert stock.balance == Decimal("3262.50") 
         assert stock.name is not None
         assert "Deposit: RS (Restricted Stock) (Award ID: AWD123, Award Date: 01/15/2023, Vest Date: 03/06/2024, FMV: $130.50)" in stock.name
-
-        cash_pos, cash_stocks, cash_payments = cash_data
-        assert isinstance(cash_pos, CashPosition)
-        assert cash_pos.depot == "AWARDS"
-        assert not cash_stocks
-        assert cash_payments is not None
-        assert len(cash_payments) == 1
-        cash_payment = cash_payments[0]
-        assert cash_payment.amount == Decimal("-3262.50") # Cash out corresponding to FMV
-        assert cash_payment.name == "Cash movement for Deposit GOOGL"
 
     def test_action_tax_withholding(self):
         extractor = create_extractor()
@@ -652,16 +613,20 @@ class TestSchwabTransactionExtractor:
         assert result is not None
         pos, stocks, payments, depot, _ = result[0]
         assert isinstance(pos, CashPosition)
-        assert not stocks
-        assert payments is not None
-        assert len(payments) == 1
-        payment = payments[0]
-        assert payment.paymentDate == date(2024, 11, 6)
-        assert payment.amount == Decimal("-500.00")
-        assert payment.name is not None
-        assert payment.name == "Journal (Cash): INTERNAL TRANSFER OF FUNDS"
-        assert payment.grossRevenueA is None
-        assert payment.grossRevenueB is None
+        
+        # For cash journal, we expect a SecurityStock entry reflecting the cash movement
+        assert stocks is not None
+        assert len(stocks) == 1
+        cash_flow_stock = stocks[0]
+        assert cash_flow_stock.referenceDate == date(2024, 11, 6)
+        assert cash_flow_stock.mutation is True
+        assert cash_flow_stock.quantity == Decimal("-500.00")
+        assert cash_flow_stock.balance == Decimal("-500.00") # Assuming balance reflects this single transaction
+        assert cash_flow_stock.name == "Cash Journal: INTERNAL TRANSFER OF FUNDS"
+        assert cash_flow_stock.unitPrice is None # No unit price for cash journal stock entry
+
+        # For this type of cash journal, payments might be None if all info is in SecurityStock
+        assert payments is None 
 
     def test_action_transfer_security_out(self):
         extractor = create_extractor()

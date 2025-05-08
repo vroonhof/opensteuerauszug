@@ -46,6 +46,7 @@ class SchwabImporter:
         depot_coverage = {}
         # Collect all positions for common post-processing
         all_positions = []  # (Position, SecurityStock, Optional[List[SecurityPayment]])
+
         for filename in filenames:
             ext = os.path.splitext(filename)[1].lower()
             if ext == ".pdf":
@@ -69,8 +70,28 @@ class SchwabImporter:
                         if depot not in depot_coverage:
                             depot_coverage[depot] = DateRangeCoverage()
                         depot_coverage[depot].mark_covered(start_date, end_date)
-                        for stock in stocks:
-                            all_positions.append((position, stock, payments))
+                        
+                        if stocks: # Ensure stocks is not None or empty before iterating
+                            first_stock_item_processed = False
+                            for stock_item in stocks: 
+                                current_payments_for_this_stock_item = None
+                                if not first_stock_item_processed:
+                                    current_payments_for_this_stock_item = payments
+                                    first_stock_item_processed = True
+                                all_positions.append((position, stock_item, current_payments_for_this_stock_item))
+                        elif payments: # If stocks is empty but payments exist for the position
+                            # This case implies payments are position-level and not tied to specific stock lots.
+                            # We need a representative stock item to append. If TransactionExtractor guarantees
+                            # a SecurityPosition, we might need a placeholder SecurityStock or take the first if any were ever seen.
+                            # For now, if stocks list is empty, this specific path might not add the payments unless one stock is assumed or created.
+                            # This might be a scenario where a single (position, placeholder_stock, payments) is added.
+                            # Current logic: if stocks is empty, this transaction line (position, payments) is not added to all_positions
+                            # via this loop. This might be intended if payments always accompany stock details from the extractor.
+                            # If TransactionExtractor can return (position, [], payments) and those payments should be included,
+                            # a strategy is needed here. For instance, add (position, None, payments) if allowed by downstream, 
+                            # or create/use a default SecurityStock for the Position.
+                            print(f"WARNING: Transaction for {position} from {filename} has payments but an empty 'stocks' list. Payments might not be processed for this entry.")
+
                     print(f"Extracted transactions from {filename}: {transactions}")
                 # TODO: Use extracted data to populate TaxStatement
             elif ext == ".csv":
@@ -90,15 +111,18 @@ class SchwabImporter:
             else:
                 # Optionally log or raise for unsupported file types
                 pass
+        
         # Print known position dates per depot for demonstration
         for depot, dates in depot_position_dates.items():
             print(f"Depot {depot} has known position dates: {sorted(dates)}")
         # Print covered date ranges per depot for demonstration
         for depot, coverage in depot_coverage.items():
             print(f"Depot {depot} has covered date ranges: {coverage.covered}")
+            
         # Post-process: aggregate stocks/payments per unique Position
         security_map = defaultdict(lambda: ([], []))  # SecurityPosition -> (list of SecurityStock, list of SecurityPayment)
         cash_map = defaultdict(list)      # CashPosition -> list of SecurityStock
+        
         for pos, stock, payments in all_positions:
             if isinstance(pos, SecurityPosition):
                 security_map[pos][0].append(stock)
@@ -109,7 +133,9 @@ class SchwabImporter:
                         security_map[pos][1].append(payments)
             elif isinstance(pos, CashPosition):
                 cash_map[pos].append(stock)
+        
         tax_year = self.period_from.year
+        
         # Prepare tuples for create_tax_statement_from_positions
         security_tuples = []
         for pos, (stocks, payments) in security_map.items():
