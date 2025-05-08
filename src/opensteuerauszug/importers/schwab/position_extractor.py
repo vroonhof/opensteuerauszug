@@ -73,7 +73,7 @@ class PositionExtractor:
                     mutation=False,
                     quotationType='PIECE',
                     quantity=amount,
-                    balanceCurrency=CurrencyId('USD'),
+                    balanceCurrency='USD',
                     balance=amount
                 )
                 positions.append((pos, stock))
@@ -92,7 +92,7 @@ class PositionExtractor:
                     mutation=False,
                     quotationType='PIECE',
                     quantity=quantity,
-                    balanceCurrency=CurrencyId('USD')
+                    balanceCurrency='USD'
                 )
                 positions.append((pos, stock))
             # else: skip rows that don't match expected security/cash

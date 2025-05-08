@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 import os
 import argparse # Added for command-line arguments
 
-# Attempt to import PyPDF2 and provide a helpful error message if not installed
-import PyPDF2
+# Use pypdf for PDF reading
+from pypdf import PdfReader, errors
 
 # Use Decimal for precise financial calculations
 decimal.getcontext().prec = 20 # Set precision for Decimal
@@ -49,8 +49,8 @@ class StatementExtractor:
 
         try:
             with open(self.pdf_path, "rb") as f:
-                reader = PyPDF2.PdfReader(f)
-                self.pdf_author = reader.metadata.author if reader.metadata.author else "Unknown" # type: ignore
+                reader = PdfReader(f)
+                self.pdf_author = reader.metadata.author if reader.metadata and reader.metadata.author else "Unknown" # type: ignore
                 num_pages = len(reader.pages)
                 print(f"Reading {num_pages} pages from '{self.pdf_path}'...")
                 for i, page in enumerate(reader.pages):
@@ -70,12 +70,11 @@ class StatementExtractor:
             if not self.text_content.strip():
                  print("Warning: No text content could be extracted from the PDF.")
 
-        except PyPDF2.errors.PdfReadError as pdf_err:
+        except errors.PdfReadError as pdf_err:
              raise Exception(f"Error reading PDF file '{self.pdf_path}'. It might be corrupted or password-protected. Details: {pdf_err}")
         except Exception as e:
             # Catch other potential file reading or PyPDF2 errors
             raise Exception(f"Error processing PDF file '{self.pdf_path}': {e}")
-
 
     def _clean_numeric_string(self, num_str):
         """Removes currency symbols, commas, newline chars and converts to Decimal."""
@@ -322,14 +321,14 @@ class StatementExtractor:
                 mutation=False,
                 quotationType='PIECE',
                 quantity=closing_shares,
-                balanceCurrency=CurrencyId('USD')
+                balanceCurrency='USD'
             )
             stock_close = SecurityStock(
                 referenceDate=close_date_plus1,
                 mutation=False,
                 quotationType='PIECE',
                 quantity=closing_shares,
-                balanceCurrency=CurrencyId('USD')
+                balanceCurrency='USD'
             )
             positions.append((pos, stock_open))
             positions.append((pos, stock_close))
@@ -342,7 +341,7 @@ class StatementExtractor:
                 mutation=False,
                 quotationType='PIECE',
                 quantity=closing_cash,
-                balanceCurrency=CurrencyId('USD'),
+                balanceCurrency='USD',
                 balance=closing_cash
             )
             stock_close = SecurityStock(
@@ -350,7 +349,7 @@ class StatementExtractor:
                 mutation=False,
                 quotationType='PIECE',
                 quantity=closing_cash,
-                balanceCurrency=CurrencyId('USD'),
+                balanceCurrency='USD',
                 balance=closing_cash
             )
             positions.append((pos, stock_open))
@@ -362,7 +361,7 @@ def main():
     """
     Main execution function. Parses command-line arguments for the PDF file,
     creates a StatementExtractor instance, extracts data, and verifies calculations.
-    Requires PyPDF2: pip install pypdf2
+    Requires pypdf: pip install pypdf
     """
     # --- Argument Parsing ---
     parser = argparse.ArgumentParser(
@@ -378,10 +377,7 @@ def main():
     pdf_file_to_process = args.pdf_file
     # ---------------------
 
-    # Check if PyPDF2 is available before proceeding
-    if PyPDF2 is None:
-        # Error message already printed at import time
-        return # Exit script
+    # No need to check for pypdf import, as ImportError will be raised if not installed
 
     print(f"--- Analyzing Statement: {pdf_file_to_process} ---")
     try:
@@ -431,3 +427,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

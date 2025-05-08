@@ -22,7 +22,7 @@ dependencies = [
     "Pillow>=9.0.0", # Added for image handling in render module
     "reportlab>=4.0.0", # Added for PDF generation in render module
     "python-barcode>=0.15.0", # Added for barcode generation in render module
-    "PyPDF2>=3.0.0", # Added for PDF reading and analysis
+    "pypdf>=4.0.0", # Use pypdf for PDF reading and analysis
 ]
 
 [project.scripts]

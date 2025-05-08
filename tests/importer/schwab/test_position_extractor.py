@@ -40,8 +40,8 @@ def test_extract_positions_valid():
     assert stock2.quotationType == 'PIECE'
     assert stock1.quantity == 10
     assert stock2.quantity == 5
-    assert stock1.balanceCurrency == CurrencyId('USD')
-    assert stock2.balanceCurrency == CurrencyId('USD')
+    assert stock1.balanceCurrency == 'USD'
+    assert stock2.balanceCurrency == 'USD'
 
 def test_extract_positions_invalid():
     with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.csv') as tmp:

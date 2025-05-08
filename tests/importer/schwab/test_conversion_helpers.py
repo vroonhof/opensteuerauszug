@@ -17,7 +17,7 @@ def test_convert_security_positions_to_list_of_securities():
         mutation=False,
         quotationType="PIECE",
         quantity=Decimal(10),
-        balanceCurrency=CurrencyId("USD")
+        balanceCurrency='USD'
     )
     result = convert_security_positions_to_list_of_securities([(pos, [stock], None)])
     assert result.depot[0].depotNumber == "D1"
@@ -32,7 +32,7 @@ def test_convert_cash_positions_to_list_of_bank_accounts():
         mutation=False,
         quotationType="PIECE",
         quantity=Decimal(1000),
-        balanceCurrency=CurrencyId("USD")
+        balanceCurrency='USD'
     )
     result = convert_cash_positions_to_list_of_bank_accounts([(pos, stock)])
     assert result.bankAccount[0].bankAccountNumber == "D2"
@@ -46,7 +46,7 @@ def test_create_tax_statement_from_positions():
         mutation=False,
         quotationType="PIECE",
         quantity=Decimal(10),
-        balanceCurrency=CurrencyId("USD")
+        balanceCurrency='USD'
     )
     cash_pos = CashPosition(depot="D2", currentCy="USD")
     cash_stock = SecurityStock(
@@ -54,7 +54,7 @@ def test_create_tax_statement_from_positions():
         mutation=False,
         quotationType="PIECE",
         quantity=Decimal(1000),
-        balanceCurrency=CurrencyId("USD")
+        balanceCurrency='USD'
     )
     tax_statement = create_tax_statement_from_positions(
         [(sec_pos, [sec_stock], None)],

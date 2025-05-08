@@ -75,8 +75,8 @@ def test_extract_positions_format():
     assert sec_stock_close.referenceDate == close_date_plus1
     assert sec_stock_open.quantity == 10
     assert sec_stock_close.quantity == 10
-    assert sec_stock_open.balanceCurrency == CurrencyId('USD')
-    assert sec_stock_close.balanceCurrency == CurrencyId('USD')
+    assert sec_stock_open.balanceCurrency == 'USD'
+    assert sec_stock_close.balanceCurrency == 'USD'
     # Cash positions
     cash_pos, cash_stock_open = positions[2]
     cash_pos2, cash_stock_close = positions[3]
@@ -85,7 +85,7 @@ def test_extract_positions_format():
     assert cash_stock_close.referenceDate == close_date_plus1
     assert cash_stock_open.quantity == 600
     assert cash_stock_close.quantity == 600
-    assert cash_stock_open.balanceCurrency == CurrencyId('USD')
-    assert cash_stock_close.balanceCurrency == CurrencyId('USD')
+    assert cash_stock_open.balanceCurrency == 'USD'
+    assert cash_stock_close.balanceCurrency == 'USD'
     assert cash_stock_open.balance == 600
     assert cash_stock_close.balance == 600 
