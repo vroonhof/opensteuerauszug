@@ -36,9 +36,8 @@ class BankAccountNumber(str): # minLength: 1, maxLength: 32 - Handled by Field d
 class ClientNumber(str): # maxLength: 40 - Handled by Field directly later
     pass
 # Add other simple types like currencyIdISO3Type, depotNumberType, etc.
-class CurrencyId(str): # pattern="[A-Z]{3}"
-    pass
-class DepotNumber(str): # maxLength: 40
+CurrencyId = Annotated[str, Field(pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})]
+class DepotNumber(str): # maxLength: 4
     pass
 class ValorNumber(int): # positiveInteger, maxInclusive=999999999999, minInclusive=100
     """Valor number for security identification."""
@@ -260,8 +259,8 @@ M = TypeVar('M', bound='BaseXmlModel')
 
 # --- Base Model with XML capabilities (Pydantic v2 adjusted) ---
 class BaseXmlModel(BaseModel):
-    unknown_attrs: Dict[str, str] = Field(default_factory=dict, exclude=True)
-    unknown_elements: List[Any] = Field(default_factory=list, exclude=True)
+    unknown_attrs: Dict[str, str] = Field(default_factory=dict, exclude=True, repr=False)
+    unknown_elements: List[Any] = Field(default_factory=list, exclude=True, repr=False)
 
     model_config: ConfigDict = {
         "arbitrary_types_allowed": True,
@@ -270,7 +269,7 @@ class BaseXmlModel(BaseModel):
     
     # Class variable for strict parsing that can be overridden by subclasses
     # Mark as excluded so it doesn't show up in XML
-    strict_parsing: bool = Field(default=False, exclude=True)
+    strict_parsing: bool = Field(default=False, exclude=True, repr=False)
 
     @staticmethod
     def _iter_element(element: ET._Element) -> List[ET._Element]:
@@ -884,7 +883,7 @@ class LiabilityAccountTaxValue(BaseXmlModel):
     # Attributes from schema
     referenceDate: date = Field(..., json_schema_extra={'is_attribute': True})
     name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
-    balanceCurrency: str = Field(..., json_schema_extra={'is_attribute': True})
+    balanceCurrency: CurrencyId
     balance: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     exchangeRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     value: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
@@ -998,8 +997,8 @@ class SecurityTaxValue(BaseXmlModel):
     referenceDate: date = Field(..., json_schema_extra={'is_attribute': True})
     quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})
     quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
-    balanceCurrency: CurrencyId = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
-    
+    balanceCurrency: CurrencyId
+
     # Optional attributes
     name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
     unitPrice: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
@@ -1088,8 +1087,8 @@ class SecurityStock(BaseXmlModel):
     mutation: bool = Field(..., json_schema_extra={'is_attribute': True})
     quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})  
     quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
-    balanceCurrency: CurrencyId = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
-    
+    balanceCurrency: CurrencyId
+
     # Optional attributes from XSD
     name: Optional[str] = Field(default=None, max_length=200, json_schema_extra={'is_attribute': True})
     unitPrice: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
@@ -1101,7 +1100,7 @@ class SecurityStock(BaseXmlModel):
     blockingTo: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
     
     model_config = {
-        "json_schema_extra": {'tag_name': 'stock', 'tag_namespace': NS_MAP['eCH-0196']}
+        "json_schema_extra": {'tag_name': 'stock', 'tag_namespace': NS_MAP['eCH-0196']},
     }
 
 
@@ -1116,7 +1115,7 @@ class Security(BaseXmlModel):
     # Required attributes
     positionId: int = Field(..., gt=0, json_schema_extra={'is_attribute': True})
     country: CountryIdISO2Type = Field(..., json_schema_extra={'is_attribute': True})
-    currency: CurrencyId = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
+    currency: CurrencyId
     quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})
     securityCategory: SecurityCategory = Field(..., json_schema_extra={'is_attribute': True})
     securityName: str = Field(..., max_length=60, json_schema_extra={'is_attribute': True})

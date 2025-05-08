@@ -4,9 +4,24 @@ from pydantic import BaseModel, Field, field_validator
 class BasePosition(BaseModel):
     depot: str
 
+    def _comparison_key(self):
+        # To be overridden by subclasses for relevant fields
+        return (self.depot,)
+
+    def __eq__(self, other):
+        if not isinstance(other, BasePosition):
+            return NotImplemented
+        return self._comparison_key() == other._comparison_key()
+
+    def __hash__(self):
+        return hash(self._comparison_key())
+
 class CashPosition(BasePosition):
     type: Literal["cash"] = "cash"
     currentCy: str = Field(default="USD", description="Currency code for cash position")
+
+    def _comparison_key(self):
+        return (self.depot, self.currentCy)
 
 class SecurityPosition(BasePosition):
     """
@@ -19,18 +34,8 @@ class SecurityPosition(BasePosition):
     security_type: Optional[str] = Field(default=None, alias="securityType", description="Type of security, if available")
     description: Optional[str] = Field(default=None, description="Description of the security from the import file")
 
-    def __eq__(self, other):
-        if not isinstance(other, SecurityPosition):
-            return NotImplemented
-        return (
-            self.depot == other.depot and
-            self.valor == other.valor and
-            self.isin == other.isin and
-            self.symbol == other.symbol
-        )
-
-    def __hash__(self):
-        return hash((self.depot, self.valor, self.isin, self.symbol))
+    def _comparison_key(self):
+        return (self.depot, self.valor, self.isin, self.symbol)
 
     @field_validator('symbol')
     @classmethod
