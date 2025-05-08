@@ -6,7 +6,7 @@ from opensteuerauszug.model.ech0196 import (
 )
 from opensteuerauszug.model.position import SecurityPosition, CashPosition, Position
 from .statement_extractor import StatementExtractor
-from datetime import date
+from datetime import date, timedelta
 from .position_extractor import PositionExtractor
 from .transaction_extractor import TransactionExtractor
 from opensteuerauszug.util.date_coverage import DateRangeCoverage
@@ -118,19 +118,38 @@ class SchwabImporter:
         # Print covered date ranges per depot for demonstration
         for depot, coverage in depot_coverage.items():
             print(f"Depot {depot} has covered date ranges: {coverage.covered}")
+
+        # --- Tax period coverage and statement date check ---
+        for depot, coverage in depot_coverage.items():
+            # Check if the tax period is fully covered
+            if not coverage.is_covered(self.period_from, self.period_to):
+                raise ValueError(f"Depot {depot}: Tax period {self.period_from} to {self.period_to} is not fully covered by available data.\nSuggestion: Download and import statements covering this range for depot '{depot}'.")
+            # Find the maximal covered range containing the tax period start
+            max_range = coverage.maximal_covered_range_containing(self.period_from)
+            if not max_range:
+                raise ValueError(f"Depot {depot}: No covered range contains the tax period start {self.period_from}.\nSuggestion: Download and import statements covering this date for depot '{depot}'.")
+            # Check that at least one statement date is in this range
+            statement_dates = depot_position_dates.get(depot, set())
+            # Accept a statement date in the range OR exactly one day after the range end
+            if not any((max_range[0] <= d <= max_range[1]) or (d == max_range[1] + timedelta(days=1)) for d in statement_dates):
+                raise ValueError(f"Depot {depot}: No statement date in the maximal covered range {max_range} (or the day after) for the tax period.\nSuggestion: Download and import a statement with a statement date within {max_range} or the day after for depot '{depot}'.")
+        # --- End coverage check ---
             
         # Post-process: aggregate stocks/payments per unique Position
         security_map = defaultdict(lambda: ([], []))  # SecurityPosition -> (list of SecurityStock, list of SecurityPayment)
         cash_map = defaultdict(list)      # CashPosition -> list of SecurityStock
+        payments_added = set()  # Track which SecurityPositions have had payments added
         
         for pos, stock, payments in all_positions:
             if isinstance(pos, SecurityPosition):
                 security_map[pos][0].append(stock)
-                if payments:
+                # Only add payments if not already added for this position
+                if payments and id(pos) not in payments_added:
                     if isinstance(payments, list):
                         security_map[pos][1].extend(payments)
                     else:
                         security_map[pos][1].append(payments)
+                    payments_added.add(id(pos))
             elif isinstance(pos, CashPosition):
                 cash_map[pos].append(stock)
         

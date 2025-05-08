@@ -48,4 +48,14 @@ class DateRangeCoverage:
                 continue
             if b > end:
                 break
-        return False 
+        return False
+
+    def maximal_covered_range_containing(self, d: date) -> tuple[date, date] | None:
+        """
+        Returns the maximal continuously covered range (begin, end) that contains the given date,
+        or None if the date is not in any covered range.
+        """
+        for b, e in self.covered:
+            if b <= d <= e:
+                return (b, e)
+        return None 

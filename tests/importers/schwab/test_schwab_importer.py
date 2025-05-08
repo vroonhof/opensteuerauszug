@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import MagicMock, patch
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from opensteuerauszug.importers.schwab.schwab_importer import SchwabImporter
@@ -83,44 +83,94 @@ class TestSchwabImporterProcessing(unittest.TestCase):
             (mock_position, mock_stocks_list, mock_payments_list, test_depot_str, (period_from_date, period_to_date))
         ]
 
-        # 2. Patch TransactionExtractor
+        # 2. Patch TransactionExtractor and depot_position_dates
         with patch('opensteuerauszug.importers.schwab.schwab_importer.TransactionExtractor') as MockTransactionExtractor:
-            # Configure the instance's extract_transactions method
             mock_extractor_instance = MockTransactionExtractor.return_value
             mock_extractor_instance.extract_transactions.return_value = mock_transaction_data
 
-            # 3. Initialize SchwabImporter and run import
-            importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date)
-            # We pass a dummy filename because TransactionExtractor is mocked
-            tax_statement = importer.import_files(['dummy.json'])
+            # Patch StatementExtractor.extract_positions to return a dummy statement for the same depot and date
+            dummy_positions = [
+                (mock_position, mock_stock_item_1),
+                (mock_position, mock_stock_item_2)
+            ]
+            dummy_depot = test_depot_str
+            dummy_open_date = period_from_date
+            dummy_close_date_plus1 = period_from_date  # Just needs to be in range
+            with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
+                mock_statement_instance = MockStatementExtractor.return_value
+                mock_statement_instance.extract_positions.return_value = (dummy_positions, dummy_open_date, dummy_close_date_plus1, dummy_depot)
 
-            # 4. Assertions
-            self.assertIsNotNone(tax_statement)
-            self.assertIsNotNone(tax_statement.listOfSecurities, "listOfSecurities should not be None")
-            
-            # Explicit if check to help linter with type narrowing
-            if tax_statement.listOfSecurities is not None:
-                list_of_securities = tax_statement.listOfSecurities
-                self.assertEqual(len(list_of_securities.depot), 1, "Should be one depot")
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date)
+                tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
+
+                # 4. Assertions
+                self.assertIsNotNone(tax_statement)
+                self.assertIsNotNone(tax_statement.listOfSecurities, "listOfSecurities should not be None")
                 
-                depot_data = list_of_securities.depot[0]
-                self.assertIsNotNone(depot_data.depotNumber, "Depot number should not be None")
-                # DepotNumber is a str subclass, can be compared directly or cast to str
-                self.assertEqual(depot_data.depotNumber, test_depot_str) 
+                # Explicit if check to help linter with type narrowing
+                if tax_statement.listOfSecurities is not None:
+                    list_of_securities = tax_statement.listOfSecurities
+                    self.assertEqual(len(list_of_securities.depot), 1, "Should be one depot")
+                    
+                    depot_data = list_of_securities.depot[0]
+                    self.assertIsNotNone(depot_data.depotNumber, "Depot number should not be None")
+                    # DepotNumber is a str subclass, can be compared directly or cast to str
+                    self.assertEqual(depot_data.depotNumber, test_depot_str) 
 
-                self.assertEqual(len(depot_data.security), 1, "Should be one security entry for TESTETF")
+                    self.assertEqual(len(depot_data.security), 1, "Should be one security entry for TESTETF")
 
-                security_entry = depot_data.security[0]
-                self.assertEqual(security_entry.securityName, test_symbol)
-                
-                # Key Assertion: Check the number of payments
-                self.assertIsNotNone(security_entry.payment, "Payments list should not be None")
-                self.assertEqual(len(security_entry.payment), len(mock_payments_list),
-                                 f"Expected {len(mock_payments_list)} payments, but got {len(security_entry.payment)}. Payments found: {security_entry.payment}")
-            else:
-                # This else block should not be reached if the assertIsNotNone above works
-                self.fail("tax_statement.listOfSecurities was None after assertIsNotNone, which is unexpected.")
+                    security_entry = depot_data.security[0]
+                    self.assertEqual(security_entry.securityName, test_symbol)
+                    
+                    # Key Assertion: Check the number of payments
+                    self.assertIsNotNone(security_entry.payment, "Payments list should not be None")
+                    self.assertEqual(len(security_entry.payment), len(mock_payments_list),
+                                     f"Expected {len(mock_payments_list)} payments, but got {len(security_entry.payment)}. Payments found: {security_entry.payment}")
+                else:
+                    # This else block should not be reached if the assertIsNotNone above works
+                    self.fail("tax_statement.listOfSecurities was None after assertIsNotNone, which is unexpected.")
 
+    def test_statement_date_one_day_after_range_is_accepted(self):
+        """
+        Tests that a statement date exactly one day after the covered range is accepted.
+        """
+        test_depot_str = "DP2"
+        test_symbol = "TESTETF2"
+        period_from_date = date(2023, 1, 1)
+        period_to_date = date(2023, 12, 31)
+        covered_range_end = period_to_date
+        statement_date = covered_range_end + timedelta(days=1)
+
+        # Mock SecurityPosition
+        mock_position = SecurityPosition(depot=test_depot_str, symbol=test_symbol, type="security")
+        mock_stock_item = SecurityStock(
+            referenceDate=period_from_date,
+            mutation=False,
+            balanceCurrency="CHF",
+            quotationType="PIECE",
+            quantity=Decimal('10'),
+            name="Test Stock Lot"
+        )
+        mock_stocks_list = [mock_stock_item]
+        mock_payments_list = []
+        mock_transaction_data = [
+            (mock_position, mock_stocks_list, mock_payments_list, test_depot_str, (period_from_date, period_to_date))
+        ]
+        with patch('opensteuerauszug.importers.schwab.schwab_importer.TransactionExtractor') as MockTransactionExtractor:
+            mock_extractor_instance = MockTransactionExtractor.return_value
+            mock_extractor_instance.extract_transactions.return_value = mock_transaction_data
+            # Patch StatementExtractor.extract_positions to return a statement date one day after the range
+            dummy_positions = [(mock_position, mock_stock_item)]
+            dummy_depot = test_depot_str
+            dummy_open_date = period_from_date
+            dummy_close_date_plus1 = statement_date
+            with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
+                mock_statement_instance = MockStatementExtractor.return_value
+                mock_statement_instance.extract_positions.return_value = (dummy_positions, dummy_open_date, dummy_close_date_plus1, dummy_depot)
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date)
+                # Should not raise
+                tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
+                self.assertIsNotNone(tax_statement)
 
 if __name__ == '__main__':
     unittest.main() 
