@@ -2,6 +2,7 @@ import typer
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional
+from datetime import date, datetime # Modified to include datetime
 
 # Use the generated eCH-0196 model
 from .model.ech0196 import TaxStatement
@@ -10,6 +11,7 @@ from .render.render import render_tax_statement
 # Import calculation framework
 from .calculate.base import CalculationMode
 from .calculate.total import TotalCalculator
+from .importers.schwab.schwab_importer import SchwabImporter # Added import
 
 # Keep Portfolio for now, maybe it becomes an alias or wrapper for TaxStatement?
 # Or perhaps TaxStatement becomes the internal representation?
@@ -26,15 +28,24 @@ class Phase(str, Enum):
     CALCULATE = "calculate"
     RENDER = "render"
 
+class ImporterType(str, Enum):
+    SCHWAB = "schwab"
+    # Add other importer types here in the future
+    NONE = "none" # For raw import or if no specific importer is needed yet
+
 default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RENDER]
 
 @app.command()
 def main(
-    input_file: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=False, readable=True, help="Input file (specific format depends on importer, or XML for raw)"),
+    input_file: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=True, readable=True, help="Input file (specific format depends on importer, or XML for raw) or directory (for Schwab importer)."),
     output_file: Path = typer.Option(None, "--output", "-o", help="Output PDF file path."),
     run_phases_input: List[Phase] = typer.Option(None, "--phases", "-p", help="Phases to run (default: all). Specify multiple times or comma-separated."),
     debug_dump_path: Optional[Path] = typer.Option(None, "--debug-dump", help="Directory to dump intermediate model state after each phase (as XML)."),
     raw_import: bool = typer.Option(False, "--raw-import", help="Import directly from XML model dump instead of using an importer."),
+    importer_type: ImporterType = typer.Option(ImporterType.NONE, "--importer", help="Specify the importer to use."),
+    period_from_str: Optional[str] = typer.Option(None, "--period-from", help="Start date of the tax period (YYYY-MM-DD), required for some importers like Schwab."),
+    period_to_str: Optional[str] = typer.Option(None, "--period-to", help="End date of the tax period (YYYY-MM-DD), required for some importers like Schwab."),
+    tax_year: Optional[int] = typer.Option(None, "--tax-year", help="Specify the tax year (e.g., 2023). If provided, period-from and period-to will default to the start/end of this year unless explicitly set. If period-from/to are set, they must fall within this tax year."),
     # Add importer-specific options here later
     # Add calculation-specific options here later
     # Add render-specific options here later
@@ -51,6 +62,67 @@ def main(
     print(f"Phases to run: {[p.value for p in run_phases]}")
     print(f"Raw import: {raw_import}")
     print(f"Debug dump path: {debug_dump_path}")
+    print(f"Importer type: {importer_type.value}")
+
+    # Parse date strings and determine effective period_from and period_to
+    parsed_period_from: Optional[date] = None
+    parsed_period_to: Optional[date] = None
+
+    temp_period_from: Optional[date] = None
+    if period_from_str:
+        try:
+            temp_period_from = datetime.strptime(period_from_str, "%Y-%m-%d").date()
+        except ValueError:
+            raise typer.BadParameter(f"Invalid date format for --period-from: '{period_from_str}'. Expected YYYY-MM-DD.")
+
+    temp_period_to: Optional[date] = None
+    if period_to_str:
+        try:
+            temp_period_to = datetime.strptime(period_to_str, "%Y-%m-%d").date()
+        except ValueError:
+            raise typer.BadParameter(f"Invalid date format for --period-to: '{period_to_str}'. Expected YYYY-MM-DD.")
+
+    if tax_year:
+        print(f"Tax year specified: {tax_year}")
+        year_start_date = date(tax_year, 1, 1)
+        year_end_date = date(tax_year, 12, 31)
+
+        if temp_period_from:
+            if temp_period_from.year != tax_year:
+                raise typer.BadParameter(f"--period-from date '{temp_period_from}' is not within the specified --tax-year '{tax_year}'.")
+            parsed_period_from = temp_period_from
+            print(f"Using explicit --period-from: {parsed_period_from}")
+        else:
+            parsed_period_from = year_start_date
+            print(f"Defaulting --period-from to start of tax year: {parsed_period_from}")
+
+        if temp_period_to:
+            if temp_period_to.year != tax_year:
+                raise typer.BadParameter(f"--period-to date '{temp_period_to}' is not within the specified --tax-year '{tax_year}'.")
+            parsed_period_to = temp_period_to
+            print(f"Using explicit --period-to: {parsed_period_to}")
+        else:
+            parsed_period_to = year_end_date
+            print(f"Defaulting --period-to to end of tax year: {parsed_period_to}")
+    else:
+        # No tax_year provided, use explicit dates if available
+        parsed_period_from = temp_period_from
+        parsed_period_to = temp_period_to
+        if parsed_period_from:
+            print(f"Using explicit --period-from: {parsed_period_from}")
+        if parsed_period_to:
+            print(f"Using explicit --period-to: {parsed_period_to}")
+
+    # Validate that period_from is not after period_to
+    if parsed_period_from and parsed_period_to and parsed_period_from > parsed_period_to:
+        raise typer.BadParameter(f"--period-from '{parsed_period_from}' cannot be after --period-to '{parsed_period_to}'.")
+
+    if parsed_period_from and parsed_period_to:
+        print(f"Tax period: {parsed_period_from} to {parsed_period_to}")
+    elif parsed_period_from:
+        print(f"Tax period from: {parsed_period_from}")
+    elif parsed_period_to:
+        print(f"Tax period to: {parsed_period_to}")
 
     portfolio: Optional[Portfolio] = None # Now refers to TaxStatement
 
@@ -76,6 +148,8 @@ def main(
         print(f"Raw importing model from: {input_file}")
         try:
             # Use the model's XML load method
+            if not input_file.is_file():
+                raise typer.BadParameter(f"Raw import requires a file, but got a directory: {input_file}")
             portfolio = Portfolio.from_xml_file(str(input_file))
             print("Raw import complete.")
             dump_debug_model("raw_import", portfolio)
@@ -99,7 +173,31 @@ def main(
             # TODO: Implement importer logic based on input_file type
             # portfolio = run_import(input_file, ...)
             # For now, create an empty TaxStatement if not raw importing
-            portfolio = Portfolio(minorVersion=2)
+            if importer_type == ImporterType.SCHWAB:
+                if not parsed_period_from or not parsed_period_to:
+                    raise typer.BadParameter("--period-from and --period-to are required for the Schwab importer and must be valid dates.")
+                if not input_file.is_dir():
+                    raise typer.BadParameter(f"Input for Schwab importer must be a directory, but got: {input_file}")
+                
+                print(f"Using Schwab importer for directory: {input_file}")
+                schwab_importer = SchwabImporter(period_from=parsed_period_from, period_to=parsed_period_to)
+                portfolio = schwab_importer.import_dir(str(input_file))
+            elif importer_type == ImporterType.NONE and not raw_import:
+                if not input_file.is_file():
+                    # This branch currently doesn't use input_file, but help text implies it would be a file.
+                    # If future development uses input_file here, this check is important.
+                    # If it truly isn't used, this check could be removed or made more lenient.
+                    print(f"Warning: No specific importer selected, and input '{input_file}' is a directory. Proceeding by creating an empty TaxStatement. If this input was intended for use, please specify an importer or ensure it is a file.")
+                 # Default behavior if no specific importer is chosen and not raw_import
+                print("No specific importer selected, creating an empty TaxStatement for further processing.")
+                portfolio = Portfolio(minorVersion=2) # type: ignore
+            else:
+                # This case implies an importer was specified but isn't handled yet,
+                # or raw_import is true (which is handled before this block).
+                # If more importers are added, they need to be handled here.
+                print(f"Importer '{importer_type.value}' not yet implemented or not applicable. Creating empty TaxStatement.")
+                portfolio = Portfolio(minorVersion=2) # type: ignore
+
             print(f"Import successful (placeholder)." )
             dump_debug_model(current_phase.value, portfolio)
 
