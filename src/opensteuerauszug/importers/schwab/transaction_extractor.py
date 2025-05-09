@@ -422,23 +422,15 @@ class TransactionExtractor:
 
         elif action == "Transfer":
             if schwab_qty and schwab_tx.get("Symbol") and isinstance(pos_object, SecurityPosition): # Share transfer
-                cash_flow = None
-                calculated_value = None
-                if schwab_amount and schwab_amount != 0:
-                     calculated_value = schwab_amount
-                     cash_flow = -schwab_amount if schwab_qty > 0 else abs(schwab_amount) 
-                elif schwab_qty and schwab_price and schwab_price != 0:
-                     calculated_value = schwab_qty * schwab_price
-                     cash_flow = -calculated_value if schwab_qty > 0 else abs(calculated_value)
+                # No cash flow for transfer
+                assert not schwab_amount
+                assert schwab_qty > 0
 
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
                     quantity=schwab_qty, balanceCurrency=currency, # Use currency string
                     unitPrice=schwab_price, name=f"Transfer (Shares): {description}",
-                    balance=calculated_value
                 )
-                if cash_flow:
-                     cash_stock = create_cash_stock(cash_flow, f"Cash flow for Transfer {pos_object.symbol}")
 
             elif schwab_amount and not schwab_tx.get("Symbol") and isinstance(pos_object, CashPosition): # Cash transfer
                   cash_stock = create_cash_stock(schwab_amount, f"Cash Transfer: {description}")

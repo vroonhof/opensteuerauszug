@@ -634,38 +634,24 @@ class TestSchwabTransactionExtractor:
             "FromDate": "01/01/2024", "ToDate": "12/31/2024",
             "BrokerageTransactions": [{
                 "Date": "12/01/2024", "Action": "Transfer", "Symbol": "TSLA",
-                "Description": "TRANSFER OF ASSETS TO OTHER ACCOUNT", 
-                "Quantity": "-5.0", "Price": "200.00", "Amount": "$1000.00" 
+                "Description": "Share Transfer", 
+                "Quantity": "5.0", "Amount": None
             }]
         }
-        result = run_extraction_test(extractor, data, 2) # TSLA + Cash
+        result = run_extraction_test(extractor, data, 1) # TSLA + No Cash
         assert result is not None
         tsla_data = find_position(result, SecurityPosition, "TSLA")
-        cash_data = find_position(result, CashPosition)
         assert tsla_data is not None
-        assert cash_data is not None
 
         pos, stocks, payments = tsla_data
         assert isinstance(pos, SecurityPosition)
         assert payments is None
         assert len(stocks) == 1
         stock = stocks[0]
-        assert stock.quantity == Decimal("-5.0")
-        assert stock.balance == Decimal("1000.00") 
+        assert stock.quantity == Decimal("5.0")
         assert stock.name is not None
-        assert "Transfer (Shares): TRANSFER OF ASSETS TO OTHER ACCOUNT" in stock.name
-
-        cash_pos, cash_stocks, cash_payments = cash_data
-        assert isinstance(cash_pos, CashPosition)
-        assert cash_payments is None
-        assert cash_stocks is not None
-        assert len(cash_stocks) == 1
-        cash_stock_entry = cash_stocks[0]
-        assert cash_stock_entry.referenceDate == date(2024, 12, 1)
-        assert cash_stock_entry.quantity == Decimal("1000.00")
-        assert cash_stock_entry.balance == Decimal("1000.00")
-        assert cash_stock_entry.name == "Cash flow for Transfer TSLA"
-
+        assert "Transfer (Shares): Share Transfer" in stock.name
+ 
     def test_action_transfer_cash_in(self):
         extractor = create_extractor()
         data = {

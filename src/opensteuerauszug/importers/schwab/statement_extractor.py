@@ -55,7 +55,7 @@ class StatementExtractor:
                 print(f"Reading {num_pages} pages from '{self.pdf_path}'...")
                 for i, page in enumerate(reader.pages):
                     try:
-                        page_text = page.extract_text()
+                        page_text = page.extract_text(extraction_mode="layout")
                         if page_text: # Ensure text was extracted
                              self.text_content += page_text
                         else:
@@ -112,7 +112,7 @@ class StatementExtractor:
         # Check if all patterns are found in the text
         all_found = all(re.search(pattern, self.text_content, re.IGNORECASE | re.MULTILINE) for pattern in patterns)
         if not all_found:
-            if re.search(r"Investments Purchases", self.text_content, re.IGNORECASE | re.MULTILINE):
+            if re.search(r"Account Number", self.text_content, re.IGNORECASE | re.MULTILINE):
                 print("NOTE: Found likely main brokerage stagement. Ignoring.")
             else:
                 print("Warning: Unknown Schwab document.")
@@ -135,7 +135,6 @@ class StatementExtractor:
                   Keys: 'end_date', 'symbol', 'closing_shares', 'closing_price', 'closing_value'
         """
         if not self.is_statement():
-            print("Warning: Text does not appear to be a valid statement or no text was extracted.")
             return None
 
         data = {}
@@ -182,8 +181,8 @@ class StatementExtractor:
 
         # 3. Extract Stock Summary Data (Closing Shares, Price, Value) - (No change here)
         stock_summary_pattern = re.compile(
-            r'Stock Summary:.*?'
-            r'Opening\s*Closing\s*Closing\s*Share Price\s*Closing\s+Value\s*'
+            r'Stock Summary:[^0-9]*?'
+            r'Opening\s*Closing\s*\s*Share Price\s*\s+Value\s*'
             r'([\d,.]+)\s+'       # Group 1: Opening Shares
             r'([\d,.]+)\s+'       # Group 2: Closing Shares
             r'(\$[\d,.]+)\s+'     # Group 3: Closing Share Price
@@ -229,14 +228,12 @@ class StatementExtractor:
 
 
         # 4. Check if all essential data points were extracted (Now includes symbol)
-        required_keys = ['end_date', 'symbol', 'closing_shares', 'closing_price', 'closing_value']
+        required_keys = ['end_date', 'symbol', 'closing_shares']
         missing_keys = [key for key in required_keys if data.get(key) is None]
 
         if missing_keys:
              print(f"Warning: Failed to extract one or more required data points: {', '.join(missing_keys)}.")
-             # Decide if you want to return None or partial data
-             # For now, let's return the partial data and let verify_calculation handle missing numerics
-             # return None
+             return None
 
         self.extracted_data = data
         return data
@@ -319,17 +316,21 @@ class StatementExtractor:
         # Security position (if symbol and closing_shares)
         symbol = data.get('symbol')
         closing_shares = data.get('closing_shares')
+        opening_shares = data.get('opening_shares')
         closing_value = data.get('closing_value')
         closing_price = data.get('closing_price')
         if symbol and closing_shares is not None:
             pos = SecurityPosition(depot=depot, symbol=symbol, securityType=None)
-            stock_open = SecurityStock(
-                referenceDate=open_date,
-                mutation=False,
-                quotationType='PIECE',
-                quantity=closing_shares,
-                balanceCurrency='USD'
-            )
+            if opening_shares is not None: # Only add opening if available
+                stock_open = SecurityStock(
+                    referenceDate=open_date,
+                    mutation=False,
+                    quotationType='PIECE',
+                    quantity=opening_shares,
+                    balanceCurrency='USD'
+                )
+                positions.append((pos, stock_open))
+            
             stock_close = SecurityStock(
                 referenceDate=close_date_plus1,
                 mutation=False,
@@ -337,20 +338,23 @@ class StatementExtractor:
                 quantity=closing_shares,
                 balanceCurrency='USD'
             )
-            positions.append((pos, stock_open))
             positions.append((pos, stock_close))
         # Cash position (if closing_cash)
         closing_cash = data.get('closing_cash')
+        opening_cash = data.get('opening_cash')
         if closing_cash is not None:
             pos = CashPosition(depot=depot, currentCy='USD')
-            stock_open = SecurityStock(
-                referenceDate=open_date,
-                mutation=False,
-                quotationType='PIECE',
-                quantity=closing_cash,
-                balanceCurrency='USD',
-                balance=closing_cash
-            )
+            if opening_cash is not None: # Only add opening if available
+                stock_open = SecurityStock(
+                    referenceDate=open_date,
+                    mutation=False,
+                    quotationType='PIECE',
+                    quantity=opening_cash,
+                    balanceCurrency='USD',
+                    balance=opening_cash
+                )
+                positions.append((pos, stock_open))
+
             stock_close = SecurityStock(
                 referenceDate=close_date_plus1,
                 mutation=False,
@@ -359,7 +363,6 @@ class StatementExtractor:
                 balanceCurrency='USD',
                 balance=closing_cash
             )
-            positions.append((pos, stock_open))
             positions.append((pos, stock_close))
         return positions, open_date, close_date_plus1, depot
 
@@ -425,6 +428,18 @@ def main():
         else:
             # Specific warnings/errors are printed within extract_data() or __init__
             print("\nData extraction failed or statement format not recognized.")
+        
+        print("\n--- Extracted Positions ---")
+        extracted_positions = extractor.extract_positions()
+        if extracted_positions:
+            positions, open_date, close_date_plus1, depot = extracted_positions
+            print(f"Open Date: {open_date}")
+            print(f"Close Date Plus 1: {close_date_plus1}")
+            print(f"Depot: {depot}")
+            from devtools import debug
+            debug(positions)
+        else:
+            print("No positions extracted.")
 
     except FileNotFoundError as fnf_error:
         print(fnf_error) # Print the specific error message from __init__
