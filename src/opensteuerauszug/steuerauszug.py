@@ -46,6 +46,7 @@ def main(
     period_from_str: Optional[str] = typer.Option(None, "--period-from", help="Start date of the tax period (YYYY-MM-DD), required for some importers like Schwab."),
     period_to_str: Optional[str] = typer.Option(None, "--period-to", help="End date of the tax period (YYYY-MM-DD), required for some importers like Schwab."),
     tax_year: Optional[int] = typer.Option(None, "--tax-year", help="Specify the tax year (e.g., 2023). If provided, period-from and period-to will default to the start/end of this year unless explicitly set. If period-from/to are set, they must fall within this tax year."),
+    strict_consistency_flag: bool = typer.Option(True, "--strict-consistency/--no-strict-consistency", help="Enable/disable strict consistency checks in importers (e.g., Schwab). Defaults to strict."),
     # Add importer-specific options here later
     # Add calculation-specific options here later
     # Add render-specific options here later
@@ -180,7 +181,7 @@ def main(
                     raise typer.BadParameter(f"Input for Schwab importer must be a directory, but got: {input_file}")
                 
                 print(f"Using Schwab importer for directory: {input_file}")
-                schwab_importer = SchwabImporter(period_from=parsed_period_from, period_to=parsed_period_to)
+                schwab_importer = SchwabImporter(period_from=parsed_period_from, period_to=parsed_period_to, strict_consistency=strict_consistency_flag)
                 portfolio = schwab_importer.import_dir(str(input_file))
             elif importer_type == ImporterType.NONE and not raw_import:
                 if not input_file.is_file():

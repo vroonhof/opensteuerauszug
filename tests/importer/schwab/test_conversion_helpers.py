@@ -34,7 +34,8 @@ def test_convert_cash_positions_to_list_of_bank_accounts():
         quantity=Decimal(1000),
         balanceCurrency='USD'
     )
-    result = convert_cash_positions_to_list_of_bank_accounts([(pos, stock)])
+    result = convert_cash_positions_to_list_of_bank_accounts([(pos, [stock])])
+    assert len(result.bankAccount) == 1
     assert result.bankAccount[0].bankAccountNumber == "D2"
     assert result.bankAccount[0].bankAccountCurrency == "USD"
 
@@ -58,7 +59,7 @@ def test_create_tax_statement_from_positions():
     )
     tax_statement = create_tax_statement_from_positions(
         [(sec_pos, [sec_stock], None)],
-        [(cash_pos, cash_stock)],
+        [(cash_pos, [cash_stock])],
         period_from=date(2024, 1, 1),
         period_to=date(2024, 12, 31),
         tax_period=2024

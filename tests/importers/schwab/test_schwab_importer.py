@@ -35,25 +35,30 @@ class TestSchwabImporterProcessing(unittest.TestCase):
         mock_position = SecurityPosition(depot=test_depot_str, symbol=test_symbol, type="security")
 
         # Mock SecurityStock items (multiple)
-        mock_stock_item_1 = SecurityStock(
-            referenceDate=period_from_date, 
-            mutation=False,
-            balanceCurrency="CHF", 
-            quotationType="PIECE", 
-            quantity=Decimal('10'),
-            name="Test Stock Lot 1" # Optional: using name for description
-            # Removed invalid fields like isin, valor, exchangeRateToCHF etc.
-        )
-        mock_stock_item_2 = SecurityStock(
+        mock_stock_item_1_balance = SecurityStock(
             referenceDate=period_from_date,
-            mutation=False,
-            balanceCurrency="CHF", 
-            quotationType="PIECE", 
-            quantity=Decimal('20'),
-            name="Test Stock Lot 2"
+            mutation=False, # This is a balance
+            balanceCurrency="CHF",
+            quotationType="PIECE",
+            quantity=Decimal('10'),
+            name="Opening Balance Lot"
         )
-        mock_stocks_list = [mock_stock_item_1, mock_stock_item_2]
-
+        # This item from the transaction should represent a change or a different lot
+        # If it's a different lot existing at the same time, the total starting balance would be sum.
+        # For simplicity and consistency, let's make the second item a mutation.
+        mock_stock_item_2_mutation = SecurityStock(
+            referenceDate=period_from_date, # Same day as balance, but mutation
+            mutation=True, # This is a mutation
+            balanceCurrency="CHF",
+            quotationType="PIECE",
+            quantity=Decimal('20'), # e.g., an acquisition of 20 more
+            name="Acquired Lot on same day"
+        )
+        # TransactionExtractor returns a list of stocks related to the transaction.
+        # Let's assume the transaction resulted in the acquisition.
+        # The initial_stocks list for PositionReconciler will combine this with StatementExtractor's data.
+        mock_transaction_stocks_list = [mock_stock_item_2_mutation]
+    
         # Mock SecurityPayment items (a list of unique payments)
         # Ensure all required fields for SecurityPayment are present.
         # Required: paymentDate, quotationType, quantity, amountCurrency
@@ -80,7 +85,7 @@ class TestSchwabImporterProcessing(unittest.TestCase):
         # Mock return value for TransactionExtractor.extract_transactions
         # (position, stocks, payments, depot, (start_date, end_date))
         mock_transaction_data = [
-            (mock_position, mock_stocks_list, mock_payments_list, test_depot_str, (period_from_date, period_to_date))
+            (mock_position, mock_transaction_stocks_list, mock_payments_list, test_depot_str, (period_from_date, period_to_date))
         ]
 
         # 2. Patch TransactionExtractor and depot_position_dates
@@ -89,16 +94,17 @@ class TestSchwabImporterProcessing(unittest.TestCase):
             mock_extractor_instance.extract_transactions.return_value = mock_transaction_data
 
             # Patch StatementExtractor.extract_positions to return a dummy statement for the same depot and date
-            dummy_positions = [
-                (mock_position, mock_stock_item_1),
-                (mock_position, mock_stock_item_2)
+            # This should be the starting balance before the transaction's effects.
+            dummy_positions_pdf = [
+                (mock_position, mock_stock_item_1_balance) 
             ]
-            dummy_depot = test_depot_str
-            dummy_open_date = period_from_date
-            dummy_close_date_plus1 = period_from_date  # Just needs to be in range
+            dummy_depot_pdf = test_depot_str
+            dummy_open_date_pdf = period_from_date
+            # Use a date that ensures this statement is considered for initial balance
+            dummy_close_date_plus1_pdf = period_from_date 
             with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
                 mock_statement_instance = MockStatementExtractor.return_value
-                mock_statement_instance.extract_positions.return_value = (dummy_positions, dummy_open_date, dummy_close_date_plus1, dummy_depot)
+                mock_statement_instance.extract_positions.return_value = (dummy_positions_pdf, dummy_open_date_pdf, dummy_close_date_plus1_pdf, dummy_depot_pdf)
 
                 importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date)
                 tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
