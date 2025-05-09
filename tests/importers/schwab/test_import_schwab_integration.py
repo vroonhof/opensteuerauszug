@@ -13,16 +13,12 @@ def test_schwab_import_integration(sample_dir):
         pytest.skip("No Schwab sample directories with .pdf or .json files found.")
     period_from = date(2024, 1, 1)
     period_to = date(2024, 12, 31)
-    importer = SchwabImporter(period_from=period_from, period_to=period_to, strict_consistency=False)
+    importer = SchwabImporter(period_from=period_from, period_to=period_to, strict_consistency= True)
     tax_statement = importer.import_dir(sample_dir)
     assert tax_statement is not None, "TaxStatement should not be None for 2024 non-strict"
     assert tax_statement.listOfSecurities is not None, "ListOfSecurities should not be None for 2024 non-strict"
-    # Add more specific assertions if the structure of the output for 2024 is known
-    # For now, just ensuring it runs without a consistency error is the goal.
-    # Example: check if any securities were processed for known depots if applicable
-    found_depot_178 = any(d.depotNumber == "178" for d in tax_statement.listOfSecurities.depot)
-    found_depot_AWARDS = any(d.depotNumber == "AWARDS" for d in tax_statement.listOfSecurities.depot)
-    assert found_depot_178 or found_depot_AWARDS, "Expected to process at least one known depot (178 or AWARDS) for 2024 non-strict"
+    # The integration test data is private, so we should add assertions on the contents
+    # of the statement.
     assert tax_statement.periodFrom == period_from
     assert tax_statement.periodTo == period_to
     assert tax_statement.taxPeriod == 2024

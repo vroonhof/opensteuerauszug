@@ -336,17 +336,17 @@ class TestSchwabTransactionExtractor:
                 "Amount": "$150.75" 
             }]
         }
-        result = run_extraction_test(extractor, data, 1)
+        result = run_extraction_test(extractor, data, 2) # JNJ SecurityPosition + CashPosition
         assert result is not None
         jnj_data = find_position(result, SecurityPosition, "JNJ")
-        cash_data = find_position(result, CashPosition) # Should not exist or be empty
+        cash_data = find_position(result, CashPosition) 
         assert jnj_data is not None
-        assert cash_data is None # No separate cash position generated
+        assert cash_data is not None
 
         pos, stocks, payments = jnj_data
         assert isinstance(pos, SecurityPosition)
         assert pos.symbol == "JNJ"
-        assert not stocks
+        assert not stocks # No stock movement on the security itself for a cash dividend
         assert payments is not None
         assert len(payments) == 1 # Only the dividend payment
         payment = payments[0]
@@ -354,6 +354,18 @@ class TestSchwabTransactionExtractor:
         assert payment.grossRevenueB == Decimal("150.75")
         assert payment.name is not None
         assert "Dividend: JOHNSON & JOHNSON DIVIDEND" in payment.name
+
+        cash_pos, cash_stocks, cash_payments = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert cash_payments is None # CashPosition does not have its own SecurityPayment list
+        assert cash_stocks is not None
+        assert len(cash_stocks) == 1
+        cash_stock_entry = cash_stocks[0]
+        assert cash_stock_entry.referenceDate == date(2024, 9, 15)
+        assert cash_stock_entry.mutation is True
+        assert cash_stock_entry.quantity == Decimal("150.75")
+        assert cash_stock_entry.balance == Decimal("150.75") # Assuming balance reflects this transaction
+        assert cash_stock_entry.name == f"Cash in for Dividend {pos.symbol}"
 
     def test_action_reinvest_dividend(self):
         extractor = create_extractor()
@@ -366,35 +378,35 @@ class TestSchwabTransactionExtractor:
                 "Amount": "$555.65" # Total dividend amount reinvested
             }]
         }
-        result = run_extraction_test(extractor, data, 1) 
+        result = run_extraction_test(extractor, data, 1) # SPY SecurityPosition + no net cash
         assert result is not None
         
-        assert len(result) == 1, "Expected only one transaction result for reinvestment"
-        pos, stocks, payments, _, _ = result[0]
+        spy_data = find_position(result, SecurityPosition, "SPY")
+        cash_data = find_position(result, CashPosition)
+        assert spy_data is not None
+        assert cash_data is None
 
+        pos, stocks, payments = spy_data # SPY SecurityPosition
         assert isinstance(pos, SecurityPosition), f"Expected SecurityPosition, got {type(pos)}"
         assert pos.symbol == "SPY"
         
-        assert payments is not None, "Payments should exist for reinvested dividend"
+        assert payments is not None, "Payments should exist for reinvested dividend on SecurityPosition"
         assert len(payments) == 1, "Expected one payment entry for the dividend itself"
         payment = payments[0]
         assert payment.grossRevenueB == Decimal("555.65"), "Gross revenue B should match total dividend amount"
         assert payment.name is not None
-        assert "Reinvest Dividend (Payment)" in payment.name
+        assert "Reinvest Dividend (Payment)" in payment.name # Name for the dividend payment part
 
-        assert stocks is not None, "Stocks should exist for shares acquired through reinvestment"
+        assert stocks is not None, "Stocks should exist for shares acquired through reinvestment on SecurityPosition"
         assert len(stocks) == 1, "Expected one stock entry for the acquired shares"
-        stock = stocks[0]
-        assert stock.mutation is True, "Stock entry should be a mutation"
-        assert stock.quantity == Decimal("1.2345"), "Stock quantity should match reinvested shares"
-        assert stock.unitPrice == Decimal("450.10"), "Stock unit price should match reinvestment price"
-        assert stock.balance == Decimal("555.65"), "Stock balance should match total reinvested amount"
-        assert stock.name is not None
-        assert "Reinvest Dividend (Acquisition)" in stock.name
-        
-        # Cash movement is now considered implicit in the reinvestment for this extractor's output
-        # No separate CashPosition or cash-related SecurityPayment/SecurityStock is expected from this handler
-
+        stock_acquisition_entry = stocks[0]
+        assert stock_acquisition_entry.mutation is True, "Stock entry should be a mutation"
+        assert stock_acquisition_entry.quantity == Decimal("1.2345"), "Stock quantity should match reinvested shares"
+        assert stock_acquisition_entry.unitPrice == Decimal("450.10"), "Stock unit price should match reinvestment price"
+        assert stock_acquisition_entry.balance == Decimal("555.65"), "Stock balance should match total reinvested amount"
+        assert stock_acquisition_entry.name is not None
+        assert "Reinvest Dividend (Acquisition)" in stock_acquisition_entry.name # Name for the shares acquisition part               
+ 
     def test_action_stock_split(self):
         extractor = create_extractor()
         data = {
@@ -648,7 +660,7 @@ class TestSchwabTransactionExtractor:
         assert payments is None
         assert len(stocks) == 1
         stock = stocks[0]
-        assert stock.quantity == Decimal("5.0")
+        assert stock.quantity == -Decimal("5.0")
         assert stock.name is not None
         assert "Transfer (Shares): Share Transfer" in stock.name
  
@@ -702,9 +714,9 @@ class TestSchwabTransactionExtractor:
         assert isinstance(cash_pos, CashPosition)
         assert cash_payments is None
         assert cash_stocks is not None
-        assert len(cash_stocks) == 2 
+        assert len(cash_stocks) == 3 # Buy (-3000), Dividend (+50), Sale (+1600)
         cash_stock_qtys = sorted([s.quantity for s in cash_stocks])
-        assert cash_stock_qtys == [Decimal("-3000.00"), Decimal("1600.00")]
+        assert cash_stock_qtys == [Decimal("-3000.00"), Decimal("50.00"), Decimal("1600.00")]
 
     def test_multiple_positions_cash_and_security_with_synthesis(self):
         extractor = create_extractor()

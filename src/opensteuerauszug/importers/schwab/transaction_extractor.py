@@ -90,7 +90,7 @@ class TransactionExtractor:
             return None
 
         # Group transactions by symbol (or lack thereof for cash)
-        grouped_by_position: dict[str, dict[str, Any]] = {}
+        grouped_by_position: dict[Position, dict[str, Any]] = {}
         default_cash_currency = "USD" # Assume USD for Schwab cash
 
         for schwab_tx in raw_transactions:
@@ -99,55 +99,78 @@ class TransactionExtractor:
                 # Skip or raise error (already handled in _process_single_transaction theoretically)
                 continue 
 
-            symbol = schwab_tx.get("Symbol", "").strip()
-            group_key = symbol if symbol else "__CASH__"
-            is_cash_only_txn = not symbol
+            symbol_in_tx = schwab_tx.get("Symbol", "").strip()
+            # is_cash_only_txn = not symbol_in_tx # Not directly used for primary pos creation anymore
 
-            # Ensure the group exists
-            if group_key not in grouped_by_position:
-                pos: Position
-                if symbol:
-                    desc = schwab_tx.get("Description")
-                    if not desc or desc == symbol: desc = None
-                    pos = SecurityPosition(depot=depot, symbol=symbol, description=desc)
-                else:
-                    pos = CashPosition(depot=depot, currentCy=default_cash_currency)
-                
-                grouped_by_position[group_key] = {"position": pos, "stocks": [], "payments": []}
+            # Determine the primary security position if a symbol exists in the transaction
+            security_pos_key: Optional[SecurityPosition] = None
+            if symbol_in_tx:
+                desc = schwab_tx.get("Description")
+                if not desc or desc == symbol_in_tx: desc = None
+                security_pos_key = SecurityPosition(depot=depot, symbol=symbol_in_tx, description=desc)
+                if security_pos_key not in grouped_by_position:
+                    grouped_by_position[security_pos_key] = {"position": security_pos_key, "stocks": [], "payments": []}
             
-            # Get the position object for context
-            current_pos_object = grouped_by_position[group_key]["position"]
+            # Determine context for _process_single_transaction
+            # If there's a symbol, context is that security. Otherwise, a generic cash context.
+            context_for_processing: Position
+            if security_pos_key:
+                context_for_processing = security_pos_key
+            else:
+                # This is a transaction without a symbol (e.g. pure cash journal in brokerage)
+                # The cash_account_id for this context cash position will be None, even for AWARDS,
+                # as there's no symbol from the transaction to specify it.
+                context_for_processing = CashPosition(depot=depot, currentCy=default_cash_currency, cash_account_id=None)
+                # Ensure this generic cash position is in grouped_by_position if it's the primary target for non-stock/non-payment items
+                if context_for_processing not in grouped_by_position:
+                     grouped_by_position[context_for_processing] = {"position": context_for_processing, "stocks": [], "payments": []}
 
             # Process the transaction
-            sec_stock, sec_payment, cash_stock = self._process_single_transaction(schwab_tx, current_pos_object)
+            # The pos_object argument to _process_single_transaction is context_for_processing
+            sec_stock, sec_payment, cash_stock_mutation = self._process_single_transaction(schwab_tx, context_for_processing)
 
             # Assign results to appropriate lists
             if sec_stock:
-                 if not is_cash_only_txn: # Add to security's stock list
-                      grouped_by_position[group_key]["stocks"].append(sec_stock)
-                 # else: Should not happen - sec_stock generated only if symbol exists?
+                 if security_pos_key: # sec_stock always belongs to a security identified by symbol_in_tx
+                      grouped_by_position[security_pos_key]["stocks"].append(sec_stock)
+                 else:
+                      # This case should ideally not occur if sec_stock is only generated when a symbol is present.
+                      print(f"Warning: sec_stock generated but no security_pos_key (symbol_in_tx was empty?) for TX: {schwab_tx}")
                       
             if sec_payment:
-                 if action == "Credit Interest": # Special case: payment belongs to cash account
-                     # Ensure cash group exists
-                     if "__CASH__" not in grouped_by_position:
-                         grouped_by_position["__CASH__"] = {
-                             "position": CashPosition(depot=depot, currentCy=default_cash_currency),
-                             "stocks": [], "payments": []
-                         }
-                     grouped_by_position["__CASH__"]["payments"].append(sec_payment)
-                 elif not is_cash_only_txn: # Add to security's payment list
-                      grouped_by_position[group_key]["payments"].append(sec_payment)
-                 # else: Payment generated without symbol? Error?
+                 if action == "Credit Interest": # Special case: payment belongs to a cash account
+                     _cash_account_id_for_interest = None
+                     if depot == 'AWARDS':
+                         if symbol_in_tx:
+                             _cash_account_id_for_interest = symbol_in_tx
+                         else:
+                             print(f"Warning: 'Credit Interest' for AWARDS depot has no Symbol in TX: {schwab_tx}. Associating with non-specific cash account.")
+                    
+                     target_cash_pos_for_interest = CashPosition(depot=depot, currentCy=default_cash_currency, cash_account_id=_cash_account_id_for_interest)
+                     if target_cash_pos_for_interest not in grouped_by_position:
+                         grouped_by_position[target_cash_pos_for_interest] = {"position": target_cash_pos_for_interest, "stocks": [], "payments": []}
+                     grouped_by_position[target_cash_pos_for_interest]["payments"].append(sec_payment)
+                 elif security_pos_key: # Other payments (e.g., Dividend) belong to the security
+                      grouped_by_position[security_pos_key]["payments"].append(sec_payment)
+                 else:
+                      # This implies a payment was generated for a transaction with no symbol, and it's not Credit Interest.
+                      print(f"Warning: sec_payment for action '{action}' but no security_pos_key (symbol_in_tx was empty?) for TX: {schwab_tx}")
 
-            if cash_stock:
-                 # Ensure cash group exists
-                 if "__CASH__" not in grouped_by_position:
-                      grouped_by_position["__CASH__"] = {
-                          "position": CashPosition(depot=depot, currentCy=default_cash_currency),
+            if cash_stock_mutation:
+                 _cash_account_id_for_mutation = None
+                 if depot == 'AWARDS':
+                     if symbol_in_tx:
+                         _cash_account_id_for_mutation = symbol_in_tx
+                     else:
+                         print(f"Warning: Cash mutation for AWARDS depot from TX with no Symbol: {schwab_tx}. Associating with non-specific cash account.")
+                 
+                 target_cash_pos_for_mutation = CashPosition(depot=depot, currentCy=default_cash_currency, cash_account_id=_cash_account_id_for_mutation)
+                 if target_cash_pos_for_mutation not in grouped_by_position:
+                      grouped_by_position[target_cash_pos_for_mutation] = {
+                          "position": target_cash_pos_for_mutation,
                           "stocks": [], "payments": []
                       }
-                 grouped_by_position["__CASH__"]["stocks"].append(cash_stock)
+                 grouped_by_position[target_cash_pos_for_mutation]["stocks"].append(cash_stock_mutation)
 
         # --- Assemble final list (No more second pass) --- 
         processed_transactions = []
@@ -301,6 +324,7 @@ class TransactionExtractor:
                     grossRevenueB=schwab_amount
                     # TODO: Withholding tax check might generate cash_stock here later
                 )
+                cash_stock = create_cash_stock(schwab_amount, f"Cash in for Dividend {pos_object.symbol}")
         
         elif action == "Reinvest Dividend" or action == "Reinvest Shares":
             # Generates a Payment (dividend) and a Stock (acquisition) for the security.
@@ -404,9 +428,6 @@ class TransactionExtractor:
                      calculated_value = schwab_amount
                      # If qty > 0 (in), cash is out? If qty < 0 (out), cash is in?
                      cash_flow = -schwab_amount if schwab_qty > 0 else abs(schwab_amount) 
-                elif schwab_qty and schwab_price and schwab_price !=0:
-                     calculated_value = schwab_qty * schwab_price
-                     cash_flow = -calculated_value if schwab_qty > 0 else abs(calculated_value)
                      
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
@@ -416,7 +437,7 @@ class TransactionExtractor:
                 if cash_flow:
                      cash_stock = create_cash_stock(cash_flow, f"Cash flow for Journal {pos_object.symbol}")
 
-            elif schwab_amount and pos_object.type == "cash": # Cash journal
+            elif schwab_amount: # Cash journal
                  # Just generate cash stock mutation
                  cash_stock = create_cash_stock(schwab_amount, f"Cash Journal: {description}")
 
@@ -428,7 +449,7 @@ class TransactionExtractor:
 
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                    quantity=schwab_qty, balanceCurrency=currency, # Use currency string
+                    quantity=-schwab_qty, balanceCurrency=currency, # Use currency string
                     unitPrice=schwab_price, name=f"Transfer (Shares): {description}",
                 )
 

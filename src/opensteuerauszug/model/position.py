@@ -19,9 +19,10 @@ class BasePosition(BaseModel):
 class CashPosition(BasePosition):
     type: Literal["cash"] = "cash"
     currentCy: str = Field(default="USD", description="Currency code for cash position")
+    cash_account_id: Optional[str] = Field(default=None, description="Optional identifier for a specific cash account within the same depot and currency")
 
     def _comparison_key(self):
-        return (self.depot, self.currentCy)
+        return (self.depot, self.currentCy, self.cash_account_id)
 
 class SecurityPosition(BasePosition):
     """

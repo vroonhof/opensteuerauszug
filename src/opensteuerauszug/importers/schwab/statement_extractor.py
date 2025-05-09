@@ -343,7 +343,7 @@ class StatementExtractor:
         closing_cash = data.get('closing_cash')
         opening_cash = data.get('opening_cash')
         if closing_cash is not None:
-            pos = CashPosition(depot=depot, currentCy='USD')
+            pos = CashPosition(depot=depot, currentCy='USD', cash_account_id=symbol)
             if opening_cash is not None: # Only add opening if available
                 stock_open = SecurityStock(
                     referenceDate=open_date,
