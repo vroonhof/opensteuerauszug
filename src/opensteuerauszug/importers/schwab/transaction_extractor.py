@@ -218,11 +218,35 @@ class TransactionExtractor:
             print(f"Warning: Skipping transaction with no date: {schwab_tx}")
             return None, None, None # Return tuple of Nones
         
+        # Date parsing logic
+        actual_tx_date_str_part: str
+        as_of_date_str_part: Optional[str] = None
+        tx_date: Optional[date] = None 
+        as_of_date_parsed: Optional[date] = None
+
+        if " as of " in tx_date_str:
+            parts = tx_date_str.split(" as of ", 1)
+            actual_tx_date_str_part = parts[0].strip()
+            if len(parts) > 1:
+                as_of_date_str_part = parts[1].strip()
+        else:
+            actual_tx_date_str_part = tx_date_str.strip()
+        
         try:
-            tx_date = datetime.strptime(tx_date_str, "%m/%d/%Y").date()
+            tx_date = datetime.strptime(actual_tx_date_str_part, "%m/%d/%Y").date()
         except ValueError:
-            print(f"Warning: Could not parse transaction date: '{tx_date_str}' in {schwab_tx}")
+            print(f"Warning: Could not parse transaction date part: '{actual_tx_date_str_part}' from full string '{tx_date_str}' in {schwab_tx}")
             return None, None, None
+
+        if as_of_date_str_part:
+            try:
+                as_of_date_parsed = datetime.strptime(as_of_date_str_part, "%m/%d/%Y").date()
+                log_context_action = schwab_tx.get('Action', 'N/A')
+                log_context_symbol = schwab_tx.get('Symbol', '')
+                print(f"Info: Extracted 'as of' date: {as_of_date_parsed} (transaction date: {tx_date}) from full string '{tx_date_str}' for action '{log_context_action}' symbol '{log_context_symbol}'.")
+            except ValueError:
+                print(f"Warning: Could not parse 'as of' date part: '{as_of_date_str_part}' from full string '{tx_date_str}' in {schwab_tx}")
+                # as_of_date_parsed remains None, processing continues with tx_date
 
         schwab_qty = self._parse_schwab_decimal(schwab_tx.get("Quantity"))
         schwab_price = self._parse_schwab_decimal(schwab_tx.get("Price"))
