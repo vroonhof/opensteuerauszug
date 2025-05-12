@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Tuple
 import os
 from decimal import Decimal
 from opensteuerauszug.model.ech0196 import (
-    ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, CurrencyId, QuotationType
+    ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, CurrencyId, QuotationType
 )
 from opensteuerauszug.model.position import SecurityPosition, CashPosition, Position
 from .statement_extractor import StatementExtractor
@@ -191,8 +191,7 @@ class SchwabImporter:
             
         # Post-process: aggregate stocks/payments per unique Position
         security_map = defaultdict(lambda: ([], []))  # SecurityPosition -> (list of SecurityStock, list of SecurityPayment)
-        cash_map = defaultdict(list)      # CashPosition -> list of SecurityStock
-        payments_added = set()  # Track which SecurityPositions have had payments added
+        cash_map = defaultdict(lambda: ([], []))  # CashPosition -> (list of SecurityStock, list of SecurityPayment)
         
         for pos, stock, payments in all_positions:
             if not is_date_in_valid_transaction_range(stock.referenceDate, max_ranges[pos.depot]):
@@ -201,15 +200,17 @@ class SchwabImporter:
             if isinstance(pos, SecurityPosition):
                 # Ensure stock is a list for security_map, even if it's a single item initially from all_positions
                 current_stocks, current_payments = security_map[pos]
-                current_stocks.append(stock)
-                if payments: # payments can be a list or a single item
-                    if isinstance(payments, list):
-                        current_payments.extend(payments)
-                    else:
-                        current_payments.append(payments)
             elif isinstance(pos, CashPosition):
-                # cash_map value is a list of SecurityStock items directly associated with the CashPosition key
-                cash_map[pos].append(stock)
+                current_stocks, current_payments = cash_map[pos]
+            else:
+                raise TypeError(f"Unknown position type: {type(pos)}")
+                
+            current_stocks.append(stock)
+            if payments: # payments can be a list or a single item
+                if isinstance(payments, list):
+                    current_payments.extend(payments)
+                else:
+                    current_payments.append(payments)
         
         tax_year = self.period_from.year
         
@@ -318,7 +319,7 @@ class SchwabImporter:
 
         # Process cash positions similarly
         final_cash_tuples = []
-        for cash_pos, initial_cash_stocks in cash_map.items():
+        for cash_pos, (initial_cash_stocks, associated_payments) in cash_map.items():
             current_identifier = f"Cash-{cash_pos.depot}-{cash_pos.cash_account_id}-{cash_pos.currentCy}"
 
             # 1. Initial Consistency Check on original cash data
@@ -400,7 +401,7 @@ class SchwabImporter:
             # final_cash_state_reconciler = PositionReconciler(live_stocks, identifier=f"{current_identifier}-final_state_check")
             # final_cash_state_reconciler.check_consistency(print_log=True, raise_on_error=False)
             
-            final_cash_tuples.append((cash_pos, live_stocks)) # Use the reconciled list of stocks
+            final_cash_tuples.append((cash_pos, live_stocks, associated_payments)) # Use the reconciled list of stocks
 
         return create_tax_statement_from_positions(
             final_security_tuples,
@@ -456,33 +457,43 @@ def convert_security_positions_to_list_of_securities(
     return ListOfSecurities(depot=list(depots.values()))
 
 def convert_cash_positions_to_list_of_bank_accounts(
-    cash_tuples: list[tuple[CashPosition, list[SecurityStock]]]
+    cash_tuples: list[tuple[CashPosition, list[SecurityStock], list[SecurityPayment] | None]]
 ) -> ListOfBankAccounts:
     """
     Convert a list of (CashPosition, List[SecurityStock]) tuples into a ListOfBankAccounts object.
-    Minimal stub: one bank account per depot.
     """
-    accounts: Dict[str, BankAccount] = {}
-    for pos, stocks in cash_tuples:
+    accounts: List[BankAccount] = []
+    for pos, stocks, payments in cash_tuples:
         depot_number = pos.depot
-        if depot_number not in accounts:
-            # Ensure stocks is not None and has items before accessing stocks[0]
-            default_currency = "USD" # Fallback if no stock items
-            if stocks:
-                default_currency = stocks[0].balanceCurrency
-            else:
-                print(f"Warning: CashPosition in depot {depot_number} has no stock items. Using default currency {default_currency}.")
+        currency = "USD" # Fallback if no stock items
+        if stocks:
+            currency = stocks[0].balanceCurrency
+        else:
+            print(f"Warning: CashPosition in depot {depot_number} has no stock items. Using default currency.")
 
-            accounts[depot_number] = BankAccount(
-                bankAccountNumber=BankAccountNumber(depot_number),
-                bankAccountCurrency=default_currency,
-                payment=[],
-            )
+        if pos.depot == 'AWARDS':
+            # Special case for awards depot
+            account_number = f"Equity Awards {pos.cash_account_id}"
+        else:
+            account_number = f"{pos.currentCy} Account ...{depot_number}"
+
+        bank_payments = [BankAccountPayment(
+            paymentDate=payment.paymentDate,
+            name=payment.name,
+            amountCurrency=payment.amountCurrency,
+            amount=payment.amount,
+        ) for payment in payments] if payments else []
+            
+        accounts.append(BankAccount(
+                bankAccountNumber=BankAccountNumber(account_number),
+                bankAccountCurrency=currency,
+                payment=bank_payments))
+
         # Add stock as a taxValue (minimal stub) / or sum up quantities for a taxValue
         # This part needs more thought: how do cash SecurityStock items translate to BankAccountTaxValue?
         # For now, not creating BankAccountTaxValue from these stocks here.
         # accounts[depot_number].taxValue = None # Not implemented simply from list of stocks
-    return ListOfBankAccounts(bankAccount=list(accounts.values()))
+    return ListOfBankAccounts(bankAccount=accounts)
 
 def create_tax_statement_from_positions(
     security_tuples: list[tuple[SecurityPosition, list[SecurityStock], list[SecurityPayment] | None]],
