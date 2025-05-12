@@ -1,5 +1,5 @@
-from typing import Optional, Union, Literal
-from pydantic import BaseModel, Field, field_validator
+from typing import Optional, Union, Literal, List, Any
+from pydantic import BaseModel, Field, field_validator, PrivateAttr
 
 class BasePosition(BaseModel):
     depot: str
@@ -16,13 +16,30 @@ class BasePosition(BaseModel):
     def __hash__(self):
         return hash(self._comparison_key())
 
+    def get_processing_identifier(self) -> str:
+        """Returns a string identifier for processing and logging."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def get_balance_name_prefix(self) -> str:
+        """Returns a prefix for naming opening/closing balances (e.g., 'Cash ')."""
+        raise NotImplementedError("Subclasses must implement this method.")
+
 class CashPosition(BasePosition):
     type: Literal["cash"] = "cash"
     currentCy: str = Field(default="USD", description="Currency code for cash position")
     cash_account_id: Optional[str] = Field(default=None, description="Optional identifier for a specific cash account within the same depot and currency")
+    _identifier_str: Optional[str] = PrivateAttr(default=None)
 
     def _comparison_key(self):
         return (self.depot, self.currentCy, self.cash_account_id)
+
+    def get_processing_identifier(self) -> str:
+        if self._identifier_str is None:
+            self._identifier_str = f"Cash-{self.depot}-{self.cash_account_id}-{self.currentCy}"
+        return self._identifier_str
+
+    def get_balance_name_prefix(self) -> str:
+        return "Cash "
 
 class SecurityPosition(BasePosition):
     """
@@ -34,9 +51,18 @@ class SecurityPosition(BasePosition):
     symbol: str
     security_type: Optional[str] = Field(default=None, alias="securityType", description="Type of security, if available")
     description: Optional[str] = Field(default=None, description="Description of the security from the import file")
+    _identifier_str: Optional[str] = PrivateAttr(default=None)
 
     def _comparison_key(self):
         return (self.depot, self.valor, self.isin, self.symbol)
+
+    def get_processing_identifier(self) -> str:
+        if self._identifier_str is None:
+            self._identifier_str = f"{self.depot}-{self.symbol}"
+        return self._identifier_str
+
+    def get_balance_name_prefix(self) -> str:
+        return ""
 
     @field_validator('symbol')
     @classmethod
