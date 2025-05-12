@@ -1,8 +1,10 @@
 # PDF files we often generate during testing
 /*.pdf
 
-# Emacs backup files
+# Emacs generated files (backups, auto-saves, lock files)
 *~
+#*#
+.#*
 
 # Real tax data for integration testing
 /private
