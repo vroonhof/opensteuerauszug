@@ -262,7 +262,7 @@ class TransactionExtractor:
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE", 
                     quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    unitPrice=schwab_price, name=f"Buy: {description}",
+                    unitPrice=schwab_price, name="Buy",
                     balance=calculated_cost 
                 )
                 if cash_flow:
@@ -294,7 +294,7 @@ class TransactionExtractor:
                     sec_stock = SecurityStock(
                         referenceDate=tx_date, mutation=True, quotationType="PIECE",
                         quantity=sale_qty, balanceCurrency=currency, # Use currency string
-                        unitPrice=schwab_price, name=f"Sale: {description}",
+                        unitPrice=schwab_price, name="Sale",
                         balance=calculated_proceeds
                     )
                     if cash_flow:
@@ -307,7 +307,7 @@ class TransactionExtractor:
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE", 
                     quantity=Decimal("1"), amountCurrency=currency, # Use currency string
-                    amount=schwab_amount, name=f"Credit Interest: {description}",
+                    amount=schwab_amount, name="Credit Interest",
                     grossRevenueB=schwab_amount
                 )
                 # Cash stock mutation
@@ -320,7 +320,7 @@ class TransactionExtractor:
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE",
                     quantity=payment_quantity, amountCurrency=currency, # Use currency string
-                    amount=schwab_amount, name=f"Dividend: {description}",
+                    amount=schwab_amount, name="Dividend",
                     grossRevenueB=schwab_amount
                     # TODO: Withholding tax check might generate cash_stock here later
                 )
@@ -335,8 +335,8 @@ class TransactionExtractor:
                     payment_quantity = schwab_qty if schwab_qty and schwab_qty != Decimal(0) else Decimal("1") 
                     sec_payment = SecurityPayment(
                         paymentDate=tx_date, quotationType="PIECE",
-                        quantity=payment_quantity, amountCurrency=currency, # Use currency string
-                        amount=schwab_amount, name=f"{action} (Payment): {description}",
+                        quantity=payment_quantity, amountCurrency=currency, 
+                        amount=schwab_amount, name=f"{action} (Payment)",
                         grossRevenueB=schwab_amount
                     )
                 # 2. Share Acquisition part
@@ -352,7 +352,7 @@ class TransactionExtractor:
                     sec_stock = SecurityStock(
                         referenceDate=tx_date, mutation=True, quotationType="PIECE",
                         quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                        unitPrice=unit_price_reinvest, name=f"{action} (Acquisition): {description}",
+                        unitPrice=unit_price_reinvest, name=f"{action} (Acquisition)",
                         balance=calculated_balance_reinvest
                     )
                     # No separate cash_stock here - the two legs (payment + stock) balance out cash-wise.
@@ -362,7 +362,7 @@ class TransactionExtractor:
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
                     quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    name=f"Stock Split: {description}"
+                    name="Stock Split"
                 )
         
         elif action == "Deposit": # Shares deposited into account
@@ -389,7 +389,7 @@ class TransactionExtractor:
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
                     quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    unitPrice=vest_fmv_decimal, name=f"Deposit: {description}{award_details_str}",
+                    unitPrice=vest_fmv_decimal, name=f"Deposit{award_details_str}",
                     balance=calculated_balance_deposit
                 )
                 # if cash_flow:
@@ -401,7 +401,7 @@ class TransactionExtractor:
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE",
                     quantity=Decimal("1"), amountCurrency=currency, # Use currency string
-                    amount=schwab_amount, name=f"{action}: {description}",
+                    amount=schwab_amount, name=f"{action}",
                     nonRecoverableTax=abs(schwab_amount) if schwab_amount < 0 else None,
                     grossRevenueB=schwab_amount if schwab_amount > 0 else None
                 )
@@ -414,7 +414,7 @@ class TransactionExtractor:
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE", 
                     quantity=Decimal("1"), amountCurrency=currency, # Use currency string
-                    amount=schwab_amount, name=f"Cash In Lieu: {description}",
+                    amount=schwab_amount, name="Cash In Lieu",
                     grossRevenueB=schwab_amount
                 )
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Cash In Lieu {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
@@ -432,14 +432,14 @@ class TransactionExtractor:
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
                     quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    name=f"Journal (Shares): {description}", balance=calculated_value # Add value if known
+                    name="Journal (Shares)", balance=calculated_value # Add value if known
                 )
                 if cash_flow:
                      cash_stock = create_cash_stock(cash_flow, f"Cash flow for Journal {pos_object.symbol}")
 
             elif schwab_amount: # Cash journal
                  # Just generate cash stock mutation
-                 cash_stock = create_cash_stock(schwab_amount, f"Cash Journal: {description}")
+                 cash_stock = create_cash_stock(schwab_amount, "Cash Journal")
 
         elif action == "Transfer":
             if schwab_qty and schwab_tx.get("Symbol") and isinstance(pos_object, SecurityPosition): # Share transfer
@@ -450,11 +450,11 @@ class TransactionExtractor:
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
                     quantity=-schwab_qty, balanceCurrency=currency, # Use currency string
-                    unitPrice=schwab_price, name=f"Transfer (Shares): {description}",
+                    unitPrice=schwab_price, name="Transfer (Shares)",
                 )
 
             elif schwab_amount and not schwab_tx.get("Symbol") and isinstance(pos_object, CashPosition): # Cash transfer
-                  cash_stock = create_cash_stock(schwab_amount, f"Cash Transfer: {description}")
+                  cash_stock = create_cash_stock(schwab_amount, "Cash Transfer")
 
         # Fees are ignored for now in cash flow calculation
 

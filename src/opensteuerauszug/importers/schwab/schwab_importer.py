@@ -172,10 +172,9 @@ class SchwabImporter:
                         depot_position_dates[depot] = set()
                     depot_position_dates[depot].add(open_date)
                     depot_position_dates[depot].add(close_date_plus1)
-                    print(f"Extracted positions from {filename}: {positions}")
+                    # print(f"Extracted positions from {filename}: {positions}")
                     for pos, stock in positions:
                         all_positions.append((pos, stock, None))
-                # TODO: Use extracted data to populate TaxStatement
             elif ext == ".json":
                 extractor = TransactionExtractor(filename)
                 transactions = extractor.extract_transactions()
@@ -244,8 +243,7 @@ class SchwabImporter:
                         elif filtered_payments: \
                             print(f"WARNING: Transaction for {position} from {filename} (period {start_date}-{end_date}) has {len(filtered_payments)} filtered_payments for newly covered segments {newly_covered_segments} but no corresponding filtered_stocks. These payments will not be added to all_positions.")
                             
-                    print(f"Extracted transactions from {filename}: {transactions}")
-                # TODO: Use extracted data to populate TaxStatement
+                    # print(f"Extracted transactions from {filename}: {transactions}")
             elif ext == ".csv":
                 extractor = PositionExtractor(filename)
                 positions_data = extractor.extract_positions()
@@ -254,10 +252,9 @@ class SchwabImporter:
                     if depot not in depot_position_dates:
                         depot_position_dates[depot] = set()
                     depot_position_dates[depot].add(statement_date)
-                    print(f"Extracted positions from {filename}: {positions}")
+                    # print(f"Extracted positions from {filename}: {positions}")
                     for pos, stock in positions:
                         all_positions.append((pos, stock, None))
-                    # TODO: Integrate positions_data into TaxStatement
                 else:
                     print(f"Skipped file (not a Schwab positions CSV): {filename}")
             else:
@@ -370,6 +367,14 @@ def convert_security_positions_to_list_of_securities(
         if depot_number not in depots:
             depots[depot_number] = Depot(depotNumber=DepotNumber(depot_number), security=[])
         # Use the first stock for required attributes, but include all stocks in the list
+        
+        # Determine security name based on description and symbol
+        security_name: str
+        if pos.description:
+            security_name = f"{pos.description} ({pos.symbol})"
+        else:
+            security_name = pos.symbol
+            
         first_stock = stocks[0]
         sec = Security(
             positionId=1,  # In real code, ensure unique per security
@@ -377,7 +382,7 @@ def convert_security_positions_to_list_of_securities(
             currency=first_stock.balanceCurrency,
             quotationType=first_stock.quotationType,
             securityCategory="SHARE",  # Stub
-            securityName=pos.symbol,
+            securityName=security_name,
             stock=stocks,
             payment=payments or []
         )

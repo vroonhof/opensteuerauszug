@@ -154,7 +154,7 @@ class TestSchwabTransactionExtractor:
         assert stock.unitPrice == Decimal("130.50")
         assert stock.balance == Decimal("3262.50") 
         assert stock.name is not None
-        assert "Deposit: RS (Restricted Stock) (Award ID: AWD123, Award Date: 01/15/2023, Vest Date: 03/06/2024, FMV: $130.50)" in stock.name
+        assert stock.name == "Deposit (Award ID: AWD123, Award Date: 01/15/2023, Vest Date: 03/06/2024, FMV: $130.50)"
 
     def test_action_buy(self):
         extractor = create_extractor()
@@ -187,7 +187,7 @@ class TestSchwabTransactionExtractor:
         assert stock.unitPrice == Decimal("300.00")
         assert stock.balance == Decimal("3150.00")
         assert stock.name is not None
-        assert "Buy: MICROSOFT CORP" in stock.name
+        assert stock.name == "Buy"
 
         cash_pos, cash_stocks, cash_payments = cash_data
         assert isinstance(cash_pos, CashPosition)
@@ -229,7 +229,7 @@ class TestSchwabTransactionExtractor:
         assert stock.unitPrice == Decimal("170.00")
         assert stock.balance == Decimal("850.00") # Proceeds
         assert stock.name is not None
-        assert "Sale: APPLE INC" in stock.name
+        assert stock.name == "Sale"
         
         # Check that the warning was printed
         captured = capsys.readouterr()
@@ -275,7 +275,7 @@ class TestSchwabTransactionExtractor:
         assert stock.unitPrice == Decimal("900.00")
         assert stock.balance == Decimal("1800.00")
         assert stock.name is not None
-        assert "Sale: NVIDIA CORP" in stock.name
+        assert stock.name == "Sale"
 
         cash_pos, cash_stocks, cash_payments = cash_data
         assert isinstance(cash_pos, CashPosition)
@@ -314,7 +314,7 @@ class TestSchwabTransactionExtractor:
         assert payment.amount == Decimal("12.34")
         assert payment.grossRevenueB == Decimal("12.34")
         assert payment.name is not None
-        assert "Credit Interest: SCHWAB BANK INTEREST" in payment.name
+        assert payment.name == "Credit Interest"
         
         # Check stock mutation
         assert stocks is not None
@@ -353,7 +353,7 @@ class TestSchwabTransactionExtractor:
         assert payment.paymentDate == date(2024, 9, 15)
         assert payment.grossRevenueB == Decimal("150.75")
         assert payment.name is not None
-        assert "Dividend: JOHNSON & JOHNSON DIVIDEND" in payment.name
+        assert payment.name == "Dividend"
 
         cash_pos, cash_stocks, cash_payments = cash_data
         assert isinstance(cash_pos, CashPosition)
@@ -395,7 +395,7 @@ class TestSchwabTransactionExtractor:
         payment = payments[0]
         assert payment.grossRevenueB == Decimal("555.65"), "Gross revenue B should match total dividend amount"
         assert payment.name is not None
-        assert "Reinvest Dividend (Payment)" in payment.name # Name for the dividend payment part
+        assert payment.name == "Reinvest Dividend (Payment)" # Name for the dividend payment part
 
         assert stocks is not None, "Stocks should exist for shares acquired through reinvestment on SecurityPosition"
         assert len(stocks) == 1, "Expected one stock entry for the acquired shares"
@@ -405,7 +405,7 @@ class TestSchwabTransactionExtractor:
         assert stock_acquisition_entry.unitPrice == Decimal("450.10"), "Stock unit price should match reinvestment price"
         assert stock_acquisition_entry.balance == Decimal("555.65"), "Stock balance should match total reinvested amount"
         assert stock_acquisition_entry.name is not None
-        assert "Reinvest Dividend (Acquisition)" in stock_acquisition_entry.name # Name for the shares acquisition part               
+        assert stock_acquisition_entry.name == "Reinvest Dividend (Acquisition)" # Name for the shares acquisition part
  
     def test_action_stock_split(self):
         extractor = create_extractor()
@@ -431,7 +431,7 @@ class TestSchwabTransactionExtractor:
         assert stock.unitPrice is None
         assert stock.balance is None
         assert stock.name is not None
-        assert "Stock Split: AMAZON.COM INC 20 FOR 1 FORWARD STOCK SPLIT" in stock.name
+        assert stock.name == "Stock Split"
 
     def test_action_deposit_awards(self):
         extractor = create_extractor() 
@@ -466,7 +466,7 @@ class TestSchwabTransactionExtractor:
         assert stock.unitPrice == Decimal("130.50")
         assert stock.balance == Decimal("3262.50") 
         assert stock.name is not None
-        assert "Deposit: RS (Restricted Stock) (Award ID: AWD123, Award Date: 01/15/2023, Vest Date: 03/06/2024, FMV: $130.50)" in stock.name
+        assert stock.name == "Deposit (Award ID: AWD123, Award Date: 01/15/2023, Vest Date: 03/06/2024, FMV: $130.50)"
 
     def test_action_tax_withholding(self):
         extractor = create_extractor()
@@ -496,7 +496,7 @@ class TestSchwabTransactionExtractor:
         assert payment.nonRecoverableTax == Decimal("22.50")
         assert payment.grossRevenueB is None
         assert payment.name is not None
-        assert "Tax Withholding: NONRES TAX WITHHELD" in payment.name
+        assert payment.name == "Tax Withholding"
 
         cash_pos, cash_stocks, cash_payments = cash_data
         assert isinstance(cash_pos, CashPosition)
@@ -536,7 +536,7 @@ class TestSchwabTransactionExtractor:
         assert payment.amount == Decimal("5.00")
         assert payment.grossRevenueB == Decimal("5.00") 
         assert payment.name is not None
-        assert "NRA Tax Adj: TAX ADJUSTMENT RECEIVED" in payment.name
+        assert payment.name == "NRA Tax Adj"
         
         cash_pos, cash_stocks, cash_payments = cash_data
         assert isinstance(cash_pos, CashPosition)
@@ -576,7 +576,7 @@ class TestSchwabTransactionExtractor:
         assert payment.amount == Decimal("50.25")
         assert payment.grossRevenueB == Decimal("50.25")
         assert payment.name is not None
-        assert "Cash In Lieu: CASH IN LIEU OF FRACTIONAL SHARES" in payment.name
+        assert payment.name == "Cash In Lieu"
 
         cash_pos, cash_stocks, cash_payments = cash_data
         assert isinstance(cash_pos, CashPosition)
@@ -610,7 +610,7 @@ class TestSchwabTransactionExtractor:
         assert stock.mutation is True
         assert stock.quantity == Decimal("10")
         assert stock.name is not None
-        assert stock.name == "Journal (Shares): JOURNALED SHARES IN"
+        assert stock.name == "Journal (Shares)"
 
     def test_action_journal_cash(self):
         extractor = create_extractor()
@@ -634,7 +634,7 @@ class TestSchwabTransactionExtractor:
         assert cash_flow_stock.mutation is True
         assert cash_flow_stock.quantity == Decimal("-500.00")
         assert cash_flow_stock.balance == Decimal("-500.00") # Assuming balance reflects this single transaction
-        assert cash_flow_stock.name == "Cash Journal: INTERNAL TRANSFER OF FUNDS"
+        assert cash_flow_stock.name == "Cash Journal"
         assert cash_flow_stock.unitPrice is None # No unit price for cash journal stock entry
 
         # For this type of cash journal, payments might be None if all info is in SecurityStock
@@ -662,7 +662,7 @@ class TestSchwabTransactionExtractor:
         stock = stocks[0]
         assert stock.quantity == -Decimal("5.0")
         assert stock.name is not None
-        assert "Transfer (Shares): Share Transfer" in stock.name
+        assert stock.name == "Transfer (Shares)"
  
     def test_action_transfer_cash_in(self):
         extractor = create_extractor()
@@ -684,7 +684,7 @@ class TestSchwabTransactionExtractor:
         assert len(stocks) == 1
         stock = stocks[0]
         assert stock.quantity == Decimal("5000.00")
-        assert stock.name == "Cash Transfer: FUNDS RECEIVED VIA WIRE"
+        assert stock.name == "Cash Transfer"
 
     def test_multiple_transactions_same_symbol(self):
         extractor = create_extractor()
