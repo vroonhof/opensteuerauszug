@@ -11,6 +11,7 @@ from .render.render import render_tax_statement
 # Import calculation framework
 from .calculate.base import CalculationMode
 from .calculate.total import TotalCalculator
+from .calculate.cleanup import CleanupCalculator # Added import
 from .importers.schwab.schwab_importer import SchwabImporter # Added import
 
 # Keep Portfolio for now, maybe it becomes an alias or wrapper for TaxStatement?
@@ -47,6 +48,7 @@ def main(
     period_to_str: Optional[str] = typer.Option(None, "--period-to", help="End date of the tax period (YYYY-MM-DD), required for some importers like Schwab."),
     tax_year: Optional[int] = typer.Option(None, "--tax-year", help="Specify the tax year (e.g., 2023). If provided, period-from and period-to will default to the start/end of this year unless explicitly set. If period-from/to are set, they must fall within this tax year."),
     strict_consistency_flag: bool = typer.Option(True, "--strict-consistency/--no-strict-consistency", help="Enable/disable strict consistency checks in importers (e.g., Schwab). Defaults to strict."),
+    filter_to_period_flag: bool = typer.Option(True, "--filter-to-period/--no-filter-to-period", help="Filter transactions and stock events to the tax period (with closing balances). Defaults to enabled."),
     # Add importer-specific options here later
     # Add calculation-specific options here later
     # Add render-specific options here later
@@ -64,6 +66,7 @@ def main(
     print(f"Raw import: {raw_import}")
     print(f"Debug dump path: {debug_dump_path}")
     print(f"Importer type: {importer_type.value}")
+    print(f"Filter to period: {filter_to_period_flag}")
 
     # Parse date strings and determine effective period_from and period_to
     parsed_period_from: Optional[date] = None
@@ -218,18 +221,28 @@ def main(
             if not portfolio:
                  raise ValueError("Portfolio model not loaded. Cannot run calculate phase.")
             
-            # Create calculator with appropriate mode
+            # --- 1. Run CleanupCalculator ---
+            print("Running CleanupCalculator...")
+            cleanup_calculator = CleanupCalculator(
+                period_from=parsed_period_from,
+                period_to=parsed_period_to,
+                enable_filtering=filter_to_period_flag,
+                print_log=True # Calculator will print its own logs
+            )
+            portfolio = cleanup_calculator.calculate(portfolio)
+            # Logs are printed by the calculator itself if print_log=True
+            print(f"CleanupCalculator finished. Summary: Modified fields count: {len(cleanup_calculator.modified_fields)}")
+            dump_debug_model(current_phase.value + "_after_cleanup", portfolio) # Optional intermediate dump
+
+            # --- 2. Run TotalCalculator (or other main calculators) ---
+            # Ensure portfolio is not None after cleanup, though cleanup should always return it
+            if not portfolio:
+                raise ValueError("Portfolio became None after cleanup phase. This should not happen.")
             calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
             
             # Apply calculations
             portfolio = calculator.calculate(portfolio)
-            
-            if calculator.modified_fields:
-                print(f"Modified {len(calculator.modified_fields)} fields during calculation")
-            else:
-                print("No fields needed modification during calculation")
-            
-            print(f"Calculation successful.")
+            print(f"TotalCalculator finished. Modified fields: {len(calculator.modified_fields) if calculator.modified_fields else '0'}")
             dump_debug_model(current_phase.value, portfolio)
 
         if Phase.VERIFY in run_phases:

@@ -3,6 +3,7 @@ from datetime import date
 from typing import List, Optional, Tuple
 from decimal import Decimal
 from opensteuerauszug.model.ech0196 import SecurityStock, CurrencyId, QuotationType
+from opensteuerauszug.util.sorting import sort_security_stocks
 
 @dataclass
 class ReconciledQuantity:
@@ -26,16 +27,8 @@ class PositionReconciler:
             identifier: A string identifier for the position (e.g., symbol or account ID) for logging.
         """
         self.identifier = identifier
-        self.sorted_stocks: List[SecurityStock] = self._sort_stocks(initial_stocks)
+        self.sorted_stocks: List[SecurityStock] = sort_security_stocks(initial_stocks)
         self.reconciliation_log: List[str] = []
-
-    def _sort_stocks(self, stocks: List[SecurityStock]) -> List[SecurityStock]:
-        """
-        Sorts stock events primarily by referenceDate and secondarily by mutation status.
-        Balances (mutation=False) precede mutations (mutation=True) for the same date.
-        This is a stable sort.
-        """
-        return sorted(stocks, key=lambda s: (s.referenceDate, s.mutation))
 
     def _add_log(self, message: str, print_immediately: bool = False):
         """Adds a message to the internal log. Optionally prints it."""
