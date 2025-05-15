@@ -139,6 +139,7 @@ class TestCleanupCalculatorFiltering:
         calculator = CleanupCalculator(sample_period_from, sample_period_to, enable_filtering=True, print_log=True)
         result_statement = calculator.calculate(statement)
 
+        assert result_statement.listOfBankAccounts
         filtered_payments = result_statement.listOfBankAccounts.bankAccount[0].payment
         assert len(filtered_payments) == 2
         assert p_inside1 in filtered_payments
@@ -154,6 +155,7 @@ class TestCleanupCalculatorFiltering:
         calculator = CleanupCalculator(sample_period_from, sample_period_to, enable_filtering=False)
         result_statement = calculator.calculate(statement)
 
+        assert result_statement.listOfBankAccounts
         assert len(result_statement.listOfBankAccounts.bankAccount[0].payment) == 1
         assert not calculator.modified_fields
 
@@ -165,6 +167,7 @@ class TestCleanupCalculatorFiltering:
         calculator = CleanupCalculator(None, None, enable_filtering=True) # No period defined
         result_statement = calculator.calculate(statement)
 
+        assert result_statement.listOfBankAccounts
         assert len(result_statement.listOfBankAccounts.bankAccount[0].payment) == 1
         assert not calculator.modified_fields
         assert any("Payment filtering skipped (tax period not fully defined)" in log for log in calculator.get_log())
@@ -191,6 +194,7 @@ class TestCleanupCalculatorFiltering:
         calculator = CleanupCalculator(sample_period_from, sample_period_to, enable_filtering=True, print_log=True)
         result_statement = calculator.calculate(statement)
 
+        assert result_statement.listOfSecurities
         filtered_stocks = result_statement.listOfSecurities.depot[0].security[0].stock
         
         expected_to_keep = [s_bal_start, s_mut_inside1, s_mut_inside2, s_bal_end_plus_one]
@@ -221,6 +225,7 @@ class TestCleanupCalculatorFiltering:
         calculator = CleanupCalculator(sample_period_from, sample_period_to, enable_filtering=True)
         result_statement = calculator.calculate(statement)
 
+        assert result_statement.listOfSecurities
         filtered_stocks = result_statement.listOfSecurities.depot[0].security[0].stock
         assert len(filtered_stocks) == 2
         assert s_bal_start in filtered_stocks
@@ -239,6 +244,7 @@ class TestCleanupCalculatorFiltering:
         calculator = CleanupCalculator(sample_period_from, sample_period_to, enable_filtering=False)
         result_statement = calculator.calculate(statement)
 
+        assert result_statement.listOfSecurities
         assert len(result_statement.listOfSecurities.depot[0].security[0].stock) == 1
         assert not calculator.modified_fields
 
@@ -254,6 +260,7 @@ class TestCleanupCalculatorFiltering:
         calculator = CleanupCalculator(None, None, enable_filtering=True)
         result_statement = calculator.calculate(statement)
 
+        assert result_statement.listOfSecurities
         assert len(result_statement.listOfSecurities.depot[0].security[0].stock) == 1
         assert not calculator.modified_fields
         assert any("Stock event filtering skipped (tax period not fully defined)" in log for log in calculator.get_log())
@@ -274,6 +281,7 @@ class TestCleanupCalculatorFiltering:
         calculator = CleanupCalculator(sample_period_from, sample_period_to, enable_filtering=True)
         result_statement = calculator.calculate(statement)
 
+        assert result_statement.listOfSecurities
         filtered_payments = result_statement.listOfSecurities.depot[0].security[0].payment
         assert len(filtered_payments) == 2
         assert sp_inside1 in filtered_payments
@@ -378,6 +386,7 @@ class TestCleanupCalculatorEdgeCases:
         # Test with only period_from
         calculator_from_only = CleanupCalculator(date(2023,1,1), None, enable_filtering=True)
         res_from_only = calculator_from_only.calculate(statement)
+        assert res_from_only.listOfBankAccounts
         assert len(res_from_only.listOfBankAccounts.bankAccount[0].payment) == 1
         assert not calculator_from_only.modified_fields
         assert any("Payment filtering skipped (tax period not fully defined)" in log for log in calculator_from_only.get_log())
@@ -385,6 +394,7 @@ class TestCleanupCalculatorEdgeCases:
         # Test with only period_to
         calculator_to_only = CleanupCalculator(None, date(2023,12,31), enable_filtering=True)
         res_to_only = calculator_to_only.calculate(statement)
+        assert res_to_only.listOfBankAccounts
         assert len(res_to_only.listOfBankAccounts.bankAccount[0].payment) == 1
         assert not calculator_to_only.modified_fields
         assert any("Payment filtering skipped (tax period not fully defined)" in log for log in calculator_to_only.get_log())
