@@ -338,8 +338,7 @@ class TransactionExtractor:
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Credit Interest")
 
         elif action == "Dividend":
-             # Generates only a Payment record for the security
-             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
+            if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
                 payment_quantity = schwab_qty if schwab_qty and schwab_qty != Decimal(0) else Decimal("1")
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE",
@@ -349,6 +348,8 @@ class TransactionExtractor:
                     # TODO: Withholding tax check might generate cash_stock here later
                 )
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Dividend {pos_object.symbol}")
+            else:
+                raise ValueError(f"Dividend action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}")
         
         elif action == "Reinvest Dividend" or action == "Reinvest Shares":
             # Generates a Payment (dividend) and a Stock (acquisition) for the security.
@@ -383,10 +384,16 @@ class TransactionExtractor:
         
         elif action == "Stock Split":
             if schwab_qty and schwab_qty != 0 and isinstance(pos_object, SecurityPosition):
+                # TODOD: Format date string in swiss format
+                if as_of_date_parsed:
+                    name=f"Stock Split (As of {as_of_date_parsed})"
+                else:
+                    name="Stock Split"
                 sec_stock = SecurityStock(
+                    # TODO format date string in swiss format
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
                     quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    name="Stock Split"
+                    name=name
                 )
         
         elif action == "Deposit": # Shares deposited into account
@@ -433,14 +440,15 @@ class TransactionExtractor:
                 cash_stock = create_cash_stock(schwab_amount, f"Cash flow for {action} {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
 
         elif action == "Cash In Lieu":
-            # Creates a Payment for the security AND a cash stock mutation
              if schwab_amount and schwab_amount > 0:
-                sec_payment = SecurityPayment(
-                    paymentDate=tx_date, quotationType="PIECE", 
-                    quantity=Decimal("1"), amountCurrency=currency, # Use currency string
-                    amount=schwab_amount, name="Cash In Lieu",
-                    grossRevenueB=schwab_amount
-                )
+                # Assume Cash in Lieue are from stock splits and capital events
+                # so they are income neutral, e.g. no taxable event
+                # sec_payment = SecurityPayment(
+                #     paymentDate=tx_date, quotationType="PIECE", 
+                #     quantity=Decimal("1"), amountCurrency=currency, # Use currency string
+                #     amount=schwab_amount, name="Cash In Lieu",
+                #     grossRevenueB=schwab_amount
+                # )
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Cash In Lieu {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
 
         elif action == "Journal":
@@ -482,4 +490,14 @@ class TransactionExtractor:
 
         # Fees are ignored for now in cash flow calculation
 
+        # Ensure that for any known action, at least one type of record is generated.
+        # If not, it indicates an unhandled case or data combination for that action.
+        # The KNOWN_ACTIONS check in the calling _extract_transactions_from_dict method
+        # should mean this function is only called for actions in KNOWN_ACTIONS.
+        if sec_stock is None and sec_payment is None and cash_stock is None:
+            raise ValueError(
+                f"Known transaction action '{action}' for position context '{pos_object}' with data {schwab_tx} "
+                f"did not result in any security stock, security payment, or cash stock mutation. "
+                f"This indicates an unhandled data combination or a logic gap for this action."
+            )
         return sec_stock, sec_payment, cash_stock 

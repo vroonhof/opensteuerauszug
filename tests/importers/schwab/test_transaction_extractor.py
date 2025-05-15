@@ -559,25 +559,11 @@ class TestSchwabTransactionExtractor:
                 "Amount": "$50.25" 
             }]
         }
-        result = run_extraction_test(extractor, data, 2) # AMZN + Cash
+        result = run_extraction_test(extractor, data, 1) # Just Cash
         assert result is not None
-        amzn_data = find_position(result, SecurityPosition, "AMZN")
         cash_data = find_position(result, CashPosition)
-        assert amzn_data is not None
         assert cash_data is not None
         
-        pos, stocks, payments = amzn_data
-        assert isinstance(pos, SecurityPosition) 
-        assert pos.symbol == "AMZN"
-        assert not stocks 
-        assert payments is not None
-        assert len(payments) == 1
-        payment = payments[0]
-        assert payment.amount == Decimal("50.25")
-        assert payment.grossRevenueB == Decimal("50.25")
-        assert payment.name is not None
-        assert payment.name == "Cash In Lieu"
-
         cash_pos, cash_stocks, cash_payments = cash_data
         assert isinstance(cash_pos, CashPosition)
         assert cash_payments is None
