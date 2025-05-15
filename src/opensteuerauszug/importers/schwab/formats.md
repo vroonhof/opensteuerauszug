@@ -127,4 +127,39 @@ the same. In my statements I have seen the following Action types
       "Action": "Stock Split",
       "Action": "Tax Withholding",
       "Action": "Transfer",
+
+## Manually Provided Positions (Fallback CSV)
+
+If the primary position extractors fail or if you need to manually add known positions (e.g., for accounts where automated extraction is not supported or for initial balances), you can use a CSV file with the following format. This file is processed by the `FallbackPositionExtractor`.
+
+The CSV file must have a header row, and the column order matters. The expected headers are (case-insensitive and leading/trailing spaces are ignored):
+
+1.  **Depot**:
+    *   The identifier for the depot.
+    *   If the value is "AWARDS" (case-insensitive), it will be used as is.
+    *   Otherwise, if the depot string is 3 characters or longer and the last three characters are digits, those three digits will be used as the depot identifier.
+    *   If neither of the above conditions is met, the raw string provided will be used as the depot identifier, and a warning will be logged.
+2.  **Date**:
+    *   The date of the position.
+    *   Must be in `YYYY-MM-DD` format (e.g., `2023-01-15`).
+    *   The quantity provided is considered the balance at the **start** of this specified day.
+    *   For example, to report year-end positions for the year 2023, the date should be `2024-01-01`.
+3.  **Symbol**:
+    *   The ticker symbol for the security.
+    *   If the value is "CASH" (case-insensitive), a `CashPosition` will be created.
+    *   For any other value, a `SecurityPosition` will be created.
+4.  **Quantity**:
+    *   The number of shares or units for a security, or the amount for a cash position, as of the **start** of the specified 'Date'.
+    *   This should be a numerical value (e.g., `100.50`, `5000`).
+
+**Example CSV:**
+```csv
+Depot,Date,Symbol,Quantity
+AWARDS,2023-01-15,AAPL,100.5
+SCHWABACC789,2023-03-10,CASH,5000.75
+MYACCOUNT123,2023-06-01,GOOG,20.0
+SHORTDEPOT,2023-12-31,MSFT,50
+```
+
+Rows with missing required headers, incorrect column counts, invalid date formats, non-numeric quantities, or empty symbols will be skipped with a logged warning. The currency for these manually added positions is currently defaulted to "USD".
 ```

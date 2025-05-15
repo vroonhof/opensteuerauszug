@@ -8,6 +8,7 @@ from opensteuerauszug.model.ech0196 import (
 from opensteuerauszug.model.position import BasePosition, SecurityPosition, CashPosition, Position
 from .statement_extractor import StatementExtractor
 from datetime import date, timedelta
+from .fallback_position_extractor import FallbackPositionExtractor
 from .position_extractor import PositionExtractor
 from .transaction_extractor import TransactionExtractor
 from opensteuerauszug.util.date_coverage import DateRangeCoverage
@@ -245,10 +246,12 @@ class SchwabImporter:
                             
                     # print(f"Extracted transactions from {filename}: {transactions}")
             elif ext == ".csv":
-                extractor = PositionExtractor(filename)
-                positions_data = extractor.extract_positions()
-                if positions_data is not None:
-                    positions, statement_date, depot = positions_data
+                # Try primary PositionExtractor first
+                primary_extractor = PositionExtractor(filename)
+                primary_positions_data = primary_extractor.extract_positions()
+
+                if primary_positions_data is not None:
+                    positions, statement_date, depot = primary_positions_data
                     if depot not in depot_position_dates:
                         depot_position_dates[depot] = set()
                     depot_position_dates[depot].add(statement_date)
@@ -256,7 +259,21 @@ class SchwabImporter:
                     for pos, stock in positions:
                         all_positions.append((pos, stock, None))
                 else:
-                    print(f"Skipped file (not a Schwab positions CSV): {filename}")
+                    # If primary fails, try FallbackPositionExtractor
+                    print(f"Primary PositionExtractor failed for {filename}. Trying FallbackPositionExtractor.")
+                    fallback_extractor = FallbackPositionExtractor(filename)
+                    fallback_positions_data = fallback_extractor.extract_positions() # Now List[Tuple[Position, SecurityStock]]
+
+                    if fallback_positions_data is not None:
+                        for pos, stock in fallback_positions_data:
+                            item_depot = pos.depot
+                            item_date = stock.referenceDate # Assuming SecurityStock always has referenceDate
+                            if item_depot not in depot_position_dates:
+                                depot_position_dates[item_depot] = set()
+                            depot_position_dates[item_depot].add(item_date) # Add the date from the stock item
+                            all_positions.append((pos, stock, None)) # Add to the common list
+                    else:
+                        print(f"Skipped file (not a recognized Schwab positions CSV by primary or fallback): {filename}")
             else:
                 # Optionally log or raise for unsupported file types
                 pass
