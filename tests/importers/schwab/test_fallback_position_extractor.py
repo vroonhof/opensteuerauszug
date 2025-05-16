@@ -284,8 +284,8 @@ def test_extract_positions_malformed_date_skips_row(managed_temp_csv_path):
     assert isinstance(pos0, SecurityPosition) # Narrow type
     pos1 = results[1][0]
     assert isinstance(pos1, SecurityPosition) # Narrow type
-    assert pos0 == "GOOD"
-    assert pos1 == "GOOD2"
+    assert pos0.symbol == "GOOD"
+    assert pos1.symbol == "GOOD2"
     assert "Invalid date format '2023/02/02'" in log_capture.getvalue()
     assert "Invalid date format 'invalid'" in log_capture.getvalue()
 

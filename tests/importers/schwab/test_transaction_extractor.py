@@ -378,13 +378,13 @@ class TestSchwabTransactionExtractor:
                 "Amount": "$555.65" # Total dividend amount reinvested
             }]
         }
-        result = run_extraction_test(extractor, data, 1) # SPY SecurityPosition + no net cash
+        result = run_extraction_test(extractor, data, 2) # SPY SecurityPosition + net cash
         assert result is not None
         
         spy_data = find_position(result, SecurityPosition, "SPY")
         cash_data = find_position(result, CashPosition)
         assert spy_data is not None
-        assert cash_data is None
+        assert cash_data is not None
 
         pos, stocks, payments = spy_data # SPY SecurityPosition
         assert isinstance(pos, SecurityPosition), f"Expected SecurityPosition, got {type(pos)}"
@@ -395,17 +395,20 @@ class TestSchwabTransactionExtractor:
         payment = payments[0]
         assert payment.grossRevenueB == Decimal("555.65"), "Gross revenue B should match total dividend amount"
         assert payment.name is not None
-        assert payment.name == "Reinvest Dividend (Payment)" # Name for the dividend payment part
+        assert payment.name == "Dividend" # Name for the dividend payment part
 
         assert stocks is not None, "Stocks should exist for shares acquired through reinvestment on SecurityPosition"
-        assert len(stocks) == 1, "Expected one stock entry for the acquired shares"
-        stock_acquisition_entry = stocks[0]
-        assert stock_acquisition_entry.mutation is True, "Stock entry should be a mutation"
-        assert stock_acquisition_entry.quantity == Decimal("1.2345"), "Stock quantity should match reinvested shares"
-        assert stock_acquisition_entry.unitPrice == Decimal("450.10"), "Stock unit price should match reinvestment price"
-        assert stock_acquisition_entry.balance == Decimal("555.65"), "Stock balance should match total reinvested amount"
-        assert stock_acquisition_entry.name is not None
-        assert stock_acquisition_entry.name == "Reinvest Dividend (Acquisition)" # Name for the shares acquisition part
+        assert len(stocks) == 0, "Stock purchase for reinvest should different transaction"
+
+        cash_pos, cash_stocks, cash_payments = cash_data # CashPosition
+        assert isinstance(cash_pos, CashPosition), f"Expected CashPosition, got {type(cash_pos)}"
+        assert cash_payments is None, "CashPosition should not have its own SecurityPayment list"
+        assert cash_stocks is not None, "Cash stocks should exist for the cash movement"
+        assert len(cash_stocks) == 1, "Expected one stock entry for the cash movement"
+        cash_stock_entry = cash_stocks[0]
+        assert cash_stock_entry.referenceDate == date(2024, 7, 1), "Reference date should match transaction date"
+        assert cash_stock_entry.mutation is True, "Cash stock entry should be a mutation"
+        assert cash_stock_entry.quantity == Decimal("555.65")
  
     def test_action_stock_split(self):
         extractor = create_extractor()

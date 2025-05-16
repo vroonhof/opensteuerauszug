@@ -95,9 +95,8 @@ class TransactionExtractor:
 
         for schwab_tx in raw_transactions:
             action = schwab_tx.get("Action", "").strip()
-            if not action or action not in KNOWN_ACTIONS:
-                # Skip or raise error (already handled in _process_single_transaction theoretically)
-                continue 
+            if not action:
+                raise ValueError(f"Missing action in transaction: {schwab_tx}")
 
             symbol_in_tx = schwab_tx.get("Symbol", "").strip()
             # is_cash_only_txn = not symbol_in_tx # Not directly used for primary pos creation anymore
@@ -270,7 +269,7 @@ class TransactionExtractor:
                 balance=amount # For cash, balance change equals quantity change
             )
 
-        if action == "Buy":
+        if action == "Buy" or action == "Reinvest Shares":
             if schwab_qty and schwab_qty > 0 and isinstance(pos_object, SecurityPosition):
                 calculated_cost = None
                 cash_flow = None
@@ -286,11 +285,11 @@ class TransactionExtractor:
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE", 
                     quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    unitPrice=schwab_price, name="Buy",
+                    unitPrice=schwab_price, name=action,
                     balance=calculated_cost 
                 )
                 if cash_flow:
-                     cash_stock = create_cash_stock(cash_flow, f"Cash out for Buy {pos_object.symbol}")
+                     cash_stock = create_cash_stock(cash_flow, f"Cash out for {action} {pos_object.symbol}")
 
         elif action == "Sale":
              if schwab_qty and isinstance(pos_object, SecurityPosition):
@@ -337,7 +336,7 @@ class TransactionExtractor:
                 # Cash stock mutation
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Credit Interest")
 
-        elif action == "Dividend":
+        elif action == "Dividend" or action == "Reinvest Dividend":
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
                 payment_quantity = schwab_qty if schwab_qty and schwab_qty != Decimal(0) else Decimal("1")
                 sec_payment = SecurityPayment(
@@ -350,38 +349,7 @@ class TransactionExtractor:
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Dividend {pos_object.symbol}")
             else:
                 raise ValueError(f"Dividend action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}")
-        
-        elif action == "Reinvest Dividend" or action == "Reinvest Shares":
-            # Generates a Payment (dividend) and a Stock (acquisition) for the security.
-            # Net cash impact within this action is assumed zero (or handled by fees later).
-             if isinstance(pos_object, SecurityPosition):
-                # 1. Dividend Payment part
-                if schwab_amount and schwab_amount > 0:
-                    payment_quantity = schwab_qty if schwab_qty and schwab_qty != Decimal(0) else Decimal("1") 
-                    sec_payment = SecurityPayment(
-                        paymentDate=tx_date, quotationType="PIECE",
-                        quantity=payment_quantity, amountCurrency=currency, 
-                        amount=schwab_amount, name=f"{action} (Payment)",
-                        grossRevenueB=schwab_amount
-                    )
-                # 2. Share Acquisition part
-                if schwab_qty and schwab_qty > 0:
-                    unit_price_reinvest = schwab_price # Prioritize explicit price first
-                    if not unit_price_reinvest and schwab_amount and schwab_qty != Decimal(0):
-                        unit_price_reinvest = schwab_amount / schwab_qty
-                    
-                    calculated_balance_reinvest = schwab_amount # Amount usually represents the total value
-                    if not calculated_balance_reinvest and schwab_qty and unit_price_reinvest:
-                        calculated_balance_reinvest = schwab_qty * unit_price_reinvest
-                    
-                    sec_stock = SecurityStock(
-                        referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                        quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                        unitPrice=unit_price_reinvest, name=f"{action} (Acquisition)",
-                        balance=calculated_balance_reinvest
-                    )
-                    # No separate cash_stock here - the two legs (payment + stock) balance out cash-wise.
-        
+                
         elif action == "Stock Split":
             if schwab_qty and schwab_qty != 0 and isinstance(pos_object, SecurityPosition):
                 # TODOD: Format date string in swiss format
@@ -487,6 +455,18 @@ class TransactionExtractor:
 
             elif schwab_amount and not schwab_tx.get("Symbol") and isinstance(pos_object, CashPosition): # Cash transfer
                   cash_stock = create_cash_stock(schwab_amount, "Cash Transfer")
+        elif action in KNOWN_ACTIONS:
+            raise InvalidOperation('Unhandled action in _process_single_transaction', action)
+        elif pos_object.type == "security":
+            raise ValueError(f"Unknown action '{action}' for security position: {schwab_tx}")
+        elif pos_object.type != "cash":
+            raise InvalidOperation("Unhandled position type", pos_object.type)
+        else:
+            if not schwab_amount:
+                raise ValueError(f"Unknown action '{action}' for cash position with no amount: {schwab_tx}") 
+            # This is a cash position with an unknown action, which we can recover from
+            # Assume the amount is always representing the cash balance change
+            cash_stock = create_cash_stock(schwab_amount, f"Cash flow for {action} {description}")
 
         # Fees are ignored for now in cash flow calculation
 
