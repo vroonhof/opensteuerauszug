@@ -469,7 +469,9 @@ class TransactionExtractor:
             cash_stock = create_cash_stock(schwab_amount, f"Cash flow for {action} {description}")
 
         # Fees are ignored for now in cash flow calculation
-
+        if schwab_amount and schwab_amount != 0:
+            assert cash_stock is not None, f"Cash stock mutation should be generated for action '{action}' with amount {schwab_amount} in transaction: {schwab_tx}"
+            assert cash_stock.quantity == schwab_amount, f"Cash stock quantity should match the amount in transaction: {schwab_tx}"
         # Ensure that for any known action, at least one type of record is generated.
         # If not, it indicates an unhandled case or data combination for that action.
         # The KNOWN_ACTIONS check in the calling _extract_transactions_from_dict method
