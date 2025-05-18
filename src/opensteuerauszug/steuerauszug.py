@@ -34,6 +34,12 @@ class ImporterType(str, Enum):
     # Add other importer types here in the future
     NONE = "none" # For raw import or if no specific importer is needed yet
 
+class TaxCalculationLevel(str, Enum):
+    NONE = "None"
+    MINIMAL = "Minimal"
+    KURSLISTE = "Kursliste"
+    FILL_IN = "Fill-In"
+
 default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RENDER]
 
 @app.command()
@@ -49,6 +55,7 @@ def main(
     tax_year: Optional[int] = typer.Option(None, "--tax-year", help="Specify the tax year (e.g., 2023). If provided, period-from and period-to will default to the start/end of this year unless explicitly set. If period-from/to are set, they must fall within this tax year."),
     strict_consistency_flag: bool = typer.Option(True, "--strict-consistency/--no-strict-consistency", help="Enable/disable strict consistency checks in importers (e.g., Schwab). Defaults to strict."),
     filter_to_period_flag: bool = typer.Option(True, "--filter-to-period/--no-filter-to-period", help="Filter transactions and stock events to the tax period (with closing balances). Defaults to enabled."),
+    tax_calculation_level: TaxCalculationLevel = typer.Option(TaxCalculationLevel.FILL_IN, "--tax-calculation-level", help="Specify the level of detail for tax value calculations."),
     # Add importer-specific options here later
     # Add calculation-specific options here later
     # Add render-specific options here later
@@ -67,6 +74,7 @@ def main(
     print(f"Debug dump path: {debug_dump_path}")
     print(f"Importer type: {importer_type.value}")
     print(f"Filter to period: {filter_to_period_flag}")
+    print(f"Tax calculation level: {tax_calculation_level.value}")
 
     # Parse date strings and determine effective period_from and period_to
     parsed_period_from: Optional[date] = None

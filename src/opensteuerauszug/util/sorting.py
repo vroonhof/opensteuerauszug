@@ -1,3 +1,5 @@
+import bisect
+import datetime
 from typing import List
 from opensteuerauszug.model.ech0196 import SecurityPayment, SecurityStock, BankAccountPayment
 
@@ -8,6 +10,13 @@ def sort_security_stocks(stocks: List[SecurityStock]) -> List[SecurityStock]:
     This is a stable sort.
     """
     return sorted(stocks, key=lambda s: (s.referenceDate, s.mutation))
+
+def find_index_of_date(date: datetime.date, sorted_stocks: List[SecurityStock]) -> int:
+    """
+    Finds the index of the first stock event with a referenceDate greater than or equal to the given date.
+    Returns len(stocks) if no such event is found.
+    """
+    return bisect.bisect_left(sorted_stocks, date, key=lambda s: s.referenceDate)
 
 def sort_payments(payments: List[BankAccountPayment]) -> List[BankAccountPayment]:
     """

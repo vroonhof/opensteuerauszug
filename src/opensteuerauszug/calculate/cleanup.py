@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from typing import List, Optional
-from opensteuerauszug.model.ech0196 import TaxStatement, SecurityStock, BankAccountPayment, SecurityPayment
-from opensteuerauszug.util.sorting import sort_security_stocks, sort_payments, sort_security_payments
+from opensteuerauszug.model.ech0196 import SecurityTaxValue, TaxStatement, SecurityStock, BankAccountPayment, SecurityPayment
+from opensteuerauszug.util.sorting import find_index_of_date, sort_security_stocks, sort_payments, sort_security_payments
 
 class CleanupCalculator:
     """
@@ -78,10 +78,27 @@ class CleanupCalculator:
 
                             # Sort stock events (silently)
                             security.stock = sort_security_stocks(security.stock)
+                            # End of period balances are reflected in the tax value
+                            if self.period_to:
+                                period_end_plus_one = self.period_to + timedelta(days=1)
+                                find_index = find_index_of_date(period_end_plus_one, security.stock)
+                                if find_index < len(security.stock):
+                                    candidate = security.stock[find_index]
+                                    if candidate.referenceDate == period_end_plus_one and not candidate.mutation:
+                                        # First balance after the period end is the end balance of the period
+                                        security.taxValue = SecurityTaxValue(
+                                            referenceDate=candidate.referenceDate,
+                                            quotationType=candidate.quotationType,
+                                            quantity=candidate.quantity,
+                                            balanceCurrency=candidate.balanceCurrency,
+                                            balance=candidate.balance,
+                                            unitPrice=candidate.unitPrice)
 
+                            # TODO Should we ensure the balances at the start and end of the period are
+                            #       present here instead of in the importers?.
                             if self.enable_filtering:
+                                # could have used bisect
                                 if self.period_from and self.period_to:
-                                    period_end_plus_one = self.period_to + timedelta(days=1)
                                     newly_filtered_stocks = []
                                     for s_event in security.stock:
                                         keep_event = False
@@ -91,10 +108,7 @@ class CleanupCalculator:
                                                 keep_event = True
                                         else: # It's a balance (not a mutation)
                                             # Keep balances only if they are at the start of the period
-                                            # or at the day after the end of the period (closing balance)
                                             if s_event.referenceDate == self.period_from:
-                                                keep_event = True
-                                            elif s_event.referenceDate == period_end_plus_one:
                                                 keep_event = True
                                         
                                         if keep_event:
