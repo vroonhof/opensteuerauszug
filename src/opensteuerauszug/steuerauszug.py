@@ -12,7 +12,9 @@ from .render.render import render_tax_statement
 from .calculate.base import CalculationMode
 from .calculate.total import TotalCalculator
 from .calculate.cleanup import CleanupCalculator # Added import
+from .calculate.minimal_tax_value import MinimalTaxValueCalculator # Added import
 from .importers.schwab.schwab_importer import SchwabImporter # Added import
+from .core.exchange_rate_provider import DummyExchangeRateProvider, ExchangeRateProvider # Corrected import
 
 # Keep Portfolio for now, maybe it becomes an alias or wrapper for TaxStatement?
 # Or perhaps TaxStatement becomes the internal representation?
@@ -242,7 +244,19 @@ def main(
             print(f"CleanupCalculator finished. Summary: Modified fields count: {len(cleanup_calculator.modified_fields)}")
             dump_debug_model(current_phase.value + "_after_cleanup", portfolio) # Optional intermediate dump
 
-            # --- 2. Run TotalCalculator (or other main calculators) ---
+            # --- 2. Run MinimalTaxValueCalculator ---
+            print("Running MinimalTaxValueCalculator...")
+            # Initialize the exchange rate provider
+            exchange_rate_provider: ExchangeRateProvider = DummyExchangeRateProvider()
+            minimal_tax_calculator = MinimalTaxValueCalculator(
+                mode=CalculationMode.OVERWRITE, # Or other appropriate mode
+                exchange_rate_provider=exchange_rate_provider
+            )
+            portfolio = minimal_tax_calculator.calculate(portfolio)
+            print(f"MinimalTaxValueCalculator finished. Modified fields: {len(minimal_tax_calculator.modified_fields) if minimal_tax_calculator.modified_fields else '0'}, Errors: {len(minimal_tax_calculator.errors)}")
+            dump_debug_model(current_phase.value + "_after_minimal_tax_value", portfolio)
+
+            # --- 3. Run TotalCalculator (or other main calculators) ---
             # Ensure portfolio is not None after cleanup, though cleanup should always return it
             if not portfolio:
                 raise ValueError("Portfolio became None after cleanup phase. This should not happen.")
@@ -259,6 +273,24 @@ def main(
             if not portfolio:
                  raise ValueError("Portfolio model not loaded. Cannot run calculate phase.")
             
+            # --- 1. Run MinimalTaxValueCalculator (Verify Mode) ---
+            print("Running MinimalTaxValueCalculator (Verify Mode)...")
+            # Initialize the exchange rate provider for verification
+            exchange_rate_provider_verify: ExchangeRateProvider = DummyExchangeRateProvider()
+            minimal_tax_calculator_verify = MinimalTaxValueCalculator(
+                mode=CalculationMode.VERIFY,
+                exchange_rate_provider=exchange_rate_provider_verify
+            )
+            minimal_tax_calculator_verify.calculate(portfolio) # Does not modify portfolio in verify mode
+            if minimal_tax_calculator_verify.errors:
+                print(f"MinimalTaxValueCalculator (Verify Mode) encountered {len(minimal_tax_calculator_verify.errors)} errors:")
+                for error in minimal_tax_calculator_verify.errors:
+                    print(f"  Error: {error}")
+            else:
+                print("MinimalTaxValueCalculator (Verify Mode) found no errors.")
+            # No dump after this verify step, as it shouldn't change the model
+
+            # --- 2. Run TotalCalculator (Verify Mode) ---
             calculator = TotalCalculator(mode=CalculationMode.VERIFY)
             calculator.calculate(portfolio)
             
@@ -309,4 +341,4 @@ def main(
         raise typer.Exit(code=1)
 
 if __name__ == "__main__":
-    app() 
+    app()
