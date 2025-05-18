@@ -180,7 +180,7 @@ class TestCleanupCalculatorFiltering:
         s_mut_inside1 = create_security_stock(sample_period_from + timedelta(days=5), Decimal("10"), True) # Keep
         s_bal_inside_discard = create_security_stock(sample_period_from + timedelta(days=10), Decimal("110"), False) # Discard
         s_mut_inside2 = create_security_stock(sample_period_to - timedelta(days=5), Decimal("-5"), True) # Keep
-        s_bal_end_plus_one = create_security_stock(period_end_plus_one, Decimal("105"), False) # Keep
+        s_bal_end_plus_one = create_security_stock(period_end_plus_one, Decimal("105"), False) # No longer kept as stock, but reflected in taxValue
         s_mut_after = create_security_stock(period_end_plus_one + timedelta(days=10), Decimal("20"), True)
         s_bal_after = create_security_stock(period_end_plus_one + timedelta(days=15), Decimal("125"), False)
 
@@ -197,14 +197,16 @@ class TestCleanupCalculatorFiltering:
         assert result_statement.listOfSecurities
         filtered_stocks = result_statement.listOfSecurities.depot[0].security[0].stock
         
-        expected_to_keep = [s_bal_start, s_mut_inside1, s_mut_inside2, s_bal_end_plus_one]
+        expected_to_keep = [s_bal_start, s_mut_inside1, s_mut_inside2] # s_bal_end_plus_one removed
         
         assert len(filtered_stocks) == len(expected_to_keep)
         for item in expected_to_keep:
             assert item in filtered_stocks
         
         assert "D1/TestSec.stock (filtered)" in calculator.modified_fields
-        assert any("Filtered 8 stock events to 4" in log for log in calculator.get_log())
+        assert any("Filtered 8 stock events to 3" in log for log in calculator.get_log()) # Adjusted from 4 to 3
+        assert result_statement.listOfSecurities.depot[0].security[0].taxValue is not None
+        assert result_statement.listOfSecurities.depot[0].security[0].taxValue.quantity == s_bal_end_plus_one.quantity
 
     def test_filter_security_stocks_no_mutations_only_balances(self, sample_period_from, sample_period_to):
         period_end_plus_one = sample_period_to + timedelta(days=1)
@@ -212,7 +214,7 @@ class TestCleanupCalculatorFiltering:
         s_bal_before = create_security_stock(sample_period_from - timedelta(days=10), Decimal("90"), False)
         s_bal_start = create_security_stock(sample_period_from, Decimal("100"), False) # Keep
         s_bal_inside_discard = create_security_stock(sample_period_from + timedelta(days=10), Decimal("110"), False) # Discard
-        s_bal_end_plus_one = create_security_stock(period_end_plus_one, Decimal("105"), False) # Keep
+        s_bal_end_plus_one = create_security_stock(period_end_plus_one, Decimal("105"), False) # No longer kept
         s_bal_after = create_security_stock(period_end_plus_one + timedelta(days=15), Decimal("125"), False)
 
         security = Security(
@@ -227,10 +229,12 @@ class TestCleanupCalculatorFiltering:
 
         assert result_statement.listOfSecurities
         filtered_stocks = result_statement.listOfSecurities.depot[0].security[0].stock
-        assert len(filtered_stocks) == 2
+        assert len(filtered_stocks) == 1 # Adjusted from 2 to 1
         assert s_bal_start in filtered_stocks
-        assert s_bal_end_plus_one in filtered_stocks
+        # assert s_bal_end_plus_one in filtered_stocks # This is no longer kept
         assert "D1/TestSec.stock (filtered)" in calculator.modified_fields
+        assert result_statement.listOfSecurities.depot[0].security[0].taxValue is not None
+        assert result_statement.listOfSecurities.depot[0].security[0].taxValue.quantity == s_bal_end_plus_one.quantity
 
     def test_filter_security_stocks_disabled(self, sample_period_from, sample_period_to):
         stocks = [create_security_stock(sample_period_from - timedelta(days=1), Decimal("10"), False)]

@@ -163,7 +163,7 @@ class TestSchwabTransactionExtractor:
             "BrokerageTransactions": [{
                 "Date": "03/15/2024", "Action": "Buy", "Symbol": "MSFT", 
                 "Description": "MICROSOFT CORP", "Quantity": "10.5", "Price": "300.00", 
-                "Amount": "$3,150.00" # This amount might or might not include fees in real data
+                "Amount": "-$3,150.00" # This amount might or might not include fees in real data
             }]
         }
         result = run_extraction_test(extractor, data, 2) # Expect MSFT + Cash
@@ -185,7 +185,6 @@ class TestSchwabTransactionExtractor:
         assert stock.quotationType == "PIECE"
         assert stock.quantity == Decimal("10.5")
         assert stock.unitPrice == Decimal("300.00")
-        assert stock.balance == Decimal("3150.00")
         assert stock.name is not None
         assert stock.name == "Buy"
 
@@ -198,10 +197,9 @@ class TestSchwabTransactionExtractor:
         assert cash_stock_entry.referenceDate == date(2024, 3, 15)
         assert cash_stock_entry.mutation is True
         assert cash_stock_entry.quantity == Decimal("-3150.00")
-        assert cash_stock_entry.balance == Decimal("-3150.00")
         assert cash_stock_entry.name == "Cash out for Buy MSFT"
 
-    def test_action_sale_negative_qty(self, capsys):
+    def test_action_sale_negative_qty_raises_exception(self, capsys):
         extractor = create_extractor()
         data = {
             "FromDate": "01/01/2024", "ToDate": "12/31/2024",
@@ -211,41 +209,9 @@ class TestSchwabTransactionExtractor:
                 "Amount": "$850.00" 
             }]
         }
-        result = run_extraction_test(extractor, data, 2) # Expect AAPL + Cash
-        assert result is not None
-        aapl_data = find_position(result, SecurityPosition, "AAPL")
-        cash_data = find_position(result, CashPosition)
-        assert aapl_data is not None
-        assert cash_data is not None
-
-        pos, stocks, payments = aapl_data
-        assert isinstance(pos, SecurityPosition)
-        assert pos.symbol == "AAPL"
-        assert payments is None
-        assert len(stocks) == 1
-        stock = stocks[0]
-        assert stock.mutation is True
-        assert stock.quantity == Decimal("-5")
-        assert stock.unitPrice == Decimal("170.00")
-        assert stock.balance == Decimal("850.00") # Proceeds
-        assert stock.name is not None
-        assert stock.name == "Sale"
-        
-        # Check that the warning was printed
-        captured = capsys.readouterr()
-        assert "Warning: Received negative quantity (-5) for 'Sale' action for symbol AAPL." in captured.out
-
-        cash_pos, cash_stocks, cash_payments = cash_data
-        assert isinstance(cash_pos, CashPosition)
-        assert cash_payments is None
-        assert cash_stocks is not None
-        assert len(cash_stocks) == 1
-        cash_stock_entry = cash_stocks[0]
-        assert cash_stock_entry.referenceDate == date(2024, 4, 20)
-        assert cash_stock_entry.mutation is True
-        assert cash_stock_entry.quantity == Decimal("850.00")
-        assert cash_stock_entry.balance == Decimal("850.00")
-        assert cash_stock_entry.name == "Cash in for Sale AAPL"
+        with pytest.raises(ValueError) as excinfo:
+            run_extraction_test(extractor, data, 0) # Expect no successful items due to exception
+        assert "Invalid negative quantity (-5) for 'Sale' action for symbol AAPL" in str(excinfo.value)
 
     def test_action_sale_positive_qty(self): # If Schwab data sometimes uses positive Qty for sale
         extractor = create_extractor()
@@ -273,7 +239,6 @@ class TestSchwabTransactionExtractor:
         assert stock.mutation is True
         assert stock.quantity == Decimal("-2") # Should be converted to negative
         assert stock.unitPrice == Decimal("900.00")
-        assert stock.balance == Decimal("1800.00")
         assert stock.name is not None
         assert stock.name == "Sale"
 
@@ -286,7 +251,6 @@ class TestSchwabTransactionExtractor:
         assert cash_stock_entry.referenceDate == date(2024, 4, 21)
         assert cash_stock_entry.mutation is True
         assert cash_stock_entry.quantity == Decimal("1800.00")
-        assert cash_stock_entry.balance == Decimal("1800.00")
         assert cash_stock_entry.name == "Cash in for Sale NVDA"
 
     def test_action_credit_interest(self):
@@ -680,9 +644,9 @@ class TestSchwabTransactionExtractor:
         data = {
             "FromDate": "01/01/2024", "ToDate": "12/31/2024",
             "BrokerageTransactions": [
-                {"Date": "03/15/2024", "Action": "Buy", "Symbol": "MSFT", "Quantity": "10", "Price": "300", "Amount": "$3000"},
+                {"Date": "03/15/2024", "Action": "Buy", "Symbol": "MSFT", "Quantity": "10", "Price": "300", "Amount": "-$3000"},
                 {"Date": "09/15/2024", "Action": "Dividend", "Symbol": "MSFT", "Amount": "$50"},
-                {"Date": "10/01/2024", "Action": "Sale", "Symbol": "MSFT", "Quantity": "-5", "Price": "320", "Amount": "$1600"}
+                {"Date": "10/01/2024", "Action": "Sale", "Symbol": "MSFT", "Quantity": "5", "Price": "320", "Amount": "$1600"}
             ]
         }
         result = run_extraction_test(extractor, data, 2) # MSFT + Cash
@@ -712,7 +676,7 @@ class TestSchwabTransactionExtractor:
         data = {
             "FromDate": "01/01/2024", "ToDate": "12/31/2024",
             "BrokerageTransactions": [
-                {"Date": "03/15/2024", "Action": "Buy", "Symbol": "MSFT", "Quantity": "10", "Price": "300", "Amount": "$3000"},
+                {"Date": "03/15/2024", "Action": "Buy", "Symbol": "MSFT", "Quantity": "10", "Price": "300", "Amount": "-$3000"},
                 {"Date": "06/30/2024", "Action": "Credit Interest", "Amount": "12.34"}
             ]
         }
@@ -737,4 +701,4 @@ class TestSchwabTransactionExtractor:
         assert cash_stocks is not None
         assert len(cash_stocks) == 2 
         cash_stock_qtys = sorted([s.quantity for s in cash_stocks])
-        assert cash_stock_qtys == [Decimal("-3000.00"), Decimal("12.34")] 
+        assert cash_stock_qtys == [Decimal("-3000.00"), Decimal("12.34")]

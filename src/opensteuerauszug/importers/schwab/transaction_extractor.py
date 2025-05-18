@@ -274,9 +274,9 @@ class TransactionExtractor:
                 calculated_cost = None
                 cash_flow = None
                 if schwab_amount:
-                    calculated_cost = schwab_amount # Amount likely includes price*qty + maybe fees?
-                    cash_flow = -abs(schwab_amount)
+                    cash_flow = schwab_amount
                 elif schwab_qty and schwab_price:
+                    # This should actually never be the case, as we should have amount
                     calculated_cost = schwab_qty * schwab_price
                     cash_flow = -abs(calculated_cost)
                 
@@ -293,35 +293,32 @@ class TransactionExtractor:
 
         elif action == "Sale":
              if schwab_qty and isinstance(pos_object, SecurityPosition):
-                sale_qty = Decimal(0)
-                if schwab_qty < 0: # Handle negative quantity case (with warning)
-                    symbol_for_warning = pos_object.symbol
-                    print(f"Warning: Received negative quantity ({schwab_qty}) for 'Sale' action for symbol {symbol_for_warning}. Proceeding with it as a sale.")
-                    sale_qty = schwab_qty # Keep negative for stock mutation
-                elif schwab_qty > 0:
-                    sale_qty = -schwab_qty # Convert positive JSON quantity to negative for mutation
+                if schwab_qty < 0:
+                    raise ValueError(f"Invalid negative quantity ({schwab_qty}) for 'Sale' action for symbol {pos_object.symbol}. Sales should have positive quantities representing shares sold.")
+                
+                # Quantity should be negative for a sale in our system
+                final_qty = -schwab_qty 
 
-                if sale_qty != 0:
-                    calculated_proceeds = None
-                    cash_flow = None
-                    abs_qty = abs(sale_qty)
-                    if schwab_amount:
-                        calculated_proceeds = schwab_amount
-                        cash_flow = abs(schwab_amount)
-                    elif abs_qty and schwab_price:
-                        calculated_proceeds = abs_qty * schwab_price
-                        cash_flow = abs(calculated_proceeds)
-                    
-                    # TODO: Factor in schwab_fees into proceeds/cash_flow if needed
+                calculated_proceeds = None
+                cash_flow = None
+                abs_qty = abs(final_qty)
+                if schwab_amount:
+                    calculated_proceeds = schwab_amount
+                    cash_flow = schwab_amount
+                elif abs_qty and schwab_price:
+                    # we should have amount
+                    calculated_proceeds = abs_qty * schwab_price
+                    cash_flow = abs(calculated_proceeds)
+                
+                # TODO: Factor in schwab_fees into proceeds/cash_flow if needed
 
-                    sec_stock = SecurityStock(
-                        referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                        quantity=sale_qty, balanceCurrency=currency, # Use currency string
-                        unitPrice=schwab_price, name="Sale",
-                        balance=calculated_proceeds
-                    )
-                    if cash_flow:
-                         cash_stock = create_cash_stock(cash_flow, f"Cash in for Sale {pos_object.symbol}")
+                sec_stock = SecurityStock(
+                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
+                    quantity=final_qty, balanceCurrency=currency, # Use currency string
+                    unitPrice=schwab_price, name="Sale",
+                )
+                if cash_flow:
+                     cash_stock = create_cash_stock(cash_flow, f"Cash in for Sale {pos_object.symbol}")
 
         elif action == "Credit Interest":
             # Generates a Payment for the cash account AND a cash stock mutation
@@ -482,4 +479,4 @@ class TransactionExtractor:
                 f"did not result in any security stock, security payment, or cash stock mutation. "
                 f"This indicates an unhandled data combination or a logic gap for this action."
             )
-        return sec_stock, sec_payment, cash_stock 
+        return sec_stock, sec_payment, cash_stock
