@@ -1,12 +1,14 @@
 from .base import BaseCalculator, CalculationMode
 from ..model.ech0196 import (
     TaxStatement,
+    BankAccount,  # Added BankAccount
     BankAccountTaxValue,
     BankAccountPayment,
     LiabilityAccountTaxValue,
     LiabilityAccountPayment,
+    Security,  # Added Security
     SecurityTaxValue,
-    Security
+    SecurityPayment,  # Added SecurityPayment
 )
 from ..core.exchange_rate_provider import ExchangeRateProvider
 from decimal import Decimal, ROUND_HALF_UP
@@ -20,10 +22,14 @@ class MinimalTaxValueCalculator(BaseCalculator):
     uncontroversial values. Mainly currenty conversions.
     """
     _CHF_CURRENCY = "CHF"
+    _current_account_is_type_A: Optional[bool]
+    _current_security_is_type_A: Optional[bool]
 
     def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider):
         super().__init__(mode)
         self.exchange_rate_provider = exchange_rate_provider
+        self._current_account_is_type_A = None
+        self._current_security_is_type_A = None
         print(f"MinimalTaxValueCalculator initialized with mode: {mode.value} and provider: {type(exchange_rate_provider).__name__}")
 
     def _convert_to_chf(self, amount: Optional[Decimal], currency: str, path_prefix_for_rate: str, reference_date: date) -> Tuple[Optional[Decimal], Decimal]:
@@ -52,15 +58,26 @@ class MinimalTaxValueCalculator(BaseCalculator):
     def calculate(self, tax_statement: TaxStatement) -> TaxStatement:
         """
         Processes the tax statement.
-        For this stub version, it currently relies on the base class implementation
-        which might iterate through the model but won't perform specific calculations
-        unless _handle_... methods are implemented.
         """
-        # Perform pre-calculation checks or setup
-        super().calculate(tax_statement) # Calls _process_tax_statement and then _process_model
-        # Perform post-calculation actions or logging
+        self._current_account_is_type_A = None  # Reset state at the beginning of a calculation run
+        self._current_security_is_type_A = None  # Reset state
+        super().calculate(tax_statement)
         print(f"MinimalTaxValueCalculator: Finished processing. Errors: {len(self.errors)}, Modified fields: {len(self.modified_fields)}")
         return tax_statement
+
+    def _handle_BankAccount(self, bank_account: BankAccount, path_prefix: str) -> None:
+        """Sets the type A/B context based on the bank account's institution country code."""
+        country_code = bank_account.bankAccountCountry
+
+        if country_code:
+            if country_code == "CH":
+                self._current_account_is_type_A = True
+            else:
+                self._current_account_is_type_A = False
+        else:
+            self._current_account_is_type_A = None
+        
+        # BaseCalculator does not have a _handle_BankAccount method.
 
     def _handle_BankAccountTaxValue(self, ba_tax_value: BankAccountTaxValue, path_prefix: str) -> None:
         """Handles BankAccountTaxValue objects during traversal."""
@@ -79,24 +96,34 @@ class MinimalTaxValueCalculator(BaseCalculator):
             
             if chf_value is not None: # Only set value if it could be calculated
                 self._set_field_value(ba_tax_value, "value", chf_value, path_prefix)
-        # If balanceCurrency is None, we can't do much for currency conversion.
+        else:
+            raise ValueError(f"BankAccountTaxValue at {path_prefix} has no balanceCurrency. Cannot determine exchange rate.")
 
     def _handle_BankAccountPayment(self, ba_payment: BankAccountPayment, path_prefix: str) -> None:
         """Handles BankAccountPayment objects during traversal."""
         if ba_payment.amountCurrency:
             if ba_payment.paymentDate is None:
                 raise ValueError(f"BankAccountPayment at {path_prefix} has amountCurrency but no paymentDate. Cannot determine exchange rate.")
-            # Get the rate to set the exchangeRate field.
-            # _convert_to_chf handles amount being None, returning the rate.
-            _, rate = self._convert_to_chf(
+            
+            chf_revenue, rate = self._convert_to_chf(
                 ba_payment.amount, 
                 ba_payment.amountCurrency,
                 f"{path_prefix}.exchangeRate",
                 ba_payment.paymentDate
             )
             self._set_field_value(ba_payment, "exchangeRate", rate, path_prefix)
-        # Note: This calculator does not derive grossRevenueA/B from amount * rate.
-        # It assumes grossRevenueA/B are either pre-filled or handled by another calculator.
+
+            if chf_revenue is not None and chf_revenue != Decimal(0): # Only process if there's actual revenue
+                if self._current_account_is_type_A is True:
+                    self._set_field_value(ba_payment, "grossRevenueA", chf_revenue, path_prefix)
+                    # Calculate and set withholding tax for Type A revenue
+                    withholding_tax_amount = (chf_revenue * Decimal("0.35")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    self._set_field_value(ba_payment, "withHoldingTaxClaim", withholding_tax_amount, path_prefix)
+                elif self._current_account_is_type_A is False:
+                    self._set_field_value(ba_payment, "grossRevenueB", chf_revenue, path_prefix)
+                elif self._current_account_is_type_A is None:
+                    # If country was not set on parent BankAccount and there's revenue, it's an error.
+                    raise ValueError(f"BankAccountPayment at {path_prefix} has revenue, but parent BankAccount has no country specified to determine Type A/B revenue.")
 
     def _handle_LiabilityAccountTaxValue(self, lia_tax_value: LiabilityAccountTaxValue, path_prefix: str) -> None:
         """Handles LiabilityAccountTaxValue objects during traversal."""
@@ -121,7 +148,7 @@ class MinimalTaxValueCalculator(BaseCalculator):
             if lia_payment.paymentDate is None:
                 raise ValueError(f"LiabilityAccountPayment at {path_prefix} has amountCurrency but no paymentDate. Cannot determine exchange rate.")
 
-            _, rate = self._convert_to_chf(
+            chf_amount, rate = self._convert_to_chf(
                 lia_payment.amount,
                 lia_payment.amountCurrency,
                 f"{path_prefix}.exchangeRate",
@@ -129,17 +156,34 @@ class MinimalTaxValueCalculator(BaseCalculator):
             )
             self._set_field_value(lia_payment, "exchangeRate", rate, path_prefix)
 
+            if chf_amount is not None and chf_amount != Decimal(0):
+                # Liabilities are considered Type B for revenue purposes
+                self._set_field_value(lia_payment, "grossRevenueB", chf_amount, path_prefix)
+
+    def _handle_Security(self, security: Security, path_prefix: str) -> None:
+        """Sets the type A/B context based on the security's country of taxation."""
+        country_code = security.country
+
+        if country_code:
+            if country_code == "CH":
+                self._current_security_is_type_A = True
+            else:
+                self._current_security_is_type_A = False
+        else:
+            self._current_security_is_type_A = None
+
+        # BaseCalculator does not have a _handle_Security method.
+
     def _handle_SecurityTaxValue(self, sec_tax_value: SecurityTaxValue, path_prefix: str) -> None:
         """Handles SecurityTaxValue objects for currency conversion."""
         # This calculator converts an existing 'value' (assumed to be in 'balanceCurrency') to CHF 
         # and sets 'exchangeRate'. It does not derive 'value' from quantity/quotation.
 
         has_balance_currency = hasattr(sec_tax_value, 'balanceCurrency') and sec_tax_value.balanceCurrency
-        has_value = hasattr(sec_tax_value, 'value') and getattr(sec_tax_value, 'value') is not None
 
         if has_balance_currency:
-            value_to_convert = getattr(sec_tax_value, 'value', None)
-            ref_date = getattr(sec_tax_value, 'referenceDate', None)
+            value_to_convert = sec_tax_value.balance
+            ref_date = sec_tax_value.referenceDate
 
             if ref_date is None:
                 raise ValueError(f"SecurityTaxValue at {path_prefix} has balanceCurrency but no referenceDate. Cannot determine exchange rate.")
@@ -162,6 +206,33 @@ class MinimalTaxValueCalculator(BaseCalculator):
         elif has_value and not has_balance_currency:
             # If there's a value but no currency, this is an error as we cannot process it.
             raise ValueError(f"SecurityTaxValue at {path_prefix} has a 'value' but no 'balanceCurrency'. Cannot perform currency conversion or set exchange rate accurately.")
-        # Other fields like quotationCurrency, quantity, quotationType, nominal are not used
-        # by this minimal calculator for converting an existing 'value' field. They would be handled 
-        # by a more comprehensive calculator if the task was to derive 'value'.
+
+    def _handle_SecurityPayment(self, sec_payment: SecurityPayment, path_prefix: str) -> None:
+        """Handles SecurityPayment objects for currency conversion and revenue categorization."""
+        
+        return
+    
+        # Do not handle SecurityPayment for minimal tax value calculation.
+        # We will move this to fill in calculator
+        if hasattr(sec_payment, 'amountCurrency') and sec_payment.amountCurrency:
+            payment_date = getattr(sec_payment, 'paymentDate', None)
+            if payment_date is None:
+                raise ValueError(f"SecurityPayment at {path_prefix} has amountCurrency but no paymentDate. Cannot determine exchange rate.")
+
+            amount = getattr(sec_payment, 'amount', None)
+            
+            chf_revenue, rate = self._convert_to_chf(
+                amount,
+                sec_payment.amountCurrency,
+                f"{path_prefix}.exchangeRate",
+                payment_date
+            )
+            self._set_field_value(sec_payment, "exchangeRate", rate, path_prefix)
+
+            if chf_revenue is not None and chf_revenue != Decimal(0): # Only process if there's actual revenue
+                if self._current_security_is_type_A is True:
+                    self._set_field_value(sec_payment, "grossRevenueA", chf_revenue, path_prefix)
+                elif self._current_security_is_type_A is False:
+                    self._set_field_value(sec_payment, "grossRevenueB", chf_revenue, path_prefix)
+                elif self._current_security_is_type_A is None:
+                    raise ValueError(f"SecurityPayment at {path_prefix} has revenue, but parent Security has no country specified to determine Type A/B revenue.")

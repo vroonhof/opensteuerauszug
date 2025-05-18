@@ -10,21 +10,21 @@
               country="CH"
               canton="ZH"
               totalTaxValue="185500.00"
-              totalGrossRevenueA="1500.00"
-              totalGrossRevenueB="549.00"
-              totalWithHoldingTaxClaim="525.00"
+              totalGrossRevenueA="0.00"
+              totalGrossRevenueB="2049.00"
+              totalWithHoldingTaxClaim="0.00"
               minorVersion="22">
-  <institution name="Swiss Sample Bank AG" lei="529900T8BM45JSL86F38">
+  <institution name="Sample Foreign Bank ltd">
     <uid xmlns="http://www.ech.ch/xmlns/eCH-0196/2">
       <eCH-0097:uidOrganisationIdCategorie>CHE</eCH-0097:uidOrganisationIdCategorie>
       <eCH-0097:uidOrganisationId>111222333</eCH-0097:uidOrganisationId>
     </uid>
   </institution>
   <client clientNumber="987654" salutation="2" firstName="Max" lastName="Muster"/>
-  <listOfBankAccounts totalTaxValue="35000.00" totalGrossRevenueA="500.00" totalGrossRevenueB="49.00" totalWithHoldingTaxClaim="175.00">
-    <bankAccount bankAccountName="Private Account" bankAccountCountry="CH" bankAccountCurrency="CHF" totalTaxValue="35000.00" totalGrossRevenueA="500.00" totalGrossRevenueB="49.00" totalWithHoldingTaxClaim="175.00" iban="CH9300762011623852957" bankAccountNumber="11623852957">
+  <listOfBankAccounts totalTaxValue="35000.00" totalGrossRevenueA="0.00" totalGrossRevenueB="549.00" totalWithHoldingTaxClaim="0.00">
+    <bankAccount bankAccountName="Private Account" bankAccountCountry="LU" bankAccountCurrency="CHF" totalTaxValue="35000.00" totalGrossRevenueA="0.00" totalGrossRevenueB="549.00" totalWithHoldingTaxClaim="0.00" iban="LU9300762011623852957" bankAccountNumber="11623852957">
       <taxValue referenceDate="2024-12-31" balanceCurrency="CHF" balance="35000.00" value="35000.00"/>
-      <payment paymentDate="2024-06-30" name="Interest Credit" amountCurrency="CHF" amount="500.00" grossRevenueA="500.00" grossRevenueB="0.00" withHoldingTaxClaim="175.00"/>
+      <payment paymentDate="2024-06-30" name="Interest Credit" amountCurrency="CHF" amount="500.00" grossRevenueA="0.00" grossRevenueB="500.00" withHoldingTaxClaim="0.00"/>
       <payment paymentDate="2024-03-15" name="Foreign Interest" amountCurrency="EUR" amount="50.00" exchangeRate="0.98" grossRevenueA="0.00" grossRevenueB="49.00" withHoldingTaxClaim="0.00"/>
     </bankAccount>
   </listOfBankAccounts>
@@ -37,11 +37,11 @@
   <listOfExpenses totalExpenses="150.00" totalExpensesDeductible="150.00">
     <expense name="Depot Fees 2024" amountCurrency="CHF" expenses="150.00" expenseType="22" depotNumber="DEPOT-001"/>
   </listOfExpenses>
-  <listOfSecurities totalTaxValue="150500.00" totalGrossRevenueA="1000.00" totalGrossRevenueB="500.00" totalWithHoldingTaxClaim="350.00" totalLumpSumTaxCredit="0.00" totalNonRecoverableTax="0.00" totalAdditionalWithHoldingTaxUSA="0.00" totalGrossRevenueIUP="0.00" totalGrossRevenueConversion="0.00">
+  <listOfSecurities totalTaxValue="150500.00" totalGrossRevenueA="0.00" totalGrossRevenueB="1500.00" totalWithHoldingTaxClaim="0.00" totalLumpSumTaxCredit="0.00" totalNonRecoverableTax="0.00" totalAdditionalWithHoldingTaxUSA="0.00" totalGrossRevenueIUP="0.00" totalGrossRevenueConversion="0.00">
     <depot depotNumber="DEPOT-001">
-      <security positionId="1" country="CH" currency="CHF" quotationType="PIECE" securityCategory="SHARE" securityName="Roche Holding Genussschein" valorNumber="1203204" isin="CH0012032048">
+      <security positionId="1" country="LU" currency="CHF" quotationType="PIECE" securityCategory="SHARE" securityName="Roche Holding Genussschein" valorNumber="1203204" isin="CH0012032048">
         <taxValue referenceDate="2024-12-31" quotationType="PIECE" quantity="500" balanceCurrency="CHF" unitPrice="301.00" value="150500.00" kursliste="1"/>
-        <payment paymentDate="2024-05-10" exDate="2024-05-08" name="Dividend" quotationType="PIECE" quantity="500" amountCurrency="CHF" amountPerUnit="2.00" amount="1000.00" grossRevenueA="1000.00" grossRevenueB="0.00" withHoldingTaxClaim="350.00" kursliste="1"/>
+        <payment paymentDate="2024-05-10" exDate="2024-05-08" name="Dividend" quotationType="PIECE" quantity="500" amountCurrency="CHF" amountPerUnit="2.00" amount="1000.00" grossRevenueA="0.00" grossRevenueB="1000.00" withHoldingTaxClaim="0.00" kursliste="1"/>
         <payment paymentDate="2024-09-01" name="Securities Lending Income" quotationType="PIECE" quantity="500" amountCurrency="CHF" amount="500.00" grossRevenueA="0.00" grossRevenueB="500.00" withHoldingTaxClaim="0.00" securitiesLending="1"/>
         <stock referenceDate="2024-01-01" mutation="0" quotationType="PIECE" quantity="500" balanceCurrency="CHF" value="145000.00"/>
       </security>
