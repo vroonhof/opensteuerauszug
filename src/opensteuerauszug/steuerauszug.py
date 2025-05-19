@@ -12,7 +12,9 @@ from .render.render import render_tax_statement
 from .calculate.base import CalculationMode
 from .calculate.total import TotalCalculator
 from .calculate.cleanup import CleanupCalculator # Added import
-from .calculate.minimal_tax_value import MinimalTaxValueCalculator # Added import
+from .calculate.minimal_tax_value import MinimalTaxValueCalculator
+from .calculate.kursliste_tax_value_calculator import KurslisteTaxValueCalculator
+from .calculate.fill_in_tax_value_calculator import FillInTaxValueCalculator
 from .importers.schwab.schwab_importer import SchwabImporter # Added import
 from .core.exchange_rate_provider import DummyExchangeRateProvider, ExchangeRateProvider # Corrected import
 
@@ -244,17 +246,44 @@ def main(
             print(f"CleanupCalculator finished. Summary: Modified fields count: {len(cleanup_calculator.modified_fields)}")
             dump_debug_model(current_phase.value + "_after_cleanup", portfolio) # Optional intermediate dump
 
-            # --- 2. Run MinimalTaxValueCalculator ---
-            print("Running MinimalTaxValueCalculator...")
-            # Initialize the exchange rate provider
+            # --- 2. Run Tax Value Calculator based on level ---
+            # Initialize the exchange rate provider (used by Minimal, Kursliste, FillIn)
             exchange_rate_provider: ExchangeRateProvider = DummyExchangeRateProvider()
-            minimal_tax_calculator = MinimalTaxValueCalculator(
-                mode=CalculationMode.OVERWRITE, # Or other appropriate mode
-                exchange_rate_provider=exchange_rate_provider
-            )
-            portfolio = minimal_tax_calculator.calculate(portfolio)
-            print(f"MinimalTaxValueCalculator finished. Modified fields: {len(minimal_tax_calculator.modified_fields) if minimal_tax_calculator.modified_fields else '0'}, Errors: {len(minimal_tax_calculator.errors)}")
-            dump_debug_model(current_phase.value + "_after_minimal_tax_value", portfolio)
+            
+            tax_value_calculator: Optional[MinimalTaxValueCalculator] = None
+            calculator_name = ""
+
+            if tax_calculation_level == TaxCalculationLevel.MINIMAL:
+                print("Running MinimalTaxValueCalculator...")
+                calculator_name = "MinimalTaxValueCalculator"
+                tax_value_calculator = MinimalTaxValueCalculator(
+                    mode=CalculationMode.OVERWRITE,
+                    exchange_rate_provider=exchange_rate_provider
+                )
+            elif tax_calculation_level == TaxCalculationLevel.KURSLISTE:
+                print("Running KurslisteTaxValueCalculator...")
+                calculator_name = "KurslisteTaxValueCalculator"
+                tax_value_calculator = KurslisteTaxValueCalculator(
+                    mode=CalculationMode.OVERWRITE,
+                    exchange_rate_provider=exchange_rate_provider
+                )
+            elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
+                print("Running FillInTaxValueCalculator...")
+                calculator_name = "FillInTaxValueCalculator"
+                tax_value_calculator = FillInTaxValueCalculator(
+                    mode=CalculationMode.OVERWRITE,
+                    exchange_rate_provider=exchange_rate_provider
+                )
+            
+            if tax_value_calculator and calculator_name:
+                portfolio = tax_value_calculator.calculate(portfolio)
+                print(f"{calculator_name} finished. Modified fields: {len(tax_value_calculator.modified_fields) if tax_value_calculator.modified_fields else '0'}, Errors: {len(tax_value_calculator.errors)}")
+                dump_debug_model(current_phase.value + f"_after_{calculator_name.lower()}", portfolio)
+            elif tax_calculation_level != TaxCalculationLevel.NONE:
+                # This case should ideally not be reached if enums are exhaustive and handled
+                print(f"Warning: Tax calculation level '{tax_calculation_level.value}' was specified but no corresponding calculator was run.")
+            else:
+                print(f"Tax calculation level set to '{tax_calculation_level.value}', skipping detailed tax value calculation step.")
 
             # --- 3. Run TotalCalculator (or other main calculators) ---
             # Ensure portfolio is not None after cleanup, though cleanup should always return it
@@ -273,21 +302,46 @@ def main(
             if not portfolio:
                  raise ValueError("Portfolio model not loaded. Cannot run calculate phase.")
             
-            # --- 1. Run MinimalTaxValueCalculator (Verify Mode) ---
-            print("Running MinimalTaxValueCalculator (Verify Mode)...")
+            # --- 1. Run Tax Value Calculator (Verify Mode) based on level ---
+            print(f"Verifying with tax calculation level: {tax_calculation_level.value}...")
             # Initialize the exchange rate provider for verification
             exchange_rate_provider_verify: ExchangeRateProvider = DummyExchangeRateProvider()
-            minimal_tax_calculator_verify = MinimalTaxValueCalculator(
-                mode=CalculationMode.VERIFY,
-                exchange_rate_provider=exchange_rate_provider_verify
-            )
-            minimal_tax_calculator_verify.calculate(portfolio) # Does not modify portfolio in verify mode
-            if minimal_tax_calculator_verify.errors:
-                print(f"MinimalTaxValueCalculator (Verify Mode) encountered {len(minimal_tax_calculator_verify.errors)} errors:")
-                for error in minimal_tax_calculator_verify.errors:
-                    print(f"  Error: {error}")
+            
+            tax_value_verifier: Optional[MinimalTaxValueCalculator] = None
+            verifier_name = ""
+
+            if tax_calculation_level == TaxCalculationLevel.MINIMAL:
+                verifier_name = "MinimalTaxValueCalculator"
+                tax_value_verifier = MinimalTaxValueCalculator(
+                    mode=CalculationMode.VERIFY,
+                    exchange_rate_provider=exchange_rate_provider_verify
+                )
+            elif tax_calculation_level == TaxCalculationLevel.KURSLISTE:
+                verifier_name = "KurslisteTaxValueCalculator"
+                tax_value_verifier = KurslisteTaxValueCalculator(
+                    mode=CalculationMode.VERIFY,
+                    exchange_rate_provider=exchange_rate_provider_verify
+                )
+            elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
+                verifier_name = "FillInTaxValueCalculator"
+                tax_value_verifier = FillInTaxValueCalculator(
+                    mode=CalculationMode.VERIFY,
+                    exchange_rate_provider=exchange_rate_provider_verify
+                )
+
+            if tax_value_verifier and verifier_name:
+                print(f"Running {verifier_name} (Verify Mode)...")
+                tax_value_verifier.calculate(portfolio) # Does not modify portfolio in verify mode
+                if tax_value_verifier.errors:
+                    print(f"{verifier_name} (Verify Mode) encountered {len(tax_value_verifier.errors)} errors:")
+                    for error in tax_value_verifier.errors:
+                        print(f"  Error: {error}")
+                else:
+                    print(f"{verifier_name} (Verify Mode) found no errors.")
+            elif tax_calculation_level != TaxCalculationLevel.NONE:
+                print(f"Warning: Tax calculation level '{tax_calculation_level.value}' was specified but no corresponding verifier was run.")
             else:
-                print("MinimalTaxValueCalculator (Verify Mode) found no errors.")
+                print(f"Tax calculation level set to '{tax_calculation_level.value}', skipping detailed tax value verification step.")
             # No dump after this verify step, as it shouldn't change the model
 
             # --- 2. Run TotalCalculator (Verify Mode) ---

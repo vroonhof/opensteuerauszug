@@ -11,6 +11,7 @@ from opensteuerauszug.core.exchange_rate_provider import DummyExchangeRateProvid
 from datetime import date, datetime
 from typing import Optional
 from tests.utils.samples import get_sample_files
+from .known_issues import _known_issue
 
 @pytest.fixture
 def minimal_tax_value_calculator_overwrite() -> MinimalTaxValueCalculator:
@@ -65,27 +66,6 @@ def test_minimal_tax_value_calculator_calculate_empty_statement_verify(
     assert len(minimal_tax_value_calculator_verify.errors) == 0
     assert len(minimal_tax_value_calculator_verify.modified_fields) == 0 # Verify mode should not modify
 
-def _known_issue(error: Exception, institution: Optional[Institution]) -> bool:
-    """
-    Determine if an error is a known issue that should be ignored.
-    
-    Args:
-        error: The error to check
-        institution: The institution associated with the tax statement
-        
-    Returns:
-        bool: True if the error is a known issue, False otherwise
-    """
-    if not isinstance(error, CalculationError):
-        return False
-    if not institution or not institution.name:
-        return False
-    if institution.name.startswith("UBS"):
-        if error.field_path.endswith("exchangeRate"):
-            # UBS has a known issue with broken exchange rates on CHF payments
-            if error.expected == Decimal("1") and error.actual == Decimal("0"):
-                return True
-    return False
 
 class TestMinimalTaxValueCalculatorIntegration:
     @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))

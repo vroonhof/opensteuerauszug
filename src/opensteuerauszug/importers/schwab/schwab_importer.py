@@ -437,6 +437,7 @@ def convert_cash_positions_to_list_of_bank_accounts(
             
         bank_account = BankAccount(
                 bankAccountNumber=BankAccountNumber(account_number),
+                bankAccountCountry="US", # Assume Schwab is always US based
                 bankAccountCurrency=currency,
                 payment=bank_payments
         )

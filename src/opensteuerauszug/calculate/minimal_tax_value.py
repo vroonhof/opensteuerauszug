@@ -203,13 +203,14 @@ class MinimalTaxValueCalculator(BaseCalculator):
             # If value_to_convert was None, chf_value will be None. 
             # _set_field_value handles VERIFY/FILL/OVERWRITE modes appropriately for None.
 
-        elif has_value and not has_balance_currency:
+        elif sec_tax_value.balance and not has_balance_currency:
             # If there's a value but no currency, this is an error as we cannot process it.
             raise ValueError(f"SecurityTaxValue at {path_prefix} has a 'value' but no 'balanceCurrency'. Cannot perform currency conversion or set exchange rate accurately.")
 
     def _handle_SecurityPayment(self, sec_payment: SecurityPayment, path_prefix: str) -> None:
         """Handles SecurityPayment objects for currency conversion and revenue categorization."""
         
+        # TODO: Decide what to with any payments provided by the importer.
         return
     
         # Do not handle SecurityPayment for minimal tax value calculation.
