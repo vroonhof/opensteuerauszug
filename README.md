@@ -1,10 +1,29 @@
 # OpenSteuerAuszug
 
-A Python package for handling and processing German tax statements (Steuerauszüge).
+A Python package for generaring Swiss tax statements (Steuerauszüge) from brokers' statements that don't support it, e.g. mostly foreign ones.
+This goal is to eliminate tedious and error prone manual typing into the tax softwware.
+
+## Disclaimer
+
+TODO: explain that 
+- The package is not formally audited
+- the main focus is on getting core transaction and interest data.
+- These need to be verified by the user before submitting with the tax return
+- Tax values are computed best effort for informational purpose (the man Tax software should be able to compute it from the core transaction data.
+
 
 ## Features
 
 - TBD
+
+## Supported Brokers
+
+For now the focus is on brokers / banks that the author has 
+
+- Charles Schwab (main trading account and Equity Awards)
+- [planned] Interactive Brokers
+  
+Additionally we can recalculate and verify any existing steuer-auszug (this is mostly to increase confidence in the software itself)
 
 ## Installation
 
@@ -18,11 +37,16 @@ pip install git+https://github.com/vroonhof/pdf417-py.git
 
 ## Usage
 
+### Generating a Tax statement
+
 ```python
 from opensteuerauszug import SteuerAuszug
 
 # Example usage will be added
 ```
+### Importing the result into your tax software.
+
+TODO
 
 ## Development
 
