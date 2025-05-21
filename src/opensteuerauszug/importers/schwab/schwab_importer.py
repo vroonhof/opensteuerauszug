@@ -14,7 +14,7 @@ from .transaction_extractor import TransactionExtractor
 from opensteuerauszug.util.date_coverage import DateRangeCoverage
 from collections import defaultdict
 from opensteuerauszug.core.position_reconciler import PositionReconciler, ReconciledQuantity
-from ....config.models import SchwabAccountSettings # Add this
+from opensteuerauszug.config.models import SchwabAccountSettings # Add this
 
 # Placeholder import for TransactionExtractor (to be implemented)
 # from .TransactionExtractor import TransactionExtractor
@@ -513,7 +513,7 @@ if __name__ == "__main__":
     period_from = datetime.strptime(args.period_from, "%Y-%m-%d").date()
     period_to = datetime.strptime(args.period_to, "%Y-%m-%d").date()
 
-    importer = SchwabImporter(period_from, period_to)
+    importer = SchwabImporter(period_from, period_to, [])
     tax_statement = importer.import_dir(args.directory)
        
     from devtools import debug  

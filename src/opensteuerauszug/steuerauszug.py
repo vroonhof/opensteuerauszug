@@ -2,7 +2,9 @@ import typer
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional
-from datetime import date, datetime # Modified to include datetime
+from datetime import date, datetime
+
+from opensteuerauszug.config.models import SchwabAccountSettings # Modified to include datetime
 
 # Use the generated eCH-0196 model
 from .model.ech0196 import TaxStatement
