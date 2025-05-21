@@ -16,7 +16,6 @@ classifiers = [
 
 dependencies = [
     "pydantic>=2.0",
-    "pydantic-xml",
     "tomli>=1.1.0",
     "typer",
     "rich", # Included because requirements.txt had typer[all]
@@ -25,8 +24,6 @@ dependencies = [
     "reportlab>=4.0.0", # Added for PDF generation in render module
     "python-barcode>=0.15.0", # Added for barcode generation in render module
     "pypdf>=4.0.0", # Use pypdf for PDF reading and analysis
-    # TODO make these formal dependencies 
-    # pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
 ]
 
 [project.scripts]
@@ -45,8 +42,6 @@ dev = [
     "isort>=5.0.0",
     "mypy>=1.0.0",
     "flake8>=6.0.0",
-    # TODO make these formal dependencies 
-    # pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
 ]
 
 [tool.black]

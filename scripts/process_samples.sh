@@ -8,7 +8,6 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 OUTPUT_DIR="$ROOT_DIR/private/output"
 PHASES="-p calculate -p render"
-EXTRA_ARGS="--tax-year 2024"
 
 # Ensure output directory exists
 mkdir -p "$OUTPUT_DIR"
@@ -30,7 +29,7 @@ for xml_file in "$ROOT_DIR/tests/samples/"*.xml; do
     filename=$(basename "$xml_file")
     pdf_name="${filename%.xml}.pdf"
     echo "Processing $filename..."
-    python -m opensteuerauszug.steuerauszug "$xml_file" --raw-import $PHASES -o "$OUTPUT_DIR/$pdf_name" ${EXTRA_ARGS:-}
+    python -m opensteuerauszug.steuerauszug "$xml_file" --raw-import $PHASES -o "$OUTPUT_DIR/$pdf_name"
   fi
 done
 
@@ -49,7 +48,7 @@ for xml_file in "$SAMPLE_DIR"/*.xml; do
     filename=$(basename "$xml_file")
     pdf_name="${filename%.xml}.pdf"
     echo "Processing $filename..."
-    python -m opensteuerauszug.steuerauszug "$xml_file" --raw-import $PHASES -o "$OUTPUT_DIR/$pdf_name" ${EXTRA_ARGS:-}
+    python -m opensteuerauszug.steuerauszug "$xml_file" --raw-import $PHASES -o "$OUTPUT_DIR/$pdf_name"
   fi
 done
 
