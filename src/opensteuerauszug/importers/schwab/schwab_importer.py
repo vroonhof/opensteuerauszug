@@ -14,7 +14,6 @@ from .transaction_extractor import TransactionExtractor
 from opensteuerauszug.util.date_coverage import DateRangeCoverage
 from collections import defaultdict
 from opensteuerauszug.core.position_reconciler import PositionReconciler, ReconciledQuantity
-from ....config.models import SchwabAccountSettings # Add this
 
 # Placeholder import for TransactionExtractor (to be implemented)
 # from .TransactionExtractor import TransactionExtractor
@@ -32,11 +31,7 @@ class SchwabImporter:
     """
     Imports Schwab account data for a given tax period from PDF and JSON files.
     """
-    def __init__(self, 
-                 period_from: date, 
-                 period_to: date, 
-                 account_settings_list: List[SchwabAccountSettings], # MODIFIED
-                 strict_consistency: bool = True):
+    def __init__(self, period_from: date, period_to: date, strict_consistency: bool = True):
         """
         Initialize the importer with a tax period defined by a start and end date.
 
@@ -48,17 +43,7 @@ class SchwabImporter:
         """
         self.period_from = period_from
         self.period_to = period_to
-        self.account_settings_list = account_settings_list # MODIFIED
         self.strict_consistency = strict_consistency
-
-        # If there's any immediate use of a single account setting (e.g. for logging, or a default identifier)
-        # it needs to be adapted. For now, we'll assume most logic will be adapted later.
-        # If absolutely needed for the code to run, use the first account with a TODO.
-        if self.account_settings_list:
-            print(f"SchwabImporter initialized with {len(self.account_settings_list)} account(s). First account number: {self.account_settings_list[0].account_number}")
-        else:
-            # This case should ideally be prevented by the CLI loading logic
-            print("Warning: SchwabImporter initialized with an empty list of account settings.")
 
     def _determine_synthesized_stock_currency(
         self,
