@@ -1,25 +1,37 @@
 from datetime import date, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict # Added Dict
+# import os # Removed os import
+# Removed pandas import
 from opensteuerauszug.model.ech0196 import SecurityTaxValue, TaxStatement, SecurityStock, BankAccountPayment, SecurityPayment
 from opensteuerauszug.util.sorting import find_index_of_date, sort_security_stocks, sort_payments, sort_security_payments
+# from opensteuerauszug.core.identifier_loader import SecurityIdentifierMapLoader # Removed loader import
 
 class CleanupCalculator:
     """
     Calculator responsible for initial cleanup tasks:
     1. Sorting payments and stock statements.
     2. Optionally filtering these entries to the specified tax period.
+    3. Optionally enriching securities with missing ISIN/Valor from a provided map.
     """
     def __init__(self,
                  period_from: Optional[date],
                  period_to: Optional[date],
+                 identifier_map: Optional[Dict[str, Dict[str, any]]] = None, # New argument
                  enable_filtering: bool = True,
                  print_log: bool = False):
         self.period_from = period_from
         self.period_to = period_to
+        self.identifier_map = identifier_map # Store injected map
         self.enable_filtering = enable_filtering
         self.print_log = print_log
         self.modified_fields: List[str] = []
         self.log_messages: List[str] = []
+        
+        # Log if an identifier map was provided
+        if self.identifier_map is not None: # Check if it's not None, could be an empty dict
+            self._log(f"CleanupCalculator initialized with an identifier map containing {len(self.identifier_map)} entries.")
+        else:
+            self._log("CleanupCalculator initialized without an identifier map. Enrichment will be skipped.")
 
     def _log(self, message: str):
         self.log_messages.append(message)
@@ -71,7 +83,40 @@ class CleanupCalculator:
                             security.securityName
                         ]
                         security_display_id = next((s_id for s_id in security_id_parts if s_id), f"Security_{sec_idx+1}")
-                        pos_id = f"{depot_id}/{security_display_id}"
+                        pos_id = f"{depot_id}/{security_display_id}" # Original pos_id for logging before enrichment
+
+                        # Identifier Enrichment Logic
+                        if self.identifier_map and security.securityName: # securityName is used as lookup key
+                            lookup_symbol = security.securityName
+                            if (not security.isin or not security.valorNumber or security.valorNumber == 0) and lookup_symbol in self.identifier_map:
+                                found_identifiers = self.identifier_map[lookup_symbol]
+                                enriched = False
+                                if not security.isin and found_identifiers.get('isin'):
+                                    security.isin = found_identifiers['isin']
+                                    enriched = True
+                                
+                                if (not security.valorNumber or security.valorNumber == 0) and found_identifiers.get('valor'):
+                                    # Valor in map is already int or None due to loading logic
+                                    security.valorNumber = found_identifiers['valor']
+                                    enriched = True
+                                
+                                if enriched:
+                                    # Update security_display_id and pos_id for subsequent logging if identifiers changed
+                                    new_security_id_parts = [
+                                        security.isin,
+                                        str(security.valorNumber) if security.valorNumber else None,
+                                        security.securityName
+                                    ]
+                                    security_display_id = next((s_id for s_id in new_security_id_parts if s_id), f"Security_{sec_idx+1}")
+                                    # Reconstruct pos_id based on potentially new security_display_id
+                                    # This ensures logs for filtering etc. use the enriched ID.
+                                    # However, for the enrichment log itself, we use the original pos_id or lookup_symbol.
+                                    log_pos_id_for_enrichment = f"{depot_id}/{lookup_symbol}" # Use symbol for this specific log.
+                                    self._log(f"  Security {log_pos_id_for_enrichment}: Enriched ISIN/Valor from identifier file using symbol '{lookup_symbol}'.")
+                                    self.modified_fields.append(f"{log_pos_id_for_enrichment} (enriched)")
+                                    # Update pos_id for subsequent operations in this loop, if needed
+                                    pos_id = f"{depot_id}/{security_display_id}"
+
 
                         if security.stock:
                             original_stock_count = len(security.stock)

@@ -8,8 +8,14 @@ from opensteuerauszug.model.ech0196 import (
     TaxStatement,
     ListOfBankAccounts, BankAccount, BankAccountPayment, BankAccountNumber,
     ListOfSecurities, Depot, Security, SecurityStock, SecurityPayment, DepotNumber,
-    CurrencyId, QuotationType
+    CurrencyId, QuotationType, TaxStatementId, CantonId
 )
+import os
+# from unittest.mock import patch # Removed patch
+# pandas is used by the module under test, not directly in tests for enrichment logic
+# import pandas
+# shutil is not needed for the chosen patching strategy
+# import shutil
 
 
 def create_bank_account_payment(payment_date: date, amount: Decimal = Decimal("100"), name: str = "Payment") -> BankAccountPayment:
@@ -402,3 +408,186 @@ class TestCleanupCalculatorEdgeCases:
         assert len(res_to_only.listOfBankAccounts.bankAccount[0].payment) == 1
         assert not calculator_to_only.modified_fields
         assert any("Payment filtering skipped (tax period not fully defined)" in log for log in calculator_to_only.get_log())
+
+
+# Helper function for creating TaxStatement with a single security
+def _create_statement_with_security(sec: Security) -> TaxStatement:
+    depot = Depot(depotNumber=DepotNumber("DTEST"), security=[sec]) # Added DepotNumber
+    list_of_securities = ListOfSecurities(depot=[depot])
+    statement = TaxStatement(
+        id=TaxStatementId("test-statement-enrich"), # Use TaxStatementId
+        creationDate="2023-01-01T12:00:00Z", # Valid datetime string
+        taxPeriod=2022,
+        periodFrom=date(2022, 1, 1), # Use date object
+        periodTo=date(2022, 12, 31), # Use date object
+        canton=CantonId("ZH"), # Use CantonId
+        minorVersion=2, # Use integer for minorVersion as per schema
+        listOfSecurities=list_of_securities
+    )
+    return statement
+
+# Minimal security creation helper for enrichment tests
+def _create_test_security(name: str, isin: Optional[str] = None, valor: Optional[int] = None) -> Security:
+    return Security(
+        positionId=1, # required
+        country="CH", # required
+        currency="CHF", # required
+        quotationType="PIECE", # required
+        securityCategory="SHARE", # required
+        securityName=name,
+        isin=isin,
+        valorNumber=valor
+    )
+
+
+class TestCleanupCalculatorEnrichment:
+
+    @pytest.fixture
+    def base_calculator_params(self, sample_period_from, sample_period_to):
+        return {
+            "period_from": sample_period_from,
+            "period_to": sample_period_to,
+            "enable_filtering": False,
+            "print_log": True
+        }
+
+    def test_enrichment_full(self, base_calculator_params):
+        test_map = {"TESTSYM_FULL": {"isin": "US1234567890", "valor": 1234567}}
+        calculator = CleanupCalculator(**base_calculator_params, identifier_map=test_map)
+        
+        security = _create_test_security(name="TESTSYM_FULL")
+        statement = _create_statement_with_security(security)
+        calculator.calculate(statement)
+        
+        assert security.isin == "US1234567890"
+        assert security.valorNumber == 1234567
+        assert any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_FULL'" in log for log in calculator.get_log())
+        assert any("DTEST/TESTSYM_FULL (enriched)" in f for f in calculator.modified_fields)
+
+    def test_enrichment_map_has_isin_only(self, base_calculator_params): # Renamed
+        test_map = {"TESTSYM_NO_VALOR": {"isin": "CH0987654321", "valor": None}}
+        calculator = CleanupCalculator(**base_calculator_params, identifier_map=test_map)
+
+        security = _create_test_security(name="TESTSYM_NO_VALOR")
+        statement = _create_statement_with_security(security)
+        calculator.calculate(statement)
+        
+        assert security.isin == "CH0987654321"
+        assert security.valorNumber is None
+        assert any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_NO_VALOR'" in log for log in calculator.get_log())
+
+    def test_enrichment_map_has_valor_only(self, base_calculator_params): # Renamed
+        test_map = {"TESTSYM_NO_ISIN": {"isin": None, "valor": 7654321}}
+        calculator = CleanupCalculator(**base_calculator_params, identifier_map=test_map)
+
+        security = _create_test_security(name="TESTSYM_NO_ISIN")
+        statement = _create_statement_with_security(security)
+        calculator.calculate(statement)
+        
+        assert security.isin is None
+        assert security.valorNumber == 7654321
+        assert any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_NO_ISIN'" in log for log in calculator.get_log())
+
+    def test_enrichment_map_has_invalid_valor_none(self, base_calculator_params): # Renamed
+        # This simulates that the loader would produce valor: None for an originally invalid string.
+        test_map = {"TESTSYM_INVALID_VALOR": {"isin": "US000000000X", "valor": None}}
+        calculator = CleanupCalculator(**base_calculator_params, identifier_map=test_map)
+        
+        security = _create_test_security(name="TESTSYM_INVALID_VALOR")
+        statement = _create_statement_with_security(security)
+        calculator.calculate(statement)
+        
+        assert security.isin == "US000000000X"
+        assert security.valorNumber is None
+        assert any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_INVALID_VALOR'" in log for log in calculator.get_log())
+
+    def test_enrichment_already_full(self, base_calculator_params):
+        # Map might contain data, but it shouldn't be used if security is already full.
+        test_map = {"TESTSYM_ALREADY_FULL": {"isin": "OTHER_ISIN", "valor": 999888}}
+        calculator = CleanupCalculator(**base_calculator_params, identifier_map=test_map)
+        
+        security = _create_test_security(name="TESTSYM_ALREADY_FULL", isin="US1111111111", valor=1111111)
+        statement = _create_statement_with_security(security)
+        
+        # Clear initial logs from calculator's __init__ to focus on calculate() logs
+        # Note: The current CleanupCalculator logs in init if a map is present.
+        # We are testing the calculate method's logging here.
+        initial_log_count = len(calculator.get_log())
+        calculator.calculate(statement)
+        logs_after_calculate = calculator.get_log()[initial_log_count:]
+        
+        assert security.isin == "US1111111111"
+        assert security.valorNumber == 1111111
+        assert not any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_ALREADY_FULL'" in log for log in logs_after_calculate)
+        assert not any("TESTSYM_ALREADY_FULL (enriched)" in f for f in calculator.modified_fields)
+
+
+    def test_enrichment_symbol_not_in_map(self, base_calculator_params):
+        test_map = {"ANOTHER_SYM": {"isin": "DE123", "valor": 456}}
+        calculator = CleanupCalculator(**base_calculator_params, identifier_map=test_map)
+        
+        security = _create_test_security(name="NON_EXISTENT_SYM")
+        statement = _create_statement_with_security(security)
+        calculator.calculate(statement)
+        
+        assert security.isin is None
+        assert security.valorNumber is None
+        assert not any("Enriched ISIN/Valor from identifier file using symbol 'NON_EXISTENT_SYM'" in log for log in calculator.get_log())
+
+    def test_enrichment_partial_isin_only_security_has_valor(self, base_calculator_params):
+        test_map = {"TESTSYM_PARTIAL_ISIN_ONLY": {"isin": "DE2222222222", "valor": None}}
+        calculator = CleanupCalculator(**base_calculator_params, identifier_map=test_map)
+        
+        security = _create_test_security(name="TESTSYM_PARTIAL_ISIN_ONLY", valor=999)
+        statement = _create_statement_with_security(security)
+        calculator.calculate(statement)
+        
+        assert security.isin == "DE2222222222"
+        assert security.valorNumber == 999
+        assert any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_PARTIAL_ISIN_ONLY'" in log for log in calculator.get_log())
+
+    def test_enrichment_partial_valor_only_security_has_isin(self, base_calculator_params):
+        test_map = {"TESTSYM_PARTIAL_VALOR_ONLY": {"isin": None, "valor": 3333333}}
+        calculator = CleanupCalculator(**base_calculator_params, identifier_map=test_map)
+
+        security = _create_test_security(name="TESTSYM_PARTIAL_VALOR_ONLY", isin="XYZ123")
+        statement = _create_statement_with_security(security)
+        calculator.calculate(statement)
+        
+        assert security.isin == "XYZ123"
+        assert security.valorNumber == 3333333
+        assert any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_PARTIAL_VALOR_ONLY'" in log for log in calculator.get_log())
+
+    def test_enrichment_with_empty_map(self, base_calculator_params): # Renamed
+        calculator = CleanupCalculator(**base_calculator_params, identifier_map={})
+        
+        # Check init log
+        assert any("CleanupCalculator initialized with an identifier map containing 0 entries." in log for log in calculator.get_log())
+
+        security = _create_test_security(name="TESTSYM_FULL")
+        statement = _create_statement_with_security(security)
+        
+        # Clear logs before calculate to focus on calculate's specific logs (if any)
+        calculator.log_messages = []
+        calculator.calculate(statement)
+        
+        assert security.isin is None
+        assert security.valorNumber is None
+        assert not any("Enriched ISIN/Valor" in log for log in calculator.get_log())
+
+    def test_enrichment_with_none_map(self, base_calculator_params): # New test for None map
+        calculator = CleanupCalculator(**base_calculator_params, identifier_map=None)
+
+        # Check init log
+        assert any("CleanupCalculator initialized without an identifier map. Enrichment will be skipped." in log for log in calculator.get_log())
+
+        security = _create_test_security(name="TESTSYM_FULL")
+        statement = _create_statement_with_security(security)
+        
+        # Clear logs before calculate
+        calculator.log_messages = []
+        calculator.calculate(statement)
+        
+        assert security.isin is None
+        assert security.valorNumber is None
+        assert not any("Enriched ISIN/Valor" in log for log in calculator.get_log())

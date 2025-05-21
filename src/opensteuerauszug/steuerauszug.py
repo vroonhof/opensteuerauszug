@@ -3,6 +3,8 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional
 from datetime import date, datetime # Modified to include datetime
+import os # For path construction
+from .core.identifier_loader import SecurityIdentifierMapLoader
 
 # Use the generated eCH-0196 model
 from .model.ech0196 import TaxStatement
@@ -57,6 +59,11 @@ def main(
     period_from_str: Optional[str] = typer.Option(None, "--period-from", help="Start date of the tax period (YYYY-MM-DD), required for some importers like Schwab."),
     period_to_str: Optional[str] = typer.Option(None, "--period-to", help="End date of the tax period (YYYY-MM-DD), required for some importers like Schwab."),
     tax_year: Optional[int] = typer.Option(None, "--tax-year", help="Specify the tax year (e.g., 2023). If provided, period-from and period-to will default to the start/end of this year unless explicitly set. If period-from/to are set, they must fall within this tax year."),
+    identifiers_csv_path_opt: Optional[str] = typer.Option(
+        None,
+        "--identifiers-csv-path",
+        help="Path to the security identifiers CSV file (e.g., data/my_identifiers.csv). If not provided, defaults to 'data/security_identifiers.csv' relative to the project root."
+    ),
     strict_consistency_flag: bool = typer.Option(True, "--strict-consistency/--no-strict-consistency", help="Enable/disable strict consistency checks in importers (e.g., Schwab). Defaults to strict."),
     filter_to_period_flag: bool = typer.Option(True, "--filter-to-period/--no-filter-to-period", help="Filter transactions and stock events to the tax period (with closing balances). Defaults to enabled."),
     tax_calculation_level: TaxCalculationLevel = typer.Option(TaxCalculationLevel.FILL_IN, "--tax-calculation-level", help="Specify the level of detail for tax value calculations."),
@@ -233,13 +240,44 @@ def main(
             if not portfolio:
                  raise ValueError("Portfolio model not loaded. Cannot run calculate phase.")
             
+            # --- Load Security Identifier Map ---
+            # This path will eventually come from a CLI argument
+            # For now, default to project_root/data/security_identifiers.csv
+            # Assuming steuerauszug.py is at src/opensteuerauszug/steuerauszug.py
+            # --- Load Security Identifier Map ---
+            effective_identifiers_csv_path: str
+            if identifiers_csv_path_opt is None:
+                # Default path: project_root/data/security_identifiers.csv
+                cli_py_file_path = os.path.abspath(__file__)
+                src_opensteuerauszug_dir = os.path.dirname(cli_py_file_path)
+                src_dir = os.path.dirname(src_opensteuerauszug_dir)
+                project_root_dir = os.path.dirname(src_dir)
+                effective_identifiers_csv_path = os.path.join(project_root_dir, "data", "security_identifiers.csv")
+                print(f"Using default security identifiers CSV path: {effective_identifiers_csv_path}")
+            else:
+                # User provided a path
+                effective_identifiers_csv_path = identifiers_csv_path_opt
+                print(f"Using user-provided security identifiers CSV path: {effective_identifiers_csv_path}")
+                # Optional: resolve to absolute path if it's relative
+                # effective_identifiers_csv_path = os.path.abspath(effective_identifiers_csv_path)
+
+            print(f"Attempting to load security identifiers from: {effective_identifiers_csv_path}")
+            identifier_loader = SecurityIdentifierMapLoader(effective_identifiers_csv_path)
+            security_identifier_map = identifier_loader.load_map() # Loader handles its own detailed logging
+
+            if security_identifier_map:
+                print(f"Successfully loaded {len(security_identifier_map)} security identifiers.")
+            else:
+                print("Security identifier map not loaded or empty. Enrichment will be skipped.")
+            
             # --- 1. Run CleanupCalculator ---
             print("Running CleanupCalculator...")
             cleanup_calculator = CleanupCalculator(
                 period_from=parsed_period_from,
                 period_to=parsed_period_to,
+                identifier_map=security_identifier_map, # Pass the loaded map
                 enable_filtering=filter_to_period_flag,
-                print_log=True # Calculator will print its own logs
+                print_log=True 
             )
             portfolio = cleanup_calculator.calculate(portfolio)
             # Logs are printed by the calculator itself if print_log=True

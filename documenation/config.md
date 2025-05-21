@@ -377,3 +377,43 @@ language = "it"
         if os.path.exists("config.toml"):
             os.remove("config.toml")
 ```
+
+## Security Identifier Enrichment
+
+The OpenSteuerAuszug application can automatically enrich your security data by adding missing ISIN (International Securities Identification Number) and Valor numbers. This is achieved by using a CSV file located at `data/security_identifiers.csv` relative to the project root.
+
+The `CleanupCalculator` process utilizes this file during its operations to look up securities by their name and populate the `isin` and/or `valorNumber` fields if they are not already present in the input data.
+
+### CSV File Format
+
+The CSV file must adhere to the following format:
+
+1.  **Header Row**: The first line of the file must be `symbol,isin,valor`.
+2.  **Data Rows**: Subsequent lines should contain the data for each security:
+    *   `symbol`: This is the lookup key. It should match the security name found in your financial documents (e.g., the `securityName` field in the eCH-0196 data).
+    *   `isin`: The ISIN to be populated if the security is missing one. This field can be left empty if you only want to provide a Valor number for the given symbol.
+    *   `valor`: The Valor number to be populated if the security is missing one. This field can be left empty if you only want to provide an ISIN. If provided, it must be a valid integer.
+
+### File Location and Configuration
+By default, the application looks for this file at `data/security_identifiers.csv` (relative to the project root). However, you can specify a custom path using the command-line argument:
+`--identifiers-csv-path /path/to/your/identifiers.csv`
+
+If this argument is not provided, the default path will be used.
+
+### Example CSV Content
+
+```csv
+symbol,isin,valor
+MyTech Stock,US1234567890,1234567
+OldCorp Bonds,,7654321
+EuroFund Tranche X,DE000XYZ1234,
+Another Security Name Without Valor,CH9876543210,
+```
+
+### Optional File
+
+This `security_identifiers.csv` file is **optional**.
+*   If the file is not found at the specified location (`data/security_identifiers.csv`), a warning message will be logged.
+*   The enrichment step will be skipped, and the program will continue to operate normally with the data as it was originally provided.
+
+This feature is particularly useful when your bank's export files do not consistently provide ISIN or Valor numbers for all securities, allowing you to maintain a supplementary list for complete data records.
