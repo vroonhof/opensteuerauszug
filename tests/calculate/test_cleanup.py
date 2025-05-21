@@ -1,14 +1,16 @@
 import pytest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional, List
 
 from opensteuerauszug.calculate.cleanup import CleanupCalculator
 from opensteuerauszug.model.ech0196 import (
+    ISINType,
     TaxStatement,
     ListOfBankAccounts, BankAccount, BankAccountPayment, BankAccountNumber,
     ListOfSecurities, Depot, Security, SecurityStock, SecurityPayment, DepotNumber,
-    CurrencyId, QuotationType, TaxStatementId, CantonId
+    CurrencyId, QuotationType,
+    ValorNumber
 )
 import os
 # from unittest.mock import patch # Removed patch
@@ -415,12 +417,11 @@ def _create_statement_with_security(sec: Security) -> TaxStatement:
     depot = Depot(depotNumber=DepotNumber("DTEST"), security=[sec]) # Added DepotNumber
     list_of_securities = ListOfSecurities(depot=[depot])
     statement = TaxStatement(
-        id=TaxStatementId("test-statement-enrich"), # Use TaxStatementId
-        creationDate="2023-01-01T12:00:00Z", # Valid datetime string
-        taxPeriod=2022,
-        periodFrom=date(2022, 1, 1), # Use date object
-        periodTo=date(2022, 12, 31), # Use date object
-        canton=CantonId("ZH"), # Use CantonId
+        id="test-statement-enrich", # Use TaxStatementId
+        creationDate=datetime(2023, 1, 1, 12, 0, 0),
+        periodFrom=date(2022, 1, 1),
+        periodTo=date(2022, 12, 31),
+        canton="ZH",
         minorVersion=2, # Use integer for minorVersion as per schema
         listOfSecurities=list_of_securities
     )
@@ -435,8 +436,8 @@ def _create_test_security(name: str, isin: Optional[str] = None, valor: Optional
         quotationType="PIECE", # required
         securityCategory="SHARE", # required
         securityName=name,
-        isin=isin,
-        valorNumber=valor
+        isin=ISINType(isin) if isin is not None else None,
+        valorNumber=ValorNumber(valor) if valor is not None else None,
     )
 
 
@@ -550,11 +551,11 @@ class TestCleanupCalculatorEnrichment:
         test_map = {"TESTSYM_PARTIAL_VALOR_ONLY": {"isin": None, "valor": 3333333}}
         calculator = CleanupCalculator(**base_calculator_params, identifier_map=test_map)
 
-        security = _create_test_security(name="TESTSYM_PARTIAL_VALOR_ONLY", isin="XYZ123")
+        security = _create_test_security(name="TESTSYM_PARTIAL_VALOR_ONLY", isin="US7777777777")
         statement = _create_statement_with_security(security)
         calculator.calculate(statement)
         
-        assert security.isin == "XYZ123"
+        assert security.isin == 'US7777777777'
         assert security.valorNumber == 3333333
         assert any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_PARTIAL_VALOR_ONLY'" in log for log in calculator.get_log())
 
