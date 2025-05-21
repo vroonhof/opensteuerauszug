@@ -11,10 +11,8 @@ from opensteuerauszug.core.security import (
 )
 
 from opensteuerauszug.core.kursliste_manager import KurslisteManager
-from .kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 
 __all__ = [
-    'KurslisteExchangeRateProvider',
     'compute_org_nr',
     'hash_organization_name',
     'determine_security_type',

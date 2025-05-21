@@ -752,9 +752,9 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         "fund",
         "liborSwap",
         # "share",
-        # "exchangeRate",
-        # "exchangeRateMonthly",
-        # "exchangeRateYearEnd"
+        "exchangeRate",
+        "exchangeRateMonthly",
+        "exchangeRateYearEnd"
     }
     
     @staticmethod

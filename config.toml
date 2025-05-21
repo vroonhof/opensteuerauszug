@@ -1,0 +1,39 @@
+# 1. General Settings
+[general]
+canton = "ZG" # Example: Zug canton
+full_name = "Test User Name"
+language = "de" # Default language
+
+[general.processing_flags]
+detect_foreign_income = true
+summarize_by_category = true
+
+# 2. Broker-level Settings / Overrides
+[brokers.schwab]
+# You could override general settings here for all Schwab accounts, e.g.:
+# language = "en"
+
+# [brokers.schwab.processing_flags]
+# schwab_specific_flag = true
+
+# 3. Account-level Settings / Overrides for Schwab
+[brokers.schwab.accounts.default_schwab_account]
+# This is the alias you would use with --account default_schwab_account when --broker schwab
+account_number = "123456789XYZ" # Example Schwab account number
+# You can override broker or general settings here too, e.g.:
+# full_name = "Test User Schwab Account Specific Name"
+
+[brokers.schwab.accounts.secondary_schwab_account] # NEW
+account_number = "987654321ABC" # Example another Schwab account number
+full_name = "Test User - Secondary Schwab" # Example of overriding a general setting
+# language = "en" # Example of overriding a broker/general setting
+
+# [brokers.schwab.accounts.default_schwab_account.processing_flags]
+# detect_foreign_income = false # Override for this specific account
+
+# Example of another broker (not used by current Schwab importer logic but shows structure)
+# [brokers.another_bank]
+# language = "fr"
+
+# [brokers.another_bank.accounts.main_chf]
+# account_number = "CH1234500000000000000"
