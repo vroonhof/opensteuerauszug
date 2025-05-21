@@ -5,7 +5,7 @@ import pytest
 from pathlib import Path
 from datetime import date, datetime
 from decimal import Decimal
-import PyPDF2  # For checking PDF pages
+import pypdf  # Fors checking PDF pages
 from io import BytesIO
 
 from opensteuerauszug.model.ech0196 import (
@@ -116,7 +116,7 @@ def test_render_tax_statement_content(sample_tax_statement):
         
         # Check content in the PDF
         with open(temp_path, "rb") as f:
-            pdf_reader = PyPDF2.PdfReader(f)
+            pdf_reader = pypdf.PdfReader(f)
             text = pdf_reader.pages[0].extract_text()
             
             # Verify client information appears in the PDF
@@ -176,7 +176,7 @@ def test_pdf_page_count(sample_tax_statement):
         
         # Check the number of pages using PyPDF2
         with open(tmp_path, "rb") as f:
-            pdf_reader = PyPDF2.PdfReader(f)
+            pdf_reader = pypdf.PdfReader(f)
             # The PDF should now have exactly two pages
             assert len(pdf_reader.pages) == 2
             
@@ -209,7 +209,7 @@ def test_barcode_rendering(sample_tax_statement):
         
         # Check the number of pages using PyPDF2
         with open(tmp_path, "rb") as f:
-            pdf_reader = PyPDF2.PdfReader(f)
+            pdf_reader = pypdf.PdfReader(f)
             # Should have 2 pages (content + barcode page)
             assert len(pdf_reader.pages) == 2
             

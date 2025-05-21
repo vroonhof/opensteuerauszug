@@ -16,8 +16,10 @@ from .calculate.minimal_tax_value import MinimalTaxValueCalculator
 from .calculate.kursliste_tax_value_calculator import KurslisteTaxValueCalculator
 from .calculate.fill_in_tax_value_calculator import FillInTaxValueCalculator
 from .importers.schwab.schwab_importer import SchwabImporter # Added import
-from .core.exchange_rate_provider import DummyExchangeRateProvider, ExchangeRateProvider # Corrected import
 from .config import ConfigManager, ConcreteAccountSettings # Add this
+from .core.exchange_rate_provider import ExchangeRateProvider # Exchange rate provider base class
+from .core.kursliste_manager import KurslisteManager # Added import
+from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider # Added import
 
 # Keep Portfolio for now, maybe it becomes an alias or wrapper for TaxStatement?
 # Or perhaps TaxStatement becomes the internal representation?
@@ -63,8 +65,8 @@ def main(
     tax_calculation_level: TaxCalculationLevel = typer.Option(TaxCalculationLevel.FILL_IN, "--tax-calculation-level", help="Specify the level of detail for tax value calculations."),
     config_file: Path = typer.Option("config.toml", "--config", "-c", help="Path to the configuration TOML file."),
     broker_name: Optional[str] = typer.Option(None, "--broker", help="Broker name (e.g., 'schwab') from config.toml to use for this run."),
-    # account_alias: Optional[str] = typer.Option(None, "--account", help="Account alias (e.g., 'default_schwab_account') from config.toml under the specified broker."), # Removed
     override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
+    kursliste_dir: Path = typer.Option(Path("data/kursliste"), "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste'."),
     # Add importer-specific options here later
     # Add calculation-specific options here later
     # Add render-specific options here later
@@ -84,6 +86,7 @@ def main(
     print(f"Importer type: {importer_type.value}")
     print(f"Filter to period: {filter_to_period_flag}")
     print(f"Tax calculation level: {tax_calculation_level.value}")
+    print(f"Kursliste directory: {kursliste_dir}")
 
     # Parse date strings and determine effective period_from and period_to
     parsed_period_from: Optional[date] = None
@@ -343,7 +346,20 @@ def main(
 
             # --- 2. Run Tax Value Calculator based on level ---
             # Initialize the exchange rate provider (used by Minimal, Kursliste, FillIn)
-            exchange_rate_provider: ExchangeRateProvider = DummyExchangeRateProvider()
+            exchange_rate_provider: ExchangeRateProvider
+            
+            # Always use KurslisteExchangeRateProvider with the specified directory
+            print(f"Using KurslisteExchangeRateProvider with directory: {kursliste_dir}")
+            try:
+                # Ensure the directory exists
+                if not kursliste_dir.exists():
+                    print(f"Warning: Kursliste directory {kursliste_dir} does not exist")
+                    
+                kursliste_manager = KurslisteManager()
+                kursliste_manager.load_directory(kursliste_dir)
+                exchange_rate_provider = KurslisteExchangeRateProvider(kursliste_manager)
+            except Exception as e:
+                raise ValueError(f"Failed to initialize KurslisteExchangeRateProvider with directory {kursliste_dir}: {e}")
             
             tax_value_calculator: Optional[MinimalTaxValueCalculator] = None
             calculator_name = ""
@@ -400,7 +416,22 @@ def main(
             # --- 1. Run Tax Value Calculator (Verify Mode) based on level ---
             print(f"Verifying with tax calculation level: {tax_calculation_level.value}...")
             # Initialize the exchange rate provider for verification
-            exchange_rate_provider_verify: ExchangeRateProvider = DummyExchangeRateProvider()
+            exchange_rate_provider_verify: ExchangeRateProvider
+            
+            # Always use KurslisteExchangeRateProvider for verification
+            print(f"Using KurslisteExchangeRateProvider with directory: {kursliste_dir} for verification")
+            try:
+                # Directory existence should already be checked in the previous phase,
+                # but let's verify again just in case
+                if not kursliste_dir.exists():
+                    print(f"Warning: Kursliste directory {kursliste_dir} does not exist for verification.")
+                    kursliste_dir.mkdir(parents=True, exist_ok=True)
+                    
+                kursliste_manager_verify = KurslisteManager()
+                kursliste_manager_verify.load_directory(kursliste_dir)
+                exchange_rate_provider_verify = KurslisteExchangeRateProvider(kursliste_manager_verify)
+            except Exception as e:
+                raise ValueError(f"Failed to initialize KurslisteExchangeRateProvider for verification with directory {kursliste_dir}: {e}")
             
             tax_value_verifier: Optional[MinimalTaxValueCalculator] = None
             verifier_name = ""
