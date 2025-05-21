@@ -106,7 +106,7 @@ class TestSchwabImporterProcessing(unittest.TestCase):
                 mock_statement_instance = MockStatementExtractor.return_value
                 mock_statement_instance.extract_positions.return_value = (dummy_positions_pdf, dummy_open_date_pdf, dummy_close_date_plus1_pdf, dummy_depot_pdf)
 
-                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date)
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=[])
                 tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
 
                 # 4. Assertions
@@ -173,7 +173,7 @@ class TestSchwabImporterProcessing(unittest.TestCase):
             with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
                 mock_statement_instance = MockStatementExtractor.return_value
                 mock_statement_instance.extract_positions.return_value = (dummy_positions, dummy_open_date, dummy_close_date_plus1, dummy_depot)
-                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date)
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=[])
                 # Should not raise
                 tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
                 self.assertIsNotNone(tax_statement)
