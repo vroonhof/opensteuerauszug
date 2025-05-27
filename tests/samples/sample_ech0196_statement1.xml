@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<taxStatement xmlns="http://www.ech.ch/xmlns/eCH-0196/2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ech.ch/xmlns/eCH-0196/2 eCH-0196-2-0.xsd" majorVersion="2" minorVersion="0" subMinorVersion="0" messageType="SUBMISSION" messageProducerId="TestProducer" messageId="MsgS1" sendingApplication="TestApp" sendingApplicationVersion="1.0" declarationPeriodBegin="2023-01-01" declarationPeriodEnd="2023-12-31">
+    <recipientId>recipientS1</recipientId>
+    <taxPayerId>taxPayerS1</taxPayerId>
+    <listOfSecurities>
+        <depot depotNumber="D001S1">
+            <security positionId="sec1s1" country="CH" currency="CHF" quotationType="PIECE" securityCategory="SHARE" securityName="Statement Share 1 (Matches Kursliste)" valorNumber="12345">
+                <taxValue balance="10" price="100.00" balanceCurrency="CHF" taxValueInBalanceCurrency="1000.00" taxValueInDefaultCurrency="1000.00"/>
+            </security>
+            <security positionId="sec2s1" country="US" currency="USD" quotationType="PIECE" securityCategory="SHARE" securityName="Statement Share 2 (Unique)" valorNumber="54321">
+                <taxValue balance="20" price="25.00" balanceCurrency="USD" taxValueInBalanceCurrency="500.00" taxValueInDefaultCurrency="450.00"/>
+            </security>
+        </depot>
+    </listOfSecurities>
+    <listOfBankAccounts>
+        <bankAccount bankId="BA001S1" bankAccountType="PRIVATE_ACCOUNT" bankAccountCurrency="EUR">
+            <accountIdentification>EURACC001</accountIdentification>
+            <taxValue balance="2000.00" balanceCurrency="EUR" taxValueInBalanceCurrency="2000.00" taxValueInDefaultCurrency="1900.00"/>
+            <payment paymentType="INTEREST">
+                <amount currency="EUR" amountValue="50.00"/>
+                <date>2023-12-31</date>
+            </payment>
+        </bankAccount>
+        <bankAccount bankId="BA002S1" bankAccountType="PRIVATE_ACCOUNT" bankAccountCurrency="CHF">
+            <accountIdentification>CHFACC001</accountIdentification>
+            <taxValue balance="5000.00" balanceCurrency="CHF" taxValueInBalanceCurrency="5000.00" taxValueInDefaultCurrency="5000.00"/>
+        </bankAccount>
+    </listOfBankAccounts>
+    <listOfLiabilities>
+        <liabilityAccount liabilityType="MORTGAGE" bankAccountCurrency="CHF">
+             <accountIdentification>MORT01</accountIdentification>
+             <taxValue balance="100000" balanceCurrency="CHF" taxValueInBalanceCurrency="100000" taxValueInDefaultCurrency="100000"/>
+             <payment paymentType="INTEREST_PAYMENT">
+                <amount currency="CHF" amountValue="1500"/>
+                <date>2023-12-31</date>
+            </payment>
+        </liabilityAccount>
+    </listOfLiabilities>
+    <listOfExpenses>
+        <expense expenseType="ASSET_MANAGEMENT_COSTS_FLAT_RATE">
+            <amount currency="CHF" amountValue="25.50"/>
+        </expense>
+    </listOfExpenses>
+</taxStatement>

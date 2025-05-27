@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste" version="2.0.0.0" creationDate="2023-01-01T12:00:00" datum="2023-12-31">
+    <currencies>
+        <currency id="c1">
+            <currencyName lang="de" name="Schweizer Franken"/>
+            <currency>CHF</currency>
+        </currency>
+    <!-- Missing closing tag for currencies -->
+    <shares>
+        <share id="s1001" valorNumber="12345" currency="CHF" country="CH" institutionId="inst1">
+            <securityName lang="de" name="Test Aktie CHF"/>
+        </share>
+    </shares>
+</kursliste>

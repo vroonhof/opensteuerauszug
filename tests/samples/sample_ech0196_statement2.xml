@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<taxStatement xmlns="http://www.ech.ch/xmlns/eCH-0196/2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ech.ch/xmlns/eCH-0196/2 eCH-0196-2-0.xsd" majorVersion="2" minorVersion="0" subMinorVersion="0" messageType="SUBMISSION" messageProducerId="TestProducer" messageId="MsgS2" sendingApplication="TestApp" sendingApplicationVersion="1.0" declarationPeriodBegin="2023-01-01" declarationPeriodEnd="2023-12-31">
+    <recipientId>recipientS2</recipientId>
+    <taxPayerId>taxPayerS2</taxPayerId>
+    <listOfSecurities>
+        <depot depotNumber="D001S2">
+            <security positionId="sec1s2" country="US" currency="USD" quotationType="PIECE" securityCategory="SHARE" securityName="Statement Share 3 (Matches Kursliste)" valorNumber="67890">
+                <taxValue balance="30" price="50.00" balanceCurrency="USD" taxValueInBalanceCurrency="1500.00" taxValueInDefaultCurrency="1350.00"/>
+                <payment paymentType="DIVIDEND">
+                    <amount currency="USD" amountValue="75.00"/>
+                    <date>2023-07-20</date>
+                </payment>
+            </security>
+        </depot>
+    </listOfSecurities>
+    <listOfBankAccounts>
+        <bankAccount bankId="BA001S2" bankAccountType="SAVINGS_ACCOUNT" bankAccountCurrency="JPY">
+            <accountIdentification>JPYACC001</accountIdentification>
+            <taxValue balance="1000000" balanceCurrency="JPY" taxValueInBalanceCurrency="1000000" taxValueInDefaultCurrency="7000.00"/>
+        </bankAccount>
+    </listOfBankAccounts>
+</taxStatement>
