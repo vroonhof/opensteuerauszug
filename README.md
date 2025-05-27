@@ -48,6 +48,11 @@ from opensteuerauszug import SteuerAuszug
 
 TODO
 
+## Scripts and Tools
+
+This project includes various scripts for data processing, testing, and utility tasks.
+For detailed documentation on available scripts, including the Kursliste filtering tool, see the [Scripts Readme](scripts/README.md).
+
 ## Development
 
 To set up the development environment:
@@ -55,7 +60,7 @@ To set up the development environment:
 ```bash
 # Create and activate virtual environment
 python -m venv .venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # On Windows: venv\Scriptsctivate
 
 # Install dependencies
 pip install -e ".[dev]"
@@ -74,3 +79,7 @@ pytest tests/
 ## License
 
 See [LICENSE](LICENSE) file.
+
+## Developer Scripts
+
+This project includes utility scripts for development and data management. For detailed information on these scripts, please see the [Scripts Documentation](scripts/README.md).
