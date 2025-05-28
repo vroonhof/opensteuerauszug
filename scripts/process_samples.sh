@@ -7,7 +7,41 @@ set -e  # Exit on any error
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 OUTPUT_DIR="$ROOT_DIR/private/output"
-PHASES="-p calculate -p render"
+
+# Default phase selection
+VERIFY_MODE=true
+
+# Process command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --render)
+      VERIFY_MODE=false
+      shift
+      ;;
+    --verify)
+      VERIFY_MODE=true
+      shift
+      ;;
+    *)
+      # Unknown option
+      echo "Unknown option: $1"
+      echo "Usage: $0 [--render|--verify]"
+      echo "  --render: Run calculate and render phases"
+      echo "  --verify: Run verify phase only (default)"
+      exit 1
+      ;;
+  esac
+done
+
+# Set phases based on mode
+if [[ "$VERIFY_MODE" == true ]]; then
+  PHASES="-p verify"
+  echo "Running in VERIFY mode"
+else
+  PHASES="-p calculate -p render"
+  echo "Running in CALCULATE and RENDER mode"
+fi
+
 EXTRA_ARGS="--tax-year 2024"
 
 # Ensure output directory exists
