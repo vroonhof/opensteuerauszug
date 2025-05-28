@@ -22,8 +22,8 @@ class TestFilterKursliste(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.temp_dir_path = Path(self.temp_dir.name)
 
-        # Define paths to sample input files (assuming they are in tests/samples relative to project root)
-        self.sample_files_dir = Path(__file__).parent.parent / "samples"
+        # Define paths to sample input files (now in tests/scripts/test_data relative to project root)
+        self.sample_files_dir = Path(__file__).parent / "test_data" # Corrected base path for test data
         self.sample_kursliste_xml = self.sample_files_dir / "sample_kursliste_for_filtering.xml"
         self.sample_ech0196_statement1_xml = self.sample_files_dir / "sample_ech0196_statement1.xml"
         self.sample_ech0196_statement2_xml = self.sample_files_dir / "sample_ech0196_statement2.xml"
