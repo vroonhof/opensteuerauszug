@@ -1233,6 +1233,7 @@ class TaxStatement(TaxStatementBase):
     pauschale_da1: Optional[Decimal] = Field(default=Decimal('0'), exclude=True)
     rueckbehalt_usa: Optional[Decimal] = Field(default=Decimal('0'), exclude=True)
     total_brutto_gesamt: Optional[Decimal] = Field(default=None, exclude=True)
+    # importer_name: Optional[str] = Field(default=None, exclude=True) # Field removed as per instruction
 
     model_config = {
         "json_schema_extra": {'tag_name': 'taxStatement', 'tag_namespace': NS_MAP['eCH-0196']}
