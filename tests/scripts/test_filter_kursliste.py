@@ -10,9 +10,11 @@ from subprocess import run, PIPE
 # where 'scripts' is a sibling directory or accessible.
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR.parent)) # Add project root to import opensteuerauszug
+# No longer need to add scripts dir to sys.path for filter_kursliste import in test script
 
+import lxml.etree as ET # Added lxml.etree import
+from pydantic import ValidationError # Added ValidationError import
 from opensteuerauszug.model.kursliste import Kursliste as KurslisteModel
-from pydantic_xml import from_xml
 
 # Path to the script to be tested
 FILTER_KURSLISTE_SCRIPT = SCRIPTS_DIR / "filter_kursliste.py"
@@ -67,15 +69,28 @@ class TestFilterKursliste(unittest.TestCase):
     def _parse_output_xml(self, output_xml_path: Path) -> KurslisteModel | None:
         """Parses the output XML file into a KurslisteModel object."""
         if not output_xml_path.exists() or output_xml_path.stat().st_size == 0:
+            print(f"Output XML file {output_xml_path} does not exist or is empty.")
             return None
         try:
-            return KurslisteModel.from_xml_file(str(output_xml_path))
-        except Exception as e:
-            print(f"Error parsing output XML {output_xml_path}: {e}")
-            # Optionally, print file content for debugging
-            # with open(output_xml_path, 'r', encoding='utf-8') as f:
-            #     print(f.read())
-            raise # Re-raise the exception to fail the test if parsing is crucial
+            # Pass denylist=None as we expect the filtered output to be loadable in its entirety
+            parsed_model = KurslisteModel.from_xml_file(str(output_xml_path), denylist=None)
+            print(f"Successfully parsed output XML: {output_xml_path}")
+            return parsed_model
+        except (ET.XMLSyntaxError, ValidationError) as e:
+            # self.fail() will stop the current test.
+            # It's better to print and raise or return None and let the test assert for None.
+            print(f"Failed to parse output XML file {output_xml_path} due to {type(e).__name__}: {e}")
+            # For debugging, print the content of the file that failed to parse
+            try:
+                with open(output_xml_path, 'r', encoding='utf-8') as f_debug:
+                    print(f"Content of {output_xml_path} that failed parsing:\n{f_debug.read()}")
+            except Exception as e_read:
+                print(f"Could not read content of {output_xml_path} for debugging: {e_read}")
+            self.fail(f"Failed to parse output XML file {output_xml_path}: {type(e).__name__} - {e}")
+        except FileNotFoundError: # Should be caught by the initial check, but good for robustness
+            print(f"Output XML file {output_xml_path} not found during parsing attempt.")
+            self.fail(f"Output XML file {output_xml_path} not found during parsing attempt.")
+        return None # Should not be reached if self.fail is called
 
     # Test cases will be added here
     def test_filter_by_cmd_line_valors_only(self):
