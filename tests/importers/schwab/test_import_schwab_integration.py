@@ -13,8 +13,7 @@ def test_schwab_import_integration(sample_dir):
         pytest.skip("No Schwab sample directories with .pdf or .json files found.")
     period_from = date(2024, 1, 1)
     period_to = date(2024, 12, 31)
-    # TODO Create a real configuration for the test
-    importer = SchwabImporter(period_from=period_from, period_to=period_to, account_settings_list=[], strict_consistency= True)
+    importer = SchwabImporter(period_from=period_from, period_to=period_to, strict_consistency= True)
     tax_statement = importer.import_dir(sample_dir)
     assert tax_statement is not None, "TaxStatement should not be None for 2024 non-strict"
     assert tax_statement.listOfSecurities is not None, "ListOfSecurities should not be None for 2024 non-strict"

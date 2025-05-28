@@ -1,5 +1,4 @@
 import pytest
-import re
 from typer.testing import CliRunner
 from pathlib import Path
 
@@ -42,11 +41,9 @@ def debug_dump_dir(tmp_path: Path) -> Path:
 def test_main_help():
     """Test that the --help option works."""
     result = runner.invoke(app, ["--help"])
-    # Strip ANSI escape sequences from the output
-    clean_stdout = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', result.stdout)
     assert result.exit_code == 0
-    assert "Usage: main [OPTIONS] INPUT_FILE" in clean_stdout
-    assert "Processes financial data" in clean_stdout
+    assert "Usage: main [OPTIONS] INPUT_FILE" in result.stdout
+    assert "Processes financial data" in result.stdout
 
 def test_main_missing_input(tmp_path: Path):
     """Test invocation without the required input file argument."""

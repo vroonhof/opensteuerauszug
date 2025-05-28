@@ -187,4 +187,3 @@ cython_debug/
 
 # Ignore downloaded kursliste files
 /data/kursliste/*
-!/data/kursliste/kursliste.md

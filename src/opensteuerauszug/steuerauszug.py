@@ -2,9 +2,7 @@ import typer
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional
-from datetime import date, datetime
-
-from opensteuerauszug.config.models import SchwabAccountSettings # Modified to include datetime
+from datetime import date, datetime # Modified to include datetime
 import os # For path construction
 from .core.identifier_loader import SecurityIdentifierMapLoader
 
@@ -20,10 +18,7 @@ from .calculate.minimal_tax_value import MinimalTaxValueCalculator
 from .calculate.kursliste_tax_value_calculator import KurslisteTaxValueCalculator
 from .calculate.fill_in_tax_value_calculator import FillInTaxValueCalculator
 from .importers.schwab.schwab_importer import SchwabImporter # Added import
-from .core.exchange_rate_provider import ExchangeRateProvider # Exchange rate provider base class
-from .core.kursliste_manager import KurslisteManager # Added import
-from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider # Added import
-from .config import ConfigManager, ConcreteAccountSettings # Add this
+from .core.exchange_rate_provider import DummyExchangeRateProvider, ExchangeRateProvider # Corrected import
 
 # Keep Portfolio for now, maybe it becomes an alias or wrapper for TaxStatement?
 # Or perhaps TaxStatement becomes the internal representation?
@@ -72,11 +67,6 @@ def main(
     strict_consistency_flag: bool = typer.Option(True, "--strict-consistency/--no-strict-consistency", help="Enable/disable strict consistency checks in importers (e.g., Schwab). Defaults to strict."),
     filter_to_period_flag: bool = typer.Option(True, "--filter-to-period/--no-filter-to-period", help="Filter transactions and stock events to the tax period (with closing balances). Defaults to enabled."),
     tax_calculation_level: TaxCalculationLevel = typer.Option(TaxCalculationLevel.FILL_IN, "--tax-calculation-level", help="Specify the level of detail for tax value calculations."),
-    config_file: Path = typer.Option("config.toml", "--config", "-c", help="Path to the configuration TOML file."),
-    broker_name: Optional[str] = typer.Option(None, "--broker", help="Broker name (e.g., 'schwab') from config.toml to use for this run."),
-    # account_alias: Optional[str] = typer.Option(None, "--account", help="Account alias (e.g., 'default_schwab_account') from config.toml under the specified broker."), # Removed
-    override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
-    kursliste_dir: Path = typer.Option(Path("data/kursliste"), "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste'."),
     # Add importer-specific options here later
     # Add calculation-specific options here later
     # Add render-specific options here later
@@ -96,7 +86,6 @@ def main(
     print(f"Importer type: {importer_type.value}")
     print(f"Filter to period: {filter_to_period_flag}")
     print(f"Tax calculation level: {tax_calculation_level.value}")
-    print(f"Kursliste directory: {kursliste_dir}")
 
     # Parse date strings and determine effective period_from and period_to
     parsed_period_from: Optional[date] = None
@@ -158,71 +147,6 @@ def main(
     elif parsed_period_to:
         print(f"Tax period to: {parsed_period_to}")
 
-    # --- Configuration Loading ---
-    # account_settings: Optional[ConcreteAccountSettings] = None # This was for a single account
-    all_schwab_account_settings_models: List[SchwabAccountSettings] = [] # New list for Schwab
-    config_manager = ConfigManager(config_file_path=str(config_file))
-
-    if importer_type == ImporterType.SCHWAB:
-        effective_broker_name_for_schwab = "schwab"
-        if broker_name and broker_name.lower() != "schwab":
-            raise typer.BadParameter(
-                f"For --importer schwab, if --broker is specified, it must be 'schwab'. Got '{broker_name}'."
-            )
-        elif not broker_name:
-            print("No --broker specified for Schwab importer, defaulting to 'schwab'.")
-            # broker_name variable itself can remain None or be set to "schwab" if needed by other logic
-        
-        try:
-            print(f"Loading all account configurations for broker '{effective_broker_name_for_schwab}' from '{config_file}'...")
-            if override_configs:
-                print(f"Applying CLI overrides: {override_configs}")
-            concrete_accounts_list = config_manager.get_all_account_settings_for_broker(
-                effective_broker_name_for_schwab,
-                overrides=override_configs # Pass the list here
-            )
-            
-            if not concrete_accounts_list:
-                raise ValueError(f"No accounts configured for broker '{effective_broker_name_for_schwab}' in {config_file}.")
-
-            for acc_settings in concrete_accounts_list:
-                if acc_settings.kind == "schwab":
-                    all_schwab_account_settings_models.append(acc_settings.settings) 
-                else:
-                    print(f"Warning: Received non-Schwab account configuration for broker '{effective_broker_name_for_schwab}': kind '{acc_settings.kind}'. Skipping.")
-            
-            if not all_schwab_account_settings_models:
-                raise ValueError(f"No valid Schwab account configurations found for broker '{effective_broker_name_for_schwab}'.")
-
-            print(f"Successfully loaded {len(all_schwab_account_settings_models)} Schwab account(s).")
-            # Example: print details of the first loaded account
-            if all_schwab_account_settings_models:
-                 print(f"  First account Canton: {all_schwab_account_settings_models[0].canton}, "
-                       f"Full Name: {all_schwab_account_settings_models[0].full_name}, "
-                       f"Account No: {all_schwab_account_settings_models[0].account_number}")
-
-        except ValueError as e:
-            print(f"Error loading configuration: {e}")
-            raise typer.Exit(code=1)
-            
-    elif broker_name: 
-        print(f"Info: --broker '{broker_name}' specified for a non-Schwab importer. "
-              "Currently, only Schwab importer uses detailed account configurations. "
-              "This broker's configuration is noted but not yet deeply integrated for other importers.")
-        # If you still wanted to load a single account for a non-Schwab broker (assuming --account was present):
-        # account_settings = config_manager.get_account_settings(broker_name, account_alias) # account_alias is removed
-        # print(f"Successfully loaded configuration for {broker_name}/{account_alias}.") # account_alias is removed
-    else:
-        print("No --broker specified. Proceeding without specific broker/account configuration for non-Schwab importers.")
-
-
-    # This variable is used later for Schwab Importer instantiation
-    account_settings: Optional[ConcreteAccountSettings] = None # Retain for now, as Schwab Importer instantiation still uses it.
-                                                              # This will be addressed in the next step.
-                                                              # For this step, we focus on populating all_schwab_account_settings_models.
-                                                              # If Schwab importer is used, the old account_settings will be effectively ignored
-                                                              # as all_schwab_account_settings_models takes precedence in logic flow.
-
     portfolio: Optional[Portfolio] = None # Now refers to TaxStatement
 
     def dump_debug_model(current_phase_str: str, model: Portfolio):
@@ -278,34 +202,9 @@ def main(
                 if not input_file.is_dir():
                     raise typer.BadParameter(f"Input for Schwab importer must be a directory, but got: {input_file}")
                 
-                # The instantiation of SchwabImporter will be updated in the NEXT subtask
-                # to use all_schwab_account_settings_models.
-                # For now, the existing instantiation logic remains, but it will effectively
-                # use the first account if any, or fail if the old logic (based on single account_settings)
-                # is strictly incompatible with all_schwab_account_settings_models being populated.
-                # This is an intermediate step.
-                
-                # Temporary: to avoid crashing, let's ensure account_settings (singular)
-                
-                if not all_schwab_account_settings_models: # This check should already be there from previous step
-                    # This error is technically redundant if the loading logic above handles it, but kept for safety.
-                    print(f"Error: No valid Schwab account configurations found for broker 'schwab'. Cannot initialize SchwabImporter.")
-                    raise typer.Exit(code=1)
-                
-                print(f"Initializing SchwabImporter with {len(all_schwab_account_settings_models)} Schwab account configuration(s).")
-                # If you want to list all account numbers:
-                # for i, settings in enumerate(all_schwab_account_settings_models):
-                #     print(f"  Account {i+1}: {settings.account_number}")
-
                 print(f"Using Schwab importer for directory: {input_file}")
-                schwab_importer = SchwabImporter(
-                    period_from=parsed_period_from,
-                    period_to=parsed_period_to,
-                    account_settings_list=all_schwab_account_settings_models, # MODIFIED: Pass the entire list
-                    strict_consistency=strict_consistency_flag
-                )
+                schwab_importer = SchwabImporter(period_from=parsed_period_from, period_to=parsed_period_to, strict_consistency=strict_consistency_flag)
                 portfolio = schwab_importer.import_dir(str(input_file))
-                    
             elif importer_type == ImporterType.NONE and not raw_import:
                 if not input_file.is_file():
                     # This branch currently doesn't use input_file, but help text implies it would be a file.
@@ -387,20 +286,7 @@ def main(
 
             # --- 2. Run Tax Value Calculator based on level ---
             # Initialize the exchange rate provider (used by Minimal, Kursliste, FillIn)
-            exchange_rate_provider: ExchangeRateProvider
-            
-            # Always use KurslisteExchangeRateProvider with the specified directory
-            print(f"Using KurslisteExchangeRateProvider with directory: {kursliste_dir}")
-            try:
-                # Ensure the directory exists
-                if not kursliste_dir.exists():
-                    print(f"Warning: Kursliste directory {kursliste_dir} does not exist")
-                    
-                kursliste_manager = KurslisteManager()
-                kursliste_manager.load_directory(kursliste_dir)
-                exchange_rate_provider = KurslisteExchangeRateProvider(kursliste_manager)
-            except Exception as e:
-                raise ValueError(f"Failed to initialize KurslisteExchangeRateProvider with directory {kursliste_dir}: {e}")
+            exchange_rate_provider: ExchangeRateProvider = DummyExchangeRateProvider()
             
             tax_value_calculator: Optional[MinimalTaxValueCalculator] = None
             calculator_name = ""
@@ -457,22 +343,7 @@ def main(
             # --- 1. Run Tax Value Calculator (Verify Mode) based on level ---
             print(f"Verifying with tax calculation level: {tax_calculation_level.value}...")
             # Initialize the exchange rate provider for verification
-            exchange_rate_provider_verify: ExchangeRateProvider
-            
-            # Always use KurslisteExchangeRateProvider for verification
-            print(f"Using KurslisteExchangeRateProvider with directory: {kursliste_dir} for verification")
-            try:
-                # Directory existence should already be checked in the previous phase,
-                # but let's verify again just in case
-                if not kursliste_dir.exists():
-                    print(f"Warning: Kursliste directory {kursliste_dir} does not exist for verification.")
-                    kursliste_dir.mkdir(parents=True, exist_ok=True)
-                    
-                kursliste_manager_verify = KurslisteManager()
-                kursliste_manager_verify.load_directory(kursliste_dir)
-                exchange_rate_provider_verify = KurslisteExchangeRateProvider(kursliste_manager_verify)
-            except Exception as e:
-                raise ValueError(f"Failed to initialize KurslisteExchangeRateProvider for verification with directory {kursliste_dir}: {e}")
+            exchange_rate_provider_verify: ExchangeRateProvider = DummyExchangeRateProvider()
             
             tax_value_verifier: Optional[MinimalTaxValueCalculator] = None
             verifier_name = ""
