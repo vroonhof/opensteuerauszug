@@ -1,5 +1,8 @@
 import argparse
 import logging
+import lxml.etree as ET # Added lxml.etree import
+from pydantic import ValidationError # Added ValidationError import
+
 from opensteuerauszug.model.kursliste import (
     Kursliste, Share, Fund, Bond,
     ExchangeRate, ExchangeRateMonthly, ExchangeRateYearEnd,
@@ -7,14 +10,15 @@ from opensteuerauszug.model.kursliste import (
     DefinitionCurrency, Country, Institution,
     Canton, CapitalKey, SecurityGroup, SecurityType, LegalForm, Sector, ShortCut, Sign, Da1Rate, MediumTermBond
 )
-from opensteuerauszug.model.ech0196 import ( # Added eCH-0196 imports
+from opensteuerauszug.model.ech0196 import (
     TaxStatement,
     Security as Ech0196Security,
     BankAccount as Ech0196BankAccount,
     LiabilityAccount as Ech0196LiabilityAccount,
     Expense as Ech0196Expense
 )
-from pydantic_xml import from_xml, to_xml
+# Removed standalone to_xml import and its self-check.
+# We will use the instance method output_kursliste_obj.to_xml()
 
 
 # New function to parse tax statements
@@ -180,14 +184,28 @@ def main():
 
         # Load and Parse Kursliste XML
         logging.info(f"Loading Kursliste XML from {args.input_file}...")
-        with open(args.input_file, 'r', encoding='utf-8') as f:
-            xml_content = f.read()
-        
-        kursliste_data = from_xml(xml_content, Kursliste)
-        if kursliste_data.datum:
-            logging.info(f"Successfully parsed Kursliste with date: {kursliste_data.datum}, Year: {kursliste_data.datum.year}")
-        else:
-            logging.info("Successfully parsed Kursliste, but datum field is missing.")
+        try:
+            # Use Kursliste.from_xml_file to parse the input XML file
+            # Pass denylist=None to ensure all elements are loaded from the source Kursliste.
+            kursliste_data = Kursliste.from_xml_file(args.input_file, denylist=None)
+            logging.info(f"Successfully parsed Kursliste XML from {args.input_file}")
+            if kursliste_data.datum:
+                logging.info(f"Kursliste date: {kursliste_data.datum}, Year: {kursliste_data.datum.year}")
+            else:
+                logging.info("Kursliste parsed, but datum field is missing.")
+        except ET.XMLSyntaxError as e:
+            logging.error(f"XML Syntax Error parsing Kursliste file {args.input_file}: {e}")
+            return 1 # Exit with error
+        except ValidationError as e:
+            logging.error(f"Pydantic validation error parsing Kursliste {args.input_file}: {e}")
+            return 1 # Exit with error
+        except FileNotFoundError: # Already caught by the outer try-except, but good to be specific if desired
+            logging.error(f"Error: Kursliste input file not found at {args.input_file}")
+            return 1
+        except Exception as e: # Catch other potential errors from from_xml_file
+            logging.error(f"An unexpected error occurred while parsing Kursliste {args.input_file}: {e}", exc_info=True)
+            return 1
+
 
         # Initialize filtered lists (using the consolidated valor_numbers_to_keep)
         filtered_shares = []
@@ -418,11 +436,16 @@ def main():
         # 16. Serialize to XML
         logging.info(f"Serializing output Kursliste to XML for output file: {args.output_file}...")
         try:
-            # The nsmap should be handled by pydantic-xml based on model definition
-            output_xml_bytes = to_xml(output_kursliste_obj, pretty_print=True, encoding="UTF-8", xml_declaration=True)
-            logging.info("Successfully serialized Kursliste to XML bytes.")
+            # Use the instance method to_xml for serialization
+            # ns_map should be handled by the model's own definition
+            output_xml_bytes = output_kursliste_obj.to_xml(
+                pretty_print=True,
+                encoding="UTF-8",
+                xml_declaration=True
+            )
+            logging.info("Successfully serialized Kursliste to XML bytes using instance method.")
         except Exception as e:
-            logging.error(f"Error during XML serialization: {e}", exc_info=True)
+            logging.error(f"Error during XML serialization using instance method: {e}", exc_info=True)
             return 1 # Exit if serialization fails
 
         # 17. Write to Output File
