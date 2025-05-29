@@ -1,3 +1,4 @@
+import re # Added for sanitization
 from datetime import date, timedelta
 from typing import List, Optional, Dict # Added Dict
 # import os # Removed os import
@@ -16,12 +17,14 @@ class CleanupCalculator:
     def __init__(self,
                  period_from: Optional[date],
                  period_to: Optional[date],
-                 identifier_map: Optional[Dict[str, Dict[str, any]]] = None, # New argument
+                 importer_name: str, # Added importer_name parameter
+                 identifier_map: Optional[Dict[str, Dict[str, any]]] = None,
                  enable_filtering: bool = True,
                  print_log: bool = False):
         self.period_from = period_from
         self.period_to = period_to
-        self.identifier_map = identifier_map # Store injected map
+        self.importer_name = importer_name # Store importer_name
+        self.identifier_map = identifier_map
         self.enable_filtering = enable_filtering
         self.print_log = print_log
         self.modified_fields: List[str] = []
@@ -38,10 +41,116 @@ class CleanupCalculator:
         if self.print_log:
             print(f"  [CleanupCalculator] {message}")
 
+    from opensteuerauszug.model.ech0196 import TaxStatement  # Explicit import for clarity
+
+    def _generate_tax_statement_id(self, statement: TaxStatement) -> str:
+        """
+        Generates a new ID for the tax statement based on its content.
+        Format: CCOOOOOOOOOOOCCCCCCCCCCCCCCYYYYMMDDSS (Page number PP omitted)
+        CC: Country Code (2 Chars)
+        OOOOOOOOOOOO: Organization ID ("OPNAUS" + 6 chars from importer name) (12 Chars)
+        CCCCCCCCCCCCCC: Customer ID (sanitized clientNumber or TIN) (14 Chars)
+        YYYYMMDD: Statement Period To Date (8 Chars)
+        SS: Sequential Number (fixed "01") (2 Chars)
+        """
+        # 1. Country Code (2 chars)
+        country_code = statement.country
+        if not country_code or not country_code.strip(): # Check for None or empty/whitespace string
+            country_code = "XX"
+            self._log("Warning: TaxStatement.country is None, using 'XX' for ID generation.")
+        else:
+            country_code = country_code.strip()
+        country_code = country_code.upper()
+        country_code = country_code[:2] # Ensure 2 chars
+
+        # 2. Organization ID (12 chars): "OPNAUS" + 6 chars from importer name
+        # Use importer_name passed during calculator initialization
+        raw_importer_name = self.importer_name
+        # self._log(f"Info: Using raw_importer_name='{raw_importer_name}' from self.importer_name for Org ID generation.")
+
+        if not raw_importer_name or not raw_importer_name.strip():
+            importer_name_part = "XXXXXX"
+            self._log("Warning: Importer name is None or empty, using 'XXXXXX' for Org ID part.")
+        else:
+            upper_importer_name = raw_importer_name.upper()
+            sanitized_importer_name = re.sub(r'[^a-zA-Z0-9]', '', upper_importer_name)
+            if not sanitized_importer_name:
+                importer_name_part = "XXXXXX"
+                self._log(f"Warning: Sanitized importer name '{upper_importer_name}' is empty, using 'XXXXXX' for Org ID part.")
+            elif len(sanitized_importer_name) >= 6:
+                importer_name_part = sanitized_importer_name[:6]
+            else: # len < 6
+                importer_name_part = sanitized_importer_name.rjust(6, 'X') # Left-pad with X
+
+        org_id = f"OPNAUS{importer_name_part}"
+        # End of new OrgID generation strategy
+
+        # Page number (e.g., "01") was part of the original eCH-0196 spec for the ID,
+        # but is omitted here as it's reportedly not used in practice,
+        # and simplifies the ID structure.
+        # page_no = "01" # Removed
+
+        # 4. Customer ID (14 chars, alphanumeric)
+        customer_id_raw = ""
+        customer_id_source = "None"
+        if statement.client: # Check if the list is not empty
+            first_client = statement.client[0]
+            # Check if clientNumber exists and is not just whitespace
+            if first_client.clientNumber and first_client.clientNumber.strip():
+                customer_id_raw = first_client.clientNumber.strip()
+                customer_id_source = "clientNumber"
+            # Else, check if tin exists and is not just whitespace
+            elif first_client.tin and first_client.tin.strip():
+                customer_id_raw = first_client.tin.strip()
+                customer_id_source = "tin"
+            else:
+                customer_id_raw = "NOIDENTIFIER" # Placeholder before padding
+                customer_id_source = "placeholder_no_client_id"
+                self._log("Warning: No clientNumber or TIN found for the first client. Using placeholder for customer ID part.")
+        else:
+            customer_id_raw = "NOCLIENTDATA" # Placeholder before padding
+            customer_id_source = "placeholder_no_clients"
+            self._log("Warning: statement.client list is empty. Using placeholder for customer ID part.")
+
+        # Remove spaces and special characters (sanitize)
+        sanitized_customer_id = re.sub(r'[^a-zA-Z0-9]', '', customer_id_raw)
+
+        # Format to exactly 14 characters
+        if len(sanitized_customer_id) > 14:
+            customer_id = sanitized_customer_id[:14]  # Truncate to 14 chars if longer
+        else:
+            customer_id = sanitized_customer_id.ljust(14, 'X')  # Pad with 'X' to 14 chars if shorter
+
+        # 5. Date (8 chars)
+        # statement.periodTo is mandatory, so direct access should be safe.
+        date_str = statement.periodTo.strftime("%Y%m%d")
+
+        # 6. Sequential Number (2 chars)
+        seq_no = "01"
+
+        # Concatenate all parts
+        final_id = f"{country_code}{org_id}{customer_id}{date_str}{seq_no}"
+
+        self._log(f"Generated ID components: Country='{country_code}', Org='{org_id}' (ImporterRaw: '{raw_importer_name}'), CustRaw='{customer_id_raw}' (Source: {customer_id_source}), CustSanitized='{customer_id}', Date='{date_str}', Seq='{seq_no}'")
+        
+        return final_id
+
     def calculate(self, statement: TaxStatement) -> TaxStatement:
         self.modified_fields = []
         self.log_messages = []
         self._log("Starting cleanup calculation...")
+
+        # Generate statement ID if it's missing
+        if statement.id is None:
+            try:
+                statement.id = self._generate_tax_statement_id(statement)
+                self._log(f"Generated new TaxStatement.id: {statement.id}")
+                self.modified_fields.append("TaxStatement.id (generated)")
+            except NotImplementedError as e: # Should ideally not be raised if logic is complete
+                self._log(f"Error generating TaxStatement.id (NotImplemented): {e}")
+            except Exception as e: # Catch any other unexpected error during ID generation
+                self._log(f"Unexpected error during TaxStatement.id generation: {e}")
+                # statement.id will remain None, allowing process to potentially continue
 
         # Process Bank Accounts
         if statement.listOfBankAccounts and statement.listOfBankAccounts.bankAccount:
@@ -193,9 +302,9 @@ class CleanupCalculator:
             self._log("No securities accounts found to process.")
 
         if self.modified_fields:
-            self._log(f"Cleanup calculation finished. Fields modified by filtering: {', '.join(self.modified_fields)}.")
+            self._log(f"Cleanup calculation finished. Fields modified: {', '.join(self.modified_fields)}.")
         else:
-            self._log("Cleanup calculation finished. No data was filtered out by period.")
+            self._log("Cleanup calculation finished. No data was modified.") # Adjusted log
         return statement
 
     def get_log(self) -> List[str]:
