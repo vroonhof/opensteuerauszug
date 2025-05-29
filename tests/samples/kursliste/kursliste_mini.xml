@@ -1,0 +1,568 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.0.0.0" creationDate="2025-04-18T20:05:21" year="2024">
+  <currency id="432" currency="CHF">
+    <currencyName lang="de" name="Franken"/>
+    <currencyName lang="en" name="Franc"/>
+    <currencyName lang="fr" name="Franc"/>
+    <currencyName lang="it" name="Franco"/>
+  </currency>
+  <currency id="461" currency="EUR">
+    <currencyName lang="de" name="Euro"/>
+    <currencyName lang="en" name="Euro"/>
+    <currencyName lang="fr" name="Euro"/>
+    <currencyName lang="it" name="Euro"/>
+  </currency>
+  <currency id="466" currency="GBP">
+    <currencyName lang="de" name="Pfund"/>
+    <currencyName lang="en" name="lb"/>
+    <currencyName lang="fr" name="Livre Sterling"/>
+    <currencyName lang="it" name="Sterlina"/>
+  </currency>
+  <currency id="611" currency="USD">
+    <currencyName lang="de" name="Dollar"/>
+    <currencyName lang="en" name="Dollar"/>
+    <currencyName lang="fr" name="Dollar"/>
+    <currencyName lang="it" name="Dollaro"/>
+  </currency>
+  <fund id="14957" valorNumber="1246192" isin="US9229087690" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityAppendix="ETF" validity="DEFINITIVE.CORRECTION" institutionId="48762" institutionName="Vanguard Total Stock Market ETF" country="US" currency="USD" nominalValue="0.001">
+    <yearend id="18156675" quotationType="PIECE" taxValueCHF="262.6946875"/>
+    <payment id="6389612" deleted="true" paymentDate="2024-03-27" currency="USD" paymentValue="0.9105" exchangeRate="0.90565" paymentValueCHF="0.82459" sign="(Q)" exDate="2024-03-22"/>
+    <payment id="6707932" paymentDate="2024-03-27" currency="USD" paymentValue="0.9105" exchangeRate="0.90565" paymentValueCHF="0.82459" sign="(Q)" exDate="2024-03-22">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 27.03.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 27.03.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 27.03.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 27.03.2024"/>
+    </payment>
+    <payment id="6423908" deleted="true" paymentDate="2024-07-02" currency="USD" paymentValue="0.9519" exchangeRate="0.90325" paymentValueCHF="0.8598" sign="(Q)" exDate="2024-06-28"/>
+    <payment id="6707933" paymentDate="2024-07-02" currency="USD" paymentValue="0.9519" exchangeRate="0.90325" paymentValueCHF="0.8598" sign="(Q)" exDate="2024-06-28">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 02.07.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 02.07.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 02.07.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 02.07.2024"/>
+    </payment>
+    <payment id="6671563" deleted="true" paymentDate="2024-10-01" currency="USD" paymentValue="0.8707" exchangeRate="0.84525" paymentValueCHF="0.73595" sign="(Q)" exDate="2024-09-27"/>
+    <payment id="6707934" paymentDate="2024-10-01" currency="USD" paymentValue="0.8707" exchangeRate="0.84525" paymentValueCHF="0.73595" sign="(Q)" exDate="2024-09-27">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 01.10.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 01.10.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 01.10.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 01.10.2024"/>
+    </payment>
+    <payment id="6671564" deleted="true" paymentDate="2024-12-26" currency="USD" paymentValue="0.9412" exchangeRate="0.90045" paymentValueCHF="0.8475" sign="(Q)" exDate="2024-12-23"/>
+    <payment id="6707935" paymentDate="2024-12-26" currency="USD" paymentValue="0.9412" exchangeRate="0.90045" paymentValueCHF="0.8475" sign="(Q)" exDate="2024-12-23">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 26.12.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 26.12.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 26.12.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 26.12.2024"/>
+    </payment>
+  </fund>
+  <fund id="28066" valorNumber="239657" isin="LU0049785289" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityAppendix="P" sign="(N)" institutionId="32986" institutionName="UBS (Lux) Strategy Fund FCP" institutionAppendix="Balanced Sustainable (CHF)" country="LU" currency="CHF" nominalValue="0.001">
+    <yearend id="18152132" quotationType="PIECE" taxValue="2093.81" taxValueCHF="2093.81"/>
+    <payment id="6111920" paymentDate="2024-01-31" currency="CHF" paymentValueCHF="4.4724565176" paymentType="5" taxEvent="true"/>
+  </fund>
+  <fund id="28287" valorNumber="278880" isin="CH0002788807" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityAppendix="P" institutionId="2168" institutionName="UBS 100 Index-Fund Switzerland (CHF)" country="CH" currency="CHF" nominalValue="0">
+    <yearend id="18152237" quotationType="PIECE" taxValue="8671.97" taxValueCHF="8671.97"/>
+    <payment id="6065364" paymentDate="2024-01-12" currency="CHF" paymentValueCHF="214.7" withHoldingTax="true" exDate="2024-01-10" coupon="35"/>
+  </fund>
+  <fund id="37772" valorNumber="1699986" isin="CH0016999861" securityGroup="FUND" securityType="FUND.DISTRIBUTION" institutionId="4412" institutionName="iShares ETF (CH)" institutionAppendix="iShares Swiss Domestic Government Bond 7-15 ETF (CH)" country="CH" currency="CHF" nominalValue="0">
+    <yearend id="18158606" quotationType="PIECE" taxValue="106.57" taxValueCHF="106.57"/>
+    <payment id="6109823" paymentDate="2024-01-18" currency="CHF" paymentValueCHF="0.74" withHoldingTax="true" exDate="2024-01-16" coupon="40"/>
+    <payment id="6259312" paymentDate="2024-03-13" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6268007" paymentDate="2024-03-19" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6268008" deleted="true" paymentDate="2024-03-20" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6443736" paymentDate="2024-07-18" currency="CHF" paymentValueCHF="0.72" withHoldingTax="true" exDate="2024-07-16" coupon="41"/>
+  </fund>
+  <fund id="37861" valorNumber="1714271" isin="CH0017142719" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityAppendix="CHF A" institutionId="4422" institutionName="UBS ETF (CH)" institutionAppendix="SMI (R)" country="CH" currency="CHF" nominalValue="0">
+    <yearend id="18158651" quotationType="PIECE" taxValue="117.9" taxValueCHF="117.9"/>
+    <payment id="6252334" paymentDate="2024-03-11" currency="CHF" paymentValueCHF="0.7" withHoldingTax="true" exDate="2024-03-07" coupon="76"/>
+    <payment id="6261453" paymentDate="2024-03-18" currency="CHF" paymentValueCHF="0.67" withHoldingTax="true" exDate="2024-03-14" coupon="77"/>
+    <payment id="6332146" paymentDate="2024-04-24" currency="CHF" paymentValueCHF="0.68" withHoldingTax="true" exDate="2024-04-22" coupon="78"/>
+    <payment id="6505337" paymentDate="2024-09-11" currency="CHF" paymentValueCHF="1.22" withHoldingTax="true" exDate="2024-09-06" coupon="79"/>
+    <payment id="6505338" paymentDate="2024-09-11" currency="CHF" paymentValueCHF="0.3" sign="(G)" exDate="2024-09-06" coupon="80" capitalGain="true"/>
+  </fund>
+  <fund id="119904" valorNumber="10253078" isin="CH0102530786" securityGroup="FUND" securityType="FUND.DISTRIBUTION" institutionId="33641" institutionName="iShares ETF (CH)" institutionAppendix="iShares Swiss Domestic Government Bond 0-3 ETF (CH)" country="CH" currency="CHF" nominalValue="0">
+    <yearend id="18167307" quotationType="PIECE" taxValue="65.096" taxValueCHF="65.096"/>
+    <payment id="6109819" paymentDate="2024-01-18" currency="CHF" paymentValueCHF="0.38" withHoldingTax="true" exDate="2024-01-16" coupon="29"/>
+    <payment id="6259314" paymentDate="2024-03-13" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6267934" paymentDate="2024-03-19" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6267933" deleted="true" paymentDate="2024-03-20" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6443739" paymentDate="2024-07-18" currency="CHF" paymentValueCHF="0.38" withHoldingTax="true" exDate="2024-07-16" coupon="30"/>
+  </fund>
+  <fund id="187069" valorNumber="2093958" isin="US9220428588" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityAppendix="FTSE Emerging Markets ETF" institutionId="48739" institutionName="Vanguard FTSE Emerging Markets ETF" country="US" currency="USD" nominalValue="0.001">
+    <yearend id="18160064" quotationType="PIECE" taxValueCHF="39.9203125"/>
+    <payment id="6708105" paymentDate="2024-03-20" currency="USD" paymentValue="0.0385" exchangeRate="0.89125" paymentValueCHF="0.03431" sign="(Q)" exDate="2024-03-15">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 20.03.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 20.03.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 20.03.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 20.03.2024"/>
+    </payment>
+    <payment id="6708106" paymentDate="2024-06-25" currency="USD" paymentValue="0.1704" exchangeRate="0.89445" paymentValueCHF="0.15241" sign="(Q)" exDate="2024-06-21">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 25.06.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 25.06.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 25.06.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 25.06.2024"/>
+    </payment>
+    <payment id="6708107" paymentDate="2024-09-24" currency="USD" paymentValue="0.1344" exchangeRate="0.84585" paymentValueCHF="0.11368" sign="(Q)" exDate="2024-09-20">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 24.09.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 24.09.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 24.09.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 24.09.2024"/>
+    </payment>
+    <payment id="6708108" paymentDate="2024-12-24" currency="USD" paymentValue="1.065" exchangeRate="0.90085" paymentValueCHF="0.95994" sign="(Q)" exDate="2024-12-20">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 24.12.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 24.12.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 24.12.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 24.12.2024"/>
+    </payment>
+  </fund>
+  <fund id="193106" valorNumber="11926029" isin="IE00B58FQX63" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityAppendix="A Exchange Traded Fund CHF" sign="(N)" institutionId="36599" institutionName="UBS ETFs PL" institutionAppendix="CMCI Composite SF" country="IE" currency="CHF" nominalValue="0">
+    <yearend id="18170105" quotationType="PIECE" taxValue="73.5" taxValueCHF="73.5"/>
+    <payment id="6122046" paymentDate="2024-06-30" currency="CHF" paymentValueCHF="0" paymentType="5" taxEvent="true"/>
+  </fund>
+  <fund id="197488" valorNumber="10638656" isin="IE00B4K6B022" securityGroup="FUND" securityType="FUND.DISTRIBUTION" institutionId="36664" institutionName="HSBC ETFs PLC" institutionAppendix="HSBC EURO STOXX 50 UCITS ETF" country="IE" currency="EUR" nominalValue="0">
+    <yearend id="18167819" quotationType="PIECE" taxValueCHF="48.3484375"/>
+    <payment id="6233272" paymentDate="2024-02-22" currency="EUR" paymentValue="0.2214" exchangeRate="0.95345" paymentValueCHF="0.21109" exDate="2024-02-01"/>
+    <payment id="6491386" paymentDate="2024-08-30" currency="EUR" paymentValue="1.262" exchangeRate="0.93915" paymentValueCHF="1.185" exDate="2024-08-08"/>
+    <payment id="6913785" paymentDate="2024-12-31" currency="EUR" paymentValue="0.0711837212" exchangeRate="0.93845" paymentValueCHF="0.0668" paymentType="5" taxEvent="true">
+      <remark lang="de" text="31.03.2025: Nachträgliche Publikation, zahlb. 31.12.2024"/>
+      <remark lang="en" text="31.03.2025: Subsequent publication, payable 31.12.2024"/>
+      <remark lang="fr" text="31.03.2025: Publication supplémentaire, payable 31.12.2024"/>
+      <remark lang="it" text="31.03.2025: Pubblicazione supplementare, pagabile 31.12.2024"/>
+    </payment>
+  </fund>
+  <fund id="202501" valorNumber="12475852" isin="CH0124758522" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityAppendix="ETF (CHF) A (H)" institutionId="36820" institutionName="UBS-Index Solutions &quot;UBS-IS" institutionAppendix="SXI Real Estate (R)" country="CH" currency="CHF" nominalValue="0">
+    <yearend id="18551755" quotationType="PIECE" taxValue="25.9083524824" taxValueCHF="25.9083524824"/>
+    <payment id="6505329" paymentDate="2024-09-11" currency="CHF" paymentValueCHF="0.5" withHoldingTax="true" exDate="2024-09-06" coupon="35"/>
+    <payment id="6505330" paymentDate="2024-09-11" currency="CHF" paymentValueCHF="0" sign="(H)" exDate="2024-09-06" coupon="36">
+      <legend id="1006372">
+        <text>(Cp. 36) CHF 0.25 = Ertrag bereits vom Fonds versteuert (kein Abzug von Verrechnungssteuer).</text>
+      </legend>
+    </payment>
+    <payment id="6505331" paymentDate="2024-09-11" currency="CHF" paymentValueCHF="0.12" sign="(G)" exDate="2024-09-06" coupon="37" capitalGain="true"/>
+    <legend id="1097464">
+      <text>Reduzierter Steuerwert, Differenz zum NAV bereits vom Fonds versteuert</text>
+    </legend>
+  </fund>
+  <fund id="244529" valorNumber="1083749" isin="IE0005042456" securityGroup="FUND" securityType="FUND.DISTRIBUTION" institutionId="37316" institutionName="iShares PL" institutionAppendix="iShares Core FTSE 100 UCITS ETF" country="IE" currency="GBP" nominalValue="0">
+    <yearend id="18155829" quotationType="PIECE" taxValueCHF="8.928"/>
+    <payment id="6294257" paymentDate="2024-03-27" currency="GBP" paymentValue="0.043676197" exchangeRate="1.14379" paymentValueCHF="0.04995" exDate="2024-03-14"/>
+    <payment id="6455789" paymentDate="2024-03-27" currency="GBP" paymentValue="0.003823803" exchangeRate="1.14379" paymentValueCHF="0.00437" sign="(KG)" exDate="2024-03-14" capitalGain="true"/>
+    <payment id="6413419" paymentDate="2024-06-26" currency="GBP" paymentValue="0.113" exchangeRate="1.132541" paymentValueCHF="0.12797" exDate="2024-06-13"/>
+    <payment id="6522385" paymentDate="2024-09-25" currency="GBP" paymentValue="0.0837" exchangeRate="1.135264" paymentValueCHF="0.09502" exDate="2024-09-12"/>
+    <payment id="6660540" paymentDate="2024-12-27" currency="GBP" paymentValue="0.0499" exchangeRate="1.133977" paymentValueCHF="0.05658" exDate="2024-12-12"/>
+  </fund>
+  <fund id="263558" valorNumber="4471783" isin="IE00B3B8PX14" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityAppendix="USD" sign="(N)" institutionId="38933" institutionName="iShares III PLC" institutionAppendix="iShares Global Inflation Linked Govt Bond UCITS ETF" country="IE" currency="USD" nominalValue="0">
+    <yearend id="18166120" quotationType="PIECE" taxValueCHF="137.27875"/>
+    <payment id="6119102" paymentDate="2024-06-30" currency="USD" paymentValue="1.5312762338" exchangeRate="0.90405" paymentValueCHF="1.384" paymentType="5" taxEvent="true"/>
+  </fund>
+  <fund id="275338" valorNumber="11167373" isin="IE00B4WPHX27" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityAppendix="Exchange Traded Fund USD" sign="(N)" validity="DEFINITIVE.EXTENSION" institutionId="39355" institutionName="Legal &amp; General UCITS ETF Plc" institutionAppendix="L&amp;G Longer Dated All Commodities UCITS ETF" country="IE" currency="USD" nominalValue="0">
+    <yearend id="18168839" quotationType="PIECE" taxValueCHF="20.485"/>
+    <payment id="6121091" paymentDate="2024-06-30" currency="USD" paymentValue="1.384" exchangeRate="0.90405" paymentValueCHF="1.251" paymentType="5" taxEvent="true">
+      <remark lang="de" text="20.01.2025: Nachträgliche Publikation, zahlb. 30.06.2024 (ursprünglicher Ertrag (I))"/>
+      <remark lang="en" text="20.01.2025: Subsequent publication, payable 30.06.2024 (original payment (I))"/>
+      <remark lang="fr" text="20.01.2025: Publication supplémentaire, payable 30.06.2024 (versement original (I))"/>
+      <remark lang="it" text="20.01.2025: Pubblicazione supplementare, pagabile 30.06.2024 (reddito originale (I))"/>
+    </payment>
+  </fund>
+  <fund id="312403" valorNumber="14969108" isin="IE00B7452L46" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityAppendix="Exchange Traded Fund GBP" sign="(N)" institutionId="41480" institutionName="SSGA SPDR ETFs Europe I PLC" institutionAppendix="SPDR FTSE UK All Share UCITS ETF" country="IE" currency="GBP" nominalValue="0">
+    <yearend id="18173402" quotationType="PIECE" taxValueCHF="76.7063220552"/>
+    <payment id="6124515" paymentDate="2024-03-31" currency="GBP" paymentValue="2.272" exchangeRate="1.136677" paymentValueCHF="2.582" paymentType="5" taxEvent="true"/>
+  </fund>
+  <fund id="333606" valorNumber="22697681" isin="CH0226976816" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityAppendix="A" institutionId="42760" institutionName="iShares ETF (CH" institutionAppendix="iShares CHF Corporate Bond (CH)" country="CH" currency="CHF" nominalValue="0">
+    <yearend id="18180426" quotationType="PIECE" taxValue="98.072" taxValueCHF="98.072"/>
+    <payment id="6109825" paymentDate="2024-01-18" currency="CHF" paymentValueCHF="0.44" withHoldingTax="true" exDate="2024-01-16" coupon="20"/>
+    <payment id="6259315" paymentDate="2024-03-13" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6268009" paymentDate="2024-03-19" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6268010" deleted="true" paymentDate="2024-03-20" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6443729" paymentDate="2024-07-18" currency="CHF" paymentValueCHF="0.52" withHoldingTax="true" exDate="2024-07-16" coupon="21"/>
+  </fund>
+  <fund id="347600" valorNumber="3641960" isin="US4642882819" securityGroup="FUND" securityType="FUND.DISTRIBUTION" institutionId="43529" institutionName="iShares JP Morgan USD Emerging Markets Bond ETF" country="US" currency="USD" nominalValue="0">
+    <yearend id="18164843" quotationType="PIECE" taxValueCHF="80.6925"/>
+    <payment id="6195545" paymentDate="2024-02-07" currency="USD" paymentValue="0.36726" exchangeRate="0.8718" paymentValueCHF="0.32017" sign="(Q)" exDate="2024-02-01"/>
+    <payment id="6708169" paymentDate="2024-03-07" currency="USD" paymentValue="0.38571" exchangeRate="0.87905" paymentValueCHF="0.33906" sign="(Q)" exDate="2024-03-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 07.03.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 07.03.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 07.03.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 07.03.2024"/>
+    </payment>
+    <payment id="6708170" paymentDate="2024-04-05" currency="USD" paymentValue="0.36555" exchangeRate="0.90195" paymentValueCHF="0.32971" sign="(Q)" exDate="2024-04-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 05.04.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 05.04.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 05.04.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 05.04.2024"/>
+    </payment>
+    <payment id="6708171" paymentDate="2024-05-07" currency="USD" paymentValue="0.36057" exchangeRate="0.90685" paymentValueCHF="0.32698" sign="(Q)" exDate="2024-05-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 07.05.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 07.05.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 07.05.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 07.05.2024"/>
+    </payment>
+    <payment id="6708172" paymentDate="2024-06-07" currency="USD" paymentValue="0.36274" exchangeRate="0.8966" paymentValueCHF="0.32523" sign="(Q)" exDate="2024-06-03">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 07.06.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 07.06.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 07.06.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 07.06.2024"/>
+    </payment>
+    <payment id="6462414" paymentDate="2024-07-05" currency="USD" paymentValue="0.38128" exchangeRate="0.89795" paymentValueCHF="0.34237" sign="(Q)" exDate="2024-07-01"/>
+    <payment id="6708173" paymentDate="2024-08-06" currency="USD" paymentValue="0.39086" exchangeRate="0.85255" paymentValueCHF="0.33323" sign="(Q)" exDate="2024-08-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 06.08.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 06.08.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 06.08.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 06.08.2024"/>
+    </payment>
+    <payment id="6501493" paymentDate="2024-09-06" currency="USD" paymentValue="0.36824" exchangeRate="0.84205" paymentValueCHF="0.31007" sign="(Q)" exDate="2024-09-03"/>
+    <payment id="6708174" paymentDate="2024-10-04" currency="USD" paymentValue="0.38549" exchangeRate="0.8588" paymentValueCHF="0.33105" sign="(Q)" exDate="2024-10-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 04.10.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 04.10.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 04.10.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 04.10.2024"/>
+    </payment>
+    <payment id="6708175" paymentDate="2024-11-06" currency="USD" paymentValue="0.42215" exchangeRate="0.8752" paymentValueCHF="0.36947" sign="(Q)" exDate="2024-11-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 06.11.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 06.11.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 06.11.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 06.11.2024"/>
+    </payment>
+    <payment id="6708176" paymentDate="2024-12-05" currency="USD" paymentValue="0.38796" exchangeRate="0.87985" paymentValueCHF="0.34135" sign="(Q)" exDate="2024-12-02">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 05.12.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 05.12.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 05.12.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 05.12.2024"/>
+    </payment>
+    <payment id="6708177" paymentDate="2024-12-23" currency="USD" paymentValue="0.42885" exchangeRate="0.9001" paymentValueCHF="0.38601" sign="(Q)" exDate="2024-12-18">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 23.12.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 23.12.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 23.12.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 23.12.2024"/>
+    </payment>
+  </fund>
+  <fund id="347992" valorNumber="23793565" isin="CH0237935652" securityGroup="FUND" securityType="FUND.DISTRIBUTION" institutionId="43547" institutionName="iShares ETF (CH)" institutionAppendix="iShares Core SPI(R) ETF (CH)" country="CH" currency="CHF" nominalValue="0">
+    <yearend id="18181918" quotationType="PIECE" taxValue="138.92" taxValueCHF="138.92"/>
+    <payment id="6109826" paymentDate="2024-01-16" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6252339" paymentDate="2024-03-11" currency="CHF" paymentValueCHF="0.78" withHoldingTax="true" exDate="2024-03-07" coupon="54"/>
+    <payment id="6261448" paymentDate="2024-03-18" currency="CHF" paymentValueCHF="0.64" withHoldingTax="true" exDate="2024-03-14" coupon="55"/>
+    <payment id="6268013" paymentDate="2024-03-19" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6268014" deleted="true" paymentDate="2024-03-20" currency="CHF" paymentValueCHF="0" withHoldingTax="true"/>
+    <payment id="6320279" paymentDate="2024-04-16" currency="CHF" paymentValueCHF="0.74" withHoldingTax="true" exDate="2024-04-12" coupon="56"/>
+    <payment id="6332145" paymentDate="2024-04-24" currency="CHF" paymentValueCHF="1.08" withHoldingTax="true" exDate="2024-04-22" coupon="57"/>
+    <payment id="6443730" paymentDate="2024-07-18" currency="CHF" paymentValueCHF="0.54" withHoldingTax="true" exDate="2024-07-16" coupon="58"/>
+    <payment id="6444060" paymentDate="2024-07-18" currency="CHF" paymentValueCHF="0.36" sign="(G)" exDate="2024-07-16" coupon="59" capitalGain="true"/>
+  </fund>
+  <fund id="353172" valorNumber="1960404" isin="US9229085538" securityGroup="FUND" securityType="FUND.DISTRIBUTION" institutionId="48737" institutionName="Vanguard Real Estate ETF" country="US" currency="USD" nominalValue="0">
+    <yearend id="18159549" quotationType="PIECE" taxValueCHF="80.72875"/>
+    <payment id="6707936" paymentDate="2024-03-27" currency="USD" paymentValue="0.7324" exchangeRate="0.90565" paymentValueCHF="0.66329" sign="(Q)" exDate="2024-03-22">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 27.03.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 27.03.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 27.03.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 27.03.2024"/>
+    </payment>
+    <payment id="6707937" paymentDate="2024-07-02" currency="USD" paymentValue="1.032" exchangeRate="0.90325" paymentValueCHF="0.93287" sign="(Q)" exDate="2024-06-28">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 02.07.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 02.07.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 02.07.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 02.07.2024"/>
+    </payment>
+    <payment id="6707938" paymentDate="2024-10-01" currency="USD" paymentValue="0.8128" exchangeRate="0.84525" paymentValueCHF="0.68701" sign="(Q)" exDate="2024-09-27">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 01.10.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 01.10.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 01.10.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 01.10.2024"/>
+    </payment>
+    <payment id="6707939" paymentDate="2024-12-26" currency="USD" paymentValue="0.8555" exchangeRate="0.90045" paymentValueCHF="0.77033" sign="(Q)" exDate="2024-12-23">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 26.12.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 26.12.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 26.12.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 26.12.2024"/>
+    </payment>
+  </fund>
+  <fund id="365123" valorNumber="24023151" isin="LU1048317538" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityAppendix="(hedged to CHF) A" sign="(N)" validity="DEFINITIVE.EXTENSION" institutionId="44229" institutionName="UBS ETF SICA" institutionAppendix="UBS ETF - Barclays US Liquid Corporates UCITS ETF" country="LU" currency="CHF" nominalValue="0">
+    <yearend id="18182293" quotationType="PIECE" taxValue="14.899" taxValueCHF="14.899"/>
+    <payment id="6131120" paymentDate="2024-12-31" currency="CHF" paymentValueCHF="0.7964533817" paymentType="5" taxEvent="true">
+      <remark lang="de" text="05.02.2025: Nachträgliche Publikation, zahlb. 31.12.2024 (ursprünglicher Ertrag (I))"/>
+      <remark lang="en" text="05.02.2025: Subsequent publication, payable 31.12.2024 (original payment (I))"/>
+      <remark lang="fr" text="05.02.2025: Publication supplémentaire, payable 31.12.2024 (versement original (I))"/>
+      <remark lang="it" text="05.02.2025: Pubblicazione supplementare, pagabile 31.12.2024 (reddito originale (I))"/>
+    </payment>
+  </fund>
+  <fund id="380069" valorNumber="3045256" isin="US9219377937" securityGroup="FUND" securityType="FUND.DISTRIBUTION" institutionId="48707" institutionName="Vanguard Long-Term Bond ETF" country="US" currency="USD" nominalValue="0">
+    <yearend id="18163369" quotationType="PIECE" taxValueCHF="62.0146875"/>
+    <payment id="6188622" paymentDate="2024-02-06" currency="USD" paymentValue="0.27757" exchangeRate="0.87045" paymentValueCHF="0.24161" sign="(Q)" exDate="2024-02-01"/>
+    <payment id="6708156" paymentDate="2024-03-06" currency="USD" paymentValue="0.24645" exchangeRate="0.88175" paymentValueCHF="0.21731" sign="(Q)" exDate="2024-03-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 06.03.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 06.03.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 06.03.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 06.03.2024"/>
+    </payment>
+    <payment id="6708157" paymentDate="2024-04-04" currency="USD" paymentValue="0.28117" exchangeRate="0.9047" paymentValueCHF="0.25437" sign="(Q)" exDate="2024-04-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 04.04.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 04.04.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 04.04.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 04.04.2024"/>
+    </payment>
+    <payment id="6708158" paymentDate="2024-05-06" currency="USD" paymentValue="0.25963" exchangeRate="0.90505" paymentValueCHF="0.23498" sign="(Q)" exDate="2024-05-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 06.05.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 06.05.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 06.05.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 06.05.2024"/>
+    </payment>
+    <payment id="6708159" paymentDate="2024-06-05" currency="USD" paymentValue="0.27037" exchangeRate="0.89455" paymentValueCHF="0.24186" sign="(Q)" exDate="2024-06-03">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 05.06.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 05.06.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 05.06.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 05.06.2024"/>
+    </payment>
+    <payment id="6708160" paymentDate="2024-07-03" currency="USD" paymentValue="0.26763" exchangeRate="0.90115" paymentValueCHF="0.24117" sign="(Q)" exDate="2024-07-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 03.07.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 03.07.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 03.07.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 03.07.2024"/>
+    </payment>
+    <payment id="6708161" paymentDate="2024-08-05" currency="USD" paymentValue="0.26661" exchangeRate="0.84895" paymentValueCHF="0.22634" sign="(Q)" exDate="2024-08-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 05.08.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 05.08.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 05.08.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 05.08.2024"/>
+    </payment>
+    <payment id="6708162" paymentDate="2024-09-05" currency="USD" paymentValue="0.26548" exchangeRate="0.84835" paymentValueCHF="0.22521" sign="(Q)" exDate="2024-09-03">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 05.09.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 05.09.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 05.09.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 05.09.2024"/>
+    </payment>
+    <payment id="6708163" paymentDate="2024-10-03" currency="USD" paymentValue="0.25768" exchangeRate="0.85355" paymentValueCHF="0.21994" sign="(Q)" exDate="2024-10-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 03.10.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 03.10.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 03.10.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 03.10.2024"/>
+    </payment>
+    <payment id="6708164" paymentDate="2024-11-05" currency="USD" paymentValue="0.27139" exchangeRate="0.86435" paymentValueCHF="0.23457" sign="(Q)" exDate="2024-11-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 05.11.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 05.11.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 05.11.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 05.11.2024"/>
+    </payment>
+    <payment id="6708165" paymentDate="2024-12-04" currency="USD" paymentValue="0.26537" exchangeRate="0.88365" paymentValueCHF="0.23449" sign="(Q)" exDate="2024-12-02">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 04.12.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 04.12.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 04.12.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 04.12.2024"/>
+    </payment>
+    <payment id="6708166" paymentDate="2024-12-27" currency="USD" paymentValue="0.27518" exchangeRate="0.90145" paymentValueCHF="0.24806" sign="(Q)" exDate="2024-12-24">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 27.12.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 27.12.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 27.12.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 27.12.2024"/>
+    </payment>
+  </fund>
+  <fund id="380070" valorNumber="11966613" isin="US9220426764" securityGroup="FUND" securityType="FUND.DISTRIBUTION" institutionId="60549" institutionName="Vanguard Global ex-U.S. Real Estate ETF" country="US" currency="USD" nominalValue="0">
+    <yearend id="18170213" quotationType="PIECE" taxValueCHF="35.85125"/>
+    <payment id="6708058" paymentDate="2024-12-24" currency="USD" paymentValue="2.04" exchangeRate="0.90085" paymentValueCHF="1.838" sign="(Q)" exDate="2024-12-20">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 24.12.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 24.12.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 24.12.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 24.12.2024"/>
+    </payment>
+  </fund>
+  <fund id="380080" valorNumber="2093951" isin="US9220428661" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityAppendix="FTSE Pacific ETF" institutionId="49902" institutionName="Vanguard FTSE Pacific ETF" country="US" currency="USD" nominalValue="0">
+    <yearend id="18160063" quotationType="PIECE" taxValueCHF="64.38"/>
+    <payment id="6708101" paymentDate="2024-03-20" currency="USD" paymentValue="0.2868" exchangeRate="0.89125" paymentValueCHF="0.25561" sign="(Q)" exDate="2024-03-15">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 20.03.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 20.03.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 20.03.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 20.03.2024"/>
+    </payment>
+    <payment id="6708102" paymentDate="2024-06-25" currency="USD" paymentValue="0.2035" exchangeRate="0.89445" paymentValueCHF="0.18202" sign="(Q)" exDate="2024-06-21">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 25.06.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 25.06.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 25.06.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 25.06.2024"/>
+    </payment>
+    <payment id="6708103" paymentDate="2024-09-24" currency="USD" paymentValue="0.5072" exchangeRate="0.84585" paymentValueCHF="0.42901" sign="(Q)" exDate="2024-09-20">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 24.09.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 24.09.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 24.09.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 24.09.2024"/>
+    </payment>
+    <payment id="6708104" paymentDate="2024-12-24" currency="USD" paymentValue="1.237" exchangeRate="0.90085" paymentValueCHF="1.115" sign="(Q)" exDate="2024-12-20">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 24.12.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 24.12.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 24.12.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 24.12.2024"/>
+    </payment>
+  </fund>
+  <fund id="391261" valorNumber="26460523" isin="LU1109942653" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityAppendix="1D" institutionId="46110" institutionName="Xtrackers II SICAV" institutionAppendix="Xtrackers II EUR High Yield Corporate Bond UCITS ETF" country="LU" currency="EUR" nominalValue="0">
+    <yearend id="18185550" quotationType="PIECE" taxValueCHF="14.972500525"/>
+    <payment id="6250484" paymentDate="2024-03-07" currency="EUR" paymentValue="0.3422" exchangeRate="0.9608" paymentValueCHF="0.32878" exDate="2024-02-21"/>
+    <payment id="6388488" paymentDate="2024-06-07" currency="EUR" paymentValue="0.1685" exchangeRate="0.9694" paymentValueCHF="0.16334" exDate="2024-05-22"/>
+    <payment id="6498671" paymentDate="2024-09-05" currency="EUR" paymentValue="0.1857" exchangeRate="0.93985" paymentValueCHF="0.17453" exDate="2024-08-21"/>
+    <payment id="6609739" paymentDate="2024-11-29" currency="EUR" paymentValue="0.1846" exchangeRate="0.9305" paymentValueCHF="0.17177" exDate="2024-11-13"/>
+  </fund>
+  <fund id="606399" valorNumber="38262748" isin="IE00BD8PH067" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityAppendix="Hedged CHF" institutionId="47312" institutionName="iShares IV PLC" institutionAppendix="iShares USD Treasury Bond 20+yr UCITS ETF" country="IE" currency="CHF" nominalValue="0">
+    <yearend id="18198565" quotationType="PIECE" taxValue="2.7551" taxValueCHF="2.7551"/>
+    <payment id="6552721" paymentDate="2024-06-26" currency="CHF" paymentValueCHF="0.0596040755" exDate="2024-06-13"/>
+    <payment id="6552722" paymentDate="2024-06-26" currency="CHF" paymentValueCHF="0.0075959245" sign="(KG)" exDate="2024-06-13" capitalGain="true"/>
+    <payment id="6660566" paymentDate="2024-12-27" currency="CHF" paymentValueCHF="0.0664" exDate="2024-12-12"/>
+  </fund>
+  <fund id="712731" valorNumber="46816937" isin="US78468R6229" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityName="Shs" institutionId="40003" institutionName="SPDR Bloomberg High Yield Bond ETF" country="US" currency="USD" nominalValue="0">
+    <yearend id="18208832" quotationType="PIECE" taxValueCHF="85.886944"/>
+    <payment id="6195581" paymentDate="2024-02-07" currency="USD" paymentValue="0.53214" exchangeRate="0.8718" paymentValueCHF="0.46392" sign="(Q)" exDate="2024-02-01"/>
+    <payment id="6702789" deleted="true" paymentDate="2024-03-07" currency="USD" paymentValue="0.528695" exchangeRate="0.87905" paymentValueCHF="0.46474" sign="(Q)" exDate="2024-03-01"/>
+    <payment id="6708189" paymentDate="2024-03-07" currency="USD" paymentValue="0.52869" exchangeRate="0.87905" paymentValueCHF="0.46474" sign="(Q)" exDate="2024-03-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 07.03.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 07.03.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 07.03.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 07.03.2024"/>
+    </payment>
+    <payment id="6702790" deleted="true" paymentDate="2024-04-05" currency="USD" paymentValue="0.50856" exchangeRate="0.90195" paymentValueCHF="0.45869" sign="(Q)" exDate="2024-04-01"/>
+    <payment id="6708190" paymentDate="2024-04-05" currency="USD" paymentValue="0.50856" exchangeRate="0.90195" paymentValueCHF="0.45869" sign="(Q)" exDate="2024-04-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 05.04.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 05.04.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 05.04.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 05.04.2024"/>
+    </payment>
+    <payment id="6702791" deleted="true" paymentDate="2024-05-07" currency="USD" paymentValue="0.539162" exchangeRate="0.90685" paymentValueCHF="0.48893" sign="(Q)" exDate="2024-05-01"/>
+    <payment id="6708191" paymentDate="2024-05-07" currency="USD" paymentValue="0.53916" exchangeRate="0.90685" paymentValueCHF="0.48893" sign="(Q)" exDate="2024-05-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 07.05.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 07.05.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 07.05.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 07.05.2024"/>
+    </payment>
+    <payment id="6702792" deleted="true" paymentDate="2024-06-06" currency="USD" paymentValue="0.530757" exchangeRate="0.89205" paymentValueCHF="0.47346" sign="(Q)" exDate="2024-06-03"/>
+    <payment id="6708192" paymentDate="2024-06-06" currency="USD" paymentValue="0.53075" exchangeRate="0.89205" paymentValueCHF="0.47346" sign="(Q)" exDate="2024-06-03">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 06.06.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 06.06.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 06.06.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 06.06.2024"/>
+    </payment>
+    <payment id="6702793" deleted="true" paymentDate="2024-07-05" currency="USD" paymentValue="0.533629" exchangeRate="0.89795" paymentValueCHF="0.47917" sign="(Q)" exDate="2024-07-01"/>
+    <payment id="6708193" paymentDate="2024-07-05" currency="USD" paymentValue="0.53362" exchangeRate="0.89795" paymentValueCHF="0.47917" sign="(Q)" exDate="2024-07-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 05.07.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 05.07.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 05.07.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 05.07.2024"/>
+    </payment>
+    <payment id="6702794" deleted="true" paymentDate="2024-08-06" currency="USD" paymentValue="0.524526" exchangeRate="0.85255" paymentValueCHF="0.44718" sign="(Q)" exDate="2024-08-01"/>
+    <payment id="6708194" paymentDate="2024-08-06" currency="USD" paymentValue="0.52452" exchangeRate="0.85255" paymentValueCHF="0.44718" sign="(Q)" exDate="2024-08-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 06.08.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 06.08.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 06.08.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 06.08.2024"/>
+    </payment>
+    <payment id="6702795" deleted="true" paymentDate="2024-09-06" currency="USD" paymentValue="0.527279" exchangeRate="0.84205" paymentValueCHF="0.44399" sign="(Q)" exDate="2024-09-03"/>
+    <payment id="6708195" paymentDate="2024-09-06" currency="USD" paymentValue="0.52727" exchangeRate="0.84205" paymentValueCHF="0.44399" sign="(Q)" exDate="2024-09-03">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 06.09.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 06.09.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 06.09.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 06.09.2024"/>
+    </payment>
+    <payment id="6702796" deleted="true" paymentDate="2024-10-04" currency="USD" paymentValue="0.527874" exchangeRate="0.8588" paymentValueCHF="0.45333" sign="(Q)" exDate="2024-10-01"/>
+    <payment id="6708196" paymentDate="2024-10-04" currency="USD" paymentValue="0.52787" exchangeRate="0.8588" paymentValueCHF="0.45333" sign="(Q)" exDate="2024-10-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 04.10.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 04.10.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 04.10.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 04.10.2024"/>
+    </payment>
+    <payment id="6702797" deleted="true" paymentDate="2024-11-06" currency="USD" paymentValue="0.531467" exchangeRate="0.8752" paymentValueCHF="0.46513" sign="(Q)" exDate="2024-11-01"/>
+    <payment id="6708197" paymentDate="2024-11-06" currency="USD" paymentValue="0.53146" exchangeRate="0.8752" paymentValueCHF="0.46513" sign="(Q)" exDate="2024-11-01">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 06.11.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 06.11.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 06.11.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 06.11.2024"/>
+    </payment>
+    <payment id="6702798" deleted="true" paymentDate="2024-12-05" currency="USD" paymentValue="0.524406" exchangeRate="0.87985" paymentValueCHF="0.46139" sign="(Q)" exDate="2024-12-02"/>
+    <payment id="6708198" paymentDate="2024-12-05" currency="USD" paymentValue="0.5244" exchangeRate="0.87985" paymentValueCHF="0.46139" sign="(Q)" exDate="2024-12-02">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 05.12.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 05.12.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 05.12.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 05.12.2024"/>
+    </payment>
+    <payment id="6702799" deleted="true" paymentDate="2024-12-24" currency="USD" paymentValue="0.520153" exchangeRate="0.90085" paymentValueCHF="0.46857" sign="(Q)" exDate="2024-12-19"/>
+    <payment id="6708199" paymentDate="2024-12-24" currency="USD" paymentValue="0.52015" exchangeRate="0.90085" paymentValueCHF="0.46857" sign="(Q)" exDate="2024-12-19">
+      <remark lang="de" text="15.01.2025: Nachträgliche Publikation, zahlb. 24.12.2024"/>
+      <remark lang="en" text="15.01.2025: Subsequent publication, payable 24.12.2024"/>
+      <remark lang="fr" text="15.01.2025: Publication supplémentaire, payable 24.12.2024"/>
+      <remark lang="it" text="15.01.2025: Pubblicazione supplementare, pagabile 24.12.2024"/>
+    </payment>
+  </fund>
+  <fund id="734171" valorNumber="41416145" isin="IE00BG04LZ52" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityName="Accum Shs -3C- Hedged CHF" sign="(N)" institutionId="46374" institutionName="Xtrackers (IE) PLC" institutionAppendix="Xtrackers MSCI USA UCITS ETF" country="IE" currency="CHF" nominalValue="0">
+    <yearend id="18202506" quotationType="PIECE" taxValue="135.9" taxValueCHF="135.9"/>
+    <payment id="6206670" paymentDate="2024-12-31" currency="CHF" undefined="true" sign="(I)" paymentType="5" taxEvent="true"/>
+  </fund>
+  <fund id="807362" valorNumber="48966418" isin="IE00BK6NC407" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityName="Accum Shs Hedged CHF" sign="(N)" institutionId="37303" institutionName="iShares III PLC" institutionAppendix="iShares Core EUR Corp Bond UCITS ETF" country="IE" currency="CHF" nominalValue="0">
+    <yearend id="18210974" quotationType="PIECE" taxValue="4.6152" taxValueCHF="4.6152"/>
+    <payment id="6213538" paymentDate="2024-06-30" currency="EUR" paymentValue="0.1635936176" exchangeRate="0.97" paymentValueCHF="0.15868" paymentType="5" taxEvent="true"/>
+  </fund>
+  <fund id="880014" valorNumber="26748326" isin="LU1169819635" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityName="Shs -(hedged to CHF) A-acc- Capitalisation" sign="(N)" validity="DEFINITIVE.EXTENSION" institutionId="32512" institutionName="UBS (Lux) Fund Solutions SICAV" institutionAppendix="MSCI EMU UCITS ETF" country="LU" currency="CHF" nominalValue="0">
+    <yearend id="18185898" quotationType="PIECE" taxValue="20.81" taxValueCHF="20.81"/>
+    <payment id="6134128" paymentDate="2024-12-31" currency="CHF" paymentValueCHF="0.5967847911" paymentType="5" taxEvent="true">
+      <remark lang="de" text="05.02.2025: Nachträgliche Publikation, zahlb. 31.12.2024 (ursprünglicher Ertrag (I))"/>
+      <remark lang="en" text="05.02.2025: Subsequent publication, payable 31.12.2024 (original payment (I))"/>
+      <remark lang="fr" text="05.02.2025: Publication supplémentaire, payable 31.12.2024 (versement original (I))"/>
+      <remark lang="it" text="05.02.2025: Pubblicazione supplementare, pagabile 31.12.2024 (reddito originale (I))"/>
+    </payment>
+  </fund>
+  <fund id="893449" valorNumber="26749332" isin="LU1169820997" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityName="Shs -(hedged to CHF) A-acc- Capitalisation" sign="(N)" validity="DEFINITIVE.EXTENSION" institutionId="42264" institutionName="UBS ETF SICA" institutionAppendix="UBS ETF - MSCI United Kingdom UCITS ETF" country="LU" currency="CHF" nominalValue="0">
+    <yearend id="18185903" quotationType="PIECE" taxValue="14.328" taxValueCHF="14.328"/>
+    <payment id="6134131" paymentDate="2024-12-31" currency="CHF" paymentValueCHF="0.522578286" paymentType="5" taxEvent="true">
+      <remark lang="de" text="05.02.2025: Nachträgliche Publikation, zahlb. 31.12.2024 (ursprünglicher Ertrag (I))"/>
+      <remark lang="en" text="05.02.2025: Subsequent publication, payable 31.12.2024 (original payment (I))"/>
+      <remark lang="fr" text="05.02.2025: Publication supplémentaire, payable 31.12.2024 (versement original (I))"/>
+      <remark lang="it" text="05.02.2025: Pubblicazione supplementare, pagabile 31.12.2024 (reddito originale (I))"/>
+    </payment>
+  </fund>
+  <fund id="910887" valorNumber="54540833" isin="IE00BMFJGP26" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityName="Accum Shs Hedged CHF" sign="(N)" institutionId="41658" institutionName="iShares III PLC" institutionAppendix="iShares Core EUR Govt Bond UCITS ETF" country="IE" currency="CHF" nominalValue="0">
+    <yearend id="18216314" quotationType="PIECE" taxValue="4.224" taxValueCHF="4.224"/>
+    <payment id="6279190" paymentDate="2024-06-30" currency="EUR" paymentValue="0.078541846" exchangeRate="0.97" paymentValueCHF="0.07618" paymentType="5" taxEvent="true"/>
+  </fund>
+  <fund id="1264250" valorNumber="128178292" isin="IE0009YEDMC6" securityGroup="FUND" securityType="FUND.ACCUMULATION" securityName="Accum Shs - Hedged CHF" sign="(N)" institutionId="43660" institutionName="HSBC ETFs PLC" institutionAppendix="HSBC FTSE EPRA/NAREIT DEVELOPED UCITS ETF" country="IE" currency="CHF" nominalValue="0">
+    <yearend id="18240985" quotationType="PIECE" taxValue="20.88" taxValueCHF="20.88"/>
+    <payment id="6673687" paymentDate="2024-12-31" currency="USD" paymentValue="0.7582057914" exchangeRate="0.90625" paymentValueCHF="0.68712" paymentType="5" taxEvent="true">
+      <remark lang="de" text="31.03.2025: Nachträgliche Publikation, zahlb. 31.12.2024 (ursprünglicher Ertrag (I))"/>
+      <remark lang="en" text="31.03.2025: Subsequent publication, payable 31.12.2024 (original payment (I))"/>
+      <remark lang="fr" text="31.03.2025: Publication supplémentaire, payable 31.12.2024 (versement original (I))"/>
+      <remark lang="it" text="31.03.2025: Pubblicazione supplementare, pagabile 31.12.2024 (reddito originale (I))"/>
+    </payment>
+  </fund>
+  <share id="33966" valorNumber="1203204" isin="CH0012032048" securityGroup="SHARE" securityType="SHARE.BONUS" securityAppendix="Genussscheine" institutionId="1582" institutionName="Roche Holding AG" country="CH" currency="CHF" nominalValue="0" capitalKey="5114">
+    <yearend id="18156431" quotationType="PIECE" taxValue="255.5" taxValueCHF="255.5"/>
+    <payment id="6263057" paymentDate="2024-03-18" currency="CHF" paymentValueCHF="9.6" withHoldingTax="true" exDate="2024-03-14" coupon="23"/>
+  </share>
+  <exchangeRateMonthly currency="EUR" year="2024" month="01" value="0.9360522727"/>
+  <exchangeRateMonthly currency="EUR" year="2024" month="02" value="0.94655"/>
+  <exchangeRateMonthly currency="EUR" year="2024" month="03" value="0.9657075"/>
+  <exchangeRateMonthly currency="EUR" year="2024" month="04" value="0.9755704545"/>
+  <exchangeRateMonthly currency="EUR" year="2024" month="05" value="0.9827565217"/>
+  <exchangeRateMonthly currency="EUR" year="2024" month="06" value="0.9614175"/>
+  <exchangeRateMonthly currency="EUR" year="2024" month="07" value="0.9675695652"/>
+  <exchangeRateMonthly currency="EUR" year="2024" month="08" value="0.94535"/>
+  <exchangeRateMonthly currency="EUR" year="2024" month="09" value="0.9410809524"/>
+  <exchangeRateMonthly currency="EUR" year="2024" month="10" value="0.938626087"/>
+  <exchangeRateMonthly currency="EUR" year="2024" month="11" value="0.9356380952"/>
+  <exchangeRateMonthly currency="EUR" year="2024" month="12" value="0.9333690476"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="01" value="1.0908002727"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="02" value="1.1076478571"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="03" value="1.12927085"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="04" value="1.1387305455"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="05" value="1.1486795217"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="06" value="1.1355268"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="07" value="1.1475477826"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="08" value="1.1102019091"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="09" value="1.1201648571"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="10" value="1.123724913"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="11" value="1.1225931429"/>
+  <exchangeRateMonthly currency="GBP" year="2024" month="12" value="1.1271244286"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="01" value="0.8588930455"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="02" value="0.8774811429"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="03" value="0.88806165"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="04" value="0.9099567727"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="05" value="0.9088826087"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="06" value="0.89342"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="07" value="0.8921673913"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="08" value="0.8577113636"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="09" value="0.847447619"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="10" value="0.8614108696"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="11" value="0.8805428571"/>
+  <exchangeRateMonthly currency="USD" year="2024" month="12" value="0.8917738095"/>
+  <exchangeRateYearEnd currency="EUR" year="2024" value="0.93845" valueMiddle="0.9523825397"/>
+  <exchangeRateYearEnd currency="GBP" year="2024" value="1.135038" valueMiddle="1.1250980556"/>
+  <exchangeRateYearEnd currency="USD" year="2024" value="0.90625" valueMiddle="0.8801392857"/>
+</kursliste>

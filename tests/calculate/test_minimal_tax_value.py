@@ -8,6 +8,7 @@ from opensteuerauszug.model.ech0196 import (
     SecurityPayment, Institution
 )
 from opensteuerauszug.core.exchange_rate_provider import DummyExchangeRateProvider, ExchangeRateProvider
+from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from datetime import date, datetime
 from typing import Optional
 from tests.utils.samples import get_sample_files
@@ -69,13 +70,13 @@ def test_minimal_tax_value_calculator_calculate_empty_statement_verify(
 
 class TestMinimalTaxValueCalculatorIntegration:
     @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
-    def test_run_in_verify_mode_no_errors(self, sample_file: str):
+    def test_run_in_verify_mode_no_errors(self, sample_file: str, exchange_rate_provider: KurslisteExchangeRateProvider):
         """
         Tests that MinimalTaxValueCalculator runs in VERIFY mode
         without producing errors when processing real-world sample TaxStatement XML files.
+        Uses the real exchange rate provider from kursliste.
         """
-        provider: ExchangeRateProvider = DummyExchangeRateProvider()
-        calculator = MinimalTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=provider)
+        calculator = MinimalTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider)
         
         # Load TaxStatement from the sample XML file
         tax_statement_input = TaxStatement.from_xml_file(sample_file)

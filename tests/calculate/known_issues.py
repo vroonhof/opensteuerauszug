@@ -23,4 +23,11 @@ def _known_issue(error: Exception, institution: Optional[Institution]) -> bool:
             # UBS has a known issue with broken exchange rates on CHF payments
             if error.expected == Decimal("1") and error.actual == Decimal("0"):
                 return True
+    if institution.name.startswith("True Wealth"):
+        # True wealth does not seem to use exchange rates from the kurstliste for the bank accounts
+        # allow 0.5% deviation for exchange rates and values
+        if error.field_path.endswith("exchangeRate") or error.field_path.endswith("value"):
+            if abs(error.expected - error.actual) / error.expected < Decimal("0.005"):
+                return True
+
     return False
