@@ -4,19 +4,21 @@
     <taxPayerId>taxPayerS2</taxPayerId>
     <listOfSecurities>
         <depot depotNumber="D001S2">
-            <security positionId="sec1s2" country="US" currency="USD" quotationType="PIECE" securityCategory="SHARE" securityName="Statement Share 3 (Matches Kursliste)" valorNumber="67890">
-                <taxValue balance="30" price="50.00" balanceCurrency="USD" taxValueInBalanceCurrency="1500.00" taxValueInDefaultCurrency="1350.00"/>
-                <payment paymentType="DIVIDEND">
+            <security positionId="2001" country="US" currency="USD" quotationType="PIECE" securityCategory="SHARE" securityName="Statement Share 3 (Matches Kursliste)" valorNumber="67890" securityGroup="SHARE" institutionName="Test Institution">
+                <taxValue balance="30" price="50.00" balanceCurrency="USD" taxValueInBalanceCurrency="1500.00" taxValueInDefaultCurrency="1350.00" referenceDate="2023-12-31" quotationType="PIECE" quantity="30"/>
+                <payment paymentType="DIVIDEND" paymentDate="2023-07-20" quotationType="PIECE" quantity="30" amountCurrency="USD" netAmountCurrency="USD" grossAmountCurrency="USD">
                     <amount currency="USD" amountValue="75.00"/>
+                    <grossAmount currency="USD" amountValue="75.00"/>
+                    <netAmount currency="USD" amountValue="75.00"/>
                     <date>2023-07-20</date>
                 </payment>
             </security>
         </depot>
     </listOfSecurities>
     <listOfBankAccounts>
-        <bankAccount bankId="BA001S2" bankAccountType="SAVINGS_ACCOUNT" bankAccountCurrency="JPY">
+        <bankAccount bankId="BA001S2" bankAccountType="SAVINGS_ACCOUNT" bankAccountCurrency="JPY" bankAccountName="Japanese Yen Account" bankAccountCountry="JP">
             <accountIdentification>JPYACC001</accountIdentification>
-            <taxValue balance="1000000" balanceCurrency="JPY" taxValueInBalanceCurrency="1000000" taxValueInDefaultCurrency="7000.00"/>
+            <taxValue balance="1000000" balanceCurrency="JPY" taxValueInBalanceCurrency="1000000" taxValueInDefaultCurrency="7000.00" referenceDate="2023-12-31" quotationType="PIECE" quantity="1"/>
         </bankAccount>
     </listOfBankAccounts>
 </taxStatement>

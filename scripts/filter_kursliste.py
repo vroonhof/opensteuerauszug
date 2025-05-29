@@ -1,5 +1,6 @@
 import argparse
 import logging
+import sys
 import lxml.etree as ET # Added lxml.etree import
 from pydantic import ValidationError # Added ValidationError import
 
@@ -8,7 +9,7 @@ from opensteuerauszug.model.kursliste import (
     ExchangeRate, ExchangeRateMonthly, ExchangeRateYearEnd,
     PaymentShare, PaymentFund, PaymentBond, Daily, Yearend,
     DefinitionCurrency, Country, Institution,
-    Canton, CapitalKey, SecurityGroup, SecurityType, LegalForm, Sector, ShortCut, Sign, Da1Rate, MediumTermBond
+    Canton, Sector, ShortCut, Sign, Da1Rate, MediumTermBond
 )
 from opensteuerauszug.model.ech0196 import (
     TaxStatement,
@@ -189,10 +190,7 @@ def main():
             # Pass denylist=None to ensure all elements are loaded from the source Kursliste.
             kursliste_data = Kursliste.from_xml_file(args.input_file, denylist=None)
             logging.info(f"Successfully parsed Kursliste XML from {args.input_file}")
-            if kursliste_data.datum:
-                logging.info(f"Kursliste date: {kursliste_data.datum}, Year: {kursliste_data.datum.year}")
-            else:
-                logging.info("Kursliste parsed, but datum field is missing.")
+            logging.info(f"Kursliste date: {kursliste_data.creationDate}, Year: {kursliste_data.year}")
         except ET.XMLSyntaxError as e:
             logging.error(f"XML Syntax Error parsing Kursliste file {args.input_file}: {e}")
             return 1 # Exit with error
@@ -218,7 +216,7 @@ def main():
             for share in kursliste_data.shares:
                 if share.valorNumber and share.valorNumber in valor_numbers_to_keep: # Use consolidated set
                     filtered_shares.append(share)
-                    logging.info(f"Kept Share - Valor: {share.valorNumber}, Name: {share.name}")
+                    logging.info(f"Kept Share - Valor: {share.valorNumber}, Name: {share.securityName}")
         else:
             logging.info("No shares found in the input Kursliste.")
 
@@ -228,7 +226,7 @@ def main():
             for fund in kursliste_data.funds:
                 if fund.valorNumber and fund.valorNumber in valor_numbers_to_keep: # Use consolidated set
                     filtered_funds.append(fund)
-                    logging.info(f"Kept Fund - Valor: {fund.valorNumber}, Name: {fund.name}")
+                    logging.info(f"Kept Fund - Valor: {fund.valorNumber}, Name: {fund.securityName}")
         else:
             logging.info("No funds found in the input Kursliste.")
 
@@ -239,7 +237,7 @@ def main():
                 for bond in kursliste_data.bonds:
                     if bond.valorNumber and bond.valorNumber in valor_numbers_to_keep: # Use consolidated set
                         filtered_bonds.append(bond)
-                        logging.info(f"Kept Bond - Valor: {bond.valorNumber}, Name: {bond.name}")
+                        logging.info(f"Kept Bond - Valor: {bond.valorNumber}, Name: {bond.securityName}")
             else:
                 logging.info("No bonds found in the input Kursliste (include_bonds is True).")
         else:
@@ -256,34 +254,22 @@ def main():
         # Process Shares to expand relevant_currencies
         for share in filtered_shares:
             if share.currency: relevant_currencies.add(share.currency)
-            if share.payments:
-                for payment in share.payments:
+            if share.payment:
+                for payment in share.payment:
                     if payment.currency: relevant_currencies.add(payment.currency)
-            if share.daily:
-                for daily_entry in share.daily:
-                    if daily_entry.currency: relevant_currencies.add(daily_entry.currency)
-            if share.yearend:
-                 for yearend_entry in share.yearend:
-                    if yearend_entry.currency: relevant_currencies.add(yearend_entry.currency)
         
         # Process Funds to expand relevant_currencies
         for fund in filtered_funds:
             if fund.currency: relevant_currencies.add(fund.currency)
-            if fund.payments:
-                for payment in fund.payments:
+            if fund.payment:
+                for payment in fund.payment:
                     if payment.currency: relevant_currencies.add(payment.currency)
-            if fund.daily:
-                for daily_entry in fund.daily:
-                    if daily_entry.currency: relevant_currencies.add(daily_entry.currency)
-            if fund.yearend:
-                 for yearend_entry in fund.yearend:
-                    if yearend_entry.currency: relevant_currencies.add(yearend_entry.currency)
 
         # Process Bonds to expand relevant_currencies
         for bond in filtered_bonds:
             if bond.currency: relevant_currencies.add(bond.currency)
-            if bond.payments:
-                for payment in bond.payments:
+            if bond.payment:
+                for payment in bond.payment:
                     if payment.currency: relevant_currencies.add(payment.currency)
 
         logging.info(f"Final set of relevant currencies (after processing filtered securities): {relevant_currencies if relevant_currencies else 'None'}")
@@ -321,7 +307,7 @@ def main():
         else:
             logging.info("No year-end exchange rates (exchangeRatesYearEnd) found in input.")
         
-        logging.info("Finished exchange rate filtering. Counts: Daily={len(filtered_exchange_rates)}, Monthly={len(filtered_exchange_rates_monthly)}, YearEnd={len(filtered_exchange_rates_year_end)}")
+        logging.info(f"Finished exchange rate filtering. Counts: Daily={len(filtered_exchange_rates)}, Monthly={len(filtered_exchange_rates_monthly)}, YearEnd={len(filtered_exchange_rates_year_end)}")
 
         # 11. Filter DefinitionCurrency Elements
         filtered_definition_currencies = []
@@ -385,7 +371,8 @@ def main():
             # Top-level attributes from original data
             version=kursliste_data.version,
             creationDate=kursliste_data.creationDate,
-            datum=kursliste_data.datum,
+            referingToDate=kursliste_data.referingToDate if kursliste_data.referingToDate else None,
+            year=kursliste_data.year,
 
             # Definitions (Non-filtered - taken directly from source)
             # Ensure these attributes exist on kursliste_data before assigning
@@ -413,19 +400,7 @@ def main():
             funds=filtered_funds,
             liborSwaps=[], # Not processed in this script
             shares=filtered_shares,
-            # Add other security types here if they were part of the model and potentially filtered
-            # For now, assuming only Shares, Funds, Bonds are actively filtered and kept.
-            # Others that might exist in Kursliste model but not filtered:
-            # futures=[], options=[], preciousMetals=[], structuredDerivatives=[], subscriptionRights=[]
-            # These should also be set to [] if they are part of the Kursliste model.
-            # Checking Kursliste model: futures, options, preciousMetals, structuredDerivatives, rights are there.
-            futures=[],
-            options=[],
-            preciousMetals=[],
-            structuredDerivatives=[],
-            rights=[],
-
-
+ 
             # Exchange Rates (Filtered)
             exchangeRates=filtered_exchange_rates,
             exchangeRatesMonthly=filtered_exchange_rates_monthly,
@@ -441,7 +416,9 @@ def main():
             output_xml_bytes = output_kursliste_obj.to_xml(
                 pretty_print=True,
                 encoding="UTF-8",
-                xml_declaration=True
+                xml_declaration=True,
+                exclude_unset=True,
+                exclude_none=True,
             )
             logging.info("Successfully serialized Kursliste to XML bytes using instance method.")
         except Exception as e:
@@ -458,11 +435,15 @@ def main():
             return 1 # Exit if file writing fails
             
         logging.info("Script finished successfully.")
+        return 0 # Exit with success code
 
     except FileNotFoundError:
         logging.error(f"Error: Input file not found at {args.input_file}")
+        return 1
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}", exc_info=True)
+        return 1
+    return 1 # Exit with error code
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
