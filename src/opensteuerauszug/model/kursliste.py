@@ -5,6 +5,7 @@ The Kursliste is a standardized format used by Swiss financial institutions
 to report security prices for tax purposes.
 """
 import datetime
+import sys
 import lxml.etree as ET
 from decimal import Decimal
 from enum import Enum
@@ -735,7 +736,7 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         "canton",
         "capitalKey",
         "country",
-        "currency", 
+        # "currency", 
         "securityGroup",
         "securityType",
         "legalForm",
@@ -749,7 +750,7 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         "coinBullion",
         "currencyNote", 
         "derivative",
-        "fund",
+        # "fund",
         "liborSwap",
         # "share",
         # "exchangeRate",
@@ -775,6 +776,8 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         to_remove = []
         # Copy only the elements that are not in the denylist
         for child in root:
+            if isinstance(child, ET._Comment):
+                continue
             tag = child.tag
             # Remove namespace prefix if present
             if "}" in tag:
@@ -783,9 +786,6 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
             if tag in denylist:
                 to_remove.append(child)
 
-        if len(to_remove) == 0:
-            raise ValueError("No elements to remove from XML tree")
-                
         for child in to_remove:
             root.remove(child)
 

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste" version="2.0.0.0" creationDate="2023-01-01T12:00:00" year="2023">
+    <!-- Definitions -->
+        <canton id="1">
+            <cantonShortcut>ZH</cantonShortcut>
+            <cantonName lang="de" name="Zürich"/>
+            <cantonName lang="fr" name="Zurich"/>
+            <cantonName lang="it" name="Zurigo"/>
+        </canton>
+        <currency id="1" currency="CHF">
+            <currencyName lang="de" name="Schweizer Franken"/>
+        </currency>
+        <currency id="2" currency="USD">
+            <currencyName lang="de" name="US Dollar"/>
+        </currency>
+        <currency id="3" currency="EUR">
+            <currencyName lang="de" name="Euro"/>
+        </currency>
+        <currency id="4" currency="JPY">
+            <currencyName lang="de" name="Japanischer Yen"/>
+        </currency>
+        <country id="1">
+            <countryName lang="de" name="Schweiz"/>
+            <country>CH</country>
+        </country>
+        <country id="2">
+            <countryName lang="de" name="USA"/>
+            <country>US</country>
+        </country>
+        <country id="3">
+            <countryName lang="de" name="Luxemburg"/>
+            <country>LU</country>
+        </country>
+         <country id="4">
+            <countryName lang="de" name="Deutschland"/>
+            <country>DE</country>
+        </country>
+        <institution id="1" institutionName="Bank A (Schweiz)" country="CH"/>
+        <institution id="2" institutionName="Fund Manager US" country="US"/>
+        <institution id="3" institutionName="Broker DE" country="DE"/>
+    
+    <!-- Securities -->
+         <bond id="3001" valorNumber="33445" currency="CHF" country="CH" institutionId="1" nominalValue="1000" interestRate="1.5" maturityDate="2028-12-31" securityGroup="BOND" institutionName="Bank A (Schweiz)">
+            <securityName lang="de" name="Test Obligation CHF"/>
+        </bond>
+         <bond id="3002" valorNumber="98765" currency="USD" country="US" institutionId="2" nominalValue="5000" interestRate="2.5" maturityDate="2030-06-30" securityGroup="BOND" institutionName="Fund Manager US">
+            <securityName lang="de" name="Unrelated Obligation USD"/>
+        </bond>
+       <fund id="2001" valorNumber="11223" currency="EUR" country="LU" institutionId="2" securityGroup="FUND" institutionName="Fund Manager US" nominalValue="100">
+            <securityName lang="de" name="Test Fonds EUR"/>
+             <payments>
+                <payment id="1" currency="EUR" paymentValue="2.0" date="2023-03-10" type="DISTRIBUTION"/>
+            </payments>
+            <yearend id="1" price="25.0" currency="EUR" date="2023-12-31" type="CLOSING"/>
+        </fund>
+       <share id="1001" valorNumber="12345" currency="CHF" country="CH" institutionId="1" securityGroup="SHARE" institutionName="Bank A (Schweiz)">
+            <securityName lang="de" name="Test Aktie CHF"/>
+            <payments>
+                <payment id="1" currency="CHF" paymentValue="10.0" date="2023-06-15" type="DIVIDEND"/>
+            </payments>
+            <yearend id="1" price="100.0" currency="CHF" date="2023-12-31" type="CLOSING"/>
+        </share>
+        <share id="2" valorNumber="67890" currency="USD" country="US" institutionId="2" securityGroup="SHARE" institutionName="Fund Manager US">
+            <securityName lang="de" name="Test Aktie USD"/>
+            <payments>
+                <payment id="2" currency="USD" paymentValue="5.0" date="2023-07-20" type="DIVIDEND"/>
+            </payments>
+            <yearend id="2" price="50.0" currency="USD" date="2023-12-31" type="CLOSING"/>
+        </share>
+        <share id="1003" valorNumber="55555" currency="CHF" country="CH" institutionId="1" securityGroup="SHARE" institutionName="Bank A (Schweiz)">
+            <securityName lang="de" name="Unrelated Aktie CHF"/>
+            <yearend id="3" price="200.0" currency="CHF" date="2023-12-31" type="CLOSING"/>
+        </share>
+
+    <!-- Exchange Rates -->
+        <exchangeRate  currency="USD" value="0.91" date="2023-07-20"/>
+        <exchangeRate  currency="EUR" value="0.955" date="2023-06-15"/> 
+        <exchangeRateMonthly  currency="USD" value="0.92" year="2023" month="01"/>
+        <exchangeRateMonthly currency="EUR" value="0.96" year="2023" month="03"/>
+        <exchangeRateYearEnd  currency="USD" value="0.90" year="2023"/>
+        <exchangeRateYearEnd  currency="EUR" value="0.95" year="2023"/>
+        <exchangeRateYearEnd  currency="JPY" value="0.007" year="2023"/>
+        <!-- Note: Kursliste usually has rates to CHF. Payments in CHF don't need explicit rates. -->
+</kursliste>
