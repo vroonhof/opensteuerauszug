@@ -41,6 +41,8 @@ class CleanupCalculator:
         if self.print_log:
             print(f"  [CleanupCalculator] {message}")
 
+    from opensteuerauszug.model.ech0196 import TaxStatement  # Explicit import for clarity
+
     def _generate_tax_statement_id(self, statement: TaxStatement) -> str:
         """
         Generates a new ID for the tax statement based on its content.

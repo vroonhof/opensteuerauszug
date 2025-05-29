@@ -1053,6 +1053,7 @@ class TestCleanupCalculatorIDGeneration:
         calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="UBS", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         
+        assert statement.id is not None
         actual_customer_part = statement.id[14:14+14] # Adjusted index: CC(2) + ORG(12) = 14
         # Handle the special case where we used "EMPTY" for empty strings
         if raw_client_id.strip() == "":

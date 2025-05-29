@@ -378,7 +378,8 @@ def main(
                 period_to=parsed_period_to,
                 identifier_map=security_identifier_map, # Pass the loaded map
                 enable_filtering=filter_to_period_flag,
-                print_log=True 
+                print_log=True,
+                importer_name=importer_type.value # Pass the importer name from the enum
             )
             portfolio = cleanup_calculator.calculate(portfolio)
             # Logs are printed by the calculator itself if print_log=True
