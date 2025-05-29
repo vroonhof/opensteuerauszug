@@ -110,12 +110,14 @@ class CleanupCalculator:
             customer_id_source = "placeholder_no_clients"
             self._log("Warning: statement.client list is empty. Using placeholder for customer ID part.")
 
+        # Remove spaces and special characters (sanitize)
         sanitized_customer_id = re.sub(r'[^a-zA-Z0-9]', '', customer_id_raw)
 
-        if len(sanitized_customer_id) >= 14:
-            customer_id = sanitized_customer_id[:14]
+        # Format to exactly 14 characters
+        if len(sanitized_customer_id) > 14:
+            customer_id = sanitized_customer_id[:14]  # Truncate to 14 chars if longer
         else:
-            customer_id = sanitized_customer_id.ljust(14, 'X') # Left justify and pad with 'X'
+            customer_id = sanitized_customer_id.ljust(14, 'X')  # Pad with 'X' to 14 chars if shorter
 
         # 5. Date (8 chars)
         # statement.periodTo is mandatory, so direct access should be safe.
