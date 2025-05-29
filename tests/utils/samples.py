@@ -25,28 +25,36 @@ def get_sample_files(pattern: str, base_dir: str = "tests/samples/") -> List[str
     
     return sample_files
 
-def get_sample_dirs(subdir: str) -> List[str]:
+def get_sample_dirs(subdir: str, extensions: List[str] = ['.pdf', '.json']) -> List[str]:
     """
     Return a list of sample directories to test: the given subdirectory under the repo and, if set, under EXTRA_SAMPLE_DIR.
-    Only include directories that exist and are not empty (contain at least one .pdf or .json file).
+    Also includes data/{subdir} in the project root as directory of last resort.
+    Only include directories that exist and are not empty (contain at least one file with specified extensions).
     Args:
         subdir: Subdirectory path (relative to samples root) to look for sample files (e.g. 'import/schwab')
+        extensions: List of file extensions to check for (e.g. ['.pdf', '.json'])
     Returns:
-        List of directories containing at least one .pdf or .json file
+        List of directories containing at least one file with specified extensions
     """
     dirs = []
-    # Default repo directory
-    repo_dir = os.path.join("tests/samples", subdir)
-    if os.path.isdir(repo_dir):
-        files = [f for f in os.listdir(repo_dir) if f.lower().endswith('.pdf') or f.lower().endswith('.json')]
-        if files:
-            dirs.append(repo_dir)
     # External sample directory
     extra_sample_dir = os.getenv("EXTRA_SAMPLE_DIR")
     if extra_sample_dir:
         extra_dir = os.path.join(os.path.expanduser(os.path.expandvars(extra_sample_dir)), subdir)
         if os.path.isdir(extra_dir):
-            files = [f for f in os.listdir(extra_dir) if f.lower().endswith('.pdf') or f.lower().endswith('.json')]
+            files = [f for f in os.listdir(extra_dir) if any(f.lower().endswith(ext) for ext in extensions)]
             if files:
                 dirs.append(extra_dir)
+    # Default repo directory
+    repo_dir = os.path.join("tests/samples", subdir)
+    if os.path.isdir(repo_dir):
+        files = [f for f in os.listdir(repo_dir) if any(f.lower().endswith(ext) for ext in extensions)]
+        if files:
+            dirs.append(repo_dir)
+    # Add data/{subdir} as directory of last resort
+    data_dir = os.path.join("data", subdir)
+    if os.path.isdir(data_dir):
+        files = [f for f in os.listdir(data_dir) if any(f.lower().endswith(ext) for ext in extensions)]
+        if files:
+            dirs.append(data_dir)
     return dirs

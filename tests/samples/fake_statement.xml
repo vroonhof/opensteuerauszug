@@ -11,7 +11,7 @@
               canton="ZH"
               totalTaxValue="185500.00"
               totalGrossRevenueA="0.00"
-              totalGrossRevenueB="2025.00"
+              totalGrossRevenueB="2048.29"
               totalWithHoldingTaxClaim="0.00"
               minorVersion="22">
   <institution name="Sample Foreign Bank ltd">
@@ -21,11 +21,11 @@
     </uid>
   </institution>
   <client clientNumber="987654" salutation="2" firstName="Max" lastName="Muster"/>
-  <listOfBankAccounts totalTaxValue="35000.00" totalGrossRevenueA="0.00" totalGrossRevenueB="525.00" totalWithHoldingTaxClaim="0.00">
-    <bankAccount bankAccountName="Private Account" bankAccountCountry="LU" bankAccountCurrency="CHF" totalTaxValue="35000.00" totalGrossRevenueA="0.00" totalGrossRevenueB="525.00" totalWithHoldingTaxClaim="0.00" iban="LU9300762011623852957" bankAccountNumber="11623852957">
+  <listOfBankAccounts totalTaxValue="35000.00" totalGrossRevenueA="0.00" totalGrossRevenueB="548.29" totalWithHoldingTaxClaim="0.00">
+    <bankAccount bankAccountName="Private Account" bankAccountCountry="LU" bankAccountCurrency="CHF" totalTaxValue="35000.00" totalGrossRevenueA="0.00" totalGrossRevenueB="548.29" totalWithHoldingTaxClaim="0.00" iban="LU9300762011623852957" bankAccountNumber="11623852957">
       <taxValue referenceDate="2024-12-31" balanceCurrency="CHF" balance="35000.00" value="35000.00"/>
       <payment paymentDate="2024-06-30" name="Interest Credit" amountCurrency="CHF" amount="500.00" grossRevenueA="0.00" grossRevenueB="500.00" withHoldingTaxClaim="0.00"/>
-      <payment paymentDate="2024-03-15" name="Foreign Interest" amountCurrency="EUR" amount="50.00" exchangeRate="0.50" grossRevenueA="0.00" grossRevenueB="25.00" withHoldingTaxClaim="0.00"/>
+      <payment paymentDate="2024-03-15" name="Foreign Interest" amountCurrency="EUR" amount="50.00" exchangeRate="0.9657075" grossRevenueA="0.00" grossRevenueB="48.285375000" withHoldingTaxClaim="0.00"/>
     </bankAccount>
   </listOfBankAccounts>
   <listOfLiabilities totalTaxValue="250000.00" totalGrossRevenueB="3000.00">

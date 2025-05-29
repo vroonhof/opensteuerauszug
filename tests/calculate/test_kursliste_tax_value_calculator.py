@@ -3,18 +3,19 @@ from opensteuerauszug.calculate.kursliste_tax_value_calculator import KurslisteT
 from opensteuerauszug.calculate.base import CalculationMode
 from opensteuerauszug.model.ech0196 import TaxStatement
 from opensteuerauszug.core.exchange_rate_provider import DummyExchangeRateProvider, ExchangeRateProvider
+from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from tests.utils.samples import get_sample_files
 from .known_issues import _known_issue
 
 class TestKurslisteTaxValueCalculatorIntegration:
     @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
-    def test_run_in_verify_mode_no_errors(self, sample_file: str):
+    def test_run_in_verify_mode_no_errors(self, sample_file: str, exchange_rate_provider: KurslisteExchangeRateProvider):
         """
         Tests that KurslisteTaxValueCalculator runs in VERIFY mode
         without producing errors when processing real-world sample TaxStatement XML files.
+        Uses the real exchange rate provider from kursliste.
         """
-        provider: ExchangeRateProvider = DummyExchangeRateProvider()
-        calculator = KurslisteTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=provider)
+        calculator = KurslisteTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider)
         
         tax_statement_input = TaxStatement.from_xml_file(sample_file)
 
