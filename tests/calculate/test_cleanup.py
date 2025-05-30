@@ -24,6 +24,8 @@ import os
 # shutil is not needed for the chosen patching strategy
 # import shutil
 
+DEFAULT_TEST_PERIOD_FROM = date(2023, 1, 1)
+DEFAULT_TEST_PERIOD_TO = date(2023, 12, 31)
 
 def create_bank_account_payment(payment_date: date, amount: Decimal = Decimal("100"), name: str = "Payment") -> BankAccountPayment:
     return BankAccountPayment(
@@ -92,7 +94,7 @@ class TestCleanupCalculatorSorting:
             # importer_name="SortingImporter", # Removed, TaxStatement no longer has this field
             listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]))
         
-        calculator = CleanupCalculator(None, None, "SortingImporter", enable_filtering=False) # Added importer_name
+        calculator = CleanupCalculator(DEFAULT_TEST_PERIOD_FROM, DEFAULT_TEST_PERIOD_TO, "SortingImporter", enable_filtering=False) # Added importer_name
         result_statement = calculator.calculate(statement)
         
         assert result_statement.listOfBankAccounts
@@ -120,7 +122,7 @@ class TestCleanupCalculatorSorting:
             # importer_name="SortingImporter", # Removed
             listOfSecurities=ListOfSecurities(depot=[depot]))
 
-        calculator = CleanupCalculator(None, None, "SortingImporter", enable_filtering=False) # Added importer_name
+        calculator = CleanupCalculator(DEFAULT_TEST_PERIOD_FROM, DEFAULT_TEST_PERIOD_TO, "SortingImporter", enable_filtering=False) # Added importer_name
         result_statement = calculator.calculate(statement)
 
         assert result_statement.listOfSecurities
@@ -218,14 +220,13 @@ class TestCleanupCalculatorFiltering:
             # importer_name="FilterImporter", # Removed
             listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]))
 
-        calculator = CleanupCalculator(None, None, "FilterImporter", enable_filtering=True) # Added importer_name, No period defined for filtering
+        calculator = CleanupCalculator(DEFAULT_TEST_PERIOD_FROM, DEFAULT_TEST_PERIOD_TO, "FilterImporter", enable_filtering=True) # Added importer_name, No period defined for filtering
         result_statement = calculator.calculate(statement)
 
         assert result_statement.listOfBankAccounts
         assert len(result_statement.listOfBankAccounts.bankAccount[0].payment) == 1
         assert "TaxStatement.id (generated)" in calculator.modified_fields # ID is generated
         assert len(calculator.modified_fields) == 1 # Only ID
-        assert any("Payment filtering skipped (tax period not fully defined)" in log for log in calculator.get_log())
 
     def test_filter_security_stocks_enabled(self, sample_period_from, sample_period_to):
         period_end_plus_one = sample_period_to + timedelta(days=1)
@@ -341,14 +342,13 @@ class TestCleanupCalculatorFiltering:
             # importer_name="FilterImporter", # Removed
             listOfSecurities=ListOfSecurities(depot=[depot]))
 
-        calculator = CleanupCalculator(None, None, "FilterImporter", enable_filtering=True) # Added importer_name
+        calculator = CleanupCalculator(DEFAULT_TEST_PERIOD_FROM, DEFAULT_TEST_PERIOD_TO, "FilterImporter", enable_filtering=True) # Added importer_name
         result_statement = calculator.calculate(statement)
 
         assert result_statement.listOfSecurities
         assert len(result_statement.listOfSecurities.depot[0].security[0].stock) == 1
         assert "TaxStatement.id (generated)" in calculator.modified_fields # ID is generated
         assert len(calculator.modified_fields) == 1 # Only ID
-        assert any("Stock event filtering skipped (tax period not fully defined)" in log for log in calculator.get_log())
 
     def test_filter_security_payments_enabled(self, sample_period_from, sample_period_to):
         sp_before = create_security_payment(sample_period_from - timedelta(days=10))
@@ -778,7 +778,7 @@ class TestCleanupCalculatorIDGeneration:
         statement = TaxStatement(id=None, **statement_args)
         
         # Pass importer_name to calculator constructor
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="DEFAULT", enable_filtering=False)
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="DEFAULT", enable_filtering=False)
         calculator.calculate(statement)
 
         assert statement.id is not None
@@ -793,7 +793,7 @@ class TestCleanupCalculatorIDGeneration:
         statement_args = self._default_statement_args(period_to_date)
         statement = TaxStatement(id="EXISTINGID123", **statement_args)
         
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="DEFAULT", enable_filtering=False) # Added importer_name
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="DEFAULT", enable_filtering=False) # Added importer_name
         calculator.calculate(statement)
 
         assert statement.id == "EXISTINGID123"
@@ -816,7 +816,7 @@ class TestCleanupCalculatorIDGeneration:
             date_str="20231231"
         )
 
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="SCHWAB", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="SCHWAB", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
 
@@ -836,7 +836,7 @@ class TestCleanupCalculatorIDGeneration:
             customer="TIN456XXXXXXXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="POSTFINANCE", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="POSTFINANCE", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
 
@@ -856,7 +856,7 @@ class TestCleanupCalculatorIDGeneration:
             customer="CLI789XXXXXXXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name=None, enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name=None, enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
         assert any("Warning: Importer name is None or empty, using 'XXXXXX' for Org ID part." in log for log in calculator.get_log())
@@ -884,7 +884,7 @@ class TestCleanupCalculatorIDGeneration:
             customer="CLI789XXXXXXXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
         assert any("Warning: Importer name is None or empty, using 'XXXXXX' for Org ID part." in log for log in calculator.get_log())
@@ -904,7 +904,7 @@ class TestCleanupCalculatorIDGeneration:
             customer="CUSTSHORTXXXXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="API", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="API", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
 
@@ -923,7 +923,7 @@ class TestCleanupCalculatorIDGeneration:
             customer="CUSTLONGXXXXXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="VERYLONGIMPORTERNAME", enable_filtering=False) # Pass importer_name
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="VERYLONGIMPORTERNAME", enable_filtering=False) # Pass importer_name
         calculator.calculate(statement)
         assert statement.id == expected_id
 
@@ -942,7 +942,7 @@ class TestCleanupCalculatorIDGeneration:
             customer="CUSTSANITIZEXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="MyImporter@123!", enable_filtering=False) # Pass importer_name
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="MyImporter@123!", enable_filtering=False) # Pass importer_name
         calculator.calculate(statement)
         assert statement.id == expected_id
 
@@ -961,7 +961,7 @@ class TestCleanupCalculatorIDGeneration:
             customer="CUSTEMPTYXXXXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="!@#$%", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="!@#$%", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
         assert any("Sanitized importer name '!@#$%' is empty, using 'XXXXXX' for Org ID part." in log for log in calculator.get_log())
@@ -982,7 +982,7 @@ class TestCleanupCalculatorIDGeneration:
             customer="NOIDENTIFIERXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="TESTIMP", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="TESTIMP", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
         assert any("Warning: No clientNumber or TIN found for the first client. Using placeholder for customer ID part." in log for log in calculator.get_log())
@@ -1004,7 +1004,7 @@ class TestCleanupCalculatorIDGeneration:
             customer="NOCLIENTDATAXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="ANYBANK", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="ANYBANK", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
         assert any("Warning: statement.client list is empty. Using placeholder for customer ID part." in log for log in calculator.get_log())
@@ -1026,7 +1026,7 @@ class TestCleanupCalculatorIDGeneration:
             customer="CUST1XXXXXXXXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="BROKERX", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="BROKERX", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
         assert any("Warning: TaxStatement.country is None, using 'XX' for ID generation." in log for log in calculator.get_log())
@@ -1050,7 +1050,7 @@ class TestCleanupCalculatorIDGeneration:
         )
         statement = TaxStatement(id=None, **statement_args)
         
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="UBS", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="UBS", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         
         assert statement.id is not None
@@ -1071,7 +1071,7 @@ class TestCleanupCalculatorIDGeneration:
         )
         statement = TaxStatement(id=None, **statement_args)
 
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="CSNEXT", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="CSNEXT", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         
         actual_date_part = statement.id[28:28+8] # Adjusted index: CC(2) + ORG(12) + CUST(14) = 28
@@ -1093,7 +1093,7 @@ class TestCleanupCalculatorIDGeneration:
 
         statement = TaxStatement(id=None, **statement_args)
         
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="VALIDIMP", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="VALIDIMP", enable_filtering=False) # Pass importer_name here
         
         try:
             calculator.calculate(statement)
@@ -1128,6 +1128,6 @@ class TestCleanupCalculatorIDGeneration:
             date_str="20231231"
         )
 
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="STRIPCASE", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="STRIPCASE", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
