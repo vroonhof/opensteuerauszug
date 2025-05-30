@@ -195,8 +195,8 @@ class CleanupCalculator:
                         pos_id = f"{depot_id}/{security_display_id}" # Original pos_id for logging before enrichment
 
                         # Identifier Enrichment Logic
-                        if self.identifier_map and security.securityName: # securityName is used as lookup key
-                            lookup_symbol = security.securityName
+                        if self.identifier_map and security.symbol: # Use security.symbol for condition
+                            lookup_symbol = security.symbol # Use security.symbol for lookup
                             if (not security.isin or not security.valorNumber or security.valorNumber == 0) and lookup_symbol in self.identifier_map:
                                 found_identifiers = self.identifier_map[lookup_symbol]
                                 enriched = False

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from opensteuerauszug.importers.schwab.schwab_importer import SchwabImporter
+from opensteuerauszug.importers.schwab.schwab_importer import SchwabImporter, convert_security_positions_to_list_of_securities
 from opensteuerauszug.importers.schwab.transaction_extractor import TransactionExtractor # Assuming path
 from opensteuerauszug.model.ech0196 import (
     TaxStatement,
@@ -12,12 +12,77 @@ from opensteuerauszug.model.ech0196 import (
     CurrencyId,      # This is an Annotated[str, ...]
     QuotationType,   # This is a Literal["PIECE", "PERCENT"]
     DepotNumber,     # This is class DepotNumber(str)
+    Security,        # Added Security for asserting results
+    ListOfSecurities # Added for type hint
     # Import other necessary eCH-0196 models if needed for constructing test data
 )
 from opensteuerauszug.model.position import SecurityPosition
 # Assuming your models are Pydantic, otherwise adjust instantiation
 
 class TestSchwabImporterProcessing(unittest.TestCase):
+
+    def test_convert_security_positions_populates_symbol(self):
+        """
+        Tests that `convert_security_positions_to_list_of_securities`
+        correctly populates the `symbol` and `securityName` fields in the
+        resulting Security objects.
+        """
+        depot1_str = "DEPOT1"
+        # Case 1: Symbol and Description present
+        pos1 = SecurityPosition(depot=depot1_str, symbol="MOCKSYM1", description="DESC1", type="security")
+        stock1 = SecurityStock(referenceDate=date(2023,1,1), mutation=False, balanceCurrency=CurrencyId("USD"), quotationType="PIECE", quantity=Decimal(10))
+
+        # Case 2: Symbol present, Description is None
+        pos2 = SecurityPosition(depot=depot1_str, symbol="MOCKSYM2", description=None, type="security")
+        stock2 = SecurityStock(referenceDate=date(2023,1,1), mutation=False, balanceCurrency=CurrencyId("EUR"), quotationType="PERCENT", quantity=Decimal(100))
+
+        # Case 3: Symbol is None, Description present
+        pos3 = SecurityPosition(depot=depot1_str, symbol=None, description="DESC3", type="security")
+        stock3 = SecurityStock(referenceDate=date(2023,1,1), mutation=False, balanceCurrency=CurrencyId("USD"), quotationType="PIECE", quantity=Decimal(20))
+
+        # Case 4: Symbol is empty string, Description present
+        pos4 = SecurityPosition(depot=depot1_str, symbol="", description="DESC4", type="security")
+        stock4 = SecurityStock(referenceDate=date(2023,1,1), mutation=False, balanceCurrency=CurrencyId("CHF"), quotationType="PIECE", quantity=Decimal(30))
+
+        security_tuples = [
+            (pos1, [stock1], []),
+            (pos2, [stock2], []),
+            (pos3, [stock3], None), # Test with None for payments
+            (pos4, [stock4], [])
+        ]
+
+        list_of_securities: ListOfSecurities = convert_security_positions_to_list_of_securities(security_tuples)
+
+        self.assertIsNotNone(list_of_securities)
+        self.assertEqual(len(list_of_securities.depot), 1)
+
+        depot = list_of_securities.depot[0]
+        self.assertEqual(depot.depotNumber, depot1_str)
+        self.assertEqual(len(depot.security), 4)
+
+        # Assertions for pos1
+        sec1 = depot.security[0]
+        self.assertEqual(sec1.symbol, "MOCKSYM1")
+        self.assertEqual(sec1.securityName, "DESC1 (MOCKSYM1)")
+        self.assertEqual(sec1.currency, "USD") # Check a few other fields for sanity
+        self.assertEqual(sec1.quotationType, "PIECE")
+
+        # Assertions for pos2
+        sec2 = depot.security[1]
+        self.assertEqual(sec2.symbol, "MOCKSYM2")
+        self.assertEqual(sec2.securityName, "MOCKSYM2") # No description, so just symbol
+        self.assertEqual(sec2.currency, "EUR")
+        self.assertEqual(sec2.quotationType, "PERCENT")
+
+        # Assertions for pos3
+        sec3 = depot.security[2]
+        self.assertIsNone(sec3.symbol) # Symbol was None
+        self.assertEqual(sec3.securityName, "DESC3") # No symbol, so just description
+
+        # Assertions for pos4
+        sec4 = depot.security[3]
+        self.assertEqual(sec4.symbol, "") # Symbol was empty string
+        self.assertEqual(sec4.securityName, "DESC4 ()") # Description with empty symbol in parens
 
     def test_transaction_with_multiple_stock_items_does_not_duplicate_payments(self):
         """
@@ -96,17 +161,17 @@ class TestSchwabImporterProcessing(unittest.TestCase):
             # Patch StatementExtractor.extract_positions to return a dummy statement for the same depot and date
             # This should be the starting balance before the transaction's effects.
             dummy_positions_pdf = [
-                (mock_position, mock_stock_item_1_balance) 
+                (mock_position, mock_stock_item_1_balance)
             ]
             dummy_depot_pdf = test_depot_str
             dummy_open_date_pdf = period_from_date
             # Use a date that ensures this statement is considered for initial balance
-            dummy_close_date_plus1_pdf = period_from_date 
+            dummy_close_date_plus1_pdf = period_from_date
             with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
                 mock_statement_instance = MockStatementExtractor.return_value
                 mock_statement_instance.extract_positions.return_value = (dummy_positions_pdf, dummy_open_date_pdf, dummy_close_date_plus1_pdf, dummy_depot_pdf)
 
-                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=[])
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=[]) # type: ignore
                 tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
 
                 # 4. Assertions
@@ -116,25 +181,26 @@ class TestSchwabImporterProcessing(unittest.TestCase):
                 # Explicit if check to help linter with type narrowing
                 if tax_statement.listOfSecurities is not None:
                     list_of_securities = tax_statement.listOfSecurities
-                    self.assertEqual(len(list_of_securities.depot), 1, "Should be one depot")
-                    
-                    depot_data = list_of_securities.depot[0]
+                    self.assertEqual(len(list_of_securities.depot), 1, "Should be one depot") # type: ignore
+
+                    depot_data = list_of_securities.depot[0] # type: ignore
                     self.assertIsNotNone(depot_data.depotNumber, "Depot number should not be None")
                     # DepotNumber is a str subclass, can be compared directly or cast to str
-                    self.assertEqual(depot_data.depotNumber, test_depot_str) 
+                    self.assertEqual(depot_data.depotNumber, test_depot_str)
 
                     self.assertEqual(len(depot_data.security), 1, "Should be one security entry for TESTETF")
 
                     security_entry = depot_data.security[0]
-                    self.assertEqual(security_entry.securityName, test_symbol)
-                    
+                    self.assertEqual(security_entry.symbol, test_symbol) # Test symbol is populated
+                    self.assertEqual(security_entry.securityName, test_symbol) # Assuming no description for this mock
+
                     # Key Assertion: Check the number of payments
                     self.assertIsNotNone(security_entry.payment, "Payments list should not be None")
                     self.assertEqual(len(security_entry.payment), len(mock_payments_list),
                                      f"Expected {len(mock_payments_list)} payments, but got {len(security_entry.payment)}. Payments found: {security_entry.payment}")
                 else:
                     # This else block should not be reached if the assertIsNotNone above works
-                    self.fail("tax_statement.listOfSecurities was None after assertIsNotNone, which is unexpected.")
+                    self.fail("tax_statement.listOfSecurities was None after assertIsNotNone, which is unexpected.") # type: ignore
 
     def test_statement_date_one_day_after_range_is_accepted(self):
         """
@@ -173,10 +239,10 @@ class TestSchwabImporterProcessing(unittest.TestCase):
             with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
                 mock_statement_instance = MockStatementExtractor.return_value
                 mock_statement_instance.extract_positions.return_value = (dummy_positions, dummy_open_date, dummy_close_date_plus1, dummy_depot)
-                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=[])
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=[]) # type: ignore
                 # Should not raise
                 tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
                 self.assertIsNotNone(tax_statement)
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()

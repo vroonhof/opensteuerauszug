@@ -1135,6 +1135,7 @@ class Security(BaseXmlModel):
     interestRate: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     variableInterest: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
     bfp: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
+    symbol: Optional[str] = Field(default=None, exclude=True)
     # Internal totals for rendering
     totalGrossRevenueA: Optional[Decimal] = Field(default=None, exclude=True)
     totalGrossRevenueB: Optional[Decimal] = Field(default=None, exclude=True)
