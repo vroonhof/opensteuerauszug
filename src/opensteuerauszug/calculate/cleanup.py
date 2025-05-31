@@ -259,7 +259,7 @@ class CleanupCalculator:
                                     if candidate.referenceDate == period_end_plus_one and not candidate.mutation:
                                         # First balance after the period end is the end balance of the period
                                         security.taxValue = SecurityTaxValue(
-                                            referenceDate=candidate.referenceDate,
+                                            referenceDate=self.period_to,
                                             quotationType=candidate.quotationType,
                                             quantity=candidate.quantity,
                                             balanceCurrency=candidate.balanceCurrency,
