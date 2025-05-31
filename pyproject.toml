@@ -45,6 +45,7 @@ dev = [
     "isort>=5.0.0",
     "mypy>=1.0.0",
     "flake8>=6.0.0",
+    "freezegun>=1.5.0",  # Added for time-freezing in tests
     # TODO make these formal dependencies 
     # pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
 ]
