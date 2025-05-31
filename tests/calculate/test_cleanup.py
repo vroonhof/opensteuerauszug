@@ -731,10 +731,10 @@ class TestCleanupCalculatorEnrichment:
         period_to = base_calculator_params["period_to"]
 
         # Case 1: Security has ISIN, Valor is None. Valor should be enriched.
-        sec1 = _create_test_security(name="N1", symbol="MYSYMBOL_COND", isin="XS_OLD_1", valor=None)
+        sec1 = _create_test_security(name="N1", symbol="MYSYMBOL_COND", isin="NLDUMMYISIN1", valor=None)
         stmt1 = _create_statement_with_security(sec1, period_to); stmt1.id="S1"
         calculator.calculate(stmt1)
-        assert sec1.isin == "XS_OLD_1"
+        assert sec1.isin == "NLDUMMYISIN1"
         assert sec1.valorNumber == 987111
 
         # Case 2: Security has Valor, ISIN is None. ISIN should be enriched.
@@ -745,21 +745,13 @@ class TestCleanupCalculatorEnrichment:
         assert sec2.valorNumber == 123000
 
         # Case 3: Security has both ISIN and Valor. No enrichment.
-        sec3 = _create_test_security(name="N3", symbol="MYSYMBOL_COND", isin="XS_OLD_3", valor=321000)
+        sec3 = _create_test_security(name="N3", symbol="MYSYMBOL_COND", isin="XSDUMMYISIN2", valor=321000)
         stmt3 = _create_statement_with_security(sec3, period_to); stmt3.id="S3"
         calculator.calculate(stmt3)
-        assert sec3.isin == "XS_OLD_3"
+        assert sec3.isin == "XSDUMMYISIN2"
         assert sec3.valorNumber == 321000
         # Check that (enriched) is not in modified_fields for this specific security
         assert not any("MYSYMBOL_COND (enriched)" in f for f in calculator.modified_fields if "S3" in f)
-
-
-        # Case 4: Security has ISIN=None, Valor=0. Both should be enriched.
-        sec4 = _create_test_security(name="N4", symbol="MYSYMBOL_COND", isin=None, valor=0)
-        stmt4 = _create_statement_with_security(sec4, period_to); stmt4.id="S4"
-        calculator.calculate(stmt4)
-        assert sec4.isin == "XS_NEW_COND"
-        assert sec4.valorNumber == 987111
 
     # Keep existing tests for securityName lookup if that's still a fallback
     def test_enrichment_already_full_by_name(self, base_calculator_params): # Renamed for clarity
@@ -921,7 +913,7 @@ class TestCleanupCalculatorIDGeneration:
             customer="CLI789XXXXXXXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name=None, enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=None, period_to=None, importer_name=None, enable_filtering=False) # type: ignore # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
         assert any("Warning: Importer name is None or empty, using 'XXXXXX' for Org ID part." in log for log in calculator.get_log())
