@@ -207,10 +207,16 @@ class CleanupCalculator:
                         pos_id = f"{depot_id}/{security_display_id}" # Original pos_id for logging before enrichment
 
                         # Identifier Enrichment Logic
-                        if self.identifier_map and security.securityName: # securityName is used as lookup key
-                            lookup_symbol = security.securityName
-                            if (not security.isin or not security.valorNumber or security.valorNumber == 0) and lookup_symbol in self.identifier_map:
-                                found_identifiers = self.identifier_map[lookup_symbol]
+                        if self.identifier_map:
+                            if security.symbol:
+                                lookup_key = security.symbol
+                            elif security.securityName:
+                                lookup_key = security.securityName
+                            else:
+                                continue
+                            
+                            if (not security.isin or not security.valorNumber or security.valorNumber == 0) and lookup_key in self.identifier_map:
+                                found_identifiers = self.identifier_map[lookup_key]
                                 enriched = False
                                 if not security.isin and found_identifiers.get('isin'):
                                     security.isin = found_identifiers['isin']
@@ -232,8 +238,8 @@ class CleanupCalculator:
                                     # Reconstruct pos_id based on potentially new security_display_id
                                     # This ensures logs for filtering etc. use the enriched ID.
                                     # However, for the enrichment log itself, we use the original pos_id or lookup_symbol.
-                                    log_pos_id_for_enrichment = f"{depot_id}/{lookup_symbol}" # Use symbol for this specific log.
-                                    self._log(f"  Security {log_pos_id_for_enrichment}: Enriched ISIN/Valor from identifier file using symbol '{lookup_symbol}'.")
+                                    log_pos_id_for_enrichment = f"{depot_id}/{lookup_key}" # Use symbol for this specific log.
+                                    self._log(f"  Security {log_pos_id_for_enrichment}: Enriched ISIN/Valor from identifier file using symbol '{lookup_key}'.")
                                     self.modified_fields.append(f"{log_pos_id_for_enrichment} (enriched)")
                                     # Update pos_id for subsequent operations in this loop, if needed
                                     pos_id = f"{depot_id}/{security_display_id}"

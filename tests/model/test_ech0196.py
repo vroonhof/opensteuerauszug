@@ -21,7 +21,8 @@ from opensteuerauszug.model.ech0196 import (
     BankAccount,
     BaseXmlModel,
     NS_MAP,
-    ns_tag
+    ns_tag,
+    Security # Added Security import
 )
 
 # --- Test Data ---
@@ -429,4 +430,53 @@ def test_use_strict_parameter():
     # This should not raise, despite the class being strict
     bank_account = StrictBankAccount._from_xml_element(element, strict=False)
     assert 'unknownAttr' in bank_account.unknown_attrs
-    assert bank_account.unknown_attrs['unknownAttr'] == 'value' 
+    assert bank_account.unknown_attrs['unknownAttr'] == 'value'
+
+def test_security_symbol_not_serialized_to_xml():
+    """Tests that the 'symbol' field in Security model is not serialized to XML."""
+    # Minimal required fields for Security instantiation
+    sec = Security(
+        positionId=1,
+        country="US",
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        securityName="Test Security Name",
+        symbol="TESTSYM"  # This field should be excluded from XML
+    )
+
+    # Serialize to an lxml element
+    # The _build_xml_element method needs a parent if it's not the root,
+    # or can be called with None if it's meant to be a root (depends on its implementation).
+    # For a fragment, creating a dummy parent is safer.
+    # However, Security is typically a child of Depot.
+    # Let's assume _build_xml_element can create its own root for this test,
+    # or we can construct a minimal parent.
+    # Based on BaseXmlModel, _build_xml_element(None) should work if tag_name is in model_config or class name is used.
+    # Security model has 'tag_name': 'security' in its model_config.
+
+    xml_element = sec._build_xml_element(parent_element=None) # Builds the <security> element
+
+    # Convert the element to an XML string
+    xml_string = ET.tostring(xml_element, pretty_print=True)
+
+    # Assert that "symbol" attribute is not present
+    # ET.tostring will output bytes, so compare with bytes
+    assert b'symbol="TESTSYM"' not in xml_string, "Symbol attribute should not be serialized"
+
+    # Also assert that "symbol" as an element is not present
+    assert b"<symbol>TESTSYM</symbol>" not in xml_string, "Symbol element should not be serialized"
+    assert b"<symbol>" not in xml_string, "Symbol element tag should not be serialized"
+
+    # More robust check: parse the XML and inspect the element
+    parsed_element = ET.fromstring(xml_string)
+    assert parsed_element.get("symbol") is None, "Parsed XML should not have 'symbol' attribute"
+
+    # Check for child elements named 'symbol'
+    # ns_tag('eCH-0196', 'symbol') would be for namespaced elements.
+    # Since 'symbol' is exclude=True, it shouldn't be a namespaced or non-namespaced element.
+    found_symbol_element = parsed_element.find("symbol") # Non-namespaced check
+    assert found_symbol_element is None, "Parsed XML should not have a child element named 'symbol'"
+
+    found_namespaced_symbol_element = parsed_element.find(ns_tag('eCH-0196', 'symbol')) # Namespaced check
+    assert found_namespaced_symbol_element is None, "Parsed XML should not have a namespaced child element named 'symbol'"
