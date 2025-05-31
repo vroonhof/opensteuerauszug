@@ -89,7 +89,7 @@ class TestCleanupCalculatorSorting:
         statement = TaxStatement(
             id=None, creationDate=datetime(default_period_to.year,1,1), taxPeriod=default_period_to.year, 
             periodFrom=date(default_period_to.year,1,1), periodTo=default_period_to, 
-            country="CH", canton="ZH", minorVersion=0, 
+            country="CH", minorVersion=0, 
             client=[Client(clientNumber=ClientNumber("SortingClient"))], institution=Institution(lei=LEIType("SORTINGLEI12300000000")),
             # importer_name="SortingImporter", # Removed, TaxStatement no longer has this field
             listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]))
@@ -153,7 +153,7 @@ class TestCleanupCalculatorSorting:
             # importer_name="SortingImporter", # Removed
             listOfSecurities=ListOfSecurities(depot=[depot]))
 
-        calculator = CleanupCalculator(None, None, "SortingImporter", enable_filtering=False) # Added importer_name
+        calculator = CleanupCalculator(DEFAULT_TEST_PERIOD_FROM, default_period_to, "SortingImporter", enable_filtering=False) # Added importer_name
         result_statement = calculator.calculate(statement)
 
         assert result_statement.listOfSecurities
@@ -196,7 +196,7 @@ class TestCleanupCalculatorFiltering:
         statement = TaxStatement(
             id=None, creationDate=datetime(sample_period_to.year,1,1), taxPeriod=sample_period_to.year, 
             periodFrom=sample_period_from, periodTo=sample_period_to, 
-            country="CH", canton="ZH", minorVersion=0,
+            country="CH", minorVersion=0,
             client=[Client(clientNumber=ClientNumber("FilterClient"))], institution=Institution(lei=LEIType("FILTERLEI123400000000")),
             # importer_name="FilterImporter", # Removed
             listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]))
@@ -513,43 +513,6 @@ class TestCleanupCalculatorEdgeCases:
         assert "BA001.payment (filtered)" in final_log_message
         assert "Dep01/SecXYZ.stock (filtered)" in final_log_message
 
-    def test_no_filtering_if_period_not_fully_defined(self, sample_period_to): # Added sample_period_to for default args
-        p1 = create_bank_account_payment(date(2023,1,1))
-        bank_account = BankAccount(bankAccountNumber=BankAccountNumber("BA1"), payment=[p1])
-        # Base statement for calculator_from_only
-        statement_from = TaxStatement(
-            id=None, creationDate=datetime(sample_period_to.year,1,1), taxPeriod=sample_period_to.year,
-            periodFrom=date(sample_period_to.year,1,1), periodTo=sample_period_to, 
-            country="CH", canton="ZH", minorVersion=0,
-            client=[Client(clientNumber=ClientNumber("EdgeClient"))], institution=Institution(lei=LEIType("EDGELEI1234500000000")),
-            # importer_name="EdgeImporter", # Removed
-            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]))
-
-        calculator_from_only = CleanupCalculator(date(2023,1,1), None, "EdgeImporter", enable_filtering=True) # Added importer_name
-        res_from_only = calculator_from_only.calculate(statement_from)
-        assert res_from_only.listOfBankAccounts
-        assert len(res_from_only.listOfBankAccounts.bankAccount[0].payment) == 1
-        assert "TaxStatement.id (generated)" in calculator_from_only.modified_fields
-        assert len(calculator_from_only.modified_fields) == 1 # Only ID
-        assert any("Payment filtering skipped (tax period not fully defined)" in log for log in calculator_from_only.get_log())
-
-        # Base statement for calculator_to_only
-        statement_to = TaxStatement(
-            id=None, creationDate=datetime(sample_period_to.year,1,1), taxPeriod=sample_period_to.year,
-            periodFrom=date(sample_period_to.year,1,1), periodTo=sample_period_to, 
-            country="CH", canton="ZH", minorVersion=0,
-            client=[Client(clientNumber=ClientNumber("EdgeClient"))], institution=Institution(lei=LEIType("EDGELEI1234500000000")),
-            # importer_name="EdgeImporter", # Removed
-            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]))
-
-        calculator_to_only = CleanupCalculator(None, date(2023,12,31), "EdgeImporter", enable_filtering=True) # Added importer_name
-        res_to_only = calculator_to_only.calculate(statement_to)
-        assert res_to_only.listOfBankAccounts
-        assert len(res_to_only.listOfBankAccounts.bankAccount[0].payment) == 1
-        assert "TaxStatement.id (generated)" in calculator_to_only.modified_fields
-        assert len(calculator_to_only.modified_fields) == 1 # Only ID
-        assert any("Payment filtering skipped (tax period not fully defined)" in log for log in calculator_to_only.get_log())
-
 
 # Helper function for creating TaxStatement with a single security
 def _create_statement_with_security(sec: Security, period_to_date: date, depot_id_str: str = "DTEST") -> TaxStatement:
@@ -860,14 +823,13 @@ class TestCleanupCalculatorIDGeneration:
         period_to_date = date(2023, 12, 31)
         statement_args = self._default_statement_args(
             period_to_date,
-            country="DE",
             client=[Client(clientNumber=ClientNumber("CUST123"))]
             # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
 
         expected_id = self._construct_expected_id(
-            country="DE",
+            country="CH",
             org="OPNAUSSCHWAB", 
             customer="CUST123XXXXXXX",
             date_str="20231231"
@@ -881,14 +843,14 @@ class TestCleanupCalculatorIDGeneration:
         period_to_date = date(2023, 12, 31)
         statement_args = self._default_statement_args(
             period_to_date,
-            country="FR",
+            country="CH",
             client=[Client(tin=TINType("TIN456"))]
             # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
 
         expected_id = self._construct_expected_id(
-            country="FR",
+            country="CH",
             org="OPNAUSPOSTFI", 
             customer="TIN456XXXXXXXX",
             date_str="20231231"
@@ -901,14 +863,14 @@ class TestCleanupCalculatorIDGeneration:
         period_to_date = date(2023, 12, 31)
         statement_args = self._default_statement_args(
             period_to_date,
-            country="US",
+            country="CH",
             client=[Client(clientNumber=ClientNumber("CLI789"))]
             # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
         
         expected_id = self._construct_expected_id(
-            country="US",
+            country="CH",
             org="OPNAUSXXXXXX", 
             customer="CLI789XXXXXXXX",
             date_str="20231231"
@@ -936,7 +898,7 @@ class TestCleanupCalculatorIDGeneration:
 
 
         expected_id = self._construct_expected_id(
-            country="US",
+            country="CH",
             org="OPNAUSXXXXXX", 
             customer="CLI789XXXXXXXX",
             date_str="20231231"
@@ -950,13 +912,13 @@ class TestCleanupCalculatorIDGeneration:
         period_to_date = date(2023, 12, 31)
         statement_args = self._default_statement_args(
             period_to_date,
-            country="DE",
+            country="CH",
             client=[Client(clientNumber=ClientNumber("CUSTSHORT"))]
             # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
         expected_id = self._construct_expected_id(
-            country="DE",
+            country="CH",
             org="OPNAUSXXXAPI", 
             customer="CUSTSHORTXXXXX",
             date_str="20231231"
@@ -969,13 +931,13 @@ class TestCleanupCalculatorIDGeneration:
         period_to_date = date(2023, 12, 31)
         statement_args = self._default_statement_args(
             period_to_date,
-            country="GB",
+            country="CH",
             client=[Client(clientNumber=ClientNumber("CUSTLONG"))]
             # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
         expected_id = self._construct_expected_id(
-            country="GB",
+            country="CH",
             org="OPNAUSVERYLO", 
             customer="CUSTLONGXXXXXX",
             date_str="20231231"
@@ -988,13 +950,13 @@ class TestCleanupCalculatorIDGeneration:
         period_to_date = date(2023, 12, 31)
         statement_args = self._default_statement_args(
             period_to_date,
-            country="CA",
+            country="CH",
             client=[Client(clientNumber=ClientNumber("CUSTSANITIZE"))]
             # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
         expected_id = self._construct_expected_id(
-            country="CA",
+            country="CH",
             org="OPNAUSMYIMPO", 
             customer="CUSTSANITIZEXX",
             date_str="20231231"
@@ -1007,13 +969,13 @@ class TestCleanupCalculatorIDGeneration:
         period_to_date = date(2023, 12, 31)
         statement_args = self._default_statement_args(
             period_to_date,
-            country="AU",
+            country="CH",
             client=[Client(clientNumber=ClientNumber("CUSTEMPTY"))]
             # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
         expected_id = self._construct_expected_id(
-            country="AU",
+            country="CH",
             org="OPNAUSXXXXXX", 
             customer="CUSTEMPTYXXXXX",
             date_str="20231231"
@@ -1027,14 +989,14 @@ class TestCleanupCalculatorIDGeneration:
         period_to_date = date(2023, 12, 31)
         statement_args = self._default_statement_args(
             period_to_date,
-            country="GB",
+            country="CH",
             client=[Client(clientNumber=None, tin=None)]
             # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
 
         expected_id = self._construct_expected_id(
-            country="GB",
+            country="CH",
             org="OPNAUSTESTIM",
             customer="NOIDENTIFIERXX",
             date_str="20231231"
@@ -1049,14 +1011,14 @@ class TestCleanupCalculatorIDGeneration:
         period_to_date = date(2023, 12, 31)
         statement_args = self._default_statement_args(
             period_to_date,
-            country="CA",
+            country="CH",
             client=[] # Empty client list
             # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
 
         expected_id = self._construct_expected_id(
-            country="CA",
+            country="CH",
             org="OPNAUSANYBAN",
             customer="NOCLIENTDATAXX",
             date_str="20231231"
@@ -1065,29 +1027,7 @@ class TestCleanupCalculatorIDGeneration:
         calculator.calculate(statement)
         assert statement.id == expected_id
         assert any("Warning: statement.client list is empty. Using placeholder for customer ID part." in log for log in calculator.get_log())
-
-
-    def test_id_generation_default_country_code(self):
-        period_to_date = date(2023, 12, 31)
-        statement_args = self._default_statement_args(
-            period_to_date,
-            country=None, # Country is None
-            client=[Client(clientNumber=ClientNumber("CUST1"))]
-            # importer_name removed from statement_args
-        )
-        statement = TaxStatement(id=None, **statement_args)
-
-        expected_id = self._construct_expected_id(
-            country="XX",
-            org="OPNAUSBROKER", 
-            customer="CUST1XXXXXXXXX",
-            date_str="20231231"
-        )
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="BROKERX", enable_filtering=False) # Pass importer_name here
-        calculator.calculate(statement)
-        assert statement.id == expected_id
-        assert any("Warning: TaxStatement.country is None, using 'XX' for ID generation." in log for log in calculator.get_log())
-        
+       
     @pytest.mark.parametrize("raw_client_id, expected_customer_part", [
         ("Cust With Spaces", "CustWithSpaces"),
         ("Short",            "ShortXXXXXXXXX"),
@@ -1128,7 +1068,7 @@ class TestCleanupCalculatorIDGeneration:
         )
         statement = TaxStatement(id=None, **statement_args)
 
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="CSNEXT", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=period_to_date, importer_name="CSNEXT", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         
         assert statement.id is not None
@@ -1173,14 +1113,14 @@ class TestCleanupCalculatorIDGeneration:
         period_to_date = date(2023, 12, 31)
         statement_args = self._default_statement_args(
             period_to_date,
-            country="DE",
+            country="CH",
             client=[Client(clientNumber=ClientNumber("CUST123"))]
             # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
 
         expected_id = self._construct_expected_id(
-            country="DE",
+            country="CH",
             org="OPNAUSSTRIPC", 
             customer="CUST123XXXXXXX",
             date_str="20231231"

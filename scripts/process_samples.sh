@@ -42,7 +42,7 @@ else
   echo "Running in CALCULATE and RENDER mode"
 fi
 
-EXTRA_ARGS="--tax-year 2024"
+EXTRA_ARGS="--tax-year 2024 --debug-dump $OUTPUT_DIR/debug"
 
 # Ensure output directory exists
 mkdir -p "$OUTPUT_DIR"
