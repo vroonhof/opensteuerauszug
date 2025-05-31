@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field, validator, field_validator, StringConstraints, AfterValidator
 from pydantic.fields import FieldInfo # Import FieldInfo
 from pydantic import ConfigDict # Import ConfigDict for model_config
-from typing import List, Optional, Any, Dict, TypeVar, Type, Union, get_origin, get_args, Literal, Annotated # Import helpers & Literal, Annotated
+from typing import ClassVar, List, Optional, Any, Dict, TypeVar, Type, Union, get_origin, get_args, Literal, Annotated # Import helpers & Literal, Annotated
 from datetime import date, datetime
 from decimal import Decimal
 import lxml.etree as ET
@@ -262,7 +262,7 @@ class BaseXmlModel(BaseModel):
     unknown_attrs: Dict[str, str] = Field(default_factory=dict, exclude=True, repr=False)
     unknown_elements: List[Any] = Field(default_factory=list, exclude=True, repr=False)
 
-    model_config: ConfigDict = {
+    model_config: ClassVar[ConfigDict] = {
         "arbitrary_types_allowed": True,
         "extra": "allow",  # Allow extra attributes like we had in Config
     }

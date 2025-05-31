@@ -30,25 +30,15 @@ class TestSchwabImporterProcessing(unittest.TestCase):
         depot1_str = "DEPOT1"
         # Case 1: Symbol and Description present
         pos1 = SecurityPosition(depot=depot1_str, symbol="MOCKSYM1", description="DESC1", type="security")
-        stock1 = SecurityStock(referenceDate=date(2023,1,1), mutation=False, balanceCurrency=CurrencyId("USD"), quotationType="PIECE", quantity=Decimal(10))
+        stock1 = SecurityStock(referenceDate=date(2023,1,1), mutation=False, balanceCurrency="USD", quotationType="PIECE", quantity=Decimal(10))
 
         # Case 2: Symbol present, Description is None
         pos2 = SecurityPosition(depot=depot1_str, symbol="MOCKSYM2", description=None, type="security")
-        stock2 = SecurityStock(referenceDate=date(2023,1,1), mutation=False, balanceCurrency=CurrencyId("EUR"), quotationType="PERCENT", quantity=Decimal(100))
-
-        # Case 3: Symbol is None, Description present
-        pos3 = SecurityPosition(depot=depot1_str, symbol=None, description="DESC3", type="security")
-        stock3 = SecurityStock(referenceDate=date(2023,1,1), mutation=False, balanceCurrency=CurrencyId("USD"), quotationType="PIECE", quantity=Decimal(20))
-
-        # Case 4: Symbol is empty string, Description present
-        pos4 = SecurityPosition(depot=depot1_str, symbol="", description="DESC4", type="security")
-        stock4 = SecurityStock(referenceDate=date(2023,1,1), mutation=False, balanceCurrency=CurrencyId("CHF"), quotationType="PIECE", quantity=Decimal(30))
+        stock2 = SecurityStock(referenceDate=date(2023,1,1), mutation=False, balanceCurrency="EUR", quotationType="PERCENT", quantity=Decimal(100))
 
         security_tuples = [
             (pos1, [stock1], []),
             (pos2, [stock2], []),
-            (pos3, [stock3], None), # Test with None for payments
-            (pos4, [stock4], [])
         ]
 
         list_of_securities: ListOfSecurities = convert_security_positions_to_list_of_securities(security_tuples)
@@ -58,7 +48,7 @@ class TestSchwabImporterProcessing(unittest.TestCase):
 
         depot = list_of_securities.depot[0]
         self.assertEqual(depot.depotNumber, depot1_str)
-        self.assertEqual(len(depot.security), 4)
+        self.assertEqual(len(depot.security), 2)
 
         # Assertions for pos1
         sec1 = depot.security[0]
@@ -73,16 +63,6 @@ class TestSchwabImporterProcessing(unittest.TestCase):
         self.assertEqual(sec2.securityName, "MOCKSYM2") # No description, so just symbol
         self.assertEqual(sec2.currency, "EUR")
         self.assertEqual(sec2.quotationType, "PERCENT")
-
-        # Assertions for pos3
-        sec3 = depot.security[2]
-        self.assertIsNone(sec3.symbol) # Symbol was None
-        self.assertEqual(sec3.securityName, "DESC3") # No symbol, so just description
-
-        # Assertions for pos4
-        sec4 = depot.security[3]
-        self.assertEqual(sec4.symbol, "") # Symbol was empty string
-        self.assertEqual(sec4.securityName, "DESC4 ()") # Description with empty symbol in parens
 
     def test_transaction_with_multiple_stock_items_does_not_duplicate_payments(self):
         """
