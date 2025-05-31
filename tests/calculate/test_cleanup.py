@@ -1131,6 +1131,7 @@ class TestCleanupCalculatorIDGeneration:
         calculator = CleanupCalculator(period_from=None, period_to=None, importer_name="CSNEXT", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         
+        assert statement.id is not None
         actual_date_part = statement.id[28:28+8] # Adjusted index: CC(2) + ORG(12) + CUST(14) = 28
         assert actual_date_part == "20240315"
 
