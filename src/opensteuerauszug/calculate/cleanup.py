@@ -1,5 +1,5 @@
 import re # Added for sanitization
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Optional, Dict # Added Dict
 # import os # Removed os import
 # Removed pandas import
@@ -15,8 +15,8 @@ class CleanupCalculator:
     3. Optionally enriching securities with missing ISIN/Valor from a provided map.
     """
     def __init__(self,
-                 period_from: Optional[date],
-                 period_to: Optional[date],
+                 period_from: date,
+                 period_to: date,
                  importer_name: str, # Added importer_name parameter
                  identifier_map: Optional[Dict[str, Dict[str, any]]] = None,
                  enable_filtering: bool = True,
@@ -123,6 +123,7 @@ class CleanupCalculator:
 
         # 5. Date (8 chars)
         # statement.periodTo is mandatory, so direct access should be safe.
+        assert statement.periodTo is not None
         date_str = statement.periodTo.strftime("%Y%m%d")
 
         # 6. Sequential Number (2 chars)
@@ -140,6 +141,17 @@ class CleanupCalculator:
         self.log_messages = []
         self._log("Starting cleanup calculation...")
 
+        # set some standard values
+        statement.minorVersion = 22
+        statement.periodFrom = self.period_from
+        statement.periodTo = self.period_to
+        # Defensive for simpler testing in isolation
+        statement.taxPeriod = self.period_to.year if self.period_to else None
+        statement.country = "CH" # We are handling Swiss taxes
+
+        # TODO: Inject current time?
+        statement.creationDate = datetime.now()
+
         # Generate statement ID if it's missing
         if statement.id is None:
             try:
@@ -148,9 +160,9 @@ class CleanupCalculator:
                 self.modified_fields.append("TaxStatement.id (generated)")
             except NotImplementedError as e: # Should ideally not be raised if logic is complete
                 self._log(f"Error generating TaxStatement.id (NotImplemented): {e}")
-            except Exception as e: # Catch any other unexpected error during ID generation
-                self._log(f"Unexpected error during TaxStatement.id generation: {e}")
-                # statement.id will remain None, allowing process to potentially continue
+            #except Exception as e: # Catch any other unexpected error during ID generation
+            #    self._log(f"Unexpected error during TaxStatement.id generation: {e}")
+            #    # statement.id will remain None, allowing process to potentially continue
 
         # Process Bank Accounts
         if statement.listOfBankAccounts and statement.listOfBankAccounts.bankAccount:
