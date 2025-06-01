@@ -1,14 +1,21 @@
 from typing import Optional, Union, Literal, List, Any
 from pydantic import BaseModel, Field, field_validator, PrivateAttr
 
+from opensteuerauszug.model.ech0196 import ISINType, ValorNumber
+
 class BasePosition(BaseModel):
     depot: str
+
+    model_config = {
+        "frozen": True,
+        "arbitrary_types_allowed": True,
+    }
 
     def _comparison_key(self):
         # To be overridden by subclasses for relevant fields
         return (self.depot,)
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, BasePosition):
             return NotImplemented
         return self._comparison_key() == other._comparison_key()
@@ -30,6 +37,11 @@ class CashPosition(BasePosition):
     cash_account_id: Optional[str] = Field(default=None, description="Optional identifier for a specific cash account within the same depot and currency")
     _identifier_str: Optional[str] = PrivateAttr(default=None)
 
+    model_config = {
+        "frozen": True,
+        "arbitrary_types_allowed": True,
+    }
+
     def _comparison_key(self):
         return (self.depot, self.currentCy, self.cash_account_id)
 
@@ -46,8 +58,8 @@ class SecurityPosition(BasePosition):
     Security position model. Equality and hash ignore 'description' and 'security_type'.
     """
     type: Literal["security"] = "security"
-    valor: Optional[str] = None
-    isin: Optional[str] = None
+    valor: Optional[ValorNumber] = None
+    isin: Optional[ISINType] = Field(default=None, pattern=r"[A-Z]{2}[A-Z0-9]{9}[0-9]{1}")
     symbol: str
     security_type: Optional[str] = Field(default=None, alias="securityType", description="Type of security, if available")
     description: Optional[str] = Field(default=None, description="Description of the security from the import file")
@@ -76,5 +88,11 @@ class SecurityPosition(BasePosition):
     def validate_security_type(cls, v):
         # Allow None or empty
         return v
+    
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "frozen": True,
+    }
+
 
 Position = Union[CashPosition, SecurityPosition] 

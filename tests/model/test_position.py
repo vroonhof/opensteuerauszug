@@ -1,11 +1,12 @@
 import pytest
+from opensteuerauszug.model.ech0196 import ISINType, ValorNumber
 from opensteuerauszug.model.position import SecurityPosition
 
 def test_security_position_equality_and_hash():
-    a = SecurityPosition(depot='D1', valor='123', isin='ISIN1', symbol='SYM', securityType='A', description='desc1')
-    b = SecurityPosition(depot='D1', valor='123', isin='ISIN1', symbol='SYM', securityType='B', description='desc2')
-    c = SecurityPosition(depot='D1', valor='123', isin='ISIN1', symbol='SYM', securityType=None, description=None)
-    d = SecurityPosition(depot='D1', valor='123', isin='ISIN1', symbol='DIFF', securityType='A', description='desc1')
+    a = SecurityPosition(depot='D1', valor=ValorNumber(123), isin=ISINType('CH0000000001'), symbol='SYM', securityType='A', description='desc1')
+    b = SecurityPosition(depot='D1', valor=ValorNumber(123), isin=ISINType('CH0000000001'), symbol='SYM', securityType='B', description='desc2')
+    c = SecurityPosition(depot='D1', valor=ValorNumber(123), isin=ISINType('CH0000000001'), symbol='SYM', securityType=None, description=None)
+    d = SecurityPosition(depot='D1', valor=ValorNumber(123), isin=ISINType('CH0000000002'), symbol='DIFF', securityType='A', description='desc1')
 
     # a, b, c should be equal, d should not
     assert a == b
