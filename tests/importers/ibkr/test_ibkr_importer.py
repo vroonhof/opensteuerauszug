@@ -35,8 +35,8 @@ SAMPLE_IBKR_FLEX_XML_VALID = """
         <CashTransaction accountId="U1234567" type="Dividends" currency="USD" amount="50.00" description="MSFT Dividend" conid="272120" symbol="MSFT" dateTime="2023-09-05T00:00:00" assetCategory="STK" />
       </CashTransactions>
       <CashReport>
-        <CashReportCurrency accountId="U1234567" currency="USD" startingCash="0" endingCash="3148.50" reportDate="2023-12-31" />
-        <CashReportCurrency accountId="U1234567" currency="EUR" startingCash="0" endingCash="0" reportDate="2023-12-31" />
+        <CashReportCurrency accountId="U1234567" currency="USD" startingCash="0" endingCash="3148.50" fromDate="2023-01-01" toDate="2023-12-31" />
+        <CashReportCurrency accountId="U1234567" currency="EUR" startingCash="0" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
       </CashReport>
     </FlexStatement>
   </FlexStatements>
@@ -58,11 +58,23 @@ SAMPLE_IBKR_FLEX_XML_MISSING_FIELD = """
 
 @pytest.fixture
 def sample_ibkr_settings() -> List[IbkrAccountSettings]:
-    return [IbkrAccountSettings(account_id="U1234567", name="Test IBKR Account")]
+    return [IbkrAccountSettings(
+        account_number="U1234567",
+        broker_name="Interactive Brokers",
+        account_name_alias="Test IBKR Account",
+        canton="ZH",  # Placeholder
+        full_name="Test User"  # Placeholder
+    )]
 
 @pytest.fixture
 def sample_ibkr_settings_other_account() -> List[IbkrAccountSettings]:
-    return [IbkrAccountSettings(account_id="U7654321", name="Test IBKR Account Missing")]
+    return [IbkrAccountSettings(
+        account_number="U7654321",
+        broker_name="Interactive Brokers",
+        account_name_alias="Test IBKR Account Missing",
+        canton="ZH",  # Placeholder
+        full_name="Test User Missing"  # Placeholder
+    )]
 
 
 def test_ibkr_import_valid_xml(sample_ibkr_settings):
@@ -97,7 +109,7 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         msft_sec = next((s for s in depot.security if s.securityName == "MICROSOFT CORP (MSFT)"), None)
         assert msft_sec is not None
         assert msft_sec.isin == "US5949181045"
-        assert msft_sec.currency == CurrencyId.USD
+        assert msft_sec.currency == "USD"
         assert len(msft_sec.stock) == 2 # 1 trade (mutation) + 1 open position (balance)
         assert msft_sec.stock[0].mutation is True # Trade
         assert msft_sec.stock[0].quantity == Decimal("10")
@@ -106,7 +118,7 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert msft_sec.stock[1].referenceDate == date(2023,12,31)
 
         assert len(msft_sec.payment) == 1 # Only 1 for the BUY trade. Dividend is in BankAccountPayment
-        buy_payment = next((p for p in msft_sec.payment if "Trade:" in p.name and "MSFT" in p.name), None)
+        buy_payment = next((p for p in msft_sec.payment if p.name and "Trade:" in p.name and "MSFT" in p.name), None)
         assert buy_payment is not None
         assert buy_payment.amount == Decimal("-2801.00") # netCash for BUY
 
@@ -123,7 +135,7 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert tax_statement.listOfBankAccounts is not None
         assert len(tax_statement.listOfBankAccounts.bankAccount) == 1 # Only USD account has transactions + balance
 
-        usd_account = next((ba for ba in tax_statement.listOfBankAccounts.bankAccount if ba.bankAccountCurrency == CurrencyId.USD), None)
+        usd_account = next((ba for ba in tax_statement.listOfBankAccounts.bankAccount if ba.bankAccountCurrency == "USD"), None)
         assert usd_account is not None
         assert usd_account.bankAccountNumber == "U1234567-USD"
 
@@ -138,9 +150,8 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
 
 
         assert usd_account.taxValue is not None
-        assert len(usd_account.taxValue) == 1
-        assert usd_account.taxValue[0].balance == Decimal("3148.50")
-        assert usd_account.taxValue[0].referenceDate == date(2023,12,31)
+        assert usd_account.taxValue.balance == Decimal("3148.50")
+        assert usd_account.taxValue.referenceDate == date(2023,12,31)
 
     finally:
         if os.path.exists(xml_file_path):
