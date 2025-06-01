@@ -1,0 +1,13 @@
+<FlexQueryResponse queryName="TestQueryMissingField" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="UERROR456" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T11:05:00">
+      <Trades>
+        <!-- Missing tradePrice -->
+        <Trade transactionID="T003" accountId="UERROR456" assetCategory="STK" symbol="AMZN" description="AMAZON.COM INC" conid="11223" currency="USD" quantity="5" tradeDate="2023-04-01" settleDateTarget="2023-04-03" tradeMoney="750.00" buySell="BUY" ibCommission="-0.80" ibCommissionCurrency="USD" netCash="-750.80" />
+      </Trades>
+      <CashReport>
+        <CashReportCurrency accountId="UERROR456" currency="USD" startingCash="1000" endingCash="249.20" reportDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>

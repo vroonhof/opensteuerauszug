@@ -37,7 +37,7 @@ class SchwabAccountSettings(AccountSettingsBase):
 #     ubs_specific_feature_enabled: bool = False
 
 # A type union for all possible specific account settings models
-SpecificAccountSettingsUnion = Union[SchwabAccountSettings] # Add other types like UBSAccountSettings here
+SpecificAccountSettingsUnion = Union[SchwabAccountSettings, IbkrAccountSettings] # Add other types like UBSAccountSettings here
 
 class ConcreteAccountSettings(BaseModel):
     '''
@@ -46,7 +46,7 @@ class ConcreteAccountSettings(BaseModel):
     The 'settings' field will contain an instance of SchwabAccountSettings,
     or other specific types in the future.
     '''
-    kind: Literal["schwab"] # Add other literals like "ubs" when more types are supported
+    kind: Literal["schwab", "ibkr"] # Add other literals like "ubs" when more types are supported
     settings: SpecificAccountSettingsUnion
     
     # Delegate attribute access to the underlying specific settings model
@@ -65,3 +65,26 @@ class ConcreteAccountSettings(BaseModel):
 # resolved_data = {"canton": "ZH", ..., "broker_name": "schwab", ...}
 # schwab_settings = SchwabAccountSettings(**resolved_data)
 # concrete_settings = ConcreteAccountSettings(kind="schwab", settings=schwab_settings)
+
+
+class IbkrAccountSettings(AccountSettingsBase):
+    """
+    Settings for a single Interactive Brokers account.
+    """
+    name: Optional[str] = Field(default=None, description="A user-defined name for this account (e.g., 'My IBKR Trading Account').")
+    account_id: Optional[str] = Field(default=None, description="The Interactive Brokers account ID (e.g., U1234567). Optional, as this is usually in the Flex statement, but can be used for validation or selection if a statement contains multiple accounts.")
+    # Add any other IBKR-specific settings here if needed in the future,
+    # for example, default currency assumptions if not always clear from the report,
+    # or specific reconciliation strategies.
+    strict_validation: bool = Field(default=True, description="If True, perform stricter validation of statement data against settings (e.g., matching account_id).")
+
+    # Note: This inherits account_number from AccountSettingsBase, which is good.
+    # IBKR's account_id (e.g. U1234567) should typically be mapped to account_number.
+    # The separate 'account_id' field here can be kept for clarity or future use if needed,
+    # but for consistency with AccountSettingsBase, the primary IBKR account ID should populate 'account_number'.
+    # Consider a validator or pre-processing step if 'account_id' is provided and 'account_number' is not,
+    # to automatically populate 'account_number' from 'account_id'.
+    # For now, we assume 'account_number' will be correctly set to the IBKR account ID.
+
+    # Ensure this model is added to the ImporterSettings union type if that's how specific settings are handled.
+    # For now, assuming it will be directly used by the CLI or main application.

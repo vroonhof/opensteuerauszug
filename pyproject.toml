@@ -25,6 +25,7 @@ dependencies = [
     "reportlab>=4.0.0", # Added for PDF generation in render module
     "python-barcode>=0.15.0", # Added for barcode generation in render module
     "pypdf>=4.0.0", # Use pypdf for PDF reading and analysis
+    "ibflex>=0.9.0",
     # TODO make these formal dependencies 
     # pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
 ]
