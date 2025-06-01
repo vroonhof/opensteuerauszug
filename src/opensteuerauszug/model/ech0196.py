@@ -1146,6 +1146,36 @@ class Security(BaseXmlModel):
         "json_schema_extra": {'tag_name': 'security', 'tag_namespace': NS_MAP['eCH-0196']}
     }
 
+    @field_validator('securityName', mode='before')
+    @classmethod
+    def truncate_security_name(cls, v: str) -> str:
+        """Truncate security name to fit eCH-0196 60-character limit using Pydantic-style format.
+        
+        Preserves the beginning and end of the name with '...' in the middle if truncation is needed.
+        See docs/SPEC_ISSUES.md for details on the eCH-0196 vs Kursliste specification discrepancy.
+        """
+        if len(v) <= 60:
+            return v
+        
+        # Calculate how many characters we can preserve from start and end
+        # Format: "start...end" where total length = 60
+        ellipsis = "..."
+        available_chars = 60 - len(ellipsis)  # 57 characters for actual content
+        
+        # Split available characters between start and end, favoring the start slightly
+        start_chars = (available_chars + 1) // 2  # 29 characters
+        end_chars = available_chars - start_chars  # 28 characters
+        
+        start_part = v[:start_chars]
+        end_part = v[-end_chars:] if end_chars > 0 else ""
+        
+        truncated = f"{start_part}{ellipsis}{end_part}"
+        
+        # Ensure we didn't somehow exceed 60 characters
+        assert len(truncated) == 60, f"Truncated name length {len(truncated)} != 60"
+        
+        return truncated
+
 
 class Depot(BaseXmlModel):
     security: List[Security] = Field(default_factory=list, alias="security", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
