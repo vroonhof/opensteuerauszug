@@ -26,6 +26,7 @@ dependencies = [
     "python-barcode>=0.15.0", # Added for barcode generation in render module
     "pypdf>=4.0.0", # Use pypdf for PDF reading and analysis
     "ibflex @ git+https://github.com/vroonhof/ibflex.git",
+    "requests", # actually an undeclared dependecy of ibflex [not as optional as it says on the tin]
     # TODO make these formal dependencies 
     # pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
 ]
