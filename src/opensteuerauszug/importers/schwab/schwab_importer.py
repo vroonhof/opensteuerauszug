@@ -416,7 +416,8 @@ def convert_security_positions_to_list_of_securities(
             securityCategory="SHARE",  # Stub
             securityName=security_name,
             stock=stocks,
-            payment=payments or []
+            payment=payments or [],
+            symbol=pos.symbol  # Add this line
         )
         depots[depot_number].security.append(sec)
     return ListOfSecurities(depot=list(depots.values()))

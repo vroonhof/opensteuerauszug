@@ -26,8 +26,6 @@ from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from .config import ConfigManager, ConcreteAccountSettings
 
-Portfolio = TaxStatement
-
 app = typer.Typer()
 
 class Phase(str, Enum):
@@ -188,9 +186,17 @@ def main(
     else:
         print("No specific broker targeted by --importer or --broker for detailed configuration loading. Proceeding with general setup.")
 
-    portfolio: Optional[Portfolio] = None
 
-    def dump_debug_model(current_phase_str: str, model: Portfolio):
+    # This variable is used later for Schwab Importer instantiation
+    account_settings: Optional[ConcreteAccountSettings] = None # Retain for now, as Schwab Importer instantiation still uses it.
+                                                              # This will be addressed in the next step.
+                                                              # For this step, we focus on populating all_schwab_account_settings_models.
+                                                              # If Schwab importer is used, the old account_settings will be effectively ignored
+                                                              # as all_schwab_account_settings_models takes precedence in logic flow.
+
+    statement: Optional[TaxStatement] = None # Now refers to TaxStatement
+
+    def dump_debug_model(current_phase_str: str, model: TaxStatement):
         if debug_dump_path and model:
             debug_dump_path.mkdir(parents=True, exist_ok=True)
             dump_file = debug_dump_path / f"portfolio_{current_phase_str}.xml"
@@ -211,9 +217,9 @@ def main(
         try:
             if not input_file.is_file():
                 raise typer.BadParameter(f"Raw import requires a file, but got a directory: {input_file}")
-            portfolio = Portfolio.from_xml_file(str(input_file))
+            statement = TaxStatement.from_xml_file(str(input_file))
             print("Raw import complete.")
-            dump_debug_model("raw_import", portfolio)
+            dump_debug_model("raw_import", statement)
         except Exception as e:
             print(f"Error during raw XML import from {input_file}: {e}")
             raise typer.Exit(code=1)
@@ -224,6 +230,13 @@ def main(
         if not any(p in run_phases for p in [Phase.VALIDATE, Phase.CALCULATE, Phase.VERIFY, Phase.RENDER]):
              print("No further phases selected after raw import. Exiting.")
              return
+        
+        if not parsed_period_from:
+            parsed_period_from = statement.periodFrom
+        if not parsed_period_to:
+            parsed_period_to = statement.periodTo
+        if not tax_year:
+            tax_year = statement.taxPeriod
 
 
     current_phase = None
@@ -231,7 +244,6 @@ def main(
         if Phase.IMPORT in run_phases and not raw_import:
             current_phase = Phase.IMPORT
             print(f"Phase: {current_phase.value}")
-
             if importer_type == ImporterType.SCHWAB:
                 if not parsed_period_from or not parsed_period_to:
                     raise typer.BadParameter("--period-from and --period-to are required for the Schwab importer.")
@@ -247,7 +259,7 @@ def main(
                     account_settings_list=all_schwab_account_settings_models,
                     strict_consistency=strict_consistency_flag
                 )
-                portfolio = schwab_importer.import_dir(str(input_file))
+                statemeent = schwab_importer.import_dir(str(input_file))
                 print(f"Schwab import complete.")
 
             elif importer_type == ImporterType.IBKR:
@@ -265,33 +277,41 @@ def main(
                     period_to=parsed_period_to,
                     account_settings_list=all_ibkr_account_settings_models
                 )
-                portfolio = ibkr_importer.import_files([str(input_file)])
+                statement = ibkr_importer.import_files([str(input_file)])
                 print(f"IBKR import complete.")
 
             elif importer_type == ImporterType.NONE and not raw_import:
                 print("No specific importer selected, creating an empty TaxStatement for further processing.")
-                portfolio = Portfolio(minorVersion=1) # Use minorVersion 1
+                statement = TaxStatement(minorVersion=2) # type: ignore
             else:
-                print(f"Importer '{importer_type.value}' not implemented or raw_import active. Creating empty TaxStatement.")
-                portfolio = Portfolio(minorVersion=1) # Use minorVersion 1
+                # This case implies an importer was specified but isn't handled yet,
+                # or raw_import is true (which is handled before this block).
+                # If more importers are added, they need to be handled here.
+                print(f"Importer '{importer_type.value}' not yet implemented or not applicable. Creating empty TaxStatement.")
+                statement = TaxStatement(minorVersion=2) # type: ignore
 
-            dump_debug_model(current_phase.value, portfolio)
+            print(f"Import successful (placeholder)." )
+            dump_debug_model(current_phase.value, statement)
 
         # ... (rest of the phases: VALIDATE, CALCULATE, VERIFY, RENDER remain the same) ...
         if Phase.VALIDATE in run_phases:
             current_phase = Phase.VALIDATE
             print(f"Phase: {current_phase.value}")
-            if not portfolio:
-                 raise ValueError("Portfolio model not loaded. Cannot run validate phase.")
-            portfolio.validate_model()
+            if not statement:
+                 raise ValueError("TaxStatement model not loaded. Cannot run validate phase.")
+            # Call the model's validate method
+            statement.validate_model()
             print(f"Validation successful (placeholder check)." )
-            dump_debug_model(current_phase.value, portfolio)
+            dump_debug_model(current_phase.value, statement)
 
         if Phase.CALCULATE in run_phases:
             current_phase = Phase.CALCULATE
             print(f"Phase: {current_phase.value}")
-            if not portfolio:
-                 raise ValueError("Portfolio model not loaded. Cannot run calculate phase.")
+            if not statement:
+                 raise ValueError("TaxStatement model not loaded. Cannot run calculate phase.")
+            
+            if not parsed_period_from or not parsed_period_to:
+                raise ValueError("Both --period-from and --period-to must be specified for the calculate phase.")
             
             effective_identifiers_csv_path: str
             if identifiers_csv_path_opt is None:
@@ -323,9 +343,10 @@ def main(
                 print_log=True,
                 importer_name=importer_type.value
             )
-            portfolio = cleanup_calculator.calculate(portfolio)
+            statement = cleanup_calculator.calculate(statement)
+            # Logs are printed by the calculator itself if print_log=True
             print(f"CleanupCalculator finished. Summary: Modified fields count: {len(cleanup_calculator.modified_fields)}")
-            dump_debug_model(current_phase.value + "_after_cleanup", portfolio)
+            dump_debug_model(current_phase.value + "_after_cleanup", statement) # Optional intermediate dump
 
             exchange_rate_provider: ExchangeRateProvider
             print(f"Using KurslisteExchangeRateProvider with directory: {kursliste_dir}")
@@ -355,26 +376,30 @@ def main(
                 tax_value_calculator = FillInTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider)
             
             if tax_value_calculator and calculator_name:
-                portfolio = tax_value_calculator.calculate(portfolio)
+                statement = tax_value_calculator.calculate(statement)
                 print(f"{calculator_name} finished. Modified fields: {len(tax_value_calculator.modified_fields) if tax_value_calculator.modified_fields else '0'}, Errors: {len(tax_value_calculator.errors)}")
-                dump_debug_model(current_phase.value + f"_after_{calculator_name.lower()}", portfolio)
+                dump_debug_model(current_phase.value + f"_after_{calculator_name.lower()}", statement)
             elif tax_calculation_level != TaxCalculationLevel.NONE:
                 print(f"Warning: Tax calculation level '{tax_calculation_level.value}' was specified but no corresponding calculator was run.")
             else:
                 print(f"Tax calculation level set to '{tax_calculation_level.value}', skipping detailed tax value calculation step.")
 
-            if not portfolio:
-                raise ValueError("Portfolio became None after cleanup phase. This should not happen.")
+            # --- 3. Run TotalCalculator (or other main calculators) ---
+            # Ensure statement is not None after cleanup, though cleanup should always return it
+            if not statement:
+                raise ValueError("TaxStatement became None after cleanup phase. This should not happen.")
             calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
-            portfolio = calculator.calculate(portfolio)
+            
+            # Apply calculations
+            statement = calculator.calculate(statement)
             print(f"TotalCalculator finished. Modified fields: {len(calculator.modified_fields) if calculator.modified_fields else '0'}")
-            dump_debug_model(current_phase.value, portfolio)
+            dump_debug_model(current_phase.value, statement)
 
         if Phase.VERIFY in run_phases:
             current_phase = Phase.VERIFY
             print(f"Phase: {current_phase.value}")
-            if not portfolio:
-                 raise ValueError("Portfolio model not loaded. Cannot run calculate phase.")
+            if not statement:
+                 raise ValueError("TaxStatement model not loaded. Cannot run calculate phase.")
             
             print(f"Verifying with tax calculation level: {tax_calculation_level.value}...")
             exchange_rate_provider_verify: ExchangeRateProvider
@@ -404,7 +429,7 @@ def main(
 
             if tax_value_verifier and verifier_name:
                 print(f"Running {verifier_name} (Verify Mode)...")
-                tax_value_verifier.calculate(portfolio)
+                tax_value_verifier.calculate(statement) # Does not modify statement in verify mode
                 if tax_value_verifier.errors:
                     print(f"{verifier_name} (Verify Mode) encountered {len(tax_value_verifier.errors)} errors:")
                     for error in tax_value_verifier.errors:
@@ -417,7 +442,7 @@ def main(
                 print(f"Tax calculation level set to '{tax_calculation_level.value}', skipping detailed tax value verification step.")
 
             calculator = TotalCalculator(mode=CalculationMode.VERIFY)
-            calculator.calculate(portfolio)
+            calculator.calculate(statement)
             
             if calculator.errors:
                 print(f"Encountered {len(calculator.errors)} fields during calculation")
@@ -426,16 +451,17 @@ def main(
             else:
                 print("No errors calculation")
             
-            calulator = TotalCalculator(mode=CalculationMode.FILL) # Renamed variable to avoid conflict
-            portfolio = calulator.calculate(portfolio) # Use renamed variable
+            # Fill in missing fields to make rendering possible
+            calulator = TotalCalculator(mode=CalculationMode.FILL)
+            statement = calculator.calculate(statement)
             print(f"Calculation successful.")
-            dump_debug_model(current_phase.value, portfolio)
+            dump_debug_model(current_phase.value, statement)
 
         if Phase.RENDER in run_phases:
             current_phase = Phase.RENDER
             print(f"Phase: {current_phase.value}")
-            if not portfolio:
-                 raise ValueError("Portfolio model not loaded. Cannot run render phase.")
+            if not statement:
+                 raise ValueError("TaxStatement model not loaded. Cannot run render phase.")
             if not output_file:
                  raise ValueError("Output file path must be specified for the render phase.")
             
@@ -443,7 +469,8 @@ def main(
                 if not isinstance(org_nr, str) or not org_nr.isdigit() or len(org_nr) != 5:
                     raise ValueError(f"Invalid --org-nr '{org_nr}': Must be a 5-digit string.")
             
-            rendered_path = render_tax_statement(portfolio, output_file, override_org_nr=org_nr)
+            # Use the render_tax_statement function to generate the PDF
+            rendered_path = render_tax_statement(statement, output_file, override_org_nr=org_nr)
             print(f"Rendering successful to {rendered_path}")
 
         print("Processing finished successfully.")
@@ -453,10 +480,10 @@ def main(
         print("Stack trace:")
         import traceback
         traceback.print_exc(limit=3)
-        if portfolio and debug_dump_path:
+        if statement and debug_dump_path:
             error_phase_str = f"{current_phase.value}_error" if current_phase else "startup_error"
             try:
-                dump_debug_model(error_phase_str, portfolio)
+                dump_debug_model(error_phase_str, statement)
             except Exception as dump_e:
                 print(f"Failed to dump debug model after error: {dump_e}")
         raise typer.Exit(code=1)
