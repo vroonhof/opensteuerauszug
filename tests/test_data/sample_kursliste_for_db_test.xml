@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste kursliste-2.0.0.xsd"
+           version="2.0.0.1" creationDate="2024-01-15T09:00:00" year="2023">
+
+    <share id="101" quoted="true" source="KURSLISTE" securityGroup="SHARE" securityType="SHARE.COMMON" valorNumber="123456" isin="CH0012345678" currency="CHF" nominalValue="10.00" country="CH">
+        <securityName>Test Share AG</securityName>
+        <institutionId>999</institutionId>
+        <institutionName>Test Bank</institutionName>
+        <yearend id="10101" quotationType="PIECE" taxValue="150.50" taxValueCHF="150.50" />
+    </share>
+
+    <bond id="202" quoted="true" source="KURSLISTE" securityGroup="BOND" securityType="BOND.BOND" valorNumber="789012" isin="CH0078901234" currency="EUR" nominalValue="1000.00" country="CH">
+        <securityName>Test Bond Corp</securityName>
+        <institutionId>998</institutionId>
+        <institutionName>Another Test Bank</institutionName>
+        <yearend id="20201" quotationType="PERCENT" percent="101.25" taxValue="1012.50" /> <!-- Assuming taxValue is nominal * percent / 100 -->
+    </bond>
+    
+    <exchangeRate currency="USD" date="2023-11-10" denomination="1" value="0.8950" />
+    <exchangeRate currency="GBP" date="2023-11-12" denomination="1" value="1.12345" />
+
+    <exchangeRateMonthly currency="USD" year="2023" month="11" denomination="1" value="0.9000" />
+    <exchangeRateMonthly currency="JPY" year="2023" month="10" denomination="100" value="0.6500" />
+
+    <exchangeRateYearEnd currency="USD" year="2023" denomination="1" value="0.8800" valueMiddle="0.8850" />
+    <exchangeRateYearEnd currency="EUR" year="2023" denomination="1" value="0.9600" />
+
+</kursliste>

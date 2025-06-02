@@ -6,53 +6,135 @@ for different tax years.
 """
 
 import os
+import re # For parsing year from filename
 import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union # Union will be removed from self.kurslisten type
 
-from opensteuerauszug.model.kursliste import Kursliste
+from opensteuerauszug.model.kursliste import Kursliste, Security # Added Security for type hint
+from .kursliste_db_reader import KurslisteDBReader
+from .kursliste_accessor import KurslisteAccessor # Added import
 
 
 class KurslisteManager:
     """
-    Manages multiple Kursliste instances for different tax years.
+    Manages KurslisteAccessors for different tax years.
     
-    This class loads and provides access to Kursliste files from a directory,
-    organizing them by tax year for easy lookup.
+    This class loads Kursliste data (prioritizing SQLite over XML), wraps it
+    in a KurslisteAccessor, and provides methods to retrieve data.
     """
     
     def __init__(self):
         """Initialize an empty KurslisteManager."""
-        self.kurslisten: Dict[int, List[Kursliste]] = {}
-    
+        self.kurslisten: Dict[int, KurslisteAccessor] = {} # Changed type hint
+
+    def _get_year_from_filename(self, filename: str) -> Optional[int]:
+        """
+        Extracts the year from a filename like 'kursliste_2023.xml' or '2023_data.xml'.
+        Tries to find a 4-digit number that looks like a year.
+        """
+        # Try to find 'kursliste_YYYY' or 'YYYY'
+        match = re.search(r'(?:kursliste_)?(\d{4})', filename)
+        if match:
+            year_str = match.group(1)
+            year = int(year_str)
+            # Basic sanity check for a reasonable year range
+            if 1900 < year < 2100:
+                return year
+        return None
+
     def load_directory(self, directory_path: Union[str, Path]) -> None:
         """
-        Load all Kursliste XML files from the specified directory.
+        Load Kursliste data (SQLite DBs or XML files) from the specified directory.
+        Prioritizes SQLite DBs (e.g., kursliste_YYYY.sqlite) if found for a year.
+        Otherwise, loads XML files for that year.
         
         Args:
             directory_path: Path to directory containing Kursliste XML files
         """
         directory = Path(directory_path)
         if not directory.exists() or not directory.is_dir():
-            raise ValueError(f"Directory does not exist: {directory}")
+            raise ValueError(f"Directory does not exist or is not a directory: {directory}")
+
+        potential_files = list(directory.glob("*.xml")) + list(directory.glob("*.sqlite"))
         
-        for file_path in directory.glob("*.xml"):
-            try:
-                kursliste = self._load_kursliste_from_file(file_path)
-                tax_year = kursliste.year
+        # Determine years and file types
+        year_file_map: Dict[int, Dict[str, List[Path]]] = {} # year -> {"xml": [...], "sqlite": [...]}
+
+        for file_path in potential_files:
+            year = self._get_year_from_filename(file_path.name)
+            if year:
+                year_file_map.setdefault(year, {"xml": [], "sqlite": []})
+                if file_path.suffix == ".xml":
+                    year_file_map[year]["xml"].append(file_path)
+                elif file_path.suffix == ".sqlite":
+                    year_file_map[year]["sqlite"].append(file_path)
+        
+        for year, files in sorted(year_file_map.items()):
+            if year in self.kurslisten: # Already processed (e.g. by a DB for this year)
+                continue
+
+            sqlite_files = files["sqlite"]
+            xml_files = files["xml"]
+
+            # Prioritize SQLite DB
+            # Use the first SQLite file found for that year (e.g. kursliste_YYYY.sqlite)
+            db_loaded_for_year = False
+            data_source: Optional[Union[KurslisteDBReader, List[Kursliste]]] = None # Initialize data_source
+
+            if sqlite_files:
+                # Attempt to find a specifically named SQLite file first
+                expected_db_name = f"kursliste_{year}.sqlite"
+                db_to_load = None
+                for f_sqlite in sqlite_files:
+                    if f_sqlite.name == expected_db_name:
+                        db_to_load = f_sqlite
+                        break
+                if not db_to_load: # If not found, take the first sqlite file for that year
+                    db_to_load = sqlite_files[0]
                 
-                if tax_year not in self.kurslisten:
-                    self.kurslisten[tax_year] = []
+                data_source: Optional[Union[KurslisteDBReader, List[Kursliste]]] = None
+                try:
+                    print(f"Loading KurslisteDBReader for year {year} from {db_to_load.name}")
+                    data_source = KurslisteDBReader(str(db_to_load))
+                    db_loaded_for_year = True
+                except Exception as e:
+                    print(f"Error loading KurslisteDBReader from {db_to_load.name} for year {year}: {e}")
+                    # Fallback to XML if DB loading fails for some reason
+                    db_loaded_for_year = False # Ensure this is reset
+                    data_source = None # Clear data_source from failed DB attempt
+            
+            if not db_loaded_for_year and xml_files: # Fallback to XML files
+                loaded_xmls_for_year: List[Kursliste] = []
+                for xml_file_path in xml_files:
+                    try:
+                        print(f"Loading Kursliste XML for year {year} from {xml_file_path.name}")
+                        kursliste_obj = Kursliste.from_xml_file(xml_file_path, denylist=set())
+                        
+                        if kursliste_obj.year != year:
+                            # This situation might indicate a misnamed file or incorrect XML content.
+                            # For now, we'll associate with the year derived from the filename.
+                            # Consider logging a more severe warning or specific handling strategy if needed.
+                            print(f"Warning: Year mismatch for {xml_file_path.name}. Filename year: {year}, XML content year: {kursliste_obj.year}. Associating with filename year: {year}.")
+                        
+                        loaded_xmls_for_year.append(kursliste_obj)
+                    except Exception as e:
+                        print(f"Error loading Kursliste XML from {xml_file_path.name} for year {year}: {e}")
                 
-                self.kurslisten[tax_year].append(kursliste)
-            except Exception as e:
-                # Log error but continue processing other files
-                print(f"Error loading Kursliste from {file_path}: {e}")
-    
-    def _load_kursliste_from_file(self, file_path: Path) -> Kursliste:
+                if loaded_xmls_for_year:
+                    data_source = loaded_xmls_for_year
+            
+            if data_source:
+                self.kurslisten[year] = KurslisteAccessor(data_source, year)
+            elif not sqlite_files and not xml_files : # Only print if no files for year were found at all
+                 print(f"No data files found for year {year} in {directory_path}")
+
+
+    def _load_kursliste_from_file(self, file_path: Path) -> Kursliste: # This method might become less central or removed
         """
-        Load a Kursliste from an XML file.
+        Load a Kursliste from an XML file. (Consider if this is still needed as public/private)
+        Now internal logic in load_directory uses Kursliste.from_xml_file directly.
         
         Args:
             file_path: Path to the XML file
@@ -62,62 +144,89 @@ class KurslisteManager:
         """
         try:
             # Use the from_xml_file class method to parse the XML file
-            return Kursliste.from_xml_file(file_path)
+            return Kursliste.from_xml_file(file_path, denylist=set()) # Ensure all data loaded
         except Exception as e:
             # Provide more context about the error
             raise ValueError(f"Error parsing Kursliste from {file_path}: {str(e)}") from e
         
-    def get_kurslisten_for_year(self, tax_year: int) -> List[Kursliste]:
+    def get_kurslisten_for_year(self, tax_year: int) -> Optional[KurslisteAccessor]:
         """
-        Get all Kursliste instances for a specific tax year.
+        Get the KurslisteAccessor for a specific tax year.
         
         Args:
-            tax_year: The tax year to retrieve Kurslisten for
+            tax_year: The tax year to retrieve the accessor for.
             
         Returns:
-            List of Kursliste objects for the specified year
+            KurslisteAccessor for the specified year, or None if not found.
         """
-        return self.kurslisten.get(tax_year, [])
+        return self.kurslisten.get(tax_year)
     
     
     def get_available_years(self) -> List[int]:
         """
-        Get a list of all tax years for which Kurslisten are available.
+        Get a list of all tax years for which Kursliste data is available.
         
         Returns:
             List of available tax years, sorted
         """
         return sorted(self.kurslisten.keys())
         
-    def get_security_price(self, tax_year: int, isin: str, date: Optional[datetime.date] = None) -> Optional[Decimal]:
+    def get_security_price(self, tax_year: int, isin: str, price_date: Optional[datetime.date] = None) -> Optional[Decimal]:
         """
         Get the price of a security for a specific tax year and ISIN.
-        
+        If price_date is provided, it attempts to find the price for that specific date.
+        Otherwise, behavior might depend on the underlying data source (e.g., year-end price).
+
         Args:
-            tax_year: The tax year to retrieve the price for
-            isin: The ISIN of the security
-            date: Optional specific date to get price for, defaults to latest available
-            
+            tax_year: The tax year to retrieve the price for.
+            isin: The ISIN of the security.
+            price_date: Optional specific date to get price for.
+
         Returns:
-            Price in CHF if available, otherwise None
+            Price as Decimal if available, otherwise None.
         """
-        # Get all Kurslisten for the specified year
-        kurslisten = self.get_kurslisten_for_year(tax_year)
-        if not kurslisten:
+        accessor = self.get_kurslisten_for_year(tax_year)
+
+        if not accessor:
             return None
+
+        # KurslisteAccessor.get_security_by_isin returns Optional[Security]
+        # The Security object is a Pydantic model from ..model.kursliste
+        security_model = accessor.get_security_by_isin(isin) 
+
+        if not security_model:
+            return None
+        
+        # Price extraction logic from the Pydantic Security model instance
+        # This logic is similar to what was previously in the XML path
+
+        # If a specific date is requested, try to find a daily price
+        if price_date:
+            if hasattr(security_model, 'daily') and security_model.daily:
+                for daily_price_info in security_model.daily:
+                    if daily_price_info.date == price_date:
+                        if daily_price_info.taxValueCHF is not None:
+                            return Decimal(str(daily_price_info.taxValueCHF))
+                        if daily_price_info.taxValue is not None: # Fallback
+                            return Decimal(str(daily_price_info.taxValue))
+                        # If only percent is available, one might need nominal value and quotation type logic
+                        # For now, sticking to taxValueCHF and taxValue.
+            # If specific date price not found in daily, we might fall through to year-end if desired,
+            # or return None if strict daily price for that date is required.
+            # Current logic will fall through to year-end. If strict daily wanted, return None here.
+
+        # If no specific date, or if daily price for specific date not found, try year-end price.
+        if hasattr(security_model, 'yearend') and security_model.yearend:
+            # security_model.yearend can be a list (e.g., for Share) or a single object (e.g., for Bond)
+            yearend_price_list = security_model.yearend
+            if not isinstance(yearend_price_list, list):
+                yearend_price_list = [yearend_price_list] # Ensure it's iterable
             
-        # Look for the security in all Kurslisten
-        for kursliste in kurslisten:
-            security = kursliste.get_security_by_isin(isin)
-            if security and security.prices:
-                # If a specific date is requested, try to get that price
-                if date:
-                    price_info = kursliste.get_price_at_date(security, date)
-                    if price_info:
-                        # Return price in CHF if available, otherwise the original price
-                        return price_info.priceInCHF or price_info.price
-                # Otherwise return the most recent price
-                latest_price = max(security.prices, key=lambda p: p.date)
-                return latest_price.priceInCHF or latest_price.price
-                
-        return None
+            for ye_price_info in yearend_price_list:
+                if ye_price_info: # Ensure the yearend price object itself is not None
+                    if ye_price_info.taxValueCHF is not None:
+                        return Decimal(str(ye_price_info.taxValueCHF))
+                    if ye_price_info.taxValue is not None: # Fallback
+                        return Decimal(str(ye_price_info.taxValue))
+        
+        return None # No suitable price found in the security model
