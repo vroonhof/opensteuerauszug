@@ -529,8 +529,9 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     Returns:
         A list of PIL Image objects containing the barcode images
     """ 
-    from pdf417gen import encode_macro, render_image
+    from pdf417gen import encode_macro, render_image # Changed back to encode_macro
     
+    # Use the real XML data for proper macro PDF417 generation
     xml = tax_statement.to_xml_bytes()
     data = zlib.compress(xml)
 
@@ -553,7 +554,7 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     # Byte encodinge efficency is 6 bytes per 5 codewords
     SEGMENT_SIZE = floor((CAPACTITY / 5) * 6)
 
-    # We want to have 13 columns, so calculate the data length per column
+    # Use encode_macro for proper macro PDF417 generation
     codes = encode_macro(
         data,
         file_id=[1],
@@ -563,6 +564,8 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
         segment_size=SEGMENT_SIZE,
         force_binary=True,
     )
+    
+    # encode_macro returns a list of barcodes (for multi-segment data)
     images = []
     for i, barcode in enumerate(codes):
         image = render_image(

@@ -47,8 +47,11 @@ def test_kursliste_manager_loads_directory(kursliste_dir: Path, tmp_path: Path):
     # Print information about loaded files for debugging
     years = manager.get_available_years()
     for year in years:
-        kurslisten = manager.get_kurslisten_for_year(year)
-        print(f"Year {year}: {len(kurslisten)} Kursliste files loaded")
+        accessor = manager.get_kurslisten_for_year(year)
+        if accessor:
+            print(f"Year {year}: KurslisteAccessor loaded successfully")
+        else:
+            print(f"Year {year}: No KurslisteAccessor found")
 
 
 def test_kursliste_manager_handles_missing_directory():

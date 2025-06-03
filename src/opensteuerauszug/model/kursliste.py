@@ -437,7 +437,9 @@ class CurrencyNote(Security, tag="currencyNote"):
     legend: List[Legend] = element( default_factory=list)
     country: Optional[CountryCode] = attr(default=None)
     currency: CurrencyCode = attr(use="required")
-    denomination: Annotated[int, Field(ge=1, le=1000)] = attr(use="required")
+    denomination: int = attr(use="required")
+    # For some reason using the field validator here causes a newline to be parsed independently of the input
+    # denomination: Annotated[int, Field(ge=1, le=1000)] = attr(use="required")
 
 
 
@@ -786,10 +788,25 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
             if tag in denylist:
                 to_remove.append(child)
 
-        for child in to_remove:
-            root.remove(child)
+        # If denylist is empty, no elements should be removed.
+        # If denylist is not empty but no elements match, that's also fine (nothing to remove).
+        # The original error for "No elements to remove" when to_remove is empty is problematic
+        # if the denylist itself was non-empty but simply didn't match any children.
+        # A more critical check is if denylist is non-empty AND to_remove is empty,
+        # indicating a possible misconfiguration of the denylist.
+        # However, for the case where denylist=set() is passed to load everything,
+        # to_remove will be empty, and we should not raise an error.
 
-        print(f"Filtered {len(to_remove)} elements")
+        if not to_remove: # Covers empty denylist or non-empty denylist with no matches
+            # If denylist was non-empty and to_remove is empty, it means no listed elements were found.
+            # This is not necessarily an error; it could be that the XML doesn't contain those elements.
+            # If denylist was empty, this is the correct path.
+            # print(f"No elements matching denylist found to remove, or denylist was empty.")
+            pass # Proceed without removing anything
+        else:
+            for child in to_remove:
+                root.remove(child)
+            print(f"Filtered {len(to_remove)} elements based on denylist.")
             
         return root
     

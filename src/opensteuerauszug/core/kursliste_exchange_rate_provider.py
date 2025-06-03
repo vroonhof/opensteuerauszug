@@ -1,11 +1,14 @@
-from abc import ABC, abstractmethod
+# Removed: from functools import lru_cache
+# Removed: from ..model.kursliste import Kursliste, ExchangeRateYearEnd, ExchangeRateMonthly, ExchangeRate
+# Removed: from .kursliste_db_reader import KurslisteDBReader
+from abc import ABC, abstractmethod # Keep if ExchangeRateProvider is ABC
 from decimal import Decimal
 from typing import Optional
 from datetime import date
 
-from .exchange_rate_provider import ExchangeRateProvider # Assuming this is the base class
+from .exchange_rate_provider import ExchangeRateProvider
 from ..core.kursliste_manager import KurslisteManager
-from ..model.kursliste import Kursliste, ExchangeRateYearEnd, ExchangeRateMonthly, ExchangeRate # Keep relevant model imports
+from .kursliste_accessor import KurslisteAccessor # Added import
 
 class KurslisteExchangeRateProvider(ExchangeRateProvider):
     def __init__(self, kursliste_manager: KurslisteManager):
@@ -16,33 +19,16 @@ class KurslisteExchangeRateProvider(ExchangeRateProvider):
             return Decimal("1")
 
         tax_year = reference_date.year
-        kurslisten = self.kursliste_manager.get_kurslisten_for_year(tax_year)
+        # Expect KurslisteManager.get_kurslisten_for_year to return Optional[KurslisteAccessor]
+        accessor = self.kursliste_manager.get_kurslisten_for_year(tax_year)
 
-        if not kurslisten:
-            raise ValueError(f"No Kursliste found for tax year {tax_year}.")
-
-        for kursliste_instance in kurslisten:
-            # End-of-Year Logic
-            if reference_date.month == 12 and reference_date.day == 31:
-                for rate in kursliste_instance.exchangeRatesYearEnd:
-                    if rate.currency == currency and rate.year == tax_year:
-                        if rate.value is not None:
-                            return rate.value
-                        elif rate.valueMiddle is not None:
-                            return rate.valueMiddle
-            
-            # Monthly Average Logic
-            month_str = f"{reference_date.month:02d}"
-            for rate in kursliste_instance.exchangeRatesMonthly:
-                if rate.currency == currency and rate.year == tax_year and rate.month == month_str:
-                    if rate.value is not None:
-                        return rate.value
-
-            # Daily Rate Logic
-            for rate in kursliste_instance.exchangeRates:
-                if rate.currency == currency and rate.date == reference_date:
-                    if rate.value is not None:
-                        return rate.value
+        if accessor:
+            # KurslisteAccessor.get_exchange_rate is already cached
+            rate = accessor.get_exchange_rate(currency, reference_date)
+            if rate is not None:
+                return rate
         
-        # If currency not found after checking all kurslisten
-        raise ValueError(f"Exchange rate for {currency} on {reference_date} not found in Kursliste for tax year {tax_year}.")
+        # If accessor is None, or accessor.get_exchange_rate returned None
+        raise ValueError(f"Exchange rate for {currency} on {reference_date} not found in any Kursliste source for tax year {tax_year}.")
+
+# Removed _get_exchange_rate_from_xml_kursliste method

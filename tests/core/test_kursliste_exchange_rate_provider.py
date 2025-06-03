@@ -4,20 +4,27 @@ from decimal import Decimal
 from unittest.mock import MagicMock
 
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
-# KurslisteManager is only used for type hinting the mock, not strictly needed for the import if not directly used
-# from opensteuerauszug.core.kursliste_manager import KurslisteManager 
+from opensteuerauszug.core.kursliste_accessor import KurslisteAccessor # Added import
 from opensteuerauszug.model.kursliste import Kursliste, ExchangeRateYearEnd, ExchangeRateMonthly, ExchangeRate
+
+# Define a consistent tax year for tests that need it for the accessor
+TEST_TAX_YEAR = 2023
 
 class TestKurslisteExchangeRateProvider(unittest.TestCase):
 
     def setUp(self):
-        self.kursliste_manager_mock = MagicMock()
-        self.kursliste_mock = MagicMock(spec=Kursliste) # Use spec for better mocking
+        self.kursliste_manager_mock = MagicMock() # Mock KurslisteManager
+        self.kursliste_mock = MagicMock(spec=Kursliste) # Mock Kursliste (for XML data path)
 
-        # Default behavior: manager returns a list containing this single kursliste_mock
-        self.kursliste_manager_mock.get_kurslisten_for_year.return_value = [self.kursliste_mock]
+        # Default behavior: manager returns a KurslisteAccessor wrapping the mock Kursliste
+        # The accessor is configured for TEST_TAX_YEAR.
+        # Note: Some tests might override this return_value for specific scenarios.
+        mock_accessor = KurslisteAccessor([self.kursliste_mock], tax_year=TEST_TAX_YEAR)
+        self.kursliste_manager_mock.get_kurslisten_for_year.return_value = mock_accessor
 
         # Initialize exchange rate lists to empty to prevent test interference
+        # These are attributes of the self.kursliste_mock, which is inside the accessor.
+        self.kursliste_mock.year = TEST_TAX_YEAR # Ensure the mock Kursliste has the correct year
         self.kursliste_mock.exchangeRatesYearEnd = []
         self.kursliste_mock.exchangeRatesMonthly = []
         self.kursliste_mock.exchangeRates = []
@@ -128,36 +135,46 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
         test_year = 2023
         # All lists are empty by default from setUp for this mock
         
-        with self.assertRaisesRegex(ValueError, "Exchange rate for XYZ on 2023-10-10 not found in Kursliste for tax year 2023."):
+        with self.assertRaisesRegex(ValueError, "Exchange rate for XYZ on 2023-10-10 not found in any Kursliste source for tax year 2023."):
             self.provider.get_exchange_rate("XYZ", date(test_year, 10, 10))
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
 
     def test_get_exchange_rate_kursliste_for_year_not_found(self):
-        test_year = 2024
-        self.kursliste_manager_mock.get_kurslisten_for_year.return_value = [] # No Kursliste for this year
+        test_year = 2024 # A year for which the manager will return None (or an empty accessor)
+        # Configure mock manager to return None when get_kurslisten_for_year is called with test_year
+        self.kursliste_manager_mock.get_kurslisten_for_year.return_value = None 
         
-        with self.assertRaisesRegex(ValueError, f"No Kursliste found for tax year {test_year}."):
+        # The provider should raise ValueError if accessor is None.
+        # The error message comes from KurslisteExchangeRateProvider itself.
+        with self.assertRaisesRegex(ValueError, f"Exchange rate for USD on {test_year}-01-15 not found in any Kursliste source for tax year {test_year}."):
             self.provider.get_exchange_rate("USD", date(test_year, 1, 15))
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
 
     def test_get_exchange_rate_uses_correct_kursliste_instance(self):
-        test_year = 2023
+        # This test's premise changes slightly. The Accessor gets a list of Kursliste objects.
+        # The Accessor's internal logic will iterate. We need to ensure the mock data is set up
+        # on the Kursliste objects that the Accessor will receive.
+        test_year = TEST_TAX_YEAR # Use the consistent tax year
         test_currency = "GBP"
         expected_rate = Decimal("1.15")
 
         kursliste_mock1 = MagicMock(spec=Kursliste)
+        kursliste_mock1.year = test_year
         kursliste_mock1.exchangeRatesYearEnd = []
         kursliste_mock1.exchangeRatesMonthly = []
-        kursliste_mock1.exchangeRates = [] # Does not contain the currency
+        kursliste_mock1.exchangeRates = [] 
 
         kursliste_mock2 = MagicMock(spec=Kursliste)
+        kursliste_mock2.year = test_year
         kursliste_mock2.exchangeRatesYearEnd = []
         kursliste_mock2.exchangeRatesMonthly = []
         kursliste_mock2.exchangeRates = [
             ExchangeRate(currency=test_currency, date=date(test_year, 5, 20), value=expected_rate)
         ]
         
-        self.kursliste_manager_mock.get_kurslisten_for_year.return_value = [kursliste_mock1, kursliste_mock2]
+        # Configure the mock manager to return an accessor that contains both mocks
+        mock_accessor_with_multiple_kl = KurslisteAccessor([kursliste_mock1, kursliste_mock2], tax_year=test_year)
+        self.kursliste_manager_mock.get_kurslisten_for_year.return_value = mock_accessor_with_multiple_kl
         
         rate = self.provider.get_exchange_rate(test_currency, date(test_year, 5, 20))
         self.assertEqual(expected_rate, rate)

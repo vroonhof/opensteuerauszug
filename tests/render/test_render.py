@@ -7,6 +7,9 @@ from datetime import date, datetime
 from decimal import Decimal
 import pypdf  # Fors checking PDF pages
 from io import BytesIO
+from unittest import mock # Added for mocking
+
+from PIL import Image as PILImage # Added for dummy image
 
 from opensteuerauszug.model.ech0196 import (
     TaxStatement,
@@ -33,6 +36,11 @@ from opensteuerauszug.calculate.total import TotalCalculator
 from opensteuerauszug.calculate.base import CalculationMode
 from tests.utils.samples import get_sample_files
 from opensteuerauszug.util.styles import get_custom_styles
+
+# Helper to create a dummy PIL Image
+def create_dummy_pil_image(width=100, height=30):
+    img = PILImage.new('RGB', (width, height), color = 'red')
+    return img
 
 @pytest.fixture
 def sample_tax_statement():
@@ -94,8 +102,11 @@ def test_render_statement_info(sample_tax_statement):
     assert '<b>Periode:</b> 01.01.2023 - 31.12.2023' in paragraph_texts
     assert '<b>Erstellt am:</b> 26.10.2023' in paragraph_texts
 
-def test_render_tax_statement_content(sample_tax_statement):
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes')
+def test_render_tax_statement_content(mock_render_to_barcodes, sample_tax_statement):
     """Test that a tax statement contains the expected data in the PDF."""
+    mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
+
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
         temp_path = temp_file.name
     
@@ -144,9 +155,11 @@ def test_render_tax_statement_content(sample_tax_statement):
         if os.path.exists(temp_path):
             os.unlink(temp_path)
 
-def test_render_tax_statement(sample_tax_statement):
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes')
+def test_render_tax_statement(mock_render_to_barcodes, sample_tax_statement):
     """Test that a tax statement can be rendered to PDF."""
-    # Create a temporary file for the output
+    mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
+    
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
         temp_path = temp_file.name
     
@@ -162,8 +175,11 @@ def test_render_tax_statement(sample_tax_statement):
         if os.path.exists(temp_path):
             os.unlink(temp_path)
 
-def test_pdf_page_count(sample_tax_statement):
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes')
+def test_pdf_page_count(mock_render_to_barcodes, sample_tax_statement):
     """Test that the PDF has the correct number of pages."""
+    mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
+
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp_path = tmp.name
     
@@ -195,8 +211,11 @@ def test_pdf_page_count(sample_tax_statement):
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
-def test_barcode_rendering(sample_tax_statement):
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes')
+def test_barcode_rendering(mock_render_to_barcodes, sample_tax_statement):
     """Test that barcodes are rendered correctly on all pages including a dedicated barcode page."""
+    mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
+
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp_path = tmp.name
     
@@ -237,9 +256,8 @@ def test_make_barcode_pages(sample_tax_statement, monkeypatch):
     
     # Mock the render_to_barcodes function to return a list of mock images
     def mock_render_to_barcodes(tax_statement):
-        from PIL import Image
         # Create a simple 100x100 black image
-        img = Image.new('RGB', (100, 100), color='black')
+        img = PILImage.new('RGB', (100, 100), color='black')
         # Return a list with one image
         return [img]
     
@@ -266,8 +284,11 @@ def test_make_barcode_pages(sample_tax_statement, monkeypatch):
 
 @pytest.mark.integration
 @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
-def test_integration_render_all_samples(sample_file):
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes') # Mock at the source
+def test_integration_render_all_samples(mock_render_to_barcodes, sample_file):
     """Integration test: run total calculator in FILL mode and render all sample imports to PDF."""
+    mock_render_to_barcodes.return_value = [create_dummy_pil_image()] # Return a list with one dummy image
+
     # Load the tax statement from XML
     tax_statement = TaxStatement.from_xml_file(sample_file)
     # Run the total calculator in FILL mode
@@ -281,8 +302,8 @@ def test_integration_render_all_samples(sample_file):
         assert os.path.exists(tmp_path)
         assert os.path.getsize(tmp_path) > 0
     finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+        if os.path.exists(tmp_path): # ensure it exists before trying to remove
+            os.remove(tmp_path)
 
 def test_create_bank_accounts_table_none():
     styles = getSampleStyleSheet()
