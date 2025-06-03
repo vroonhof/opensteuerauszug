@@ -13,9 +13,22 @@ from opensteuerauszug.model.ech0196 import (
 )
 from opensteuerauszug.config.models import IbkrAccountSettings
 
-from ibflex import Trade, parser as ibflex_parser
-from ibflex.parser import FlexParserError
-IBFLEX_AVAILABLE = True
+# Import ibflex components to avoid RuntimeWarning about module loading order
+try:
+    import ibflex
+    from ibflex.parser import FlexParserError
+    IBFLEX_AVAILABLE = True
+except ImportError:
+    IBFLEX_AVAILABLE = False
+    
+    # Create type-safe placeholders for when ibflex is not available
+    class Trade:  # type: ignore
+        pass
+    
+    class MockParser:  # type: ignore
+        @staticmethod
+        def parse(filename: str):
+            raise ImportError("ibflex library is not installed")
 
 class IbkrImporter:
     """
@@ -133,7 +146,7 @@ class IbkrImporter:
 
             try:
                 print(f"Parsing IBKR Flex statement: {filename}")
-                response = ibflex_parser.parse(filename)
+                response = ibflex.parser.parse(filename)
                 # response.FlexStatements is a list of FlexStatement objects
                 # Each FlexStatement corresponds to an account
                 if response and response.FlexStatements:
@@ -195,7 +208,7 @@ class IbkrImporter:
             # --- Process Trades ---
             if stmt.Trades:
                 for trade in stmt.Trades:
-                    if not isinstance(trade, Trade):
+                    if IBFLEX_AVAILABLE and not isinstance(trade, ibflex.Trade):
                         # Skipping summary objects.
                         # It seems tempting to use SymbolSummary but for FX these
                         # are actually for the full report period, so have no fixed date.
