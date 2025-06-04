@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
+    ClientNumber, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
     Security, SecurityStock, SecurityPayment,
     BankAccount, BankAccountPayment, BankAccountTaxValue,
     CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client
@@ -618,7 +618,7 @@ class IbkrImporter:
 
                 if account_id and client_last_name: # lastName is mandatory for Client
                     client_obj = Client(
-                        clientNumber=account_id,
+                        clientNumber=ClientNumber(account_id),
                         firstName=client_first_name,
                         lastName=client_last_name,
                         # Other fields like tin, salutation are not yet mapped
