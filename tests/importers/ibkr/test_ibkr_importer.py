@@ -199,73 +199,59 @@ def test_ibkr_import_missing_required_field(sample_ibkr_settings_other_account):
 
 # Parameterized test data for client information
 CLIENT_INFO_TEST_CASES = [
-    # Scenario 1: firstName and lastName provided
+    # Scenario 1: name provided
     {
         "account_info_xml": """
-          <AccountInformation accountId="U9876543" acctAlias="Test Alias">
-            <AccountHolderInfo name="John Doe" firstName="John" lastName="Doe" />
-          </AccountInformation>""",
+          <AccountInformation accountId="U9876543" acctAlias="Test Alias" name="John Doe" />""",
         "expected_client_number": "U9876543",
-        "expected_first_name": "John",
-        "expected_last_name": "Doe",
-        "description": "firstName and lastName present"
+        "expected_first_name": None,
+        "expected_last_name": "John Doe",
+        "description": "name present in AccountInformation"
     },
-    # Scenario 2: Only name provided
+    # Scenario 2: Different name
     {
         "account_info_xml": """
-          <AccountInformation accountId="U9876544" acctAlias="Another Alias">
-            <AccountHolderInfo name="Jane Smith FullName" />
-          </AccountInformation>""",
+          <AccountInformation accountId="U9876544" acctAlias="Another Alias" name="Jane Smith" />""",
         "expected_client_number": "U9876544",
         "expected_first_name": None,
-        "expected_last_name": "Jane Smith FullName",
-        "description": "Only name present"
+        "expected_last_name": "Jane Smith",
+        "description": "different name present in AccountInformation"
     },
-    # Scenario 3: Only accountHolderName provided (assuming 'name' in AccountHolderInfo is used as accountHolderName if firstName/lastName are missing)
-    # Let's adjust the XML slightly if AccountHolderInfo.name is different from AccountInformation.accountHolderName
-    # For this test, we'll assume AccountInformation.name is the primary source if AccountHolderInfo is missing or incomplete.
-    # The current implementation uses AccountInformation.name, .firstName, .lastName, .accountHolderName
+    # Scenario 3: No name provided, client should not be created
     {
         "account_info_xml": """
-          <AccountInformation accountId="U9876545" acctAlias="Third Alias" accountHolderName="Actual Holder Name">
-          </AccountInformation>""", # No AccountHolderInfo node
-        "expected_client_number": "U9876545",
-        "expected_first_name": None,
-        "expected_last_name": "Actual Holder Name", # Falls back to accountHolderName
-        "description": "Only accountHolderName present in AccountInformation"
-    },
-    # Scenario 4: name in AccountInformation, firstName & lastName in AccountHolderInfo (HolderInfo should take precedence)
-    {
-        "account_info_xml": """
-          <AccountInformation accountId="U9876546" acctAlias="Fourth Alias" name="Overall Account Name">
-            <AccountHolderInfo firstName="SpecificFirst" lastName="SpecificLast" />
-          </AccountInformation>""",
-        "expected_client_number": "U9876546",
-        "expected_first_name": "SpecificFirst",
-        "expected_last_name": "SpecificLast",
-        "description": "firstName/lastName in AccountHolderInfo takes precedence over AccountInformation.name"
-    },
-     # Scenario 5: name in AccountInformation, only name in AccountHolderInfo (HolderInfo.name should be used for lastName)
-    {
-        "account_info_xml": """
-          <AccountInformation accountId="U9876547" acctAlias="Fifth Alias" name="Overall Account Name Again">
-            <AccountHolderInfo name="Holder Info Name Only"/>
-          </AccountInformation>""",
-        "expected_client_number": "U9876547",
-        "expected_first_name": None,
-        "expected_last_name": "Holder Info Name Only", # AccountHolderInfo.name used as lastName
-        "description": "AccountHolderInfo.name used for lastName when firstName/lastName missing in HolderInfo"
-    },
-    # Scenario 6: No relevant name fields at all, client should not be created
-    {
-        "account_info_xml": """
-          <AccountInformation accountId="U9876548" acctAlias="Sixth Alias">
-            <SomeOtherInfo>Details</SomeOtherInfo>
-          </AccountInformation>""",
+          <AccountInformation accountId="U9876545" acctAlias="Third Alias" />""",
         "expected_client_number": None, # client object should not be created
         "expected_first_name": None,
         "expected_last_name": None,
-        "description": "No name fields present, client should be None"
+        "description": "No name field present, client should be None"
+    },
+    # Scenario 4: Empty name provided, client should not be created
+    {
+        "account_info_xml": """
+          <AccountInformation accountId="U9876546" acctAlias="Fourth Alias" name="" />""",
+        "expected_client_number": None, # client object should not be created due to empty name
+        "expected_first_name": None,
+        "expected_last_name": None,
+        "description": "Empty name field present, client should be None"
+    },
+     # Scenario 5: Whitespace-only name provided, client should not be created
+    {
+        "account_info_xml": """
+          <AccountInformation accountId="U9876547" acctAlias="Fifth Alias" name="   " />""",
+        "expected_client_number": None, # client object should not be created due to whitespace-only name
+        "expected_first_name": None,
+        "expected_last_name": None,
+        "description": "Whitespace-only name field present, client should be None"
+    },
+    # Scenario 6: Other attributes present but no name
+    {
+        "account_info_xml": """
+          <AccountInformation accountId="U9876548" acctAlias="Sixth Alias" street="123 Main St" city="New York" />""",
+        "expected_client_number": None, # client object should not be created
+        "expected_first_name": None,
+        "expected_last_name": None,
+        "description": "Other attributes present but no name field, client should be None"
     },
 ]
 

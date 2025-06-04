@@ -616,13 +616,17 @@ class IbkrImporter:
                 client_first_name = None
                 client_last_name = None
 
-                if first_name and last_name:
-                    client_first_name = first_name
-                    client_last_name = last_name
-                elif name:
-                    client_last_name = name
-                elif account_holder_name:
-                    client_last_name = account_holder_name
+                # Helper function to check if a string value is valid (not None, not empty, not just whitespace)
+                def is_valid_string(value):
+                    return value is not None and isinstance(value, str) and value.strip()
+
+                if is_valid_string(first_name) and is_valid_string(last_name):
+                    client_first_name = str(first_name).strip()
+                    client_last_name = str(last_name).strip()
+                elif is_valid_string(name):
+                    client_last_name = str(name).strip()
+                elif is_valid_string(account_holder_name):
+                    client_last_name = str(account_holder_name).strip()
 
                 if account_id and client_last_name: # lastName is mandatory for Client
                     client_obj = Client(
