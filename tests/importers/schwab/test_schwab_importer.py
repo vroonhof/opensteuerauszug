@@ -19,6 +19,253 @@ from opensteuerauszug.model.ech0196 import (
 from opensteuerauszug.model.position import SecurityPosition
 # Assuming your models are Pydantic, otherwise adjust instantiation
 
+from opensteuerauszug.importers.schwab.schwab_importer import _get_configured_account_info, create_tax_statement_from_positions
+from opensteuerauszug.config.models import SchwabAccountSettings
+from opensteuerauszug.model.ech0196 import ClientNumber # Import ClientNumber for assertions
+
+
+class TestGetConfiguredAccountInfo(unittest.TestCase):
+    def test_awards_depot(self):
+        acc_num, display_id = _get_configured_account_info(
+            depot_short_id="XYZ123",
+            account_settings_list=[],
+            is_awards_depot=True
+        )
+        self.assertIsNone(acc_num)
+        self.assertEqual(display_id, "Equity Awards XYZ123")
+
+    def test_non_awards_unique_match(self):
+        settings = [
+            SchwabAccountSettings(account_number="CH123456789", account_name_alias="main", broker_name="schwab", canton="ZH", full_name="Test User")
+        ]
+        acc_num, display_id = _get_configured_account_info(
+            depot_short_id="789",
+            account_settings_list=settings,
+            is_awards_depot=False
+        )
+        self.assertEqual(acc_num, "CH123456789")
+        self.assertEqual(display_id, "CH123456789")
+
+    def test_non_awards_no_match(self):
+        settings = [
+            SchwabAccountSettings(account_number="CH123456789", account_name_alias="main", broker_name="schwab", canton="ZH", full_name="Test User")
+        ]
+        acc_num, display_id = _get_configured_account_info(
+            depot_short_id="000",
+            account_settings_list=settings,
+            is_awards_depot=False
+        )
+        self.assertIsNone(acc_num)
+        self.assertEqual(display_id, "...000")
+
+    @patch('builtins.print')
+    def test_non_awards_multiple_matches_uses_first(self, mock_print):
+        settings = [
+            SchwabAccountSettings(account_number="FR987654321", account_name_alias="secondary", broker_name="schwab", canton="ZH", full_name="Test User"),
+            SchwabAccountSettings(account_number="CH123454321", account_name_alias="primary", broker_name="schwab", canton="ZH", full_name="Test User")
+        ]
+        acc_num, display_id = _get_configured_account_info(
+            depot_short_id="321",
+            account_settings_list=settings,
+            is_awards_depot=False
+        )
+        self.assertEqual(acc_num, "FR987654321")
+        self.assertEqual(display_id, "FR987654321")
+
+        # Check if print was called with a warning
+        args, kwargs = mock_print.call_args
+        self.assertIn("WARNING: Multiple configured Schwab accounts end with '...321'", args[0])
+        self.assertIn("'FR987654321' (alias: 'secondary')", args[0])
+
+
+    def test_non_awards_empty_settings(self):
+        acc_num, display_id = _get_configured_account_info(
+            depot_short_id="123",
+            account_settings_list=[],
+            is_awards_depot=False
+        )
+        self.assertIsNone(acc_num)
+        self.assertEqual(display_id, "...123")
+
+    # The case for non_awards_match_with_no_alias_in_setting is implicitly covered
+    # by test_non_awards_unique_match, as account_name_alias is mandatory.
+    # The warning message for multiple matches also correctly references the alias.
+
+from opensteuerauszug.importers.schwab.schwab_importer import convert_cash_positions_to_list_of_bank_accounts
+from opensteuerauszug.model.position import CashPosition
+from opensteuerauszug.model.ech0196 import BankAccountNumber, ListOfBankAccounts, Depot # Depot needed for DepotNumber
+
+
+class TestSchwabImporterAccountResolution(unittest.TestCase):
+    def setUp(self):
+        self.default_settings_args = {"broker_name": "schwab", "canton": "ZH", "full_name": "Test User"}
+        self.mock_stock_item = SecurityStock(
+            referenceDate=date(2023,1,1),
+            mutation=False,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal(10)
+        )
+        self.mock_security_stock_item = SecurityStock(
+            referenceDate=date(2023,1,1),
+            mutation=False,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal(10),
+            name="Mock Security Stock"
+        )
+        self.period_to_date = date(2023, 12, 31)
+
+    # --- BankAccountNumber Tests ---
+    def test_bank_account_number_unique_match(self):
+        settings = [
+            SchwabAccountSettings(account_number="CH123-789", account_name_alias="main", **self.default_settings_args)
+        ]
+        cash_pos = CashPosition(depot="789", currentCy="USD", cash_account_id="cash789", type="cash") # cash_account_id is mandatory
+        cash_tuples = [(cash_pos, [self.mock_stock_item], [])]
+
+        result_list: ListOfBankAccounts = convert_cash_positions_to_list_of_bank_accounts(cash_tuples, self.period_to_date, settings)
+
+        self.assertIsNotNone(result_list.bankAccount)
+        self.assertEqual(len(result_list.bankAccount), 1)
+        self.assertEqual(result_list.bankAccount[0].bankAccountNumber, BankAccountNumber("CH123-789"))
+
+    def test_bank_account_number_no_match(self):
+        settings = [
+            SchwabAccountSettings(account_number="CH123-000", account_name_alias="other", **self.default_settings_args)
+        ]
+        cash_pos = CashPosition(depot="789", currentCy="USD", cash_account_id="cash789", type="cash")
+        cash_tuples = [(cash_pos, [self.mock_stock_item], [])]
+
+        result_list: ListOfBankAccounts = convert_cash_positions_to_list_of_bank_accounts(cash_tuples, self.period_to_date, settings)
+
+        self.assertIsNotNone(result_list.bankAccount)
+        self.assertEqual(len(result_list.bankAccount), 1)
+        self.assertEqual(result_list.bankAccount[0].bankAccountNumber, BankAccountNumber("USD Account ...789"))
+
+    def test_bank_account_number_awards(self):
+        settings = [
+             SchwabAccountSettings(account_number="CH123-IGNORE", account_name_alias="main_ignore", **self.default_settings_args)
+        ] # Settings should be ignored for awards
+        cash_pos = CashPosition(depot="AWARDS", cash_account_id="AWARD123", currentCy="USD", type="cash")
+        cash_tuples = [(cash_pos, [self.mock_stock_item], [])]
+
+        result_list: ListOfBankAccounts = convert_cash_positions_to_list_of_bank_accounts(cash_tuples, self.period_to_date, settings)
+
+        self.assertIsNotNone(result_list.bankAccount)
+        self.assertEqual(len(result_list.bankAccount), 1)
+        self.assertEqual(result_list.bankAccount[0].bankAccountNumber, BankAccountNumber("Equity Awards AWARD123"))
+
+    def test_bank_account_number_empty_settings(self):
+        settings = []
+        cash_pos = CashPosition(depot="789", currentCy="USD", cash_account_id="cash789", type="cash")
+        cash_tuples = [(cash_pos, [self.mock_stock_item], [])]
+
+        result_list: ListOfBankAccounts = convert_cash_positions_to_list_of_bank_accounts(cash_tuples, self.period_to_date, settings)
+
+        self.assertIsNotNone(result_list.bankAccount)
+        self.assertEqual(len(result_list.bankAccount), 1)
+        self.assertEqual(result_list.bankAccount[0].bankAccountNumber, BankAccountNumber("USD Account ...789"))
+
+    # --- Depot.depotNumber Tests ---
+    def test_security_depot_number_unique_match(self):
+        settings = [
+            SchwabAccountSettings(account_number="CH999-123", account_name_alias="sec_main", **self.default_settings_args)
+        ]
+        sec_pos = SecurityPosition(depot="123", symbol="TEST", description="Test Security", type="security")
+        # Ensure stock has required fields: referenceDate, mutation, quotationType, quantity, balanceCurrency
+        security_tuples = [(sec_pos, [self.mock_security_stock_item], [])]
+
+        result_list: ListOfSecurities = convert_security_positions_to_list_of_securities(security_tuples, settings)
+
+        self.assertIsNotNone(result_list.depot)
+        self.assertEqual(len(result_list.depot), 1)
+        # DepotNumber is a class that subclasses str, direct comparison might work or cast to str
+        self.assertEqual(result_list.depot[0].depotNumber, DepotNumber("CH999-123"))
+
+
+    def test_security_depot_number_no_match(self):
+        settings = [
+            SchwabAccountSettings(account_number="CH999-000", account_name_alias="sec_other", **self.default_settings_args)
+        ]
+        sec_pos = SecurityPosition(depot="123", symbol="TEST", description="Test Security", type="security")
+        security_tuples = [(sec_pos, [self.mock_security_stock_item], [])]
+
+        result_list: ListOfSecurities = convert_security_positions_to_list_of_securities(security_tuples, settings)
+
+        self.assertIsNotNone(result_list.depot)
+        self.assertEqual(len(result_list.depot), 1)
+        self.assertEqual(result_list.depot[0].depotNumber, DepotNumber("...123"))
+
+    def test_security_depot_number_awards(self):
+        settings = [
+            SchwabAccountSettings(account_number="CH999-IGNORE", account_name_alias="sec_ignore", **self.default_settings_args)
+        ] # Settings should be ignored
+        sec_pos = SecurityPosition(depot="AWARDS", symbol="AWARDSEC", description="Award Security", type="security")
+        security_tuples = [(sec_pos, [self.mock_security_stock_item], [])]
+
+        result_list: ListOfSecurities = convert_security_positions_to_list_of_securities(security_tuples, settings)
+
+        self.assertIsNotNone(result_list.depot)
+        self.assertEqual(len(result_list.depot), 1)
+        self.assertEqual(result_list.depot[0].depotNumber, DepotNumber("AWARDS"))
+
+    # --- TaxStatement.clientID Tests ---
+    def test_tax_statement_client_id_first_non_awards(self):
+        settings = [
+            SchwabAccountSettings(account_number="AWARDS-NUM", account_name_alias="awards", **self.default_settings_args),
+            SchwabAccountSettings(account_number="CH123-FIRST", account_name_alias="main", **self.default_settings_args),
+            SchwabAccountSettings(account_number="CH456-SECOND", account_name_alias="secondary", **self.default_settings_args)
+        ]
+        statement: TaxStatement = create_tax_statement_from_positions(
+            security_tuples=[],
+            cash_tuples=[],
+            period_from=date(2023,1,1),
+            period_to=self.period_to_date,
+            tax_period=2023,
+            account_settings_list=settings
+        )
+        self.assertEqual(len(statement.client), 1)
+        self.assertEqual(statement.client[0].clientNumber, ClientNumber("CH123-FIRST"))
+
+    def test_tax_statement_client_id_only_awards(self):
+        settings = [
+            SchwabAccountSettings(account_number="AWARDS-NUM1", account_name_alias="awards", **self.default_settings_args),
+            SchwabAccountSettings(account_number="AWARDS-NUM2", account_name_alias="AWARDS_alias", **self.default_settings_args)
+            # Note: "AWARDS_alias" will also be treated as an awards alias due to .lower() check
+        ]
+        # Re-create one with explicit "awards" to be sure, as the previous comment might be slightly off
+        # if the check is strictly 'alias.lower() == "awards"' vs 'alias.lower().contains("awards")'
+        # The current implementation is setting.account_name_alias.lower() != "awards"
+        # So "AWARDS_alias".lower() != "awards" is true. Let's make one explicitly "awards".
+        settings_strict_awards = [
+            SchwabAccountSettings(account_number="AWARDS-NUM1", account_name_alias="awards", **self.default_settings_args),
+            SchwabAccountSettings(account_number="AWARDS-NUM2", account_name_alias="awards", **self.default_settings_args)
+        ]
+        statement: TaxStatement = create_tax_statement_from_positions(
+            [], [], date(2023,1,1), self.period_to_date, 2023, settings_strict_awards
+        )
+        self.assertEqual(len(statement.client), 0)
+
+    def test_tax_statement_client_id_empty_settings(self):
+        settings = []
+        statement: TaxStatement = create_tax_statement_from_positions(
+            [], [], date(2023,1,1), self.period_to_date, 2023, settings
+        )
+        self.assertEqual(len(statement.client), 0)
+
+    def test_tax_statement_client_id_no_awards_present(self):
+        settings = [
+            SchwabAccountSettings(account_number="CH123-MAIN", account_name_alias="main", **self.default_settings_args),
+            SchwabAccountSettings(account_number="CH456-ALT", account_name_alias="alternative", **self.default_settings_args)
+        ]
+        statement: TaxStatement = create_tax_statement_from_positions(
+            [], [], date(2023,1,1), self.period_to_date, 2023, settings
+        )
+        self.assertEqual(len(statement.client), 1)
+        self.assertEqual(statement.client[0].clientNumber, ClientNumber("CH123-MAIN"))
+
+
 class TestSchwabImporterProcessing(unittest.TestCase):
 
     def test_convert_security_positions_populates_symbol(self):
@@ -40,14 +287,29 @@ class TestSchwabImporterProcessing(unittest.TestCase):
             (pos1, [stock1], []),
             (pos2, [stock2], []),
         ]
-
-        list_of_securities: ListOfSecurities = convert_security_positions_to_list_of_securities(security_tuples)
+        # Provide an empty list for account_settings_list for this existing test
+        settings_for_test = []
+        list_of_securities: ListOfSecurities = convert_security_positions_to_list_of_securities(security_tuples, settings_for_test)
 
         self.assertIsNotNone(list_of_securities)
         self.assertEqual(len(list_of_securities.depot), 1)
+        # The depot name will now be "...DEPOT1" due to no matching settings.
+        # This test was about symbol and securityName, not depot name resolution.
+        # To keep the original assertion for depot name, we'd need to add a setting.
+        # For now, let's adjust the expectation or accept the new default.
+        # Given the test name, it's better to make it pass with minimal changes if depot name isn't its focus.
+        # However, to be robust, let's provide a setting that resolves it as it was.
+        settings_for_test_resolved = [
+             SchwabAccountSettings(account_number="DEPOT1", account_name_alias="test_depot1", broker_name="schwab", canton="ZH", full_name="Test User")
+        ]
+        list_of_securities_resolved: ListOfSecurities = convert_security_positions_to_list_of_securities(security_tuples, settings_for_test_resolved)
 
-        depot = list_of_securities.depot[0]
-        self.assertEqual(depot.depotNumber, depot1_str)
+        # Using the resolved list for assertions below
+        self.assertIsNotNone(list_of_securities_resolved)
+        self.assertEqual(len(list_of_securities_resolved.depot), 1)
+        depot = list_of_securities_resolved.depot[0]
+
+        self.assertEqual(depot.depotNumber, depot1_str) # This should now pass
         self.assertEqual(len(depot.security), 2)
 
         # Assertions for pos1
@@ -151,7 +413,11 @@ class TestSchwabImporterProcessing(unittest.TestCase):
                 mock_statement_instance = MockStatementExtractor.return_value
                 mock_statement_instance.extract_positions.return_value = (dummy_positions_pdf, dummy_open_date_pdf, dummy_close_date_plus1_pdf, dummy_depot_pdf)
 
-                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=[]) # type: ignore
+                # Provide a setting for DP1 to resolve correctly
+                importer_settings = [
+                    SchwabAccountSettings(account_number="DP1", account_name_alias="dp1_alias", broker_name="schwab", canton="ZH", full_name="Test User")
+                ]
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=importer_settings)
                 tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
 
                 # 4. Assertions
@@ -219,7 +485,11 @@ class TestSchwabImporterProcessing(unittest.TestCase):
             with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
                 mock_statement_instance = MockStatementExtractor.return_value
                 mock_statement_instance.extract_positions.return_value = (dummy_positions, dummy_open_date, dummy_close_date_plus1, dummy_depot)
-                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=[]) # type: ignore
+                # Provide a setting for DP2 to resolve correctly, though this test isn't about the name itself
+                importer_settings = [
+                    SchwabAccountSettings(account_number="DP2", account_name_alias="dp2_alias", broker_name="schwab", canton="ZH", full_name="Test User")
+                ]
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=importer_settings)
                 # Should not raise
                 tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
                 self.assertIsNotNone(tax_statement)

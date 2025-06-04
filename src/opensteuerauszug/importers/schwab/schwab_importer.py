@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import os
 from decimal import Decimal
 from opensteuerauszug.model.ech0196 import (
-    ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, CurrencyId, QuotationType, BankAccountTaxValue
+    ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, CurrencyId, QuotationType, BankAccountTaxValue, Client, ClientNumber
 )
 from opensteuerauszug.model.position import BasePosition, SecurityPosition, CashPosition, Position
 from .statement_extractor import StatementExtractor
@@ -18,6 +18,32 @@ from opensteuerauszug.config.models import SchwabAccountSettings # Add this
 
 # Placeholder import for TransactionExtractor (to be implemented)
 # from .TransactionExtractor import TransactionExtractor
+
+
+def _get_configured_account_info(depot_short_id: str, account_settings_list: List[SchwabAccountSettings], is_awards_depot: bool) -> Tuple[Optional[str], str]:
+    """
+    Determines the account number and display name based on configuration and depot type.
+    """
+    if is_awards_depot:
+        # For awards, depot_short_id might be a symbol or specific awards account ID if available
+        return None, f"Equity Awards {depot_short_id}"
+    else:
+        found_account_number: Optional[str] = None
+        first_matching_alias: Optional[str] = None
+        for setting in account_settings_list:
+            if setting.account_number.endswith(depot_short_id):
+                if found_account_number is not None:
+                    print(f"WARNING: Multiple configured Schwab accounts end with '...{depot_short_id}'. Using first found: '{found_account_number}' (alias: '{first_matching_alias}'). Consider refining configurations if this is not intended.")
+                    continue  # Stick with the first one found
+                else:
+                    found_account_number = setting.account_number
+                    first_matching_alias = setting.account_name_alias
+
+        if found_account_number:
+            # If a match is found, return the full account number for both elements of the tuple.
+            return found_account_number, found_account_number
+        else:
+            return None, f"...{depot_short_id}"
 
 def is_date_in_valid_transaction_range(date_to_check: date, transaction_range: Tuple[date, date]) -> bool:
     """
@@ -365,7 +391,8 @@ class SchwabImporter:
             final_cash_tuples,
             period_from=self.period_from,
             period_to=self.period_to,
-            tax_period=tax_year
+            tax_period=tax_year,
+            account_settings_list=self.account_settings_list
         )
 
     def import_dir(self, directory: str) -> TaxStatement:
@@ -387,18 +414,29 @@ class SchwabImporter:
         return self.import_files(files)
 
 def convert_security_positions_to_list_of_securities(
-    security_tuples: list[tuple[SecurityPosition, list[SecurityStock], list[SecurityPayment] | None]]
+    security_tuples: list[tuple[SecurityPosition, list[SecurityStock], list[SecurityPayment] | None]],
+    account_settings_list: List[SchwabAccountSettings]
 ) -> ListOfSecurities:
     """
     Convert a list of (SecurityPosition, List[SecurityStock], Optional[List[SecurityPayment]]) tuples
     into a ListOfSecurities object. Minimal stub: one depot, one security per position.
     """
-    depots: Dict[str, Depot] = {}
+    depots: Dict[str, Depot] = {} # Uses the final_depot_id_str as key
     for pos, stocks, payments in security_tuples:
-        depot_number = pos.depot
-        if depot_number not in depots:
-            depots[depot_number] = Depot(depotNumber=DepotNumber(depot_number), security=[])
-        # Use the first stock for required attributes, but include all stocks in the list
+        depot_key = pos.depot # This is the short form, e.g., "123" or "AWARDS"
+
+        final_depot_id_str: str
+        if depot_key == 'AWARDS':
+            final_depot_id_str = "AWARDS"
+        else:
+            # For non-AWARDS, get the configured full account number or ...<depot_key>
+            _matched_config_acc_num, display_id_from_helper = _get_configured_account_info(
+                depot_key, account_settings_list, False
+            )
+            final_depot_id_str = display_id_from_helper
+
+        if final_depot_id_str not in depots:
+            depots[final_depot_id_str] = Depot(depotNumber=DepotNumber(final_depot_id_str), security=[])
         
         # Determine security name based on description and symbol
         security_name: str
@@ -419,30 +457,48 @@ def convert_security_positions_to_list_of_securities(
             payment=payments or [],
             symbol=pos.symbol  # Add this line
         )
-        depots[depot_number].security.append(sec)
+        depots[final_depot_id_str].security.append(sec) # Use final_depot_id_str as key
     return ListOfSecurities(depot=list(depots.values()))
 
 def convert_cash_positions_to_list_of_bank_accounts(
     cash_tuples: list[tuple[CashPosition, list[SecurityStock], list[SecurityPayment] | None]],
-    period_to: date
+    period_to: date,
+    account_settings_list: List[SchwabAccountSettings]
 ) -> ListOfBankAccounts:
     """
     Convert a list of (CashPosition, List[SecurityStock], Optional[List[SecurityPayment]]) tuples into a ListOfBankAccounts object.
     """
     accounts: List[BankAccount] = []
     for pos, stocks, payments in cash_tuples:
-        depot_number = pos.depot
         currency = "USD" # Fallback if no stock items
         if stocks:
             currency = stocks[0].balanceCurrency
         else:
-            print(f"Warning: CashPosition in depot {depot_number} has no stock items. Using default currency.")
+            print(f"Warning: CashPosition for depot {pos.depot} / cash_id {pos.cash_account_id} has no stock items. Using default currency.")
 
-        if pos.depot == 'AWARDS':
-            # Special case for awards depot
-            account_number = f"Equity Awards {pos.cash_account_id}"
-        else:
-            account_number = f"{pos.currentCy} Account ...{depot_number}"
+        is_awards = pos.depot == 'AWARDS'
+        # Ensure cash_account_id is a string if it's None and is_awards is true, or handle None in _get_configured_account_info
+        depot_identifier_for_lookup = pos.cash_account_id if is_awards else pos.depot
+        if is_awards and depot_identifier_for_lookup is None:
+            # This case might indicate an issue or require a default, e.g., "UNKNOWN_AWARD_ID"
+            # For now, let's use a placeholder to ensure _get_configured_account_info receives a string.
+            print(f"WARNING: Awards depot for {pos.depot} has a None cash_account_id. Using 'UNKNOWN' for lookup.")
+            depot_identifier_for_lookup = "UNKNOWN"
+
+        _matched_config_acc_num, display_id_from_helper = _get_configured_account_info(
+            depot_identifier_for_lookup,
+            account_settings_list,
+            is_awards
+        )
+
+        final_account_number_str: str
+        if is_awards:
+            final_account_number_str = display_id_from_helper  # Expected: "Equity Awards <cash_account_id>" or "Equity Awards UNKNOWN"
+        else: # Not awards
+            if _matched_config_acc_num is not None: # Full account number from config
+                final_account_number_str = display_id_from_helper # This is the full account number as per _get_configured_account_info logic
+            else: # No match in config, display_id_from_helper is "...<depot>"
+                final_account_number_str = f"{pos.currentCy} Account {display_id_from_helper}"
 
         bank_payments = [BankAccountPayment(
             paymentDate=payment.paymentDate,
@@ -452,7 +508,7 @@ def convert_cash_positions_to_list_of_bank_accounts(
         ) for payment in payments] if payments else []
             
         bank_account = BankAccount(
-                bankAccountNumber=BankAccountNumber(account_number),
+                bankAccountNumber=BankAccountNumber(final_account_number_str),
                 bankAccountCountry="US", # Assume Schwab is always US based
                 bankAccountCurrency=currency,
                 payment=bank_payments
@@ -483,18 +539,32 @@ def create_tax_statement_from_positions(
     cash_tuples: list[tuple[CashPosition, list[SecurityStock], list[SecurityPayment] | None]],
     period_from: date,
     period_to: date,
-    tax_period: int
+    tax_period: int,
+    account_settings_list: List[SchwabAccountSettings] # Added account_settings_list
 ) -> TaxStatement:
     """
     Create a TaxStatement from security and cash tuples.
     """
-    list_of_securities = convert_security_positions_to_list_of_securities(security_tuples)
-    list_of_bank_accounts = convert_cash_positions_to_list_of_bank_accounts(cash_tuples, period_to)
+    client_id_value: Optional[str] = None
+    for setting in account_settings_list:
+        if setting.account_name_alias and setting.account_name_alias.lower() != "awards":
+            client_id_value = setting.account_number
+            break
+
+    client_list_for_statement: List[Client] = []
+    if client_id_value:
+        main_client = Client(clientNumber=ClientNumber(client_id_value)) # Use ClientNumber type
+        client_list_for_statement.append(main_client)
+
+    list_of_securities = convert_security_positions_to_list_of_securities(security_tuples, account_settings_list)
+    # Pass account_settings_list to convert_cash_positions_to_list_of_bank_accounts
+    list_of_bank_accounts = convert_cash_positions_to_list_of_bank_accounts(cash_tuples, period_to, account_settings_list)
     return TaxStatement(
         minorVersion=1,
         periodFrom=period_from,
         periodTo=period_to,
         taxPeriod=tax_period,
+        client=client_list_for_statement,
         listOfSecurities=list_of_securities,
         listOfBankAccounts=list_of_bank_accounts
     )
