@@ -12,6 +12,7 @@ from typing import List
 
 from opensteuerauszug.core.kursliste_manager import KurslisteManager
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
+from opensteuerauszug.core.kursliste_accessor import KurslisteAccessor
 from opensteuerauszug.model.kursliste import Kursliste
 from tests.utils.samples import get_sample_dirs
 
@@ -68,32 +69,32 @@ def kursliste_manager(sample_kursliste_dirs: List[str]) -> KurslisteManager:
 
 
 @pytest.fixture(scope="session")
-def kursliste(kursliste_manager: KurslisteManager) -> Kursliste:
+def kursliste(kursliste_manager: KurslisteManager) -> KurslisteAccessor:
     """
-    Get a sample Kursliste instance from the loaded kursliste manager.
+    Get a sample KurslisteAccessor instance from the loaded kursliste manager.
     
-    This fixture provides access to a single Kursliste instance for tests
-    that need to examine kursliste data directly. It selects the first
-    available kursliste from the latest available year.
+    This fixture provides access to a KurslisteAccessor instance for tests
+    that need to examine kursliste data. It selects the accessor for the latest
+    available year.
     
     Args:
         kursliste_manager: The loaded KurslisteManager instance
         
     Returns:
-        A Kursliste instance
+        A KurslisteAccessor instance
     """
     available_years = kursliste_manager.get_available_years()
     if not available_years:
         pytest.skip("No kurslisten available in manager")
     
-    # Get the latest available year and its first kursliste
+    # Get the latest available year and its accessor
     latest_year = max(available_years)
-    kurslisten = kursliste_manager.get_kurslisten_for_year(latest_year)
+    accessor = kursliste_manager.get_kurslisten_for_year(latest_year)
     
-    if not kurslisten:
-        pytest.skip(f"No kurslisten found for year {latest_year}")
+    if not accessor:
+        pytest.skip(f"No kursliste accessor found for year {latest_year}")
     
-    return kurslisten[0]
+    return accessor
 
 
 @pytest.fixture(scope="session")

@@ -19,8 +19,8 @@ def test_convert_security_positions_to_list_of_securities():
         quantity=Decimal(10),
         balanceCurrency='USD'
     )
-    result = convert_security_positions_to_list_of_securities([(pos, [stock], None)])
-    assert result.depot[0].depotNumber == "D1"
+    result = convert_security_positions_to_list_of_securities([(pos, [stock], None)], [])
+    assert result.depot[0].depotNumber == "...D1"
     assert result.depot[0].security[0].securityName == "AAPL"
     assert result.depot[0].security[0].stock[0].quantity == 10
 
@@ -39,7 +39,8 @@ def test_convert_cash_positions_to_list_of_bank_accounts():
     # And the function needs period_to
     result = convert_cash_positions_to_list_of_bank_accounts(
         [(pos, [stock], None)],
-        period_to=period_to_date
+        period_to=period_to_date,
+        account_settings_list=[]
     )
     assert len(result.bankAccount) == 1
     assert result.bankAccount[0].bankAccountNumber == "USD Account ...D2"
@@ -81,7 +82,8 @@ def test_create_tax_statement_from_positions():
         [(cash_pos, [cash_stock], None)], # Added None for payments
         period_from=test_period_from,
         period_to=test_period_to,
-        tax_period=test_tax_period
+        tax_period=test_tax_period,
+        account_settings_list=[]
     )
     assert tax_statement.minorVersion == 1
     assert tax_statement.periodFrom == test_period_from

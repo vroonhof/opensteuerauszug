@@ -8,7 +8,7 @@ from typing import List
 
 from opensteuerauszug.core.kursliste_manager import KurslisteManager
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
-from opensteuerauszug.model.kursliste import Kursliste
+from opensteuerauszug.core.kursliste_accessor import KurslisteAccessor
 
 
 def test_sample_kursliste_dirs_fixture(sample_kursliste_dirs: List[str]):
@@ -28,11 +28,11 @@ def test_kursliste_manager_fixture(kursliste_manager: KurslisteManager):
     print(f"Available years: {available_years}")
 
 
-def test_kursliste_fixture(kursliste: Kursliste):
+def test_kursliste_fixture(kursliste: KurslisteAccessor):
     """Test that the kursliste fixture works."""
-    assert isinstance(kursliste, Kursliste)
-    assert kursliste.year is not None
-    print(f"Kursliste year: {kursliste.year}")
+    assert isinstance(kursliste, KurslisteAccessor)
+    assert kursliste.tax_year is not None
+    print(f"Kursliste tax year: {kursliste.tax_year}")
 
 
 def test_exchange_rate_provider_fixture(exchange_rate_provider: KurslisteExchangeRateProvider):
