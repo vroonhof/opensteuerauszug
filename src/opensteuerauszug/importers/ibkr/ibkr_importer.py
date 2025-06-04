@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    ClientNumber, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
+    ClientNumber, Institution, OrganisationName, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
     Security, SecurityStock, SecurityPayment,
     BankAccount, BankAccountPayment, BankAccountTaxValue,
     CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client
@@ -587,7 +587,15 @@ class IbkrImporter:
             "and basic CashTransactions mapping."
         )
 
+        # Fill in institution
+        # Name is sufficient. Avoid setting legal identifiers avoid implying this is
+        # officially from the broker.
+        tax_statement.institution = Institution(
+            name="Interactive Brokers"
+        )
+
         # --- Create Client object ---
+        # TOOD: Handle joint accounts
         client_obj = None
         if all_flex_statements:
             first_statement = all_flex_statements[0]
