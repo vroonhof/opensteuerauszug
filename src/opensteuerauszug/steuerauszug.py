@@ -259,7 +259,7 @@ def main(
                     account_settings_list=all_schwab_account_settings_models,
                     strict_consistency=strict_consistency_flag
                 )
-                statemeent = schwab_importer.import_dir(str(input_file))
+                statement = schwab_importer.import_dir(str(input_file))
                 print(f"Schwab import complete.")
 
             elif importer_type == ImporterType.IBKR:
