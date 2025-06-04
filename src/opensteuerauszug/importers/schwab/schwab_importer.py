@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import os
 from decimal import Decimal
 from opensteuerauszug.model.ech0196 import (
-    ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, CurrencyId, QuotationType, BankAccountTaxValue
+    Institution, ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, CurrencyId, QuotationType, BankAccountTaxValue
 )
 from opensteuerauszug.model.position import BasePosition, SecurityPosition, CashPosition, Position
 from .statement_extractor import StatementExtractor
@@ -496,7 +496,12 @@ def create_tax_statement_from_positions(
         periodTo=period_to,
         taxPeriod=tax_period,
         listOfSecurities=list_of_securities,
-        listOfBankAccounts=list_of_bank_accounts
+        listOfBankAccounts=list_of_bank_accounts,
+        # Name is sufficient. Avoid setting legal identifiers avoid implying this is
+        # officially from the broker.
+        institution = Institution(
+            name="Charles Schwab"
+        )
     )
 
 if __name__ == "__main__":

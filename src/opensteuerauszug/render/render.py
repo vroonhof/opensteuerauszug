@@ -276,12 +276,12 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
         if institution_name:
             institution_style = styles['HeaderInstitution']
             canvas.setFont(institution_style.fontName, institution_style.fontSize)
-            canvas.drawString(doc.leftMargin, page_height - doc.topMargin + 35*mm, institution_name)
+            canvas.drawString(doc.leftMargin, page_height - 15*mm, institution_name)
         
         # "erstellt mit" line
         created_with_style = styles['HeaderCreatedWith']
         canvas.setFont(created_with_style.fontName, created_with_style.fontSize)
-        canvas.drawString(doc.leftMargin, page_height - doc.topMargin + 30*mm, 
+        canvas.drawString(doc.leftMargin, page_height - 20*mm, 
                          "erstellt mit OpenSteuerauszug (https://github.com/vroonhof/opensteuerauszug)")
         
         # Tax statement title aligned with bottom of client info box - now big and bold
