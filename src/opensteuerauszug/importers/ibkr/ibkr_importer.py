@@ -9,7 +9,7 @@ from opensteuerauszug.model.ech0196 import (
     SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
     Security, SecurityStock, SecurityPayment,
     BankAccount, BankAccountPayment, BankAccountTaxValue,
-    CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType
+    CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client
 )
 from opensteuerauszug.config.models import IbkrAccountSettings
 
@@ -586,6 +586,47 @@ class IbkrImporter:
             "Partial TaxStatement created with Trades, OpenPositions, "
             "and basic CashTransactions mapping."
         )
+
+        # --- Create Client object ---
+        client_obj = None
+        if all_flex_statements:
+            first_statement = all_flex_statements[0]
+            if hasattr(first_statement, 'AccountInformation') and first_statement.AccountInformation:
+                acc_info = first_statement.AccountInformation
+                account_id = getattr(acc_info, 'accountId', None)
+                name = getattr(acc_info, 'name', None)
+                first_name = getattr(acc_info, 'firstName', None)
+                last_name = getattr(acc_info, 'lastName', None)
+                account_holder_name = getattr(acc_info, 'accountHolderName', None)
+                # address1 = getattr(acc_info, 'address1', None)
+                # address2 = getattr(acc_info, 'address2', None)
+                # city = getattr(acc_info, 'city', None)
+                # state = getattr(acc_info, 'state', None)
+                # country = getattr(acc_info, 'country', None)
+                # postalCode = getattr(acc_info, 'postalCode', None)
+
+                client_first_name = None
+                client_last_name = None
+
+                if first_name and last_name:
+                    client_first_name = first_name
+                    client_last_name = last_name
+                elif name:
+                    client_last_name = name
+                elif account_holder_name:
+                    client_last_name = account_holder_name
+
+                if account_id and client_last_name: # lastName is mandatory for Client
+                    client_obj = Client(
+                        clientNumber=account_id,
+                        firstName=client_first_name,
+                        lastName=client_last_name,
+                        # Other fields like tin, salutation are not yet mapped
+                    )
+        if client_obj:
+            tax_statement.client = [client_obj]
+        # --- End Client object ---
+
         return tax_statement
 
 

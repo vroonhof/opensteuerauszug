@@ -7,7 +7,7 @@ import tempfile
 
 from opensteuerauszug.importers.ibkr.ibkr_importer import IbkrImporter
 from opensteuerauszug.config.models import IbkrAccountSettings
-from opensteuerauszug.model.ech0196 import TaxStatement, ListOfSecurities, ListOfBankAccounts, Security, BankAccount, QuotationType, CurrencyId
+from opensteuerauszug.model.ech0196 import TaxStatement, ListOfSecurities, ListOfBankAccounts, Security, BankAccount, QuotationType, CurrencyId, Client
 
 # Check if ibflex is available, skip tests if not
 try:
@@ -196,3 +196,146 @@ def test_ibkr_import_missing_required_field(sample_ibkr_settings_other_account):
 #   assert dividend_payment.amount == Decimal("50.00")
 #   And then assert only 1 payment (Initial Deposit) in the BankAccount.
 #   assert len(usd_account.payment) == 1
+
+# Parameterized test data for client information
+CLIENT_INFO_TEST_CASES = [
+    # Scenario 1: firstName and lastName provided
+    {
+        "account_info_xml": """
+          <AccountInformation accountId="U9876543" acctAlias="Test Alias">
+            <AccountHolderInfo name="John Doe" firstName="John" lastName="Doe" />
+          </AccountInformation>""",
+        "expected_client_number": "U9876543",
+        "expected_first_name": "John",
+        "expected_last_name": "Doe",
+        "description": "firstName and lastName present"
+    },
+    # Scenario 2: Only name provided
+    {
+        "account_info_xml": """
+          <AccountInformation accountId="U9876544" acctAlias="Another Alias">
+            <AccountHolderInfo name="Jane Smith FullName" />
+          </AccountInformation>""",
+        "expected_client_number": "U9876544",
+        "expected_first_name": None,
+        "expected_last_name": "Jane Smith FullName",
+        "description": "Only name present"
+    },
+    # Scenario 3: Only accountHolderName provided (assuming 'name' in AccountHolderInfo is used as accountHolderName if firstName/lastName are missing)
+    # Let's adjust the XML slightly if AccountHolderInfo.name is different from AccountInformation.accountHolderName
+    # For this test, we'll assume AccountInformation.name is the primary source if AccountHolderInfo is missing or incomplete.
+    # The current implementation uses AccountInformation.name, .firstName, .lastName, .accountHolderName
+    {
+        "account_info_xml": """
+          <AccountInformation accountId="U9876545" acctAlias="Third Alias" accountHolderName="Actual Holder Name">
+          </AccountInformation>""", # No AccountHolderInfo node
+        "expected_client_number": "U9876545",
+        "expected_first_name": None,
+        "expected_last_name": "Actual Holder Name", # Falls back to accountHolderName
+        "description": "Only accountHolderName present in AccountInformation"
+    },
+    # Scenario 4: name in AccountInformation, firstName & lastName in AccountHolderInfo (HolderInfo should take precedence)
+    {
+        "account_info_xml": """
+          <AccountInformation accountId="U9876546" acctAlias="Fourth Alias" name="Overall Account Name">
+            <AccountHolderInfo firstName="SpecificFirst" lastName="SpecificLast" />
+          </AccountInformation>""",
+        "expected_client_number": "U9876546",
+        "expected_first_name": "SpecificFirst",
+        "expected_last_name": "SpecificLast",
+        "description": "firstName/lastName in AccountHolderInfo takes precedence over AccountInformation.name"
+    },
+     # Scenario 5: name in AccountInformation, only name in AccountHolderInfo (HolderInfo.name should be used for lastName)
+    {
+        "account_info_xml": """
+          <AccountInformation accountId="U9876547" acctAlias="Fifth Alias" name="Overall Account Name Again">
+            <AccountHolderInfo name="Holder Info Name Only"/>
+          </AccountInformation>""",
+        "expected_client_number": "U9876547",
+        "expected_first_name": None,
+        "expected_last_name": "Holder Info Name Only", # AccountHolderInfo.name used as lastName
+        "description": "AccountHolderInfo.name used for lastName when firstName/lastName missing in HolderInfo"
+    },
+    # Scenario 6: No relevant name fields at all, client should not be created
+    {
+        "account_info_xml": """
+          <AccountInformation accountId="U9876548" acctAlias="Sixth Alias">
+            <SomeOtherInfo>Details</SomeOtherInfo>
+          </AccountInformation>""",
+        "expected_client_number": None, # client object should not be created
+        "expected_first_name": None,
+        "expected_last_name": None,
+        "description": "No name fields present, client should be None"
+    },
+]
+
+@pytest.mark.parametrize("client_data", CLIENT_INFO_TEST_CASES)
+def test_import_files_with_client_information(client_data, sample_ibkr_settings):
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    # Use the accountId from the test case for settings, or a default if not applicable
+    account_id_for_settings = client_data["expected_client_number"] or "U0000000"
+    settings = [IbkrAccountSettings(
+        account_number=account_id_for_settings, # This is not directly used by client creation from XML accountId
+        broker_name="Interactive Brokers",
+        account_name_alias="Client Test Account",
+        canton="ZH",
+        full_name="Test User"
+    )]
+
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=settings # Use the dynamic settings
+    )
+
+    # Construct a minimal valid FlexQueryResponse with the specific AccountInformation
+    # Basic structure that includes Trades to avoid "No Flex statements" warning if no trades are present
+    # and to ensure `all_flex_statements` is populated.
+    xml_content = f"""
+<FlexQueryResponse queryName="ClientTestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="{client_data.get('expected_client_number', 'U0000000')}" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      {client_data["account_info_xml"]}
+      <Trades>
+        <Trade transactionID="3001" accountId="{client_data.get('expected_client_number', 'U0000000')}" assetCategory="STK" symbol="TEST" description="TEST STOCK" conid="00000" currency="USD" quantity="1" tradeDate="2023-01-01" settleDateTarget="2023-01-01" tradePrice="10" tradeMoney="10" buySell="BUY" ibCommission="0" netCash="-10" />
+      </Trades>
+      <CashReport>
+        <CashReportCurrency accountId="{client_data.get('expected_client_number', 'U0000000')}" currency="USD" endingCash="0"/>
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_content)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+
+        if client_data["expected_client_number"] is None and client_data["expected_last_name"] is None:
+            # Scenario where no client should be created
+            assert not hasattr(tax_statement, 'client') or tax_statement.client is None or len(tax_statement.client) == 0
+        else:
+            assert hasattr(tax_statement, 'client')
+            assert tax_statement.client is not None
+            assert len(tax_statement.client) == 1
+            client_obj = tax_statement.client[0]
+            assert isinstance(client_obj, Client)
+            assert client_obj.clientNumber == client_data["expected_client_number"]
+            assert client_obj.firstName == client_data["expected_first_name"]
+            assert client_obj.lastName == client_data["expected_last_name"]
+            # Optional: Log details for easier debugging if a test case fails
+            # print(f"Test: {client_data['description']}")
+            # print(f"  Expected: clientNumber={client_data['expected_client_number']}, firstName={client_data['expected_first_name']}, lastName={client_data['expected_last_name']}")
+            # print(f"  Actual:   clientNumber={client_obj.clientNumber}, firstName={client_obj.firstName}, lastName={client_obj.lastName}")
+
+
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
