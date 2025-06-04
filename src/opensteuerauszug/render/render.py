@@ -60,6 +60,10 @@ class BarcodeDocTemplate(BaseDocTemplate):
         self.is_barcode_page: bool = False
         self.company_name: Optional[str] = None
         self.section_name: str = 'SECTION NAME'
+        # Client information for the header box
+        self.client_info: Dict[str, str] = {}
+        self.summary_table_last_col_width: float = 0.0
+        self.tax_statement: Optional[TaxStatement] = None
 
 # --- Helper Function for Currency Formatting ---
 def format_currency_rounded(value: Decimal, default='0.00'):
@@ -119,6 +123,135 @@ def find_minimal_decimals(value: Optional[Decimal]):
     if isinstance(exponent, int): return max(0, -exponent)
     return 4
 
+def extract_client_info(tax_statement: TaxStatement) -> Dict[str, str]:
+    """Extract client information from tax statement for header display.
+    
+    Args:
+        tax_statement: The TaxStatement model containing client data
+        
+    Returns:
+        Dictionary with formatted client information
+    """
+    client_info = {}
+    
+    # Handle multiple clients (joint accounts)
+    if tax_statement.client and len(tax_statement.client) > 0:
+        client_names = []
+        portfolio_numbers = []
+        
+        for client in tax_statement.client:
+            # Prepare client name with salutation
+            salutation = ""
+            if hasattr(client, 'salutation') and client.salutation:
+                salutation_codes = {"1": "", "2": "Herr", "3": "Frau"}
+                salutation = salutation_codes.get(client.salutation, "")
+            
+            name_parts = []
+            if salutation:
+                name_parts.append(salutation)
+            if hasattr(client, 'firstName') and client.firstName:
+                name_parts.append(client.firstName)
+            if hasattr(client, 'lastName') and client.lastName:
+                name_parts.append(client.lastName)
+            
+            if name_parts:
+                client_names.append(" ".join(name_parts))
+            
+            # Collect portfolio/client numbers
+            if hasattr(client, 'clientNumber'):
+                portfolio_numbers.append(str(client.clientNumber))
+        
+        # Store multiple client names
+        if client_names:
+            client_info['names'] = client_names  # Changed from 'name' to 'names' (list)
+        
+        # Store portfolio numbers
+        if portfolio_numbers:
+            client_info['portfolio'] = ", ".join(portfolio_numbers) if len(portfolio_numbers) > 1 else portfolio_numbers[0]
+    
+    # Add canton information
+    if hasattr(tax_statement, 'canton') and tax_statement.canton:
+        client_info['canton'] = tax_statement.canton
+    
+    # Period information
+    period_from = tax_statement.periodFrom.strftime("%d.%m.%Y") if tax_statement.periodFrom else ""
+    period_to = tax_statement.periodTo.strftime("%d.%m.%Y") if tax_statement.periodTo else ""
+    if period_from and period_to:
+        client_info['period'] = f"{period_from} - {period_to}"
+    
+    # Creation date
+    if hasattr(tax_statement, 'creationDate') and tax_statement.creationDate:
+        client_info['created'] = tax_statement.creationDate.strftime("%d.%m.%Y")
+    
+    return client_info
+
+def create_client_info_table(tax_statement: TaxStatement, styles, box_width: float):
+    """Create a client information table for header display.
+    
+    Args:
+        tax_statement: The TaxStatement model containing client data
+        styles: Dictionary of text styles
+        box_width: Width of the client info table
+        
+    Returns:
+        A Table object containing the client information or None if no client data
+    """
+    client_info = extract_client_info(tax_statement)
+    if not client_info:
+        return None
+    
+    # Use smaller font for the info box - removed bold, reduced line spacing
+    info_style = ParagraphStyle(
+        name='ClientInfoStyle', 
+        parent=styles['Normal'], 
+        fontSize=8, 
+        fontName='Helvetica',  # Changed from Helvetica-Bold
+        leading=9,  # Reduced from 10 to save vertical space
+        leftIndent=0,
+        rightIndent=0
+    )
+    
+    # Prepare table data - removed <b> tags
+    table_data = []
+    
+    # Handle multiple clients - create separate lines for each
+    if 'names' in client_info:
+        for name in client_info['names']:
+            table_data.append([Paragraph(f"Kunde: {name}", info_style)])
+    
+    if 'portfolio' in client_info:
+        table_data.append([Paragraph(f"Portfolio: {client_info['portfolio']}", info_style)])
+    
+    if 'canton' in client_info:
+        table_data.append([Paragraph(f"Kanton: {client_info['canton']}", info_style)])
+    
+    if 'period' in client_info:
+        table_data.append([Paragraph(f"Periode: {client_info['period']}", info_style)])
+    
+    if 'created' in client_info:
+        table_data.append([Paragraph(f"Daten von: {client_info['created']}", info_style)])
+    
+    if not table_data:
+        return None
+    
+    # Create table with single column
+    client_table = Table(table_data, colWidths=[box_width])
+    
+    # Style the table to look like the info box - reduced padding to save space
+    client_table.setStyle(TableStyle([
+        # Removed background color
+        ('LINEABOVE', (0, 0), (-1, 0), 0.5, colors.black),  # Top border only
+        ('LINEBELOW', (0, -1), (-1, -1), 0.5, colors.black),  # Bottom border only
+        # Removed left and right borders
+        ('LEFTPADDING', (0, 0), (-1, -1), 2*mm),  # Reduced from 3mm
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2*mm),  # Reduced from 3mm
+        ('TOPPADDING', (0, 0), (-1, -1), 1*mm),   # Reduced from 2mm
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1*mm), # Reduced from 2mm
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    
+    return client_table
+
 # --- Header/Footer Drawing Functions (for SimpleDocTemplate) ---
 
 def draw_page_header(canvas, doc, is_barcode_page: bool = False):
@@ -127,11 +260,53 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
     page_width = doc.pagesize[0]
     page_height = doc.pagesize[1]
     canvas.setFont('Helvetica', 9)
-    header_text = "TODO: Add header text here" # Example header
     canvas.setFillColor(colors.black)
     header_x = page_width - doc.rightMargin
-    header_y = page_height - doc.topMargin + 10*mm # Adjust position as needed
-    canvas.drawRightString(header_x, header_y, header_text)
+    
+    # Draw left header text on non-barcode pages
+    if not is_barcode_page and hasattr(doc, 'tax_statement') and doc.tax_statement:
+        # Get custom styles for header text
+        styles = get_custom_styles()
+        
+        # Institution name in big font
+        institution_name = ""
+        if hasattr(doc.tax_statement, 'institution') and doc.tax_statement.institution:
+            institution_name = doc.tax_statement.institution.name if hasattr(doc.tax_statement.institution, 'name') else ""
+        
+        if institution_name:
+            institution_style = styles['HeaderInstitution']
+            canvas.setFont(institution_style.fontName, institution_style.fontSize)
+            canvas.drawString(doc.leftMargin, page_height - doc.topMargin + 35*mm, institution_name)
+        
+        # "erstellt mit" line
+        created_with_style = styles['HeaderCreatedWith']
+        canvas.setFont(created_with_style.fontName, created_with_style.fontSize)
+        canvas.drawString(doc.leftMargin, page_height - doc.topMargin + 30*mm, 
+                         "erstellt mit OpenSteuerauszug (https://github.com/vroonhof/opensteuerauszug)")
+        
+        # Tax statement title aligned with bottom of client info box - now big and bold
+        period_end_date = doc.tax_statement.periodTo.strftime("%d.%m.%Y") if doc.tax_statement.periodTo else "31.12"
+        tax_year = str(doc.tax_statement.taxPeriod) if doc.tax_statement.taxPeriod else ""
+        canton = doc.tax_statement.canton if hasattr(doc.tax_statement, 'canton') and doc.tax_statement.canton else "CH"
+        
+        title_style = styles['HeaderTitle']
+        canvas.setFont(title_style.fontName, title_style.fontSize)
+        canvas.drawString(doc.leftMargin, page_height - doc.topMargin + 5*mm, 
+                         f"Steuerauszug {tax_year} {canton} {period_end_date}")
+    
+    # Draw client information table on non-barcode pages
+    if not is_barcode_page and hasattr(doc, 'tax_statement') and doc.tax_statement:
+        box_width = getattr(doc, 'summary_table_last_col_width', 60*mm)  # Default fallback
+        client_table = create_client_info_table(doc.tax_statement, get_custom_styles(), box_width)
+        if client_table:
+            # Position the table in the header area
+            table_x = page_width - doc.rightMargin - box_width
+            table_y = page_height - 15*mm
+            
+            # Wrap the table to get its dimensions
+            table_width, table_height = client_table.wrapOn(canvas, box_width, 50*mm)
+            # Draw the table at the calculated position
+            client_table.drawOn(canvas, table_x, table_y - table_height)
     
     # Draw the barcode if page specific data is available
     if isinstance(doc, BarcodeDocTemplate) and doc.onedee_generator:
@@ -146,7 +321,7 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
             doc.onedee_generator.draw_barcode_on_canvas(canvas, barcode_widget, doc.pagesize)
     
     canvas.restoreState()
- 
+
 def draw_page_header_barcode(canvas, doc):
     """Draws the header and barcode on the barcode pages."""
     draw_page_header(canvas, doc, is_barcode_page=True)
@@ -495,18 +670,9 @@ def render_statement_info(tax_statement: TaxStatement, story: list, client_info_
     if portfolio:
         story.append(Paragraph(f"<b>Portfolio:</b> {portfolio}", client_info_style))
     
-    # Add institution information
-    if hasattr(tax_statement, 'institution') and tax_statement.institution:
-        institution_name = tax_statement.institution.name if hasattr(tax_statement.institution, 'name') else ""
-        if institution_name:
-            story.append(Paragraph(f"<b>Institution:</b> {institution_name}", client_info_style))
-    
     # Period information with safe date handling
     period_from = tax_statement.periodFrom.strftime("%d.%m.%Y") if tax_statement.periodFrom else ""
     period_to = tax_statement.periodTo.strftime("%d.%m.%Y") if tax_statement.periodTo else ""
-    
-    # Tax period is mandatory
-    story.append(Paragraph(f"<b>Steuerjahr:</b> {tax_statement.taxPeriod}", client_info_style))
     
     # Period text with mandatory fields
     period_text = f"{period_from} - {period_to}"
@@ -1062,8 +1228,8 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     page_width, page_height = landscape(A4)
     left_margin = 20*mm # This leaves enough space for the barcode
     right_margin = 20*mm
-    top_margin = 25*mm
-    bottom_margin = 25*mm
+    top_margin = 40*mm  # Increased from 45*mm to accommodate header text + client info box height + buffer
+    bottom_margin = 15*mm
     usable_width = page_width - left_margin - right_margin
 
     # Define frame for the main content area
@@ -1094,20 +1260,28 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     doc.org_nr = compute_org_nr(tax_statement, override_org_nr)
     doc.company_name = tax_statement.institution.name if tax_statement.institution else ""
     
+    # Store tax statement for header access
+    doc.tax_statement = tax_statement
+    
+    # Extract and store client information for header display (backward compatibility)
+    doc.client_info = extract_client_info(tax_statement)
+    
+    # Calculate the summary table's last column width to match the client info box
+    # From create_summary_table: 2*base_col_width for column 8 (the instructions column)
+    usable_table_width = usable_width - 2.5*8 - 8 - 16  # Adjustments from create_summary_table
+    base_col_width = usable_table_width / 7
+    doc.summary_table_last_col_width = 2 * base_col_width  # Column 8 width
+    
     # --- Define styles centrally (same as before) ---
     styles = get_custom_styles()
 
     story = []
 
-    # --- Add Client Header Info ---
-    client_info_style = ParagraphStyle(name='ClientInfo', parent=styles['Normal'], fontSize=9, spaceAfter=3*mm)
-    
-    # Render statement information
-    render_statement_info(tax_statement, story, client_info_style)
-
     # --- Sections ---
     title_style = ParagraphStyle(name='SectionTitle', parent=styles['h2'], alignment=TA_LEFT, fontSize=10, spaceAfter=4*mm)
-
+    # Would love to use this, but following text then overlaps.
+    # title_style = styles['HeaderTitle']
+ 
     # 1. Summary Section
     story.append(Paragraph("Steuerauszug | Zusammenfassung", title_style))
     

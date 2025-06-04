@@ -81,9 +81,9 @@ def test_render_statement_info(sample_tax_statement):
     render_statement_info(sample_tax_statement, story, client_info_style)
     
     # Check that the expected elements were added to the story
-    # We should have 6 paragraphs (customer name, portfolio, institution, year, period, creation date) 
-    # and 1 spacer at the end
-    assert len(story) == 7
+    # We should have 4 paragraphs (customer name, portfolio, period, creation date) 
+    # and 1 spacer at the end (institution and tax year are now in left header)
+    assert len(story) == 5
     
     # All elements except the last should be Paragraph objects
     assert all(isinstance(elem, Paragraph) for elem in story[:-1])
@@ -97,10 +97,9 @@ def test_render_statement_info(sample_tax_statement):
     # Check that each expected piece of information is in the paragraph texts
     assert '<b>Kunde:</b> Herr Max Muster' in paragraph_texts
     assert '<b>Portfolio:</b> C1' in paragraph_texts
-    assert '<b>Institution:</b> Test Bank AG' in paragraph_texts
-    assert '<b>Steuerjahr:</b> 2023' in paragraph_texts
     assert '<b>Periode:</b> 01.01.2023 - 31.12.2023' in paragraph_texts
     assert '<b>Erstellt am:</b> 26.10.2023' in paragraph_texts
+    # Institution and tax year are now in the left header, not in the story
 
 @mock.patch('opensteuerauszug.render.render.render_to_barcodes')
 def test_render_tax_statement_content(mock_render_to_barcodes, sample_tax_statement):
