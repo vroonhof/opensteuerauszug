@@ -81,13 +81,12 @@ class TestCleanupCalculatorStandardValues:
         
         statement = TaxStatement(
             id=None,
-            creationDate=datetime(2000, 1, 1),  # Old date to test override
-            taxPeriod=None,
+            creationDate=None,
             periodFrom=None,
             periodTo=None,
             country=None,
             canton="ZH",
-            minorVersion=None,
+            minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],
             institution=Institution(lei=LEIType("TESTLEI1234500000000"))
         )

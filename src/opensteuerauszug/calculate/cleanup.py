@@ -1,10 +1,11 @@
 import re # Added for sanitization
 from datetime import date, datetime, timedelta
-from typing import List, Optional, Dict # Added Dict
+from typing import List, Optional, Dict, Any, cast, get_args # Added get_args import
 # import os # Removed os import
 # Removed pandas import
-from opensteuerauszug.model.ech0196 import SecurityTaxValue, TaxStatement, SecurityStock, BankAccountPayment, SecurityPayment
+from opensteuerauszug.model.ech0196 import SecurityTaxValue, TaxStatement, SecurityStock, BankAccountPayment, SecurityPayment, Client, ClientNumber, CantonAbbreviation
 from opensteuerauszug.util.sorting import find_index_of_date, sort_security_stocks, sort_payments, sort_security_payments
+from opensteuerauszug.config.models import GeneralSettings
 # from opensteuerauszug.core.identifier_loader import SecurityIdentifierMapLoader # Removed loader import
 
 class CleanupCalculator:
@@ -13,20 +14,23 @@ class CleanupCalculator:
     1. Sorting payments and stock statements.
     2. Optionally filtering these entries to the specified tax period.
     3. Optionally enriching securities with missing ISIN/Valor from a provided map.
+    4. Setting canton and client name from configuration if not already set.
     """
     def __init__(self,
                  period_from: date,
                  period_to: date,
                  importer_name: str, # Added importer_name parameter
-                 identifier_map: Optional[Dict[str, Dict[str, any]]] = None,
+                 identifier_map: Optional[Dict[str, Dict[str, Any]]] = None,
                  enable_filtering: bool = True,
-                 print_log: bool = False):
+                 print_log: bool = False,
+                 config_settings: Optional[GeneralSettings] = None):
         self.period_from = period_from
         self.period_to = period_to
         self.importer_name = importer_name # Store importer_name
         self.identifier_map = identifier_map
         self.enable_filtering = enable_filtering
         self.print_log = print_log
+        self.config_settings = config_settings
         self.modified_fields: List[str] = []
         self.log_messages: List[str] = []
         
@@ -35,6 +39,12 @@ class CleanupCalculator:
             self._log(f"CleanupCalculator initialized with an identifier map containing {len(self.identifier_map)} entries.")
         else:
             self._log("CleanupCalculator initialized without an identifier map. Enrichment will be skipped.")
+
+        # Log if configuration was provided
+        if self.config_settings:
+            self._log(f"CleanupCalculator initialized with configuration settings.")
+        else:
+            self._log("CleanupCalculator initialized without configuration settings.")
 
     def _log(self, message: str):
         self.log_messages.append(message)
@@ -149,8 +159,65 @@ class CleanupCalculator:
         statement.taxPeriod = self.period_to.year if self.period_to else None
         statement.country = "CH" # We are handling Swiss taxes
 
-        # TODO: Inject current time?
-        statement.creationDate = datetime.now()
+        # if set assume the importer used the stastment time.
+        if not statement.creationDate:
+            statement.creationDate = datetime.now()
+
+        # Set canton from configuration if not already set
+        if not statement.canton and self.config_settings and self.config_settings.canton:
+            canton_value = self.config_settings.canton
+            # Validate canton against allowed values
+            valid_cantons = get_args(CantonAbbreviation)
+            if canton_value in valid_cantons:
+                statement.canton = cast(CantonAbbreviation, canton_value)
+                self.modified_fields.append("TaxStatement.canton (from config)")
+                self._log(f"Set canton from configuration: {statement.canton}")
+            else:
+                self._log(f"Warning: Invalid canton '{canton_value}'. Valid cantons are: {', '.join(valid_cantons)}")
+
+        # Set client name from configuration if client exists but lacks name
+        if self.config_settings and self.config_settings.full_name:
+            config_full_name = self.config_settings.full_name
+            
+            # Parse the full name (assuming "First Last" format)
+            name_parts = config_full_name.strip().split()
+            if len(name_parts) >= 2:
+                config_first_name = name_parts[0]
+                config_last_name = ' '.join(name_parts[1:])  # Join remaining parts as last name
+            elif len(name_parts) == 1:
+                config_first_name = name_parts[0]
+                config_last_name = None  # Use None instead of empty string
+            else:
+                config_first_name = None  # Use None instead of empty string
+                config_last_name = None
+
+            # If no clients exist, create one with the configured name
+            if not statement.client:
+                new_client = Client(
+                    firstName=config_first_name,
+                    lastName=config_last_name
+                )
+                statement.client = [new_client]
+                self.modified_fields.append("TaxStatement.client (created from config)")
+                self._log(f"Created client from configuration: {config_full_name}")
+            else:
+                # Check if existing clients need name updates
+                for i, client in enumerate(statement.client):
+                    client_modified = False
+                    
+                    # Set firstName if not already set
+                    if not client.firstName and config_first_name:
+                        client.firstName = config_first_name
+                        client_modified = True
+                        
+                    # Set lastName if not already set
+                    if not client.lastName and config_last_name:
+                        client.lastName = config_last_name
+                        client_modified = True
+                    
+                    if client_modified:
+                        self.modified_fields.append(f"TaxStatement.client[{i}] (name from config)")
+                        self._log(f"Updated client[{i}] name from configuration: {config_full_name}")
 
         # Generate statement ID if it's missing
         if statement.id is None:

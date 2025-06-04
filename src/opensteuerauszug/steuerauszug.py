@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import date, datetime
 
-from opensteuerauszug.config.models import SchwabAccountSettings, IbkrAccountSettings # Added IbkrAccountSettings
+from opensteuerauszug.config.models import SchwabAccountSettings, IbkrAccountSettings, GeneralSettings # Added GeneralSettings
 import os # For path construction
 from .core.identifier_loader import SecurityIdentifierMapLoader
 
@@ -138,6 +138,30 @@ def main(
     all_schwab_account_settings_models: List[SchwabAccountSettings] = []
     all_ibkr_account_settings_models: List[IbkrAccountSettings] = [] # New list for IBKR
     config_manager = ConfigManager(config_file_path=str(config_file))
+    
+    # Extract general configuration settings for CleanupCalculator
+    general_config_settings: Optional[GeneralSettings] = None
+    try:
+        if config_manager.general_settings:
+            # Create GeneralSettings instance from the loaded configuration
+            temp_general_settings = dict(config_manager.general_settings)
+            
+            # Apply CLI overrides to general settings if any
+            if override_configs:
+                # Create a temporary dict to apply overrides to general settings
+                temp_config = {"general": config_manager.general_settings.copy()}
+                config_manager._apply_cli_overrides(temp_config, override_configs)
+                temp_general_settings = temp_config.get("general", {})
+            
+            # Create the GeneralSettings Pydantic model
+            general_config_settings = GeneralSettings(**temp_general_settings)
+            
+            print(f"Loaded general configuration settings: canton={general_config_settings.canton}, full_name={general_config_settings.full_name}")
+        else:
+            print("No general configuration settings found.")
+    except Exception as e:
+        print(f"Warning: Error loading general configuration settings: {e}")
+        general_config_settings = None
 
     target_broker_kind_for_config_loading = None
     if importer_type == ImporterType.SCHWAB:
@@ -341,7 +365,8 @@ def main(
                 identifier_map=security_identifier_map,
                 enable_filtering=filter_to_period_flag,
                 print_log=True,
-                importer_name=importer_type.value
+                importer_name=importer_type.value,
+                config_settings=general_config_settings
             )
             statement = cleanup_calculator.calculate(statement)
             # Logs are printed by the calculator itself if print_log=True
@@ -372,7 +397,6 @@ def main(
                 tax_value_calculator = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider)
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 print("Running FillInTaxValueCalculator...")
-                calculator_name = "FillInTaxValueCalculator"
                 tax_value_calculator = FillInTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider)
             
             if tax_value_calculator and calculator_name:
