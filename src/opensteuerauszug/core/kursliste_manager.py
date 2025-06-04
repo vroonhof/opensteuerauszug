@@ -8,6 +8,7 @@ for different tax years.
 import os
 import re # For parsing year from filename
 import datetime
+import xml.etree.ElementTree as ET
 from decimal import Decimal
 from pathlib import Path
 from typing import Dict, List, Optional, Union # Union will be removed from self.kurslisten type
@@ -44,11 +45,37 @@ class KurslisteManager:
                 return year
         return None
 
+    def _get_year_from_xml_content(self, file_path: Path) -> Optional[int]:
+        """
+        Extracts the year from XML content by reading the 'year' attribute of the root element.
+        This is used as a fallback when filename doesn't contain a year.
+        
+        Args:
+            file_path: Path to the XML file
+            
+        Returns:
+            Year as integer if found, None otherwise
+        """
+        try:
+            tree = ET.parse(file_path)
+            root = tree.getroot()
+            year_str = root.get('year')
+            if year_str:
+                year = int(year_str)
+                # Basic sanity check for a reasonable year range
+                if 1900 < year < 2100:
+                    return year
+        except Exception as e:
+            print(f"Warning: Could not extract year from XML content of {file_path.name}: {e}")
+        return None
+
     def load_directory(self, directory_path: Union[str, Path]) -> None:
         """
         Load Kursliste data (SQLite DBs or XML files) from the specified directory.
         Prioritizes SQLite DBs (e.g., kursliste_YYYY.sqlite) if found for a year.
         Otherwise, loads XML files for that year.
+        
+        For XML files, tries to extract year from filename first, then from XML content if needed.
         
         Args:
             directory_path: Path to directory containing Kursliste XML files
@@ -63,7 +90,18 @@ class KurslisteManager:
         year_file_map: Dict[int, Dict[str, List[Path]]] = {} # year -> {"xml": [...], "sqlite": [...]}
 
         for file_path in potential_files:
-            year = self._get_year_from_filename(file_path.name)
+            year = None
+            
+            # For SQLite files, always try filename extraction
+            if file_path.suffix == ".sqlite":
+                year = self._get_year_from_filename(file_path.name)
+            
+            # For XML files, try filename first, then XML content
+            elif file_path.suffix == ".xml":
+                year = self._get_year_from_filename(file_path.name)
+                if year is None:
+                    year = self._get_year_from_xml_content(file_path)
+            
             if year:
                 year_file_map.setdefault(year, {"xml": [], "sqlite": []})
                 if file_path.suffix == ".xml":
@@ -113,10 +151,17 @@ class KurslisteManager:
                         kursliste_obj = Kursliste.from_xml_file(xml_file_path, denylist=set())
                         
                         if kursliste_obj.year != year:
-                            # This situation might indicate a misnamed file or incorrect XML content.
-                            # For now, we'll associate with the year derived from the filename.
-                            # Consider logging a more severe warning or specific handling strategy if needed.
-                            print(f"Warning: Year mismatch for {xml_file_path.name}. Filename year: {year}, XML content year: {kursliste_obj.year}. Associating with filename year: {year}.")
+                            # This situation might indicate a mismatch between extracted year and XML content.
+                            # We'll use the XML content year as authoritative.
+                            print(f"Warning: Year mismatch for {xml_file_path.name}. Extracted year: {year}, XML content year: {kursliste_obj.year}. Using XML content year: {kursliste_obj.year}.")
+                            # Update the year_file_map to use the correct year from XML content
+                            actual_year = kursliste_obj.year
+                            if actual_year != year:
+                                # Move this file to the correct year bucket
+                                year_file_map.setdefault(actual_year, {"xml": [], "sqlite": []})
+                                year_file_map[actual_year]["xml"].append(xml_file_path)
+                                # We'll process this in a later iteration, skip for now
+                                continue
                         
                         loaded_xmls_for_year.append(kursliste_obj)
                     except Exception as e:
@@ -127,9 +172,6 @@ class KurslisteManager:
             
             if data_source:
                 self.kurslisten[year] = KurslisteAccessor(data_source, year)
-            elif not sqlite_files and not xml_files : # Only print if no files for year were found at all
-                 print(f"No data files found for year {year} in {directory_path}")
-
 
     def _load_kursliste_from_file(self, file_path: Path) -> Kursliste: # This method might become less central or removed
         """
