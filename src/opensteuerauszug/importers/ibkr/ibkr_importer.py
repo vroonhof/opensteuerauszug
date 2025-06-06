@@ -382,17 +382,55 @@ class IbkrImporter:
                         cash_tx, 'currency', 'CashTransaction'
                     )
 
-                    cash_pos_key = (account_id, currency, "MAIN_CASH")
+                    security_id = getattr(cash_tx, 'conid', None)
+                    tx_type = getattr(cash_tx, 'type', '') or ''
 
-                    bank_payment = BankAccountPayment(
-                        paymentDate=tx_date,
-                        name=description,
-                        amountCurrency=currency,
-                        amount=amount
-                    )
-                    processed_cash_positions[cash_pos_key]['payments'].append(
-                        bank_payment
-                    )
+                    if security_id:
+                        tx_type_str = getattr(tx_type, 'value', str(tx_type))
+                        assert 'interest' not in str(tx_type_str).lower()
+
+                        sec_pos_key = None
+                        for pos in processed_security_positions.keys():
+                            if pos.depot == account_id and pos.symbol == str(security_id):
+                                sec_pos_key = pos
+                                break
+
+                        if sec_pos_key is None:
+                            isin_attr = getattr(cash_tx, 'isin', None)
+                            sym_attr = getattr(cash_tx, 'symbol', None)
+                            sec_pos_key = SecurityPosition(
+                                depot=account_id,
+                                valor=None,
+                                isin=ISINType(isin_attr) if isin_attr else None,
+                                symbol=str(security_id),
+                                description=(
+                                    f"{description} ({sym_attr})" if sym_attr else description
+                                ),
+                            )
+
+                        sec_payment = SecurityPayment(
+                            paymentDate=tx_date,
+                            name=description,
+                            amountCurrency=currency,
+                            amount=amount,
+                            quotationType='PIECE',
+                            quantity=Decimal('0')
+                        )
+                        processed_security_positions[sec_pos_key]['payments'].append(
+                            sec_payment
+                        )
+                    else:
+                        cash_pos_key = (account_id, currency, "MAIN_CASH")
+
+                        bank_payment = BankAccountPayment(
+                            paymentDate=tx_date,
+                            name=description,
+                            amountCurrency=currency,
+                            amount=amount
+                        )
+                        processed_cash_positions[cash_pos_key]['payments'].append(
+                            bank_payment
+                        )
 
         # --- Construct ListOfSecurities ---
         # account_id -> list of Security objects
