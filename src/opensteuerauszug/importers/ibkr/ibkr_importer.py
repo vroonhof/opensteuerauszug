@@ -358,8 +358,8 @@ class IbkrImporter:
                     )
 
                     balance_stock = SecurityStock(
-                        # Balances are reported on the morning of the next day in the spec
-                        referenceDate=report_date + timedelta(days=1),
+                        # Balance as of the report date; a closing entry for end of period
+                        referenceDate=report_date,
                         mutation=False,
                         quantity=quantity,
                         name=f"End of Period Balance {symbol}",
