@@ -326,6 +326,31 @@ class TestSchwabImporterProcessing(unittest.TestCase):
         self.assertEqual(sec2.currency, "EUR")
         self.assertEqual(sec2.quotationType, "PERCENT")
 
+    def test_convert_security_positions_assigns_unique_position_ids(self):
+        """Ensure generated Security objects have unique positionId values."""
+        depot_str = "DEPOT1"
+        # Use the same symbol for both positions to ensure uniqueness does not
+        # depend on the symbol value.
+        pos1 = SecurityPosition(depot=depot_str, symbol="DUPL", description="DESC1", type="security")
+        stock1 = SecurityStock(referenceDate=date(2023, 1, 1), mutation=False,
+                               balanceCurrency="USD", quotationType="PIECE", quantity=Decimal(1))
+
+        pos2 = SecurityPosition(depot=depot_str, symbol="DUPL", description="DESC2", type="security")
+        stock2 = SecurityStock(referenceDate=date(2023, 1, 2), mutation=False,
+                               balanceCurrency="USD", quotationType="PIECE", quantity=Decimal(2))
+
+        security_tuples = [
+            (pos1, [stock1], []),
+            (pos2, [stock2], [])
+        ]
+
+        result = convert_security_positions_to_list_of_securities(security_tuples, [])
+        self.assertIsNotNone(result.depot)
+        self.assertEqual(len(result.depot), 1)
+        depot = result.depot[0]
+        ids = [s.positionId for s in depot.security]
+        self.assertEqual(len(ids), len(set(ids)), "positionId values must be unique")
+
     def test_transaction_with_multiple_stock_items_does_not_duplicate_payments(self):
         """
         Tests that if TransactionExtractor returns a single transaction with multiple
