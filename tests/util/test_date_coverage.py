@@ -39,3 +39,20 @@ def test_date_range_coverage_invalid_range():
         assert False, "Should raise ValueError for invalid range"
     except ValueError:
         pass 
+def test_maximal_covered_range_containing_for_covered_date():
+    cov = DateRangeCoverage()
+    cov.mark_covered(date(2024, 1, 1), date(2024, 1, 10))
+    cov.mark_covered(date(2024, 1, 15), date(2024, 1, 20))
+    assert cov.maximal_covered_range_containing(date(2024, 1, 5)) == (
+        date(2024, 1, 1),
+        date(2024, 1, 10),
+    )
+
+
+def test_maximal_covered_range_containing_for_uncovered_date():
+    cov = DateRangeCoverage()
+    cov.mark_covered(date(2024, 1, 1), date(2024, 1, 10))
+    cov.mark_covered(date(2024, 1, 15), date(2024, 1, 20))
+    assert cov.maximal_covered_range_containing(date(2024, 1, 12)) is None
+
+
