@@ -27,6 +27,8 @@ Additionally we can recalculate and verify any existing steuer-auszug (this is m
 
 ## Installation
 
+Requires **Python 3.10** or newer.
+
 This needs newer version of pdf417gen and (for testing) pdf417decoder than
 available on PyPY for now there are my vendored branches
 
