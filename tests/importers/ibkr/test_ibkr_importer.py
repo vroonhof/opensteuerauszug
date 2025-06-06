@@ -68,6 +68,21 @@ SAMPLE_IBKR_FLEX_XML_MISSING_FIELD = """
 </FlexQueryResponse>
 """
 
+SAMPLE_IBKR_FLEX_XML_INTEREST_WITH_SECURITY = """
+<FlexQueryResponse queryName="InterestSecurity" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <CashTransactions>
+        <CashTransaction accountId="U1234567" type="Broker Interest Paid" currency="USD" amount="5.00" description="Interest on MSFT" conid="272120" symbol="MSFT" dateTime="2023-01-05T00:00:00" assetCategory="STK" />
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="5.00" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
 
 @pytest.fixture
 def sample_ibkr_settings() -> List[IbkrAccountSettings]:
@@ -139,15 +154,16 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert msft_sec.stock[2].quantity == Decimal("10")
         assert all(s.referenceDate != date(2023, 12, 31) for s in msft_sec.stock)
 
-        assert (
-            len(msft_sec.payment) == 1
-        )  # Only 1 for the BUY trade. Dividend is in BankAccountPayment
+        assert len(msft_sec.payment) == 2  # Trade + Dividend
         buy_payment = next(
             (p for p in msft_sec.payment if p.name and "Trade:" in p.name and "MSFT" in p.name),
             None,
         )
         assert buy_payment is not None
         assert buy_payment.amount == Decimal("-2801.00")  # netCash for BUY
+        dividend_payment = next((p for p in msft_sec.payment if p.name == "MSFT Dividend"), None)
+        assert dividend_payment is not None
+        assert dividend_payment.amount == Decimal("50.00")
 
         # AAPL Security
         aapl_sec = next((s for s in depot.security if s.securityName == "APPLE INC (AAPL)"), None)
@@ -183,20 +199,12 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert usd_account is not None
         assert usd_account.bankAccountNumber == "U1234567-USD"
 
-        assert (
-            len(usd_account.payment) == 2
-        )  # Deposit + MSFT Dividend (as per current CashTransaction mapping)
+        assert len(usd_account.payment) == 1  # Only deposit remains
         deposit_payment = next(
             (p for p in usd_account.payment if p.name == "Initial Deposit"), None
         )
         assert deposit_payment is not None
         assert deposit_payment.amount == Decimal("5000.00")
-
-        msft_dividend_bank_payment = next(
-            (p for p in usd_account.payment if p.name == "MSFT Dividend"), None
-        )
-        assert msft_dividend_bank_payment is not None
-        assert msft_dividend_bank_payment.amount == Decimal("50.00")
 
         assert usd_account.taxValue is not None
         assert usd_account.taxValue.balance == Decimal("3148.50")
@@ -267,6 +275,29 @@ def test_open_position_balance_date_is_day_after_period_end(sample_ibkr_settings
 
         # Ensure no stock entry exists on the period end itself
         assert all(s.referenceDate != date(2023, 12, 31) for s in msft_sec.stock)
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_cash_transaction_security_interest_assert(sample_ibkr_settings):
+    """CashTransaction with security ID and interest type should raise AssertionError."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_INTEREST_WITH_SECURITY)
+        xml_file_path = tmp_file.name
+
+    try:
+        with pytest.raises(AssertionError):
+            importer.import_files([xml_file_path])
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
