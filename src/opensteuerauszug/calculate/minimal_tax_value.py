@@ -1,4 +1,4 @@
-from .base import BaseCalculator, CalculationMode
+from .base import BaseCalculator, CalculationMode, CalculationError
 from ..model.ech0196 import (
     TaxStatement,
     BankAccount,  # Added BankAccount
@@ -12,7 +12,7 @@ from ..model.ech0196 import (
 )
 from ..core.exchange_rate_provider import ExchangeRateProvider
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 from datetime import date
 
 
@@ -174,6 +174,10 @@ class MinimalTaxValueCalculator(BaseCalculator):
 
         # BaseCalculator does not have a _handle_Security method.
 
+        # After the basic context is set up compute the expected payments
+        # from the Kursliste (empty for this minimal calculator).
+        self.computePayments(security, path_prefix)
+
     def _handle_SecurityTaxValue(self, sec_tax_value: SecurityTaxValue, path_prefix: str) -> None:
         """Handles SecurityTaxValue objects for currency conversion."""
         # This calculator converts an existing 'value' (assumed to be in 'balanceCurrency') to CHF 
@@ -237,3 +241,42 @@ class MinimalTaxValueCalculator(BaseCalculator):
                     self._set_field_value(sec_payment, "grossRevenueB", chf_revenue, path_prefix)
                 elif self._current_security_is_type_A is None:
                     raise ValueError(f"SecurityPayment at {path_prefix} has revenue, but parent Security has no country specified to determine Type A/B revenue.")
+
+    def computePayments(self, security: Security, path_prefix: str) -> None:
+        """Compute and set payments for a security.
+
+        This minimal implementation passes an empty list to ``setKurslistePayments``.
+        Subclasses can override to provide actual computation.
+        """
+        self.setKurslistePayments(security, [], path_prefix)
+
+    def setKurslistePayments(self, security: Security, payments: List[SecurityPayment], path_prefix: str) -> None:
+        """Set or verify the list of payments derived from the Kursliste.
+
+        In ``OVERWRITE`` mode the given ``payments`` are written to ``security.payment``.
+        In ``VERIFY`` mode the method checks that the payments already present on
+        ``security`` are equal to ``payments`` and records a ``CalculationError``
+        otherwise. ``FILL`` behaves like ``VERIFY`` but writes the payments if the
+        list on the security is empty.
+        """
+
+        # If no payments are provided there is nothing to check or set.
+        if not payments:
+            return
+
+        field_path = f"{path_prefix}.payment" if path_prefix else "payment"
+        current = security.payment
+
+        if self.mode == CalculationMode.OVERWRITE:
+            security.payment = list(payments)
+            self.modified_fields.add(field_path)
+            return
+
+        if self.mode == CalculationMode.FILL and not current:
+            security.payment = list(payments)
+            self.modified_fields.add(field_path)
+            return
+
+        if len(current) != len(payments) or any(p1 != p2 for p1, p2 in zip(current, payments)):
+            if self.mode in (CalculationMode.VERIFY, CalculationMode.FILL):
+                self.errors.append(CalculationError(field_path, payments, current))

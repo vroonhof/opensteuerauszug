@@ -96,3 +96,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     return
 
         super()._handle_SecurityTaxValue(sec_tax_value, path_prefix)
+
+    def computePayments(self, security: Security, path_prefix: str) -> None:
+        """Compute payments for a security using the Kursliste.
+
+        For now this is a no-op; actual computation will be added later."""
+        return
+
