@@ -110,12 +110,18 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert msft_sec is not None
         assert msft_sec.isin == "US5949181045"
         assert msft_sec.currency == "USD"
-        assert len(msft_sec.stock) == 2 # 1 trade (mutation) + 1 open position (balance)
-        assert msft_sec.stock[0].mutation is True # Trade
-        assert msft_sec.stock[0].quantity == Decimal("10")
-        assert msft_sec.stock[1].mutation is False # Open Position Balance
+        assert len(msft_sec.stock) == 4
+        assert msft_sec.stock[0].mutation is False
+        assert msft_sec.stock[0].referenceDate == date(2023,1,1)
+        assert msft_sec.stock[0].quantity == Decimal("0")
+        assert msft_sec.stock[1].mutation is True # Trade
         assert msft_sec.stock[1].quantity == Decimal("10")
-        assert msft_sec.stock[1].referenceDate == date(2023,12,31)
+        assert msft_sec.stock[2].mutation is False
+        assert msft_sec.stock[2].referenceDate == date(2023,12,31)
+        assert msft_sec.stock[2].quantity == Decimal("10")
+        assert msft_sec.stock[3].mutation is False
+        assert msft_sec.stock[3].referenceDate == date(2024,1,1)
+        assert msft_sec.stock[3].quantity == Decimal("10")
 
         assert len(msft_sec.payment) == 1 # Only 1 for the BUY trade. Dividend is in BankAccountPayment
         buy_payment = next((p for p in msft_sec.payment if p.name and "Trade:" in p.name and "MSFT" in p.name), None)
@@ -126,8 +132,15 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         aapl_sec = next((s for s in depot.security if s.securityName == "APPLE INC (AAPL)"), None)
         assert aapl_sec is not None
         assert aapl_sec.isin == "US0378331005"
-        assert len(aapl_sec.stock) == 1 # 1 trade (mutation)
-        assert aapl_sec.stock[0].quantity == Decimal("-5") # SELL
+        assert len(aapl_sec.stock) == 3
+        assert aapl_sec.stock[0].mutation is False
+        assert aapl_sec.stock[0].quantity == Decimal("5")
+        assert aapl_sec.stock[0].referenceDate == date(2023,1,1)
+        assert aapl_sec.stock[1].mutation is True
+        assert aapl_sec.stock[1].quantity == Decimal("-5") # SELL
+        assert aapl_sec.stock[2].mutation is False
+        assert aapl_sec.stock[2].quantity == Decimal("0")
+        assert aapl_sec.stock[2].referenceDate == date(2024,1,1)
         assert len(aapl_sec.payment) == 1
         assert aapl_sec.payment[0].amount == Decimal("899.50") # netCash for SELL
 

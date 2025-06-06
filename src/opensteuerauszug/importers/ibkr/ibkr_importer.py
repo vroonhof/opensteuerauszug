@@ -1,6 +1,6 @@
 import os
 from typing import Final, List, Any, Dict, Literal
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
 
@@ -11,6 +11,7 @@ from opensteuerauszug.model.ech0196 import (
     BankAccount, BankAccountPayment, BankAccountTaxValue,
     CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client
 )
+from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
 
 # Import ibflex components to avoid RuntimeWarning about module loading order
@@ -470,6 +471,65 @@ class IbkrImporter:
                 sec_category_str = "SHARE"
             else:
                 raise ValueError(f"Unknown asset category: {asset_cat}")
+
+            # --- Ensure balance at period start and period end + 1 using PositionReconciler ---
+            reconciler = PositionReconciler(list(sorted_stocks), identifier=f"{sec_pos_obj.symbol}-reconcile")
+            end_plus_one = self.period_to + timedelta(days=1)
+            end_pos = reconciler.synthesize_position_at_date(end_plus_one)
+            closing_balance = end_pos.quantity if end_pos else Decimal("0")
+
+            trades_quantity_total = sum(
+                s.quantity for s in sorted_stocks if s.mutation
+            )
+
+            start_pos = reconciler.synthesize_position_at_date(self.period_from)
+            if start_pos:
+                opening_balance = start_pos.quantity
+            else:
+                tentative_opening = closing_balance - trades_quantity_total
+                opening_balance = tentative_opening if tentative_opening >= 0 else Decimal("0")
+
+            if opening_balance < 0 or closing_balance < 0:
+                raise ValueError(
+                    f"Negative balance computed for security {sec_pos_obj.symbol}"
+                    f" (start {opening_balance}, end {closing_balance})"
+                )
+
+            start_exists = any(
+                (not s.mutation and s.referenceDate == self.period_from)
+                for s in sorted_stocks
+            )
+            if not start_exists:
+                sorted_stocks.append(
+                    SecurityStock(
+                        referenceDate=self.period_from,
+                        mutation=False,
+                        quotationType=primary_quotation_type,
+                        quantity=opening_balance,
+                        balanceCurrency=primary_currency,
+                        name="Opening balance"
+                    )
+                )
+
+            end_exists = any(
+                (not s.mutation and s.referenceDate == end_plus_one)
+                for s in sorted_stocks
+            )
+            if not end_exists:
+                sorted_stocks.append(
+                    SecurityStock(
+                        referenceDate=end_plus_one,
+                        mutation=False,
+                        quotationType=primary_quotation_type,
+                        quantity=closing_balance,
+                        balanceCurrency=primary_currency,
+                        name="Closing balance"
+                    )
+                )
+
+            sorted_stocks = sorted(
+                sorted_stocks, key=lambda s: (s.referenceDate, s.mutation)
+            )
 
             sec = Security(
                 positionId=sec_pos_idx,
