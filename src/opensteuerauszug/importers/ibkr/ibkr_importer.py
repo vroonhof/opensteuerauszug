@@ -290,10 +290,16 @@ class IbkrImporter:
 
             # --- Process Open Positions (End of Period Snapshot) ---
             if stmt.OpenPositions:
+                end_plus_one = self.period_to + timedelta(days=1)
                 for open_pos in stmt.OpenPositions:
-                    report_date = self._get_required_field(
+                    # Ignore the reportDate from the Flex statement and
+                    # use period end + 1 as reference date for the balance
+                    # entry. This avoids creating a separate stock entry on
+                    # the period end itself which would later result in a
+                    # duplicate closing balance.
+                    _ = self._get_required_field(
                         open_pos, 'reportDate', 'OpenPosition'
-                    )
+                    )  # validation only
                     symbol = self._get_required_field(
                         open_pos, 'symbol', 'OpenPosition'
                     )
@@ -339,8 +345,8 @@ class IbkrImporter:
                     )
 
                     balance_stock = SecurityStock(
-                        # Balance as of the report date; a closing entry for end of period
-                        referenceDate=report_date,
+                        # Balance as of the period end + 1
+                        referenceDate=end_plus_one,
                         mutation=False,
                         quantity=quantity,
                         name=f"End of Period Balance {symbol}",
