@@ -1,7 +1,7 @@
 # OpenSteuerAuszug
 
-A Python package for generaring Swiss tax statements (Steuerauszüge) from brokers' statements that don't support it, e.g. mostly foreign ones.
-This goal is to eliminate tedious and error prone manual typing into the tax softwware.
+A Python package for generating Swiss tax statements (Steuerauszüge) from brokers' statements that don't support it, e.g. mostly foreign ones.
+This goal is to eliminate tedious and error prone manual typing into the tax software.
 
 ## Disclaimer
 
@@ -9,7 +9,7 @@ TODO: explain that
 - The package is not formally audited
 - the main focus is on getting core transaction and interest data.
 - These need to be verified by the user before submitting with the tax return
-- Tax values are computed best effort for informational purpose (the man Tax software should be able to compute it from the core transaction data.
+- Tax values are computed best effort for informational purpose (the main Tax software should be able to compute it from the core transaction data.
 
 
 ## Features
