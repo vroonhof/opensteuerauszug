@@ -118,6 +118,41 @@ class IbkrImporter:
             #     f"{self.account_settings_list[0].account_id}"
             # )
 
+    def _aggregate_stocks_by_date(self, stocks: List[SecurityStock]) -> List[SecurityStock]:
+        """Aggregate mutation stock records by date while preserving order."""
+        # Sort by date first so trades on the same day become consecutive. The
+        # sort is stable so existing order for equal keys is kept.
+        stocks_sorted = sorted(stocks, key=lambda s: (s.referenceDate, s.mutation))
+
+        aggregated: List[SecurityStock] = []
+        for stock in stocks_sorted:
+            if stock.mutation:
+                if (
+                    aggregated
+                    and aggregated[-1].mutation
+                    and aggregated[-1].referenceDate == stock.referenceDate
+                    and aggregated[-1].balanceCurrency == stock.balanceCurrency
+                    and aggregated[-1].quotationType == stock.quotationType
+                ):
+                    aggregated[-1].quantity += stock.quantity
+                    aggregated[-1].name = f"Aggregated Trades {stock.referenceDate}"
+                else:
+                    aggregated.append(
+                        SecurityStock(
+                            referenceDate=stock.referenceDate,
+                            mutation=True,
+                            quantity=stock.quantity,
+                            name=stock.name,
+                            balanceCurrency=stock.balanceCurrency,
+                            quotationType=stock.quotationType,
+                        )
+                    )
+            else:
+                aggregated.append(stock)
+
+        return aggregated
+
+
     def import_files(self, filenames: List[str]) -> TaxStatement:
         """
         Import data from IBKR Flex Query XMLs and return a TaxStatement.
@@ -413,8 +448,9 @@ class IbkrImporter:
         sec_pos_idx = 0
         for sec_pos_obj, data in processed_security_positions.items():
             sec_pos_idx += 1
+            aggregated_stocks = self._aggregate_stocks_by_date(data['stocks'])
             sorted_stocks = sorted(
-                data['stocks'], key=lambda s: (s.referenceDate, s.mutation)
+                aggregated_stocks, key=lambda s: (s.referenceDate, s.mutation)
             )
             sorted_payments = sorted(
                 data['payments'], key=lambda p: p.paymentDate

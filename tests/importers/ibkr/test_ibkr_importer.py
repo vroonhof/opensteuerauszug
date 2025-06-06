@@ -55,6 +55,27 @@ SAMPLE_IBKR_FLEX_XML_VALID = """
 </FlexQueryResponse>
 """
 
+SAMPLE_IBKR_FLEX_XML_AGGREGATE = """
+<FlexQueryResponse queryName="AggQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <Trades>
+        <Trade transactionID="1101" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" quantity="5" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="280.00" tradeMoney="1400.00" buySell="BUY" ibCommission="-0.50" netCash="-1400.50" />
+        <Trade transactionID="1102" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" quantity="5" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="281.00" tradeMoney="1405.00" buySell="BUY" ibCommission="-0.50" netCash="-1405.50" />
+        <Trade transactionID="1103" accountId="U1234567" assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" currency="USD" quantity="-2" tradeDate="2023-06-20" settleDateTarget="2023-06-22" tradePrice="180.00" tradeMoney="-360.00" buySell="SELL" ibCommission="-0.20" netCash="359.80" />
+        <Trade transactionID="1104" accountId="U1234567" assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" currency="USD" quantity="-3" tradeDate="2023-06-20" settleDateTarget="2023-06-22" tradePrice="179.50" tradeMoney="-538.50" buySell="SELL" ibCommission="-0.30" netCash="538.20" />
+      </Trades>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" position="10" markPrice="300.00" positionValue="3000.00" reportDate="2023-12-31" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
 SAMPLE_IBKR_FLEX_XML_MISSING_FIELD = """
 <FlexQueryResponse queryName="TestQueryMissing" type="AF">
   <FlexStatements count="1">
@@ -202,6 +223,44 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert usd_account.taxValue.balance == Decimal("3148.50")
         assert usd_account.taxValue.referenceDate == date(2023, 12, 31)
 
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_trade_aggregation(sample_ibkr_settings):
+    """Trades on the same day should be aggregated into single entries."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_AGGREGATE)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        depot = tax_statement.listOfSecurities.depot[0]
+        msft_sec = next(
+            (s for s in depot.security if s.securityName == "MICROSOFT CORP (MSFT)"),
+            None,
+        )
+        aapl_sec = next(
+            (s for s in depot.security if s.securityName == "APPLE INC (AAPL)"),
+            None,
+        )
+        assert msft_sec is not None and aapl_sec is not None
+        # Should aggregate into a single trade entry per security
+        assert len(msft_sec.stock) == 3
+        assert msft_sec.stock[1].quantity == Decimal("10")
+        assert len(aapl_sec.stock) == 3
+        assert aapl_sec.stock[1].quantity == Decimal("-5")
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
