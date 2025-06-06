@@ -422,6 +422,7 @@ def convert_security_positions_to_list_of_securities(
     into a ListOfSecurities object. Minimal stub: one depot, one security per position.
     """
     depots: Dict[str, Depot] = {} # Uses the final_depot_id_str as key
+    position_counter = 0
     for pos, stocks, payments in security_tuples:
         depot_key = pos.depot # This is the short form, e.g., "123" or "AWARDS"
 
@@ -446,8 +447,9 @@ def convert_security_positions_to_list_of_securities(
             security_name = pos.symbol
             
         first_stock = stocks[0]
+        position_counter += 1
         sec = Security(
-            positionId=1,  # In real code, ensure unique per security
+            positionId=position_counter,
             country="US",  # Stub
             currency=first_stock.balanceCurrency,
             quotationType=first_stock.quotationType,
