@@ -7,16 +7,28 @@ import tempfile
 
 from opensteuerauszug.importers.ibkr.ibkr_importer import IbkrImporter
 from opensteuerauszug.config.models import IbkrAccountSettings
-from opensteuerauszug.model.ech0196 import TaxStatement, ListOfSecurities, ListOfBankAccounts, Security, BankAccount, QuotationType, CurrencyId, Client
+from opensteuerauszug.model.ech0196 import (
+    TaxStatement,
+    ListOfSecurities,
+    ListOfBankAccounts,
+    Security,
+    BankAccount,
+    QuotationType,
+    CurrencyId,
+    Client,
+)
 
 # Check if ibflex is available, skip tests if not
 try:
     from ibflex import parser as ibflex_parser
+
     IBFLEX_INSTALLED = True
 except ImportError:
     IBFLEX_INSTALLED = False
 
-pytestmark = pytest.mark.skipif(not IBFLEX_INSTALLED, reason="ibflex library is not installed, skipping IBKR importer tests")
+pytestmark = pytest.mark.skipif(
+    not IBFLEX_INSTALLED, reason="ibflex library is not installed, skipping IBKR importer tests"
+)
 
 # Define a basic sample IBKR Flex Query XML as a string
 SAMPLE_IBKR_FLEX_XML_VALID = """
@@ -56,25 +68,31 @@ SAMPLE_IBKR_FLEX_XML_MISSING_FIELD = """
 </FlexQueryResponse>
 """
 
+
 @pytest.fixture
 def sample_ibkr_settings() -> List[IbkrAccountSettings]:
-    return [IbkrAccountSettings(
-        account_number="U1234567",
-        broker_name="Interactive Brokers",
-        account_name_alias="Test IBKR Account",
-        canton="ZH",  # Placeholder
-        full_name="Test User"  # Placeholder
-    )]
+    return [
+        IbkrAccountSettings(
+            account_number="U1234567",
+            broker_name="Interactive Brokers",
+            account_name_alias="Test IBKR Account",
+            canton="ZH",  # Placeholder
+            full_name="Test User",  # Placeholder
+        )
+    ]
+
 
 @pytest.fixture
 def sample_ibkr_settings_other_account() -> List[IbkrAccountSettings]:
-    return [IbkrAccountSettings(
-        account_number="U7654321",
-        broker_name="Interactive Brokers",
-        account_name_alias="Test IBKR Account Missing",
-        canton="ZH",  # Placeholder
-        full_name="Test User Missing"  # Placeholder
-    )]
+    return [
+        IbkrAccountSettings(
+            account_number="U7654321",
+            broker_name="Interactive Brokers",
+            account_name_alias="Test IBKR Account Missing",
+            canton="ZH",  # Placeholder
+            full_name="Test User Missing",  # Placeholder
+        )
+    ]
 
 
 def test_ibkr_import_valid_xml(sample_ibkr_settings):
@@ -82,9 +100,7 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
     period_to = date(2023, 12, 31)
 
     importer = IbkrImporter(
-        period_from=period_from,
-        period_to=period_to,
-        account_settings_list=sample_ibkr_settings
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
     )
 
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
@@ -103,30 +119,35 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert len(tax_statement.listOfSecurities.depot) == 1
         depot = tax_statement.listOfSecurities.depot[0]
         assert depot.depotNumber == "U1234567"
-        assert len(depot.security) == 2 # MSFT and AAPL
+        assert len(depot.security) == 2  # MSFT and AAPL
 
         # MSFT Security
-        msft_sec = next((s for s in depot.security if s.securityName == "MICROSOFT CORP (MSFT)"), None)
+        msft_sec = next(
+            (s for s in depot.security if s.securityName == "MICROSOFT CORP (MSFT)"), None
+        )
         assert msft_sec is not None
         assert msft_sec.isin == "US5949181045"
         assert msft_sec.currency == "USD"
-        assert len(msft_sec.stock) == 4
+        assert len(msft_sec.stock) == 3
         assert msft_sec.stock[0].mutation is False
-        assert msft_sec.stock[0].referenceDate == date(2023,1,1)
+        assert msft_sec.stock[0].referenceDate == date(2023, 1, 1)
         assert msft_sec.stock[0].quantity == Decimal("0")
-        assert msft_sec.stock[1].mutation is True # Trade
+        assert msft_sec.stock[1].mutation is True  # Trade
         assert msft_sec.stock[1].quantity == Decimal("10")
         assert msft_sec.stock[2].mutation is False
-        assert msft_sec.stock[2].referenceDate == date(2023,12,31)
+        assert msft_sec.stock[2].referenceDate == date(2024, 1, 1)
         assert msft_sec.stock[2].quantity == Decimal("10")
-        assert msft_sec.stock[3].mutation is False
-        assert msft_sec.stock[3].referenceDate == date(2024,1,1)
-        assert msft_sec.stock[3].quantity == Decimal("10")
+        assert all(s.referenceDate != date(2023, 12, 31) for s in msft_sec.stock)
 
-        assert len(msft_sec.payment) == 1 # Only 1 for the BUY trade. Dividend is in BankAccountPayment
-        buy_payment = next((p for p in msft_sec.payment if p.name and "Trade:" in p.name and "MSFT" in p.name), None)
+        assert (
+            len(msft_sec.payment) == 1
+        )  # Only 1 for the BUY trade. Dividend is in BankAccountPayment
+        buy_payment = next(
+            (p for p in msft_sec.payment if p.name and "Trade:" in p.name and "MSFT" in p.name),
+            None,
+        )
         assert buy_payment is not None
-        assert buy_payment.amount == Decimal("-2801.00") # netCash for BUY
+        assert buy_payment.amount == Decimal("-2801.00")  # netCash for BUY
 
         # AAPL Security
         aapl_sec = next((s for s in depot.security if s.securityName == "APPLE INC (AAPL)"), None)
@@ -135,40 +156,56 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert len(aapl_sec.stock) == 3
         assert aapl_sec.stock[0].mutation is False
         assert aapl_sec.stock[0].quantity == Decimal("5")
-        assert aapl_sec.stock[0].referenceDate == date(2023,1,1)
+        assert aapl_sec.stock[0].referenceDate == date(2023, 1, 1)
         assert aapl_sec.stock[1].mutation is True
-        assert aapl_sec.stock[1].quantity == Decimal("-5") # SELL
+        assert aapl_sec.stock[1].quantity == Decimal("-5")  # SELL
         assert aapl_sec.stock[2].mutation is False
         assert aapl_sec.stock[2].quantity == Decimal("0")
-        assert aapl_sec.stock[2].referenceDate == date(2024,1,1)
+        assert aapl_sec.stock[2].referenceDate == date(2024, 1, 1)
+        assert all(s.referenceDate != date(2023, 12, 31) for s in aapl_sec.stock)
         assert len(aapl_sec.payment) == 1
-        assert aapl_sec.payment[0].amount == Decimal("899.50") # netCash for SELL
+        assert aapl_sec.payment[0].amount == Decimal("899.50")  # netCash for SELL
 
         # --- Check Bank Accounts ---
         assert tax_statement.listOfBankAccounts is not None
-        assert len(tax_statement.listOfBankAccounts.bankAccount) == 1 # Only USD account has transactions + balance
+        assert (
+            len(tax_statement.listOfBankAccounts.bankAccount) == 1
+        )  # Only USD account has transactions + balance
 
-        usd_account = next((ba for ba in tax_statement.listOfBankAccounts.bankAccount if ba.bankAccountCurrency == "USD"), None)
+        usd_account = next(
+            (
+                ba
+                for ba in tax_statement.listOfBankAccounts.bankAccount
+                if ba.bankAccountCurrency == "USD"
+            ),
+            None,
+        )
         assert usd_account is not None
         assert usd_account.bankAccountNumber == "U1234567-USD"
 
-        assert len(usd_account.payment) == 2 # Deposit + MSFT Dividend (as per current CashTransaction mapping)
-        deposit_payment = next((p for p in usd_account.payment if p.name == "Initial Deposit"), None)
+        assert (
+            len(usd_account.payment) == 2
+        )  # Deposit + MSFT Dividend (as per current CashTransaction mapping)
+        deposit_payment = next(
+            (p for p in usd_account.payment if p.name == "Initial Deposit"), None
+        )
         assert deposit_payment is not None
         assert deposit_payment.amount == Decimal("5000.00")
 
-        msft_dividend_bank_payment = next((p for p in usd_account.payment if p.name == "MSFT Dividend"), None)
+        msft_dividend_bank_payment = next(
+            (p for p in usd_account.payment if p.name == "MSFT Dividend"), None
+        )
         assert msft_dividend_bank_payment is not None
         assert msft_dividend_bank_payment.amount == Decimal("50.00")
 
-
         assert usd_account.taxValue is not None
         assert usd_account.taxValue.balance == Decimal("3148.50")
-        assert usd_account.taxValue.referenceDate == date(2023,12,31)
+        assert usd_account.taxValue.referenceDate == date(2023, 12, 31)
 
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
 
 def test_ibkr_import_missing_required_field(sample_ibkr_settings_other_account):
     period_from = date(2023, 1, 1)
@@ -177,7 +214,7 @@ def test_ibkr_import_missing_required_field(sample_ibkr_settings_other_account):
     importer = IbkrImporter(
         period_from=period_from,
         period_to=period_to,
-        account_settings_list=sample_ibkr_settings_other_account
+        account_settings_list=sample_ibkr_settings_other_account,
     )
 
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
@@ -188,10 +225,52 @@ def test_ibkr_import_missing_required_field(sample_ibkr_settings_other_account):
         with pytest.raises(ValueError) as excinfo:
             importer.import_files([xml_file_path])
         assert "Missing required field 'tradeDate'" in str(excinfo.value)
-        assert "Trade (Symbol: GOOG)" in str(excinfo.value) # Check context in error
+        assert "Trade (Symbol: GOOG)" in str(excinfo.value)  # Check context in error
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+
+def test_open_position_balance_date_is_day_after_period_end(sample_ibkr_settings):
+    """Ensure balances from OpenPositions use period end + 1 as reference date."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_VALID)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        msft_sec = next(
+            (
+                s
+                for s in tax_statement.listOfSecurities.depot[0].security
+                if s.securityName == "MICROSOFT CORP (MSFT)"
+            ),
+            None,
+        )
+        assert msft_sec is not None
+
+        # The last stock entry should be the balance from OpenPositions at day after period end
+        closing_stock = msft_sec.stock[-1]
+        assert closing_stock.referenceDate == date(2024, 1, 1)
+        assert closing_stock.mutation is False
+        assert closing_stock.quantity == Decimal("10")
+
+        # Ensure no stock entry exists on the period end itself
+        assert all(s.referenceDate != date(2023, 12, 31) for s in msft_sec.stock)
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
 
 # TODO: Add more test cases:
 # - XML with multiple accounts (and settings to filter/select one)
@@ -219,7 +298,7 @@ CLIENT_INFO_TEST_CASES = [
         "expected_client_number": "U9876543",
         "expected_first_name": None,
         "expected_last_name": "John Doe",
-        "description": "name present in AccountInformation"
+        "description": "name present in AccountInformation",
     },
     # Scenario 2: Different name
     {
@@ -228,45 +307,46 @@ CLIENT_INFO_TEST_CASES = [
         "expected_client_number": "U9876544",
         "expected_first_name": None,
         "expected_last_name": "Jane Smith",
-        "description": "different name present in AccountInformation"
+        "description": "different name present in AccountInformation",
     },
     # Scenario 3: No name provided, client should not be created
     {
         "account_info_xml": """
           <AccountInformation accountId="U9876545" acctAlias="Third Alias" />""",
-        "expected_client_number": None, # client object should not be created
+        "expected_client_number": None,  # client object should not be created
         "expected_first_name": None,
         "expected_last_name": None,
-        "description": "No name field present, client should be None"
+        "description": "No name field present, client should be None",
     },
     # Scenario 4: Empty name provided, client should not be created
     {
         "account_info_xml": """
           <AccountInformation accountId="U9876546" acctAlias="Fourth Alias" name="" />""",
-        "expected_client_number": None, # client object should not be created due to empty name
+        "expected_client_number": None,  # client object should not be created due to empty name
         "expected_first_name": None,
         "expected_last_name": None,
-        "description": "Empty name field present, client should be None"
+        "description": "Empty name field present, client should be None",
     },
-     # Scenario 5: Whitespace-only name provided, client should not be created
+    # Scenario 5: Whitespace-only name provided, client should not be created
     {
         "account_info_xml": """
           <AccountInformation accountId="U9876547" acctAlias="Fifth Alias" name="   " />""",
-        "expected_client_number": None, # client object should not be created due to whitespace-only name
+        "expected_client_number": None,  # client object should not be created due to whitespace-only name
         "expected_first_name": None,
         "expected_last_name": None,
-        "description": "Whitespace-only name field present, client should be None"
+        "description": "Whitespace-only name field present, client should be None",
     },
     # Scenario 6: Other attributes present but no name
     {
         "account_info_xml": """
           <AccountInformation accountId="U9876548" acctAlias="Sixth Alias" street="123 Main St" city="New York" />""",
-        "expected_client_number": None, # client object should not be created
+        "expected_client_number": None,  # client object should not be created
         "expected_first_name": None,
         "expected_last_name": None,
-        "description": "Other attributes present but no name field, client should be None"
+        "description": "Other attributes present but no name field, client should be None",
     },
 ]
+
 
 @pytest.mark.parametrize("client_data", CLIENT_INFO_TEST_CASES)
 def test_import_files_with_client_information(client_data, sample_ibkr_settings):
@@ -275,19 +355,20 @@ def test_import_files_with_client_information(client_data, sample_ibkr_settings)
 
     # Use the accountId from the test case for settings, or a default if not applicable
     account_id_for_settings = client_data["expected_client_number"] or "U0000000"
-    settings = [IbkrAccountSettings(
-        account_number=account_id_for_settings, # This is not directly used by client creation from XML accountId
-        broker_name="Interactive Brokers",
-        account_name_alias="Client Test Account",
-        canton="ZH",
-        full_name="Test User"
-    )]
-
+    settings = [
+        IbkrAccountSettings(
+            account_number=account_id_for_settings,  # This is not directly used by client creation from XML accountId
+            broker_name="Interactive Brokers",
+            account_name_alias="Client Test Account",
+            canton="ZH",
+            full_name="Test User",
+        )
+    ]
 
     importer = IbkrImporter(
         period_from=period_from,
         period_to=period_to,
-        account_settings_list=settings # Use the dynamic settings
+        account_settings_list=settings,  # Use the dynamic settings
     )
 
     # Construct a minimal valid FlexQueryResponse with the specific AccountInformation
@@ -317,11 +398,18 @@ def test_import_files_with_client_information(client_data, sample_ibkr_settings)
         tax_statement = importer.import_files([xml_file_path])
         assert tax_statement is not None
 
-        if client_data["expected_client_number"] is None and client_data["expected_last_name"] is None:
+        if (
+            client_data["expected_client_number"] is None
+            and client_data["expected_last_name"] is None
+        ):
             # Scenario where no client should be created
-            assert not hasattr(tax_statement, 'client') or tax_statement.client is None or len(tax_statement.client) == 0
+            assert (
+                not hasattr(tax_statement, "client")
+                or tax_statement.client is None
+                or len(tax_statement.client) == 0
+            )
         else:
-            assert hasattr(tax_statement, 'client')
+            assert hasattr(tax_statement, "client")
             assert tax_statement.client is not None
             assert len(tax_statement.client) == 1
             client_obj = tax_statement.client[0]
@@ -333,7 +421,6 @@ def test_import_files_with_client_information(client_data, sample_ibkr_settings)
             # print(f"Test: {client_data['description']}")
             # print(f"  Expected: clientNumber={client_data['expected_client_number']}, firstName={client_data['expected_first_name']}, lastName={client_data['expected_last_name']}")
             # print(f"  Actual:   clientNumber={client_obj.clientNumber}, firstName={client_obj.firstName}, lastName={client_obj.lastName}")
-
 
     finally:
         if os.path.exists(xml_file_path):
