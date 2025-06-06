@@ -397,6 +397,7 @@ def main(
                 tax_value_calculator = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider)
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 print("Running FillInTaxValueCalculator...")
+                calculator_name = "FillInTaxValueCalculator"
                 tax_value_calculator = FillInTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider)
             
             if tax_value_calculator and calculator_name:
