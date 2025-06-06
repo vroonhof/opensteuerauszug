@@ -139,15 +139,8 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert msft_sec.stock[2].quantity == Decimal("10")
         assert all(s.referenceDate != date(2023, 12, 31) for s in msft_sec.stock)
 
-        assert (
-            len(msft_sec.payment) == 1
-        )  # Only 1 for the BUY trade. Dividend is in BankAccountPayment
-        buy_payment = next(
-            (p for p in msft_sec.payment if p.name and "Trade:" in p.name and "MSFT" in p.name),
-            None,
-        )
-        assert buy_payment is not None
-        assert buy_payment.amount == Decimal("-2801.00")  # netCash for BUY
+        # Trades should not create SecurityPayment entries
+        assert len(msft_sec.payment) == 0
 
         # AAPL Security
         aapl_sec = next((s for s in depot.security if s.securityName == "APPLE INC (AAPL)"), None)
@@ -163,8 +156,7 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert aapl_sec.stock[2].quantity == Decimal("0")
         assert aapl_sec.stock[2].referenceDate == date(2024, 1, 1)
         assert all(s.referenceDate != date(2023, 12, 31) for s in aapl_sec.stock)
-        assert len(aapl_sec.payment) == 1
-        assert aapl_sec.payment[0].amount == Decimal("899.50")  # netCash for SELL
+        assert len(aapl_sec.payment) == 0
 
         # --- Check Bank Accounts ---
         assert tax_statement.listOfBankAccounts is not None

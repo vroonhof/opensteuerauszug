@@ -286,26 +286,7 @@ class IbkrImporter:
                         stock_mutation
                     )
 
-                    payment_amount = trade_money
-                    if quantity > 0:  # BUY
-                        payment_amount = -abs(payment_amount)
-                    else:  # SELL
-                        payment_amount = abs(payment_amount)
-
-                    # ib_commission is typically negative
-                    payment_amount += ib_commission
-
-                    trade_payment = SecurityPayment(
-                        paymentDate=settle_date,
-                        name=f"Trade: {buy_sell} {symbol}",
-                        amountCurrency=currency,
-                        amount=payment_amount,
-                        quantity=abs(quantity),  # Assuming quantity here
-                        quotationType="PIECE"
-                    )
-                    processed_security_positions[sec_pos]['payments'].append(
-                        trade_payment
-                    )
+                    # Cash movements resulting from trades are tracked via the cash transaction section. Only the stock mutation is stored here.
 
             # --- Process Open Positions (End of Period Snapshot) ---
             if stmt.OpenPositions:
