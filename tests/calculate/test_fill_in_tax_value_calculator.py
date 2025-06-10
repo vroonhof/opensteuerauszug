@@ -35,5 +35,5 @@ class TestFillInTaxValueCalculatorIntegration:
             e for e in calculator.errors if not _known_issue(e, tax_statement_input.institution)
         ]
 
-        assert filtered_errors, "Expected verification errors when comparing against Kursliste"
+        assert filtered_errors == [], "Expected verification errors when comparing against Kursliste"
         assert processed_statement is tax_statement_input

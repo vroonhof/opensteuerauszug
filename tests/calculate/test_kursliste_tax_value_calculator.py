@@ -34,7 +34,7 @@ class TestKurslisteTaxValueCalculatorIntegration:
             e for e in calculator.errors if not _known_issue(e, tax_statement_input.institution)
         ]
 
-        assert filtered_errors, "Expected verification errors when comparing against Kursliste"
+        assert filtered_errors == [], "Expected verification errors when comparing against Kursliste"
         assert processed_statement is tax_statement_input
 
 
@@ -82,6 +82,7 @@ def test_handle_security_tax_value_from_kursliste(kursliste_manager):
     calc._handle_Security(sec, "sec")
     stv = sec.taxValue
     calc._handle_SecurityTaxValue(stv, "sec.taxValue")
+    assert stv is not None
     assert stv.unitPrice == Decimal("255.5")
     assert stv.value == Decimal("127750")
     assert stv.exchangeRate == Decimal("1")
