@@ -154,8 +154,11 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert msft_sec.stock[2].quantity == Decimal("10")
         assert all(s.referenceDate != date(2023, 12, 31) for s in msft_sec.stock)
 
-        # Trades should not create SecurityPayment entries
-        assert len(msft_sec.payment) == 0
+        # Divdend fom cash transaction should be mapped to SecurityPayment
+        assert len(msft_sec.payment) == 1
+        assert msft_sec.payment[0].name == "MSFT Dividend"
+        assert msft_sec.payment[0].amount == Decimal("50.00")
+        assert msft_sec.payment[0].paymentDate == date(2023, 9, 5)
 
         # AAPL Security
         aapl_sec = next((s for s in depot.security if s.securityName == "APPLE INC (AAPL)"), None)
