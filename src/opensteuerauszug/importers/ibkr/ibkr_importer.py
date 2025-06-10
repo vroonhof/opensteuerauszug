@@ -131,9 +131,14 @@ class IbkrImporter:
                     and pending.referenceDate == stock.referenceDate
                     and pending.balanceCurrency == stock.balanceCurrency
                     and pending.quotationType == stock.quotationType
+                    # test for same sign of quantity
+                    and (pending.quantity * stock.quantity) > 0
                 ):
                     pending.quantity += stock.quantity
-                    pending.name = f"Aggregated Trades {stock.referenceDate}"
+                    if pending.quantity > 0:
+                        pending.name = "Buy"
+                    else:
+                        pending.name = "Sell"
                 else:
                     if pending:
                         aggregated.append(pending)
