@@ -97,7 +97,7 @@ def populate_data(conn, kursliste, tax_year, source_file_name):
         sec_type_id = sec_type_attr.value if sec_type_attr else None
         
         # Serialize the Pydantic model to JSON, then encode to bytes for BLOB
-        json_str = security.model_dump_json()
+        json_str = security.model_dump_json(by_alias=True)
         blob_data = json_str.encode('utf-8')
 
         cursor.execute("""
