@@ -401,6 +401,82 @@ class IbkrImporter:
                         balance_stock
                     )
 
+            # --- Process Transfers ---
+            if stmt.Transfers:
+                for transfer in stmt.Transfers:
+                    asset_category = getattr(transfer, 'assetCategory', None)
+                    asset_cat_val = getattr(asset_category, 'value', str(asset_category))
+                    if str(asset_cat_val).upper() == 'CASH':
+                        continue
+
+                    tx_date = getattr(transfer, 'date', None)
+                    if tx_date is None:
+                        tx_dt = getattr(transfer, 'dateTime', None)
+                        if tx_dt is not None:
+                            tx_date = tx_dt.date() if hasattr(tx_dt, 'date') else tx_dt
+                    if tx_date is None:
+                        raise ValueError('Transfer missing date/dateTime')
+
+                    symbol = self._get_required_field(transfer, 'symbol', 'Transfer')
+                    description = self._get_required_field(
+                        transfer, 'description', 'Transfer'
+                    )
+                    conid = str(self._get_required_field(transfer, 'conid', 'Transfer'))
+                    isin = getattr(transfer, 'isin', None)
+
+                    quantity = self._to_decimal(
+                        self._get_required_field(transfer, 'quantity', 'Transfer'),
+                        'quantity', f"Transfer {symbol}"
+                    )
+
+                    direction = getattr(transfer, 'direction', None)
+                    direction_val = (
+                        getattr(direction, 'value', str(direction)).upper()
+                        if direction
+                        else None
+                    )
+                    if direction_val == 'OUT' and quantity > 0:
+                        raise ValueError(
+                            f"Transfer direction OUT but quantity {quantity} positive"
+                            f" for {symbol}"
+                        )
+                    if direction_val == 'IN' and quantity < 0:
+                        raise ValueError(
+                            f"Transfer direction IN but quantity {quantity} negative"
+                            f" for {symbol}"
+                        )
+
+                    currency = self._get_required_field(
+                        transfer, 'currency', 'Transfer'
+                    )
+
+                    transfer_type = self._get_required_field(
+                        transfer, 'type', 'Transfer'
+                    )
+                    transfer_type_val = getattr(transfer_type, 'value', str(transfer_type))
+                    account = self._get_required_field(transfer, 'account', 'Transfer')
+
+                    sec_pos = SecurityPosition(
+                        depot=account_id,
+                        valor=None,
+                        isin=ISINType(isin) if isin else None,
+                        symbol=conid,
+                        description=f"{description} ({symbol})",
+                    )
+
+                    stock_mutation = SecurityStock(
+                        referenceDate=tx_date,
+                        mutation=True,
+                        quantity=quantity,
+                        name=f"{transfer_type_val} {account}",
+                        balanceCurrency=currency,
+                        quotationType="PIECE",
+                    )
+
+                    processed_security_positions[sec_pos]['stocks'].append(
+                        stock_mutation
+                    )
+
             # --- Process Cash Transactions ---
             if stmt.CashTransactions:
                 for cash_tx in stmt.CashTransactions:
