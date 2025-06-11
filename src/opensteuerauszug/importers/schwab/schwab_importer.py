@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import os
 from decimal import Decimal
 from opensteuerauszug.model.ech0196 import (
-    Institution, ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, CurrencyId, QuotationType, BankAccountTaxValue, Client, ClientNumber
+    BankAccountName, Institution, ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, CurrencyId, QuotationType, BankAccountTaxValue, Client, ClientNumber
 )
 from opensteuerauszug.model.position import BasePosition, SecurityPosition, CashPosition, Position
 from .statement_extractor import StatementExtractor
@@ -487,7 +487,10 @@ def convert_cash_positions_to_list_of_bank_accounts(
             print(f"WARNING: Awards depot for {pos.depot} has a None cash_account_id. Using 'UNKNOWN' for lookup.")
             depot_identifier_for_lookup = "UNKNOWN"
 
-        _matched_config_acc_num, display_id_from_helper = _get_configured_account_info(
+        # Ensure depot_identifier_for_lookup is always a string
+        depot_identifier_for_lookup = depot_identifier_for_lookup or "UNKNOWN"
+
+        config_acc_num, display_id_from_helper = _get_configured_account_info(
             depot_identifier_for_lookup,
             account_settings_list,
             is_awards
@@ -497,7 +500,7 @@ def convert_cash_positions_to_list_of_bank_accounts(
         if is_awards:
             final_account_number_str = display_id_from_helper  # Expected: "Equity Awards <cash_account_id>" or "Equity Awards UNKNOWN"
         else: # Not awards
-            if _matched_config_acc_num is not None: # Full account number from config
+            if config_acc_num is not None: # Full account number from config
                 final_account_number_str = display_id_from_helper # This is the full account number as per _get_configured_account_info logic
             else: # No match in config, display_id_from_helper is "...<depot>"
                 final_account_number_str = f"{pos.currentCy} Account {display_id_from_helper}"
@@ -510,7 +513,8 @@ def convert_cash_positions_to_list_of_bank_accounts(
         ) for payment in payments] if payments else []
             
         bank_account = BankAccount(
-                bankAccountNumber=BankAccountNumber(final_account_number_str),
+                bankAccountName=BankAccountName(final_account_number_str[:40]),
+                bankAccountNumber=BankAccountNumber(config_acc_num[:32]) if config_acc_num else None,
                 bankAccountCountry="US", # Assume Schwab is always US based
                 bankAccountCurrency=currency,
                 payment=bank_payments

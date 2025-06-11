@@ -594,3 +594,72 @@ def test_base_summary_currency_filtered_out(sample_ibkr_settings):
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+
+def test_bank_account_names_always_set(sample_ibkr_settings):
+    """Test that bank account names are always set for all currencies with closing balances."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+    
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    # Create XML with multiple currencies including 0 balance ones
+    xml_content = f"""
+<FlexQueryResponse queryName="BankAccountNamesTestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U7890123" fromDate="{period_from}" toDate="{period_to}" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <CashReport>
+        <CashReportCurrency accountId="U7890123" currency="USD" endingCash="1500.00" />
+        <CashReportCurrency accountId="U7890123" currency="EUR" endingCash="0" />
+        <CashReportCurrency accountId="U7890123" currency="GBP" endingCash="250.75" />
+      </CashReport>
+      <CashTransactions>
+        <CashTransaction accountId="U7890123" type="Broker Interest Received" currency="USD" amount="15.00" description="Interest on USD Cash" conid="" symbol="" dateTime="2023-06-15T00:00:00" assetCategory="" />
+      </CashTransactions>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+    """
+
+    xml_file_path = "test_bank_account_names.xml"
+    try:
+        with open(xml_file_path, "w") as f:
+            f.write(xml_content)
+
+        tax_statement = importer.import_files([xml_file_path])
+
+        # Verify that bank accounts are created for all currencies
+        assert tax_statement.listOfBankAccounts is not None
+        assert len(tax_statement.listOfBankAccounts.bankAccount) == 3
+
+        # Check that all bank accounts have names set
+        for bank_account in tax_statement.listOfBankAccounts.bankAccount:
+            assert bank_account.bankAccountName is not None
+            assert bank_account.bankAccountName != ""
+            
+            # Check the naming pattern: "<AccountId> <Currency> position"
+            currency = bank_account.bankAccountCurrency
+            expected_name = f"U7890123 {currency} position"
+            assert bank_account.bankAccountName == expected_name
+
+        # Verify specific accounts
+        currencies_found = {ba.bankAccountCurrency for ba in tax_statement.listOfBankAccounts.bankAccount}
+        assert currencies_found == {"USD", "EUR", "GBP"}
+
+        # Verify USD account has interest payment
+        usd_account = next(ba for ba in tax_statement.listOfBankAccounts.bankAccount if ba.bankAccountCurrency == "USD")
+        assert len(usd_account.payment) == 1
+        assert usd_account.payment[0].name == "Interest on USD Cash"
+
+        # Verify EUR account has no payments but still has name
+        eur_account = next(ba for ba in tax_statement.listOfBankAccounts.bankAccount if ba.bankAccountCurrency == "EUR")
+        assert len(eur_account.payment) == 0
+        assert eur_account.bankAccountName == "U7890123 EUR position"
+
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)

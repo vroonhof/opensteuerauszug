@@ -93,7 +93,7 @@ class TestGetConfiguredAccountInfo(unittest.TestCase):
 
 from opensteuerauszug.importers.schwab.schwab_importer import convert_cash_positions_to_list_of_bank_accounts
 from opensteuerauszug.model.position import CashPosition
-from opensteuerauszug.model.ech0196 import BankAccountNumber, ListOfBankAccounts, Depot # Depot needed for DepotNumber
+from opensteuerauszug.model.ech0196 import BankAccountNumber, BankAccountName, ListOfBankAccounts, Depot # Depot needed for DepotNumber
 
 
 class TestSchwabImporterAccountResolution(unittest.TestCase):
@@ -141,7 +141,8 @@ class TestSchwabImporterAccountResolution(unittest.TestCase):
 
         self.assertIsNotNone(result_list.bankAccount)
         self.assertEqual(len(result_list.bankAccount), 1)
-        self.assertEqual(result_list.bankAccount[0].bankAccountNumber, BankAccountNumber("USD Account ...789"))
+        self.assertIsNone(result_list.bankAccount[0].bankAccountNumber)  # No configured account number
+        self.assertEqual(result_list.bankAccount[0].bankAccountName, BankAccountName("USD Account ...789"))
 
     def test_bank_account_number_awards(self):
         settings = [
@@ -154,7 +155,8 @@ class TestSchwabImporterAccountResolution(unittest.TestCase):
 
         self.assertIsNotNone(result_list.bankAccount)
         self.assertEqual(len(result_list.bankAccount), 1)
-        self.assertEqual(result_list.bankAccount[0].bankAccountNumber, BankAccountNumber("Equity Awards AWARD123"))
+        self.assertIsNone(result_list.bankAccount[0].bankAccountNumber)  # No configured account number for awards
+        self.assertEqual(result_list.bankAccount[0].bankAccountName, BankAccountName("Equity Awards AWARD123"))
 
     def test_bank_account_number_empty_settings(self):
         settings = []
@@ -165,7 +167,8 @@ class TestSchwabImporterAccountResolution(unittest.TestCase):
 
         self.assertIsNotNone(result_list.bankAccount)
         self.assertEqual(len(result_list.bankAccount), 1)
-        self.assertEqual(result_list.bankAccount[0].bankAccountNumber, BankAccountNumber("USD Account ...789"))
+        self.assertIsNone(result_list.bankAccount[0].bankAccountNumber)  # No configured account number
+        self.assertEqual(result_list.bankAccount[0].bankAccountName, BankAccountName("USD Account ...789"))
 
     # --- Depot.depotNumber Tests ---
     def test_security_depot_number_unique_match(self):
@@ -518,6 +521,125 @@ class TestSchwabImporterProcessing(unittest.TestCase):
                 # Should not raise
                 tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
                 self.assertIsNotNone(tax_statement)
+
+class TestSchwabImporterBankAccountNames(unittest.TestCase):
+    """Test that bank account names are always set for all bank accounts."""
+
+    def setUp(self):
+        self.default_settings_args = {"broker_name": "schwab", "canton": "ZH", "full_name": "Test User"}
+        self.period_to_date = date(2023, 12, 31)
+
+    def test_bank_account_names_always_set_with_configured_accounts(self):
+        """Test that bank account names are set when accounts are configured."""
+        settings = [
+            SchwabAccountSettings(account_number="CH123-456789", account_name_alias="main", **self.default_settings_args)
+        ]
+        
+        # Create cash positions
+        cash_pos1 = CashPosition(depot="456789", currentCy="USD", cash_account_id="cash456789", type="cash")
+        cash_pos2 = CashPosition(depot="456789", currentCy="EUR", cash_account_id="cash456789_eur", type="cash")
+        
+        # Create stock items for each position
+        stock1 = SecurityStock(
+            referenceDate=date(2024, 1, 1),  # day after period
+            mutation=False,
+            quotationType="PIECE", 
+            quantity=Decimal(1000),
+            balanceCurrency='USD'
+        )
+        stock2 = SecurityStock(
+            referenceDate=date(2024, 1, 1),  # day after period
+            mutation=False,
+            quotationType="PIECE",
+            quantity=Decimal(500),
+            balanceCurrency='EUR'
+        )
+        
+        cash_tuples = [
+            (cash_pos1, [stock1], []),
+            (cash_pos2, [stock2], [])
+        ]
+
+        result = convert_cash_positions_to_list_of_bank_accounts(cash_tuples, self.period_to_date, settings)
+
+        # Verify that all bank accounts have names set
+        assert len(result.bankAccount) == 2
+        for bank_account in result.bankAccount:
+            assert bank_account.bankAccountName is not None
+            assert bank_account.bankAccountName != ""
+            
+        # For configured accounts, the name should be the full account number
+        usd_account = next(ba for ba in result.bankAccount if ba.bankAccountCurrency == "USD")
+        eur_account = next(ba for ba in result.bankAccount if ba.bankAccountCurrency == "EUR")
+        
+        assert usd_account.bankAccountName == "CH123-456789"
+        assert eur_account.bankAccountName == "CH123-456789"
+        
+        # Bank account numbers should be set for configured accounts
+        assert usd_account.bankAccountNumber == "CH123-456789"
+        assert eur_account.bankAccountNumber == "CH123-456789"
+
+    def test_bank_account_names_always_set_without_configured_accounts(self):
+        """Test that bank account names are set even when no accounts are configured."""
+        settings = []  # No configured accounts
+        
+        cash_pos = CashPosition(depot="999888", currentCy="USD", cash_account_id="cash999888", type="cash")
+        stock = SecurityStock(
+            referenceDate=date(2024, 1, 1),
+            mutation=False,
+            quotationType="PIECE",
+            quantity=Decimal(750),
+            balanceCurrency='USD'
+        )
+        
+        cash_tuples = [(cash_pos, [stock], [])]
+
+        result = convert_cash_positions_to_list_of_bank_accounts(cash_tuples, self.period_to_date, settings)
+
+        # Verify bank account has name set
+        assert len(result.bankAccount) == 1
+        bank_account = result.bankAccount[0]
+        
+        assert bank_account.bankAccountName is not None
+        assert bank_account.bankAccountName != ""
+        
+        # For unconfigured accounts, the name should follow the pattern "USD Account ...999888"
+        assert bank_account.bankAccountName == "USD Account ...999888"
+        
+        # Bank account number should be None for unconfigured accounts
+        assert bank_account.bankAccountNumber is None
+
+    def test_bank_account_names_always_set_for_awards(self):
+        """Test that bank account names are set for awards accounts."""
+        settings = [
+            SchwabAccountSettings(account_number="CH999-IGNORE", account_name_alias="main", **self.default_settings_args)
+        ]  # Settings should be ignored for awards
+        
+        cash_pos = CashPosition(depot="AWARDS", cash_account_id="AWARD789", currentCy="USD", type="cash")
+        stock = SecurityStock(
+            referenceDate=date(2024, 1, 1),
+            mutation=False,
+            quotationType="PIECE",
+            quantity=Decimal(100),
+            balanceCurrency='USD'
+        )
+        
+        cash_tuples = [(cash_pos, [stock], [])]
+
+        result = convert_cash_positions_to_list_of_bank_accounts(cash_tuples, self.period_to_date, settings)
+
+        # Verify bank account has name set
+        assert len(result.bankAccount) == 1
+        bank_account = result.bankAccount[0]
+        
+        assert bank_account.bankAccountName is not None
+        assert bank_account.bankAccountName != ""
+        
+        # For awards accounts, the name should follow the pattern "Equity Awards <award_id>"
+        assert bank_account.bankAccountName == "Equity Awards AWARD789"
+        
+        # Bank account number should be None for awards (no configured account number)
+        assert bank_account.bankAccountNumber is None
 
 if __name__ == '__main__':
     unittest.main()

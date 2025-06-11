@@ -43,7 +43,8 @@ def test_convert_cash_positions_to_list_of_bank_accounts():
         account_settings_list=[]
     )
     assert len(result.bankAccount) == 1
-    assert result.bankAccount[0].bankAccountNumber == "USD Account ...D2"
+    assert result.bankAccount[0].bankAccountNumber is None  # No configured account number
+    assert result.bankAccount[0].bankAccountName == "USD Account ...D2"
     assert result.bankAccount[0].bankAccountCurrency == "USD"
     assert result.bankAccount[0].taxValue is not None
     assert isinstance(result.bankAccount[0].taxValue, BankAccountTaxValue)

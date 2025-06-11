@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    ClientNumber, Institution, OrganisationName, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
+    BankAccountName, ClientNumber, Institution, OrganisationName, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
     Security, SecurityStock, SecurityPayment,
     BankAccount, BankAccountPayment, BankAccountTaxValue,
     CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client
@@ -728,8 +728,10 @@ class IbkrImporter:
                 )
 
             bank_account_num_str = f"{acc_id}-{curr}"
+            bank_account_name_str = f"{acc_id} {curr} position"
 
             ba = BankAccount(
+                bankAccountName=BankAccountName(bank_account_name_str),
                 bankAccountNumber=BankAccountNumber(bank_account_num_str),
                 bankAccountCountry="US",
                 bankAccountCurrency=curr,
