@@ -44,6 +44,7 @@ SAMPLE_IBKR_FLEX_XML_VALID = """
       </OpenPositions>
       <CashTransactions>
         <CashTransaction accountId="U1234567" type="Deposits/Withdrawals" currency="USD" amount="5000.00" description="Initial Deposit" conid="" symbol="" dateTime="2023-01-10T09:00:00" assetCategory="" />
+        <CashTransaction accountId="U1234567" type="Broker Interest Received" currency="USD" amount="25.50" description="Interest on Cash" conid="" symbol="" dateTime="2023-08-15T00:00:00" assetCategory="" />
         <CashTransaction accountId="U1234567" type="Dividends" currency="USD" amount="50.00" description="MSFT Dividend" conid="272120" symbol="MSFT" dateTime="2023-09-05T00:00:00" assetCategory="STK" />
       </CashTransactions>
       <CashReport>
@@ -200,8 +201,8 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         # --- Check Bank Accounts ---
         assert tax_statement.listOfBankAccounts is not None
         assert (
-            len(tax_statement.listOfBankAccounts.bankAccount) == 1
-        )  # Only USD account has transactions + balance
+            len(tax_statement.listOfBankAccounts.bankAccount) == 2
+        )  # USD account has transactions + balance, EUR account has only balance
 
         usd_account = next(
             (
@@ -214,16 +215,32 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert usd_account is not None
         assert usd_account.bankAccountNumber == "U1234567-USD"
 
-        assert len(usd_account.payment) == 1  # Only deposit remains
-        deposit_payment = next(
-            (p for p in usd_account.payment if p.name == "Initial Deposit"), None
+        assert len(usd_account.payment) == 1  # Only interest payment (deposits filtered out)
+        interest_payment = next(
+            (p for p in usd_account.payment if p.name == "Interest on Cash"), None
         )
-        assert deposit_payment is not None
-        assert deposit_payment.amount == Decimal("5000.00")
+        assert interest_payment is not None
+        assert interest_payment.amount == Decimal("25.50")
 
         assert usd_account.taxValue is not None
         assert usd_account.taxValue.balance == Decimal("3148.50")
         assert usd_account.taxValue.referenceDate == date(2023, 12, 31)
+
+        # Check EUR account (should have 0 balance, no payments)
+        eur_account = next(
+            (
+                ba
+                for ba in tax_statement.listOfBankAccounts.bankAccount
+                if ba.bankAccountCurrency == "EUR"
+            ),
+            None,
+        )
+        assert eur_account is not None
+        assert eur_account.bankAccountNumber == "U1234567-EUR"
+        assert len(eur_account.payment) == 0  # No transactions
+        assert eur_account.taxValue is not None
+        assert eur_account.taxValue.balance == Decimal("0")
+        assert eur_account.taxValue.referenceDate == date(2023, 12, 31)
 
     finally:
         if os.path.exists(xml_file_path):
@@ -505,6 +522,74 @@ def test_import_files_with_client_information(client_data, sample_ibkr_settings)
             # print(f"Test: {client_data['description']}")
             # print(f"  Expected: clientNumber={client_data['expected_client_number']}, firstName={client_data['expected_first_name']}, lastName={client_data['expected_last_name']}")
             # print(f"  Actual:   clientNumber={client_obj.clientNumber}, firstName={client_obj.firstName}, lastName={client_obj.lastName}")
+
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_base_summary_currency_filtered_out(sample_ibkr_settings):
+    """Test that BASE_SUMMARY currency entries are filtered out and not included in bank accounts."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    # Create XML with BASE_SUMMARY currency alongside real currencies
+    xml_content = """
+<FlexQueryResponse queryName="BaseSummaryTestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <Trades>
+        <Trade transactionID="4001" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" quantity="10" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="280.00" tradeMoney="2800.00" buySell="BUY" ibCommission="-1.00" netCash="-2801.00" />
+      </Trades>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" startingCash="0" endingCash="1500.00" fromDate="2023-01-01" toDate="2023-12-31" />
+        <CashReportCurrency accountId="U1234567" currency="EUR" startingCash="0" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+        <CashReportCurrency accountId="U1234567" currency="BASE_SUMMARY" startingCash="0" endingCash="189947.764908952" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_content)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+
+        # Should have bank accounts for USD and EUR, but not BASE_SUMMARY
+        assert tax_statement.listOfBankAccounts is not None
+        bank_accounts = tax_statement.listOfBankAccounts.bankAccount
+        assert len(bank_accounts) == 2  # USD and EUR only
+
+        # Verify currencies present
+        currencies = {ba.bankAccountCurrency for ba in bank_accounts}
+        assert currencies == {"USD", "EUR"}
+
+        # Verify BASE_SUMMARY is not present
+        assert "BASE_SUMMARY" not in currencies
+
+        # Verify account numbers don't contain BASE_SUMMARY
+        account_numbers = {str(ba.bankAccountNumber) for ba in bank_accounts if ba.bankAccountNumber}
+        base_summary_accounts = {num for num in account_numbers if "BASE_SUMMARY" in num}
+        assert len(base_summary_accounts) == 0
+
+        # Verify we can find the expected accounts
+        usd_account = next((ba for ba in bank_accounts if ba.bankAccountCurrency == "USD"), None)
+        eur_account = next((ba for ba in bank_accounts if ba.bankAccountCurrency == "EUR"), None)
+        
+        assert usd_account is not None
+        assert eur_account is not None
+        assert usd_account.bankAccountNumber == "U1234567-USD"
+        assert eur_account.bankAccountNumber == "U1234567-EUR"
 
     finally:
         if os.path.exists(xml_file_path):

@@ -427,7 +427,9 @@ class IbkrImporter:
                     )
 
                     security_id = getattr(cash_tx, 'conid', None)
-                    tx_type = getattr(cash_tx, 'type', '') or ''
+                    tx_type = cash_tx.type
+                    if tx_type is None:
+                        raise ValueError(f"CashTransaction type is missing for {description}")
 
                     if security_id:
                         tx_type_str = getattr(tx_type, 'value', str(tx_type))
@@ -464,6 +466,22 @@ class IbkrImporter:
                             sec_payment
                         )
                     else:
+                        if tx_type in [ibflex.CashAction.DEPOSITWITHDRAW]:
+                            # Not Tax Relant event
+                            continue
+                        elif tx_type in [ibflex.CashAction.BROKERINTPAID]:
+                            # TODO: Optionally create a liabilities section.
+                            print(f"Warning: Broker interest paid for {description} is not handled for liabilities.")
+                            continue
+                        elif tx_type in [ibflex.CashAction.FEES]:
+                            # TODO: Optionally create a costs sectioons.
+                            print(f"Warning: Fees paid for {description} are ignored for statement.")
+                            continue
+                        elif tx_type in [ibflex.CashAction.BROKERINTRCVD]:
+                            # Tax relevant event. Fall through to create a bank payment.
+                            pass
+                        else:
+                            raise ValueError(f"CashTransaction type {tx_type} is not supported for {description}")
                         cash_pos_key = (account_id, currency, "MAIN_CASH")
 
                         bank_payment = BankAccountPayment(
@@ -627,51 +645,72 @@ class IbkrImporter:
 
         # --- Construct ListOfBankAccounts ---
         final_bank_accounts: List[BankAccount] = []
-        aggregated_bank_payments: defaultdict[tuple, Dict[str, Any]] = \
-            defaultdict(lambda: {'payments': [], 'account_id': None,
-                                'currency': None})
+        
+        # First, collect all currencies from CashReport that have closing balances
+        all_currencies_with_balances: Dict[tuple, Dict[str, Any]] = {}
+        
+        for s_stmt in all_flex_statements:
+            account_id = s_stmt.accountId
+            if hasattr(s_stmt, 'CashReport') and s_stmt.CashReport:
+                for cash_report_currency_obj in s_stmt.CashReport:
+                    if hasattr(cash_report_currency_obj, 'currency'):
+                        curr = cash_report_currency_obj.currency
+                        
+                        # Skip BASE_SUMMARY entries (IBKR internal aggregation, not a real currency)
+                        if curr == "BASE_SUMMARY":
+                            continue
+                            
+                        key = (account_id, curr)
+                        
+                        # Extract closing balance
+                        closing_balance_value = None
+                        if hasattr(cash_report_currency_obj, 'endingCash'):
+                            closing_balance_value = self._to_decimal(
+                                cash_report_currency_obj.endingCash,
+                                'endingCash',
+                                f"CashReport {account_id} {curr}"
+                            )
+                        elif (hasattr(cash_report_currency_obj, 'balance') and
+                              hasattr(cash_report_currency_obj, 'reportDate') and
+                              cash_report_currency_obj.reportDate == self.period_to):
+                            closing_balance_value = self._to_decimal(
+                                cash_report_currency_obj.balance,
+                                'balance',
+                                f"CashReport {account_id} {curr}"
+                            )
+                        
+                        if closing_balance_value is not None:
+                            all_currencies_with_balances[key] = {
+                                'account_id': account_id,
+                                'currency': curr,
+                                'closing_balance': closing_balance_value,
+                                'payments': []
+                            }
 
-        for (stmt_account_id, currency_code, _), data in \
-                processed_cash_positions.items():
+        # Now add payments from cash transactions to the relevant currencies
+        for (stmt_account_id, currency_code, _), data in processed_cash_positions.items():
             key = (stmt_account_id, currency_code)
-            aggregated_bank_payments[key]['payments'].extend(data['payments'])
-            aggregated_bank_payments[key]['account_id'] = stmt_account_id
-            aggregated_bank_payments[key]['currency'] = currency_code
+            if key in all_currencies_with_balances:
+                all_currencies_with_balances[key]['payments'].extend(data['payments'])
+            else:
+                # This currency has transactions but no closing balance in CashReport
+                # Still create an entry for it
+                all_currencies_with_balances[key] = {
+                    'account_id': stmt_account_id,
+                    'currency': currency_code,
+                    'closing_balance': None,
+                    'payments': data['payments']
+                }
 
-        for key, data_dict in aggregated_bank_payments.items():
+        # Create bank accounts for all currencies
+        for key, data_dict in all_currencies_with_balances.items():
             acc_id = data_dict['account_id']
             curr = data_dict['currency']
             payments = data_dict['payments']
+            closing_balance_value = data_dict['closing_balance']
 
             # Ensure payments is a list before sorting
             sorted_payments = sorted(payments or [], key=lambda p: p.paymentDate)
-
-
-            closing_balance_value = None
-            for s_stmt in all_flex_statements:
-                if (s_stmt.accountId == acc_id and
-                        hasattr(s_stmt, 'CashReport') and s_stmt.CashReport):
-                    for cash_report_currency_obj in s_stmt.CashReport:
-                        if (hasattr(cash_report_currency_obj, 'currency') and
-                                cash_report_currency_obj.currency == curr):
-                            if hasattr(cash_report_currency_obj, 'endingCash'):
-                                closing_balance_value = self._to_decimal(
-                                    cash_report_currency_obj.endingCash,
-                                    'endingCash',
-                                    f"CashReport {acc_id} {curr}"
-                                )
-                                break
-                            elif (hasattr(cash_report_currency_obj, 'balance') and
-                                  hasattr(cash_report_currency_obj, 'reportDate') and
-                                  cash_report_currency_obj.reportDate == self.period_to):
-                                closing_balance_value = self._to_decimal(
-                                    cash_report_currency_obj.balance,
-                                    'balance',
-                                    f"CashReport {acc_id} {curr}"
-                                )
-                                break
-                    if closing_balance_value is not None:
-                        break
 
             bank_account_tax_value_obj = None
             if closing_balance_value is not None:
@@ -682,10 +721,10 @@ class IbkrImporter:
                     balance=closing_balance_value
                 )
             else:
-                print(
+                raise ValueError(
                     f"Warning: No closing cash balance found in CashReport "
                     f"for account {acc_id}, currency {curr} for date "
-                    f"{self.period_to}. BankAccountTaxValue will be missing."
+                    f"{self.period_to}."
                 )
 
             bank_account_num_str = f"{acc_id}-{curr}"
