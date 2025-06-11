@@ -104,6 +104,37 @@ SAMPLE_IBKR_FLEX_XML_INTEREST_WITH_SECURITY = """
 </FlexQueryResponse>
 """
 
+SAMPLE_IBKR_FLEX_XML_TRANSFER = """
+<FlexQueryResponse queryName="TransferQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <Transfers>
+        <Transfer type="INTERNAL" direction="IN" assetCategory="STK" symbol="GME" description="GAMESTOP" conid="123456" isin="US36467W1099" currency="USD" quantity="10" date="2023-07-01" account="Other Account" />
+        <Transfer type="INTERNAL" direction="IN" assetCategory="CASH" currency="USD" cashTransfer="100" date="2023-07-01" account="Other Account" />
+      </Transfers>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+SAMPLE_IBKR_FLEX_XML_TRANSFER_WRONG_SIGN = """
+<FlexQueryResponse queryName="TransferQueryWrong" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <Transfers>
+        <Transfer type="INTERNAL" direction="OUT" assetCategory="STK" symbol="GME" description="GAMESTOP" conid="123456" isin="US36467W1099" currency="USD" quantity="10" date="2023-07-01" account="Other Account" />
+      </Transfers>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
 
 @pytest.fixture
 def sample_ibkr_settings() -> List[IbkrAccountSettings]:
@@ -225,6 +256,61 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert usd_account.taxValue.balance == Decimal("3148.50")
         assert usd_account.taxValue.referenceDate == date(2023, 12, 31)
 
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_transfer_to_stock(sample_ibkr_settings):
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_TRANSFER)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        depot = tax_statement.listOfSecurities.depot[0]
+        gme_sec = next(
+            (s for s in depot.security if s.securityName == "GAMESTOP (GME)"),
+            None,
+        )
+        assert gme_sec is not None
+        transfers = [s for s in gme_sec.stock if s.mutation]
+        assert len(transfers) == 1
+        transfer_stock = transfers[0]
+        assert transfer_stock.quantity == Decimal("10")
+        assert transfer_stock.name == "INTERNAL Other Account"
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_transfer_quantity_sign_mismatch(sample_ibkr_settings):
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_TRANSFER_WRONG_SIGN)
+        xml_file_path = tmp_file.name
+
+    try:
+        with pytest.raises(ValueError):
+            importer.import_files([xml_file_path])
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
