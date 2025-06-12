@@ -1,5 +1,5 @@
 from typing import Dict, Any, Union, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class GeneralSettings(BaseModel):
     '''General settings applicable globally.'''
@@ -8,8 +8,7 @@ class GeneralSettings(BaseModel):
     language: str = Field(default="de", description="Default language for documents (e.g., 'de', 'fr', 'it').")
     processing_flags: Dict[str, bool] = Field(default_factory=dict, description="Default processing flags.")
 
-    class Config:
-        extra = "allow" # Allow other general settings not explicitly defined
+    model_config = ConfigDict(extra="allow")
 
 class BrokerSettings(GeneralSettings):
     '''Settings specific to a financial institution (broker), inheriting from GeneralSettings.'''
