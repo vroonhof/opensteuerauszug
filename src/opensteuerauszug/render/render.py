@@ -1270,9 +1270,15 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     # Compute the organization number
     doc.org_nr = compute_org_nr(tax_statement, override_org_nr)
     doc.company_name = tax_statement.institution.name if tax_statement.institution else ""
-    
+
     # Store tax statement for header access
     doc.tax_statement = tax_statement
+
+    # Set the PDF title using institution name and tax year
+    company_name = tax_statement.institution.name if tax_statement.institution else ""
+    tax_year = str(tax_statement.taxPeriod) if tax_statement.taxPeriod else ""
+    title_parts = ["Steuerauszug", company_name, tax_year]
+    doc.title = " ".join(part for part in title_parts if part)
     
     # Extract and store client information for header display (backward compatibility)
     doc.client_info = extract_client_info(tax_statement)
