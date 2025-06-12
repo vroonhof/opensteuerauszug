@@ -273,7 +273,7 @@ class IbkrImporter:
                     )
 
                     conid = str(self._get_required_field(trade, 'conid', 'Trade'))
-                    isin = getattr(trade, 'isin', None)  # Optional
+                    isin = trade.isin  # Optional field always present on dataclass
                     valor = None  # Flex does not typically provide Valor
 
                     quantity = self._to_decimal(
@@ -295,7 +295,7 @@ class IbkrImporter:
                     buy_sell = self._get_required_field(trade, 'buySell', 'Trade')
 
                     ib_commission = self._to_decimal(
-                        getattr(trade, 'ibCommission', '0'),
+                        trade.ibCommission if trade.ibCommission is not None else '0',
                         'ibCommission', f"Trade {symbol}"
                     )
 
@@ -357,7 +357,7 @@ class IbkrImporter:
                     conid = str(self._get_required_field(
                         open_pos, 'conid', 'OpenPosition'
                     ))
-                    isin = getattr(open_pos, 'isin', None)
+                    isin = open_pos.isin
                     valor = None
 
                     quantity = self._to_decimal(
@@ -404,14 +404,16 @@ class IbkrImporter:
             # --- Process Transfers ---
             if stmt.Transfers:
                 for transfer in stmt.Transfers:
-                    asset_category = getattr(transfer, 'assetCategory', None)
-                    asset_cat_val = getattr(asset_category, 'value', str(asset_category))
+                    asset_category = transfer.assetCategory
+                    asset_cat_val = (
+                        asset_category.value if hasattr(asset_category, 'value') else str(asset_category)
+                    )
                     if str(asset_cat_val).upper() == 'CASH':
                         continue
 
-                    tx_date = getattr(transfer, 'date', None)
+                    tx_date = transfer.date
                     if tx_date is None:
-                        tx_dt = getattr(transfer, 'dateTime', None)
+                        tx_dt = transfer.dateTime
                         if tx_dt is not None:
                             tx_date = tx_dt.date() if hasattr(tx_dt, 'date') else tx_dt
                     if tx_date is None:
@@ -422,19 +424,15 @@ class IbkrImporter:
                         transfer, 'description', 'Transfer'
                     )
                     conid = str(self._get_required_field(transfer, 'conid', 'Transfer'))
-                    isin = getattr(transfer, 'isin', None)
+                    isin = transfer.isin
 
                     quantity = self._to_decimal(
                         self._get_required_field(transfer, 'quantity', 'Transfer'),
                         'quantity', f"Transfer {symbol}"
                     )
 
-                    direction = getattr(transfer, 'direction', None)
-                    direction_val = (
-                        getattr(direction, 'value', str(direction)).upper()
-                        if direction
-                        else None
-                    )
+                    direction = transfer.direction
+                    direction_val = direction.value.upper() if direction else None
                     if direction_val == 'OUT' and quantity > 0:
                         raise ValueError(
                             f"Transfer direction OUT but quantity {quantity} positive"
@@ -453,7 +451,7 @@ class IbkrImporter:
                     transfer_type = self._get_required_field(
                         transfer, 'type', 'Transfer'
                     )
-                    transfer_type_val = getattr(transfer_type, 'value', str(transfer_type))
+                    transfer_type_val = transfer_type.value
                     account = self._get_required_field(transfer, 'account', 'Transfer')
 
                     sec_pos = SecurityPosition(
@@ -502,13 +500,13 @@ class IbkrImporter:
                         cash_tx, 'currency', 'CashTransaction'
                     )
 
-                    security_id = getattr(cash_tx, 'conid', None)
+                    security_id = cash_tx.conid
                     tx_type = cash_tx.type
                     if tx_type is None:
                         raise ValueError(f"CashTransaction type is missing for {description}")
 
                     if security_id:
-                        tx_type_str = getattr(tx_type, 'value', str(tx_type))
+                        tx_type_str = tx_type.value
                         assert 'interest' not in str(tx_type_str).lower()
 
                         sec_pos_key = None
@@ -518,8 +516,8 @@ class IbkrImporter:
                                 break
 
                         if sec_pos_key is None:
-                            isin_attr = getattr(cash_tx, 'isin', None)
-                            sym_attr = getattr(cash_tx, 'symbol', None)
+                            isin_attr = cash_tx.isin
+                            sym_attr = cash_tx.symbol
                             sec_pos_key = SecurityPosition(
                                 depot=account_id,
                                 valor=None,
@@ -615,8 +613,9 @@ class IbkrImporter:
             elif sorted_payments and hasattr(sorted_payments[0], 'assetCategory'):
                 asset_cat_source = sorted_payments[0]
 
-            asset_cat = (getattr(asset_cat_source, 'assetCategory', 'STK')
-                         if asset_cat_source else 'STK')
+            asset_cat = (
+                asset_cat_source.assetCategory if asset_cat_source else 'STK'
+            )
 
             sec_category_str: SecurityCategory = "SHARE"
             if (asset_cat == "BOND"):
@@ -727,41 +726,41 @@ class IbkrImporter:
         
         for s_stmt in all_flex_statements:
             account_id = s_stmt.accountId
-            if hasattr(s_stmt, 'CashReport') and s_stmt.CashReport:
+            if s_stmt.CashReport:
                 for cash_report_currency_obj in s_stmt.CashReport:
-                    if hasattr(cash_report_currency_obj, 'currency'):
-                        curr = cash_report_currency_obj.currency
-                        
-                        # Skip BASE_SUMMARY entries (IBKR internal aggregation, not a real currency)
-                        if curr == "BASE_SUMMARY":
-                            continue
-                            
-                        key = (account_id, curr)
-                        
-                        # Extract closing balance
-                        closing_balance_value = None
-                        if hasattr(cash_report_currency_obj, 'endingCash'):
-                            closing_balance_value = self._to_decimal(
-                                cash_report_currency_obj.endingCash,
-                                'endingCash',
-                                f"CashReport {account_id} {curr}"
-                            )
-                        elif (hasattr(cash_report_currency_obj, 'balance') and
-                              hasattr(cash_report_currency_obj, 'reportDate') and
-                              cash_report_currency_obj.reportDate == self.period_to):
-                            closing_balance_value = self._to_decimal(
-                                cash_report_currency_obj.balance,
-                                'balance',
-                                f"CashReport {account_id} {curr}"
-                            )
-                        
-                        if closing_balance_value is not None:
-                            all_currencies_with_balances[key] = {
-                                'account_id': account_id,
-                                'currency': curr,
-                                'closing_balance': closing_balance_value,
-                                'payments': []
-                            }
+                    curr = cash_report_currency_obj.currency
+
+                    # Skip BASE_SUMMARY entries (IBKR internal aggregation, not a real currency)
+                    if curr == "BASE_SUMMARY":
+                        continue
+
+                    key = (account_id, curr)
+
+                    # Extract closing balance
+                    closing_balance_value = None
+                    if cash_report_currency_obj.endingCash is not None:
+                        closing_balance_value = self._to_decimal(
+                            cash_report_currency_obj.endingCash,
+                            'endingCash',
+                            f"CashReport {account_id} {curr}"
+                        )
+                    elif (
+                        cash_report_currency_obj.balance is not None
+                        and cash_report_currency_obj.reportDate == self.period_to
+                    ):
+                        closing_balance_value = self._to_decimal(
+                            cash_report_currency_obj.balance,
+                            'balance',
+                            f"CashReport {account_id} {curr}"
+                        )
+
+                    if closing_balance_value is not None:
+                        all_currencies_with_balances[key] = {
+                            'account_id': account_id,
+                            'currency': curr,
+                            'closing_balance': closing_balance_value,
+                            'payments': []
+                        }
 
         # Now add payments from cash transactions to the relevant currencies
         for (stmt_account_id, currency_code, _), data in processed_cash_positions.items():
