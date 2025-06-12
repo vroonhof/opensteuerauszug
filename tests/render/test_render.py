@@ -211,6 +211,27 @@ def test_pdf_page_count(mock_render_to_barcodes, sample_tax_statement):
             os.unlink(tmp_path)
 
 @mock.patch('opensteuerauszug.render.render.render_to_barcodes')
+def test_pdf_title_metadata(mock_render_to_barcodes, sample_tax_statement):
+    """Verify that the rendered PDF sets a descriptive title."""
+    mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        render_tax_statement(sample_tax_statement, tmp_path)
+
+        with open(tmp_path, "rb") as f:
+            pdf_reader = pypdf.PdfReader(f)
+            assert (
+                pdf_reader.metadata.title
+                == "Steuerauszug Test Bank AG 2023"
+            )
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes')
 def test_barcode_rendering(mock_render_to_barcodes, sample_tax_statement):
     """Test that barcodes are rendered correctly on all pages including a dedicated barcode page."""
     mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
