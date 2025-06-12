@@ -29,6 +29,7 @@ from opensteuerauszug.render.render import (
     BarcodeDocTemplate,
     create_bank_accounts_table
 )
+import opensteuerauszug.render.render as render
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import Paragraph, Spacer, SimpleDocTemplate, Table
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
@@ -412,3 +413,12 @@ def test_create_bank_accounts_table_multiple_accounts_with_payments():
     assert "Konto1" in all_text
     assert "Konto2" in all_text
     assert "Zinszahlung" in all_text
+
+
+def test_format_currency_trailing_zero():
+    value_two_dec = Decimal("50.00")
+    value_three_dec = Decimal("50.005")
+
+    assert render.format_currency(value_two_dec) == "50.00"
+    assert render.format_currency(value_three_dec) == "50.005"
+

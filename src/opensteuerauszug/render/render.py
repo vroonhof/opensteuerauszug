@@ -86,13 +86,24 @@ def format_currency_2dp(value: Decimal, default='0.00'):
 
 # For most values we use 2 decimals, or leave blank it None or zero
 def format_currency(value: Optional[Decimal], default=''):
-    """Format currency with 2 decimals, for detail tables."""
-    if value is None or value == Decimal(0): return default
+    """Format currency, trimming trailing zeros for better alignment."""
+    if value is None or value == Decimal(0):
+        return default
+
     try:
         decimal_value = round_accounting(value)
-        formatted = '{:,f}'.format(decimal_value).replace(',', "'")
-        return formatted
-    except: return default
+
+        two_dec = decimal_value.quantize(Decimal("0.01"))
+        three_dec = decimal_value.quantize(Decimal("0.001"))
+
+        if two_dec == three_dec:
+            formatted = "{:,.2f}".format(two_dec)
+        else:
+            formatted = "{:,.3f}".format(three_dec)
+
+        return formatted.replace(',', "'")
+    except Exception:
+        return default
 
 # For exchange rates we limit to 4 decimals, don't show if 1
 def format_exchange_rate(value: Decimal, default=''):
