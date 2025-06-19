@@ -767,6 +767,217 @@ class TestCleanupCalculatorEnrichment:
         assert any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_NO_ISIN_NAME'" in log for log in calculator.get_log())
 
 
+class TestCleanupCalculatorSecurityPaymentQuantity:
+    def _create_base_statement_and_security(self, period_from: date, period_to: date, security_name: str = "TestSecForQtyCalc") -> Tuple[TaxStatement, Security]:
+        security = Security(
+            positionId=1,
+            country="CH",
+            currency="CHF",
+            quotationType="PIECE",
+            securityCategory="SHARE",
+            securityName=security_name,
+            isin=ISINType("CH0012345678"),
+            valorNumber=ValorNumber(1234567),
+            stock=[], # Populated by each test
+            payment=[] # Populated by each test
+        )
+        depot = Depot(depotNumber=DepotNumber("DP1"), security=[security])
+        statement = TaxStatement(
+            id="test_qty_calc_statement", # Pre-set ID to avoid ID generation logic interfering
+            creationDate=datetime(period_to.year, 1, 1),
+            taxPeriod=period_to.year,
+            periodFrom=period_from,
+            periodTo=period_to,
+            country="CH", canton="ZH", minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("QtyClient"))],
+            institution=Institution(lei=LEIType("QTYLEI12345000000000")),
+            listOfSecurities=ListOfSecurities(depot=[depot])
+        )
+        return statement, security
+
+    def test_calculate_quantity_paymentdate_fallback_stock_held(self, sample_period_from, sample_period_to):
+        statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecPaymentDateFallbackStockHeld")
+
+        payment_date = date(2023, 7, 15)
+        # Ensure exDate is None to test paymentDate fallback
+        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendPaymentDateFallback")
+        payment_event.exDate = None
+        security.payment = [payment_event]
+
+        # Stock setup: Held 60 shares on payment_date
+        security.stock = [
+            create_security_stock(date(2023, 1, 1), Decimal("50"), False, name="Opening Balance"), # Start of period
+            create_security_stock(date(2023, 6, 1), Decimal("10"), True, name="Buy"), # 50 + 10 = 60
+            create_security_stock(date(2023, 8, 1), Decimal("-5"), True, name="Sell")  # After payment date
+        ]
+        # Expected quantity at payment_date (2023-07-15) is 60 (50 from opening + 10 from buy on 2023-06-01)
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        result_statement = calculator.calculate(statement)
+
+        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
+        assert calculated_payment_result.quantity == Decimal("60"), "Quantity should be updated to 60 (50+10) using paymentDate"
+        assert any(f"DP1/SecPaymentDateFallbackStockHeld.Payment (Name: DividendPaymentDateFallback, Date: {payment_date}, exDate: None).quantity (updated via paymentDate)" in f for f in calculator.modified_fields)
+        assert any(f"Updated quantity for Payment (Name: DividendPaymentDateFallback, Date: {payment_date}, exDate: None) to 60 using paymentDate ({payment_date})" in log for log in calculator.get_log())
+
+    def test_calculate_quantity_paymentdate_fallback_no_stock_held(self, sample_period_from, sample_period_to):
+        statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecPaymentDateFallbackNoStock")
+
+        payment_date = date(2023, 8, 1)
+        # Ensure exDate is None
+        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendPaymentDateFallbackNoStock")
+        payment_event.exDate = None
+        security.payment = [payment_event]
+
+        # Stock setup: All stock sold before payment_date
+        security.stock = [
+            create_security_stock(date(2023, 1, 1), Decimal("20"), False, name="Opening Balance"),
+            create_security_stock(date(2023, 3, 1), Decimal("-20"), True, name="Sell All") # Sold before payment_date
+        ]
+        # Expected quantity at payment_date (2023-08-01) is 0
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        result_statement = calculator.calculate(statement)
+
+        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
+        assert calculated_payment_result.quantity == Decimal("0"), "Quantity should be updated to 0 using paymentDate"
+        assert any(f"DP1/SecPaymentDateFallbackNoStock.Payment (Name: DividendPaymentDateFallbackNoStock, Date: {payment_date}, exDate: None).quantity (updated via paymentDate)" in f for f in calculator.modified_fields)
+        assert any(f"Updated quantity for Payment (Name: DividendPaymentDateFallbackNoStock, Date: {payment_date}, exDate: None) to 0 using paymentDate ({payment_date})" in log for log in calculator.get_log())
+
+    def test_calculate_quantity_paymentdate_fallback_missing_stock_data(self, sample_period_from, sample_period_to):
+        statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecPaymentDateFallbackMissingStock")
+
+        payment_date = date(2023, 9, 1)
+        # Ensure exDate is None
+        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendPaymentDateFallbackMissingStock")
+        payment_event.exDate = None
+        security.payment = [payment_event]
+
+        # Stock setup: Empty stock list
+        security.stock = []
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        result_statement = calculator.calculate(statement)
+
+        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
+        assert calculated_payment_result.quantity == Decimal("-1"), "Quantity should remain -1 due to missing stock data (using paymentDate)"
+        # No modification if quantity remains -1
+        assert not any(".quantity (updated via paymentDate)" in f for f in calculator.modified_fields)
+        assert any(f"Warning: Security DP1/SecPaymentDateFallbackMissingStock: Cannot calculate SecurityPayment quantity for payment (Name: DividendPaymentDateFallbackMissingStock, Date: {payment_date}, exDate: None) due to missing stock data. Quantity remains -1." in log for log in calculator.get_log())
+
+    def test_calculate_quantity_paymentdate_fallback_stock_data_does_not_cover(self, sample_period_from, sample_period_to):
+        statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecPaymentDateFallbackNoCover")
+
+        payment_date = date(2023, 6, 15) # Payment date
+        # Ensure exDate is None
+        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendPaymentDateFallbackNoCover")
+        payment_event.exDate = None
+        security.payment = [payment_event]
+
+        # Stock setup: Stock entries exist but none cover the payment_date
+        # For example, an opening balance far in the past and no further transactions,
+        # or transactions that clearly don't lead to a position on payment_date.
+        # PositionReconciler's synthesize_position_at_date might return None if no transactions before or on date.
+        security.stock = [
+            create_security_stock(date(2023, 1, 1), Decimal("10"), False, name="Opening Balance Far Past"),
+            # No other stock mutations that would lead to a position on 2023-06-15
+            # Let's assume the reconciler returns None or a quantity of 0 if no stock activity near the date.
+            # If it synthesized 0, then the previous test "no_stock_held" covers it.
+            # This test is for when synthesize_position_at_date returns None for the ReconciledPosition object.
+        ]
+        # To make it more explicit that reconciler might return None for the position object:
+        # If all stock entries are *after* the payment date, synthesize_position_at_date should return None.
+        security.stock = [
+             create_security_stock(date(2023, 7, 1), Decimal("10"), True, name="Buy After PaymentDate")
+        ]
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        result_statement = calculator.calculate(statement)
+
+        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
+        assert calculated_payment_result.quantity == Decimal("-1"), "Quantity should remain -1 as stock data does not cover payment date (using paymentDate)"
+        assert not any(".quantity (updated via paymentDate)" in f for f in calculator.modified_fields)
+        assert any(f"Quantity for payment (Name: DividendPaymentDateFallbackNoCover, Date: {payment_date}, exDate: None) remains -1. Could not determine stock quantity using paymentDate ({payment_date})." in log for log in calculator.get_log())
+
+    def test_calculate_quantity_exdate_prioritized_stock_held(self, sample_period_from, sample_period_to):
+        statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecExDatePrioritizedStockHeld")
+
+        payment_date = date(2023, 7, 15)
+        ex_date = date(2023, 7, 1) # exDate is before paymentDate
+
+        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendExDatePriority")
+        payment_event.exDate = ex_date
+        security.payment = [payment_event]
+
+        # Stock setup:
+        # On exDate (July 1): 50 (opening)
+        # On paymentDate (July 15): 60 (after buy on July 10)
+        security.stock = [
+            create_security_stock(date(2023, 1, 1), Decimal("50"), False, name="Opening Balance"),
+            create_security_stock(date(2023, 7, 10), Decimal("10"), True, name="Buy between ex and payment")
+        ]
+        # Expected quantity is 50 based on exDate
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        result_statement = calculator.calculate(statement)
+
+        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
+        assert calculated_payment_result.quantity == Decimal("50"), "Quantity should be 50 (based on exDate)"
+        assert any(f"DP1/SecExDatePrioritizedStockHeld.Payment (Name: DividendExDatePriority, Date: {payment_date}, exDate: {ex_date}).quantity (updated via exDate)" in f for f in calculator.modified_fields)
+        assert any(f"Using exDate ({ex_date}) for quantity calculation for payment on {payment_date}" in log for log in calculator.get_log())
+        assert any(f"Updated quantity for Payment (Name: DividendExDatePriority, Date: {payment_date}, exDate: {ex_date}) to 50 using exDate ({ex_date})" in log for log in calculator.get_log())
+
+    def test_calculate_quantity_exdate_no_stock_on_exdate(self, sample_period_from, sample_period_to):
+        statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecExDateNoStock")
+
+        payment_date = date(2023, 7, 15)
+        ex_date = date(2023, 7, 1)
+
+        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendExDateNoStock")
+        payment_event.exDate = ex_date
+        security.payment = [payment_event]
+
+        # Stock setup: All stock bought after exDate
+        security.stock = [
+            create_security_stock(date(2023, 1, 1), Decimal("0"), False, name="Opening Balance Zero"), # Explicit zero opening
+            create_security_stock(date(2023, 7, 10), Decimal("30"), True, name="Buy after exDate")
+        ]
+        # Expected quantity is 0 based on exDate
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        result_statement = calculator.calculate(statement)
+
+        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
+        assert calculated_payment_result.quantity == Decimal("0"), "Quantity should be 0 (based on exDate)"
+        assert any(f"DP1/SecExDateNoStock.Payment (Name: DividendExDateNoStock, Date: {payment_date}, exDate: {ex_date}).quantity (updated via exDate)" in f for f in calculator.modified_fields)
+        assert any(f"Using exDate ({ex_date}) for quantity calculation for payment on {payment_date}" in log for log in calculator.get_log())
+        assert any(f"Updated quantity for Payment (Name: DividendExDateNoStock, Date: {payment_date}, exDate: {ex_date}) to 0 using exDate ({ex_date})" in log for log in calculator.get_log())
+
+    def test_calculate_quantity_exdate_insufficient_stock_data_for_exdate(self, sample_period_from, sample_period_to):
+        statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecExDateInsufficientData")
+
+        payment_date = date(2023, 7, 15)
+        ex_date = date(2023, 7, 1)
+
+        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendExDateInsufficient")
+        payment_event.exDate = ex_date
+        security.payment = [payment_event]
+
+        # Stock setup: All stock transactions are after exDate, so reconciler returns None for exDate.
+        security.stock = [
+            create_security_stock(date(2023, 8, 1), Decimal("20"), True, name="Buy well after exDate")
+        ]
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        result_statement = calculator.calculate(statement)
+
+        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
+        assert calculated_payment_result.quantity == Decimal("-1"), "Quantity should remain -1 (insufficient data for exDate)"
+        assert not any(".quantity (updated via exDate)" in f for f in calculator.modified_fields) # Not updated
+        assert any(f"Using exDate ({ex_date}) for quantity calculation for payment on {payment_date}" in log for log in calculator.get_log())
+        assert any(f"Quantity for payment (Name: DividendExDateInsufficient, Date: {payment_date}, exDate: {ex_date}) remains -1. Could not determine stock quantity using exDate ({ex_date})." in log for log in calculator.get_log())
+
+
 class TestCleanupCalculatorIDGeneration:
     """Tests for TaxStatement ID generation logic in CleanupCalculator."""
 

@@ -3,9 +3,11 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional, Dict, Any, cast, get_args # Added get_args import
 # import os # Removed os import
 # Removed pandas import
+from decimal import Decimal
 from opensteuerauszug.model.ech0196 import SecurityTaxValue, TaxStatement, SecurityStock, BankAccountPayment, SecurityPayment, Client, ClientNumber, CantonAbbreviation
 from opensteuerauszug.util.sorting import find_index_of_date, sort_security_stocks, sort_payments, sort_security_payments
 from opensteuerauszug.config.models import GeneralSettings
+from opensteuerauszug.core.position_reconciler import PositionReconciler # Added PositionReconciler
 # from opensteuerauszug.core.identifier_loader import SecurityIdentifierMapLoader # Removed loader import
 
 class CleanupCalculator:
@@ -383,6 +385,47 @@ class CleanupCalculator:
                                         self._log(f"  Security {pos_id}: Filtered {original_sec_payment_count} security payments to {len(security.payment)} for period [{self.period_from} - {self.period_to}].")
                                 else:
                                     self._log(f"  Security {pos_id}: Security payment filtering skipped (tax period not fully defined).")
+
+                            # --- Calculate SecurityPayment.quantity where it's Decimal('-1') ---
+                            # --- Calculate SecurityPayment.quantity where it's Decimal('-1') ---
+                            if security.payment and security.stock: # Need stocks to determine quantity
+                                reconciler = PositionReconciler(list(security.stock), identifier=f"{pos_id}-payment-qty-reconcile")
+                                for payment_event in security.payment:
+                                    if payment_event.quantity == Decimal('-1'):
+                                        date_to_use_for_reconciliation = payment_event.paymentDate
+                                        log_date_source = "paymentDate"
+                                        if payment_event.exDate:
+                                            date_to_use_for_reconciliation = payment_event.exDate
+                                            log_date_source = "exDate"
+                                            self._log(f"  Security {pos_id}: Using exDate ({payment_event.exDate}) for quantity calculation for payment on {payment_event.paymentDate} (Name: {payment_event.name or 'N/A'}).")
+
+                                        reconciled_quantity_info = reconciler.synthesize_position_at_date(date_to_use_for_reconciliation)
+
+                                        if reconciled_quantity_info and reconciled_quantity_info.quantity is not None:
+                                            original_dummy_qty = payment_event.quantity
+                                            payment_event.quantity = reconciled_quantity_info.quantity
+                                            # Using a more descriptive field name for modified_fields
+                                            payment_identifier_log = f"Payment (Name: {payment_event.name or 'N/A'}, Date: {payment_event.paymentDate}, exDate: {payment_event.exDate or 'N/A'})"
+                                            self.modified_fields.append(f"{pos_id}.{payment_identifier_log}.quantity (updated via {log_date_source})")
+                                            self._log(
+                                                f"  Security {pos_id}: Updated quantity for {payment_identifier_log} to {payment_event.quantity} "
+                                                f"using {log_date_source} ({date_to_use_for_reconciliation}). Original dummy: {original_dummy_qty}."
+                                            )
+                                        else:
+                                            # If quantity remains -1 because reconcile returned None or quantity was None
+                                            self._log(
+                                                f"  Security {pos_id}: Quantity for payment (Name: {payment_event.name or 'N/A'}, Date: {payment_event.paymentDate}, exDate: {payment_event.exDate or 'N/A'}) remains {payment_event.quantity}. "
+                                                f"Could not determine stock quantity using {log_date_source} ({date_to_use_for_reconciliation})."
+                                            )
+                            elif security.payment and not security.stock:
+                                # Log if payments exist that need calculation but no stock data is available
+                                for payment_event in security.payment:
+                                    if payment_event.quantity == Decimal('-1'):
+                                        self._log(
+                                            f"  Warning: Security {pos_id}: Cannot calculate SecurityPayment quantity for payment (Name: {payment_event.name or 'N/A'}, Date: {payment_event.paymentDate}, exDate: {payment_event.exDate or 'N/A'}) "
+                                            f"due to missing stock data. Quantity remains {payment_event.quantity}."
+                                        )
+                            # --- End Calculate SecurityPayment.quantity ---
         else:
             self._log("No securities accounts found to process.")
 

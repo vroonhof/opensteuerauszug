@@ -536,7 +536,7 @@ class IbkrImporter:
                             amountCurrency=currency,
                             amount=amount,
                             quotationType='PIECE',
-                            quantity=Decimal('0')
+                            quantity=Decimal('-1')
                         )
                         processed_security_positions[sec_pos_key]['payments'].append(
                             sec_payment

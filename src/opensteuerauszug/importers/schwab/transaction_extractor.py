@@ -326,7 +326,7 @@ class TransactionExtractor:
                 # Payment record (will be associated with CashPosition by caller)
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE", 
-                    quantity=Decimal("1"), amountCurrency=currency, # Use currency string
+                    quantity=Decimal("-1"), amountCurrency=currency, # Use currency string
                     amount=schwab_amount, name="Credit Interest",
                     grossRevenueB=schwab_amount
                 )
@@ -335,7 +335,7 @@ class TransactionExtractor:
 
         elif action == "Dividend" or action == "Reinvest Dividend":
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
-                payment_quantity = schwab_qty if schwab_qty and schwab_qty != Decimal(0) else Decimal("1")
+                payment_quantity = schwab_qty if schwab_qty and schwab_qty != Decimal(0) else Decimal("-1")
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE",
                     quantity=payment_quantity, amountCurrency=currency, # Use currency string
@@ -396,7 +396,7 @@ class TransactionExtractor:
             if schwab_amount and schwab_amount != 0:
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE",
-                    quantity=Decimal("1"), amountCurrency=currency, # Use currency string
+                    quantity=Decimal("-1"), amountCurrency=currency, # Use currency string
                     amount=schwab_amount, name=f"{action}",
                     nonRecoverableTax=abs(schwab_amount) if schwab_amount < 0 else None,
                     grossRevenueB=schwab_amount if schwab_amount > 0 else None

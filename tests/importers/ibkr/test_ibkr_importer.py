@@ -278,6 +278,73 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
+def test_security_payment_quantity_is_minus_one(sample_ibkr_settings):
+    """Test that SecurityPayment.quantity is set to -1 for payments derived from CashTransactions."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    xml_content_security_payment = f"""
+<FlexQueryResponse queryName="SecPaymentQtyTest" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="{period_from}" toDate="{period_to}" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <Trades>
+        <!-- Add a trade to define the security MSFT so it appears in listOfSecurities -->
+        <Trade transactionID="5001" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" quantity="1" tradeDate="2023-02-01" settleDateTarget="2023-02-03" tradePrice="250.00" tradeMoney="250.00" buySell="BUY" ibCommission="-0.50" netCash="-250.50" />
+      </Trades>
+      <CashTransactions>
+        <CashTransaction accountId="U1234567" type="Dividends" currency="USD" amount="12.34" description="MSFT Corp Dividend" conid="272120" symbol="MSFT" dateTime="2023-05-10T00:00:00" assetCategory="STK" />
+        <CashTransaction accountId="U1234567" type="Withholding Tax" currency="USD" amount="-1.85" description="Tax on MSFT Dividend" conid="272120" symbol="MSFT" dateTime="2023-05-10T00:00:00" assetCategory="STK" />
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0"/>
+      </CashReport>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" position="1" markPrice="300.00" positionValue="300.00" reportDate="{period_to}" />
+      </OpenPositions>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+    xml_file_path = "test_sec_payment_qty.xml"
+    try:
+        with open(xml_file_path, "w") as f:
+            f.write(xml_content_security_payment)
+
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        assert tax_statement.listOfSecurities is not None
+        assert len(tax_statement.listOfSecurities.depot) == 1
+
+        depot = tax_statement.listOfSecurities.depot[0]
+        assert depot.depotNumber == "U1234567"
+
+        msft_security = None
+        for sec in depot.security:
+            if sec.securityName == "MICROSOFT CORP (MSFT)" and sec.isin == "US5949181045":
+                msft_security = sec
+                break
+
+        assert msft_security is not None, "MSFT security not found"
+        assert msft_security.payment is not None, "MSFT security should have payments"
+        assert len(msft_security.payment) == 2, "MSFT security should have two payments (dividend and tax)"
+
+        for payment in msft_security.payment:
+            if payment.name == "MSFT Corp Dividend":
+                assert payment.quantity == Decimal("-1"), f"Dividend payment quantity for {payment.name} should be -1"
+            elif payment.name == "Tax on MSFT Dividend":
+                assert payment.quantity == Decimal("-1"), f"Tax payment quantity for {payment.name} should be -1"
+            else:
+                pytest.fail(f"Unexpected payment found: {payment.name}")
+
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
 def test_transfer_to_stock(sample_ibkr_settings):
     period_from = date(2023, 1, 1)
     period_to = date(2023, 12, 31)

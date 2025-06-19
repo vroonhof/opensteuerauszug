@@ -702,3 +702,145 @@ class TestSchwabTransactionExtractor:
         assert len(cash_stocks) == 2 
         cash_stock_qtys = sorted([s.quantity for s in cash_stocks])
         assert cash_stock_qtys == [Decimal("-3000.00"), Decimal("12.34")]
+
+    def test_security_payment_quantity_is_minus_one(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [
+                { # 1. Credit Interest
+                    "Date": "03/01/2024", "Action": "Credit Interest",
+                    "Description": "Bank Interest", "Amount": "$5.00"
+                },
+                { # 2. Dividend (no quantity specified by Schwab -> should be -1)
+                    "Date": "04/01/2024", "Action": "Dividend", "Symbol": "TGT",
+                    "Description": "TARGET CORP DIVIDEND",
+                    "Amount": "$50.00"
+                },
+                { # 3. Dividend (explicit non-zero quantity by Schwab -> should use it)
+                    "Date": "04/15/2024", "Action": "Dividend", "Symbol": "MSFT",
+                    "Description": "MICROSOFT CORP DIVIDEND", "Quantity": "100", # Explicit quantity of shares held
+                    "Amount": "$75.00"
+                },
+                { # 4. Tax Withholding
+                    "Date": "04/01/2024", "Action": "Tax Withholding", "Symbol": "TGT",
+                    "Description": "NONRES TAX WITHHELD",
+                    "Amount": "$-7.50"
+                },
+                { # 5. Reinvest Dividend (Schwab Quantity is for shares bought, not for payment quantity basis)
+                  # Our logic should set payment quantity to -1 if underlying shares count for dividend is not determinable from this TX alone.
+                    "Date": "05/01/2024", "Action": "Reinvest Dividend", "Symbol": "VOO",
+                    "Description": "VANGUARD S&P 500 ETF DIV REINV",
+                    "Quantity": "0.5", "Price": "400.00",
+                    "Amount": "$200.00"
+                },
+                { # 6. Dividend (explicit zero quantity by Schwab -> should be -1)
+                    "Date": "06/01/2024", "Action": "Dividend", "Symbol": "ZEROQ",
+                    "Description": "ZEROQUANT CORP DIVIDEND", "Quantity": "0",
+                    "Amount": "$20.00"
+                }
+            ]
+        }
+        # Expected positions: Cash (for interest), TGT, MSFT, VOO, ZEROQ + aggregated Cash from all security transactions
+        # We will have 1 CashPosition from "Credit Interest" directly.
+        # Then, for each security (TGT, MSFT, VOO, ZEROQ), its own SecurityPosition.
+        # And finally, one aggregated CashPosition for all cash movements related to these securities.
+        # Total SecurityPositions: 4 (TGT, MSFT, VOO, ZEROQ)
+        # Total CashPositions: 1 (from Credit Interest) + 1 (aggregated from security transactions) = 2
+        # Total positions = 4 + 2 = 6.
+        # Let's verify:
+        # 1. Credit Interest -> CashPosition (payments) + CashPosition (stocks from cash flow) -> 1 output tuple for CashPosition
+        # 2. TGT Dividend -> TGT SecurityPosition (payments) + CashPosition (stocks from cash flow)
+        # 3. MSFT Dividend -> MSFT SecurityPosition (payments) + CashPosition (stocks from cash flow)
+        # 4. TGT Tax Withholding -> TGT SecurityPosition (payments) + CashPosition (stocks from cash flow)
+        #    (TGT payments are merged)
+        # 5. VOO Reinvest Dividend -> VOO SecurityPosition (payments for dividend) + VOO SecurityPosition (stocks for reinvestment) + CashPosition (stocks from cash flow of dividend)
+        #    (VOO payments and stocks are separate, but belong to same VOO pos)
+        # 6. ZEROQ Dividend -> ZEROQ SecurityPosition (payments) + CashPosition (stocks from cash flow)
+        # The extractor groups by position.
+        # - CashPosition (for pure Credit Interest): 1 payment, 1 stock
+        # - TGT: 2 payments (Dividend, Tax Withholding)
+        # - MSFT: 1 payment
+        # - VOO: 1 payment (Dividend part) + 1 stock (Reinvest Shares part)
+        # - ZEROQ: 1 payment
+        # - CashPosition (aggregated from security transactions): 4 stocks (TGT Div, MSFT Div, TGT Tax, VOO Div, ZEROQ Div)
+        # Total 5 distinct positions in the output list: Cash (Interest), TGT, MSFT, VOO, ZEROQ.
+        # The cash movements are associated with a single CashPosition object by the current extractor logic if they don't have a symbol
+        # or are associated with the security's synthetic cash position.
+        # The current _extract_transactions_from_dict groups by the primary position identified.
+        # - Credit Interest (no symbol) -> creates a CashPosition. (1 output tuple)
+        # - TGT Dividend/Tax (symbol TGT) -> creates/uses TGT SecurityPosition. (1 output tuple)
+        # - MSFT Dividend (symbol MSFT) -> creates/uses MSFT SecurityPosition. (1 output tuple)
+        # - VOO Reinvest Div (symbol VOO) -> creates/uses VOO SecurityPosition. (1 output tuple)
+        # - ZEROQ Dividend (symbol ZEROQ) -> creates/uses ZEROQ SecurityPosition. (1 output tuple)
+        # This means 5 output tuples.
+        # Cash flows from security transactions are represented as SecurityStock mutations on a generic CashPosition.
+        # The number of output tuples from run_extraction_test will be 1 (for the primary Credit Interest CashPosition)
+        # + 4 (for TGT, MSFT, VOO, ZEROQ SecurityPositions)
+        # + 1 (for the aggregated CashPosition from security transactions' cash flows)
+        # = 6.
+
+        # Let's re-evaluate the grouping:
+        # Grouped by position:
+        # 1. CashPosition (depot='123', currentCy='USD', cash_account_id=None) - for Credit Interest
+        #    - payments: [Credit Interest Payment]
+        #    - stocks: [Credit Interest Cash Stock]
+        # 2. SecurityPosition (depot='123', symbol='TGT')
+        #    - payments: [Dividend Payment, Tax Withholding Payment]
+        #    - stocks: []
+        # 3. SecurityPosition (depot='123', symbol='MSFT')
+        #    - payments: [Dividend Payment]
+        #    - stocks: []
+        # 4. SecurityPosition (depot='123', symbol='VOO') - Reinvest Dividend's dividend part is a payment, Reinvest Shares part is a stock
+        #    - payments: [Dividend Payment for Reinvest]
+        #    - stocks: [] (The actual share purchase from "Reinvest Shares" is a separate transaction type not tested here, "Reinvest Dividend" is the cash event)
+        #              Correction: "Reinvest Dividend" in Schwab's CSV often implies the cash dividend was received *and then* shares were bought.
+        #              The current code for "Reinvest Dividend" creates a SecurityPayment for the dividend, and a cash_stock for the cash inflow.
+        #              The actual "Reinvest Shares" action creates the SecurityStock for the shares bought.
+        #              So for "Reinvest Dividend" action alone, we expect a payment and a cash_stock.
+        # 5. SecurityPosition (depot='123', symbol='ZEROQ')
+        #    - payments: [Dividend Payment]
+        #    - stocks: []
+        # 6. CashPosition (depot='123', currentCy='USD', cash_account_id=None) - for cash flows from security transactions
+        #    - payments: []
+        #    - stocks: [Cash flow from TGT Div, Cash flow from MSFT Div, Cash flow from TGT Tax, Cash flow from VOO Div, Cash flow from ZEROQ Div]
+        # So, 6 entries in the list returned by _extract_transactions_from_dict.
+
+        result = run_extraction_test(extractor, data, 6) # Adjusted expected count
+        assert result is not None
+
+        found_credit_interest_payment = False
+        found_tgt_dividend_payment = False
+        found_tgt_tax_payment = False
+        found_msft_dividend_payment = False
+        found_voo_reinvest_dividend_payment = False
+        found_zeroq_dividend_payment = False
+
+        for pos_obj, stocks_list, payments_list, _, _ in result:
+            if payments_list:
+                for p in payments_list:
+                    if p.name == "Credit Interest" and isinstance(pos_obj, CashPosition):
+                        assert p.quantity == Decimal("-1"), "Credit Interest quantity should be -1"
+                        found_credit_interest_payment = True
+                    elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "TGT":
+                        assert p.quantity == Decimal("-1"), "TGT Dividend (no schwab_qty) quantity should be -1"
+                        found_tgt_dividend_payment = True
+                    elif p.name == "Tax Withholding" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "TGT":
+                        assert p.quantity == Decimal("-1"), "TGT Tax Withholding quantity should be -1"
+                        found_tgt_tax_payment = True
+                    elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "MSFT":
+                        assert p.quantity == Decimal("100"), "MSFT Dividend (with schwab_qty) quantity should be 100"
+                        found_msft_dividend_payment = True
+                    elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "VOO": # Reinvest Dividend becomes "Dividend" payment
+                        assert p.quantity == Decimal("-1"), "VOO Reinvest Dividend quantity should be -1"
+                        found_voo_reinvest_dividend_payment = True
+                    elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "ZEROQ":
+                        assert p.quantity == Decimal("-1"), "ZEROQ Dividend (schwab_qty 0) quantity should be -1"
+                        found_zeroq_dividend_payment = True
+
+        assert found_credit_interest_payment, "Credit Interest payment not found or not correctly processed"
+        assert found_tgt_dividend_payment, "TGT Dividend payment not found or not correctly processed"
+        assert found_tgt_tax_payment, "TGT Tax Withholding payment not found or not correctly processed"
+        assert found_msft_dividend_payment, "MSFT Dividend payment not found or not correctly processed"
+        assert found_voo_reinvest_dividend_payment, "VOO Reinvest Dividend payment not found or not correctly processed"
+        assert found_zeroq_dividend_payment, "ZEROQ Dividend payment not found or not correctly processed"
