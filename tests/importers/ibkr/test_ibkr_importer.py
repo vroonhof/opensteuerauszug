@@ -17,6 +17,7 @@ from opensteuerauszug.model.ech0196 import (
     CurrencyId,
     Client,
 )
+from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 # Check if ibflex is available, skip tests if not
 try:
@@ -334,9 +335,9 @@ def test_security_payment_quantity_is_minus_one(sample_ibkr_settings):
 
         for payment in msft_security.payment:
             if payment.name == "MSFT Corp Dividend":
-                assert payment.quantity == Decimal("-1"), f"Dividend payment quantity for {payment.name} should be -1"
+                assert payment.quantity == UNINITIALIZED_QUANTITY, f"Dividend payment quantity for {payment.name} should be UNINITIALIZED_QUANTITY"
             elif payment.name == "Tax on MSFT Dividend":
-                assert payment.quantity == Decimal("-1"), f"Tax payment quantity for {payment.name} should be -1"
+                assert payment.quantity == UNINITIALIZED_QUANTITY, f"Tax payment quantity for {payment.name} should be UNINITIALIZED_QUANTITY"
             else:
                 pytest.fail(f"Unexpected payment found: {payment.name}")
 

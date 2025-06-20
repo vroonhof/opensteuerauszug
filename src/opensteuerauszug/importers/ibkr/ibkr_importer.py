@@ -13,6 +13,7 @@ from opensteuerauszug.model.ech0196 import (
 )
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
+from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 # Import ibflex components to avoid RuntimeWarning about module loading order
 try:
@@ -536,7 +537,7 @@ class IbkrImporter:
                             amountCurrency=currency,
                             amount=amount,
                             quotationType='PIECE',
-                            quantity=Decimal('-1')
+                            quantity=UNINITIALIZED_QUANTITY
                         )
                         processed_security_positions[sec_pos_key]['payments'].append(
                             sec_payment

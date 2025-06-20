@@ -17,6 +17,7 @@ from opensteuerauszug.model.ech0196 import (
     LEIType, # Added for test fixes
     TINType # Added for test fixes
 )
+from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY # Added
 import os
 # from unittest.mock import patch # Removed patch
 # pandas is used by the module under test, not directly in tests for enrichment logic
@@ -800,7 +801,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         payment_date = date(2023, 7, 15)
         # Ensure exDate is None to test paymentDate fallback
-        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendPaymentDateFallback")
+        payment_event = create_security_payment(payment_date=payment_date, quantity=UNINITIALIZED_QUANTITY, name="DividendPaymentDateFallback")
         payment_event.exDate = None
         security.payment = [payment_event]
 
@@ -825,7 +826,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         payment_date = date(2023, 8, 1)
         # Ensure exDate is None
-        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendPaymentDateFallbackNoStock")
+        payment_event = create_security_payment(payment_date=payment_date, quantity=UNINITIALIZED_QUANTITY, name="DividendPaymentDateFallbackNoStock")
         payment_event.exDate = None
         security.payment = [payment_event]
 
@@ -849,28 +850,31 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         payment_date = date(2023, 9, 1)
         # Ensure exDate is None
-        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendPaymentDateFallbackMissingStock")
+        payment_event = create_security_payment(payment_date=payment_date, quantity=UNINITIALIZED_QUANTITY, name="DividendPaymentDateFallbackMissingStock")
         payment_event.exDate = None
         security.payment = [payment_event]
 
         # Stock setup: Empty stock list
-        security.stock = []
+        security.stock = [] # This will now trigger the new ValueError for missing stock data
 
         calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
-        result_statement = calculator.calculate(statement)
 
-        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
-        assert calculated_payment_result.quantity == Decimal("-1"), "Quantity should remain -1 due to missing stock data (using paymentDate)"
-        # No modification if quantity remains -1
-        assert not any(".quantity (updated via paymentDate)" in f for f in calculator.modified_fields)
-        assert any(f"Warning: Security DP1/SecPaymentDateFallbackMissingStock: Cannot calculate SecurityPayment quantity for payment (Name: DividendPaymentDateFallbackMissingStock, Date: {payment_date}, exDate: None) due to missing stock data. Quantity remains -1." in log for log in calculator.get_log())
+        with pytest.raises(ValueError) as excinfo:
+            calculator.calculate(statement)
+
+        # This test now checks for the "Missing stock data" error, not "Could not determine"
+        error_message = str(excinfo.value)
+        assert "Missing stock data (Security.stock is None or empty)" in error_message
+        assert f"for security '{security.securityName}'" in error_message
+        assert "which has payments requiring quantity calculation" in error_message
+        assert security.payment[0].quantity == UNINITIALIZED_QUANTITY
 
     def test_calculate_quantity_paymentdate_fallback_stock_data_does_not_cover(self, sample_period_from, sample_period_to):
         statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecPaymentDateFallbackNoCover")
 
         payment_date = date(2023, 6, 15) # Payment date
         # Ensure exDate is None
-        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendPaymentDateFallbackNoCover")
+        payment_event = create_security_payment(payment_date=payment_date, quantity=UNINITIALIZED_QUANTITY, name="DividendPaymentDateFallbackNoCover")
         payment_event.exDate = None
         security.payment = [payment_event]
 
@@ -892,12 +896,17 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         ]
 
         calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
-        result_statement = calculator.calculate(statement)
 
-        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
-        assert calculated_payment_result.quantity == Decimal("-1"), "Quantity should remain -1 as stock data does not cover payment date (using paymentDate)"
-        assert not any(".quantity (updated via paymentDate)" in f for f in calculator.modified_fields)
-        assert any(f"Quantity for payment (Name: DividendPaymentDateFallbackNoCover, Date: {payment_date}, exDate: None) remains -1. Could not determine stock quantity using paymentDate ({payment_date})." in log for log in calculator.get_log())
+        with pytest.raises(ValueError) as excinfo:
+            calculator.calculate(statement)
+
+        error_message = str(excinfo.value)
+        assert "Could not determine stock quantity for security" in error_message
+        assert f"'{security.securityName}'" in error_message
+        assert f"using date {payment_date}" in error_message # Check the date used
+        assert "(as paymentDate)" in error_message
+        assert "Check stock history" in error_message
+        assert security.payment[0].quantity == UNINITIALIZED_QUANTITY
 
     def test_calculate_quantity_exdate_prioritized_stock_held(self, sample_period_from, sample_period_to):
         statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecExDatePrioritizedStockHeld")
@@ -905,7 +914,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         payment_date = date(2023, 7, 15)
         ex_date = date(2023, 7, 1) # exDate is before paymentDate
 
-        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendExDatePriority")
+        payment_event = create_security_payment(payment_date=payment_date, quantity=UNINITIALIZED_QUANTITY, name="DividendExDatePriority")
         payment_event.exDate = ex_date
         security.payment = [payment_event]
 
@@ -924,7 +933,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
         assert calculated_payment_result.quantity == Decimal("50"), "Quantity should be 50 (based on exDate)"
         assert any(f"DP1/SecExDatePrioritizedStockHeld.Payment (Name: DividendExDatePriority, Date: {payment_date}, exDate: {ex_date}).quantity (updated via exDate)" in f for f in calculator.modified_fields)
-        assert any(f"Using exDate ({ex_date}) for quantity calculation for payment on {payment_date}" in log for log in calculator.get_log())
+        # Removed assertion for the preliminary "Using exDate..." log
         assert any(f"Updated quantity for Payment (Name: DividendExDatePriority, Date: {payment_date}, exDate: {ex_date}) to 50 using exDate ({ex_date})" in log for log in calculator.get_log())
 
     def test_calculate_quantity_exdate_no_stock_on_exdate(self, sample_period_from, sample_period_to):
@@ -933,7 +942,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         payment_date = date(2023, 7, 15)
         ex_date = date(2023, 7, 1)
 
-        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendExDateNoStock")
+        payment_event = create_security_payment(payment_date=payment_date, quantity=UNINITIALIZED_QUANTITY, name="DividendExDateNoStock")
         payment_event.exDate = ex_date
         security.payment = [payment_event]
 
@@ -950,7 +959,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
         assert calculated_payment_result.quantity == Decimal("0"), "Quantity should be 0 (based on exDate)"
         assert any(f"DP1/SecExDateNoStock.Payment (Name: DividendExDateNoStock, Date: {payment_date}, exDate: {ex_date}).quantity (updated via exDate)" in f for f in calculator.modified_fields)
-        assert any(f"Using exDate ({ex_date}) for quantity calculation for payment on {payment_date}" in log for log in calculator.get_log())
+        # Removed assertion for the preliminary "Using exDate..." log
         assert any(f"Updated quantity for Payment (Name: DividendExDateNoStock, Date: {payment_date}, exDate: {ex_date}) to 0 using exDate ({ex_date})" in log for log in calculator.get_log())
 
     def test_calculate_quantity_exdate_insufficient_stock_data_for_exdate(self, sample_period_from, sample_period_to):
@@ -959,7 +968,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         payment_date = date(2023, 7, 15)
         ex_date = date(2023, 7, 1)
 
-        payment_event = create_security_payment(payment_date=payment_date, quantity=Decimal("-1"), name="DividendExDateInsufficient")
+        payment_event = create_security_payment(payment_date=payment_date, quantity=UNINITIALIZED_QUANTITY, name="DividendExDateInsufficient")
         payment_event.exDate = ex_date
         security.payment = [payment_event]
 
@@ -969,13 +978,42 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         ]
 
         calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
-        result_statement = calculator.calculate(statement)
 
-        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
-        assert calculated_payment_result.quantity == Decimal("-1"), "Quantity should remain -1 (insufficient data for exDate)"
-        assert not any(".quantity (updated via exDate)" in f for f in calculator.modified_fields) # Not updated
-        assert any(f"Using exDate ({ex_date}) for quantity calculation for payment on {payment_date}" in log for log in calculator.get_log())
-        assert any(f"Quantity for payment (Name: DividendExDateInsufficient, Date: {payment_date}, exDate: {ex_date}) remains -1. Could not determine stock quantity using exDate ({ex_date})." in log for log in calculator.get_log())
+        with pytest.raises(ValueError) as excinfo:
+            calculator.calculate(statement)
+
+        error_message = str(excinfo.value)
+        assert "Could not determine stock quantity for security" in error_message
+        assert f"'{security.securityName}'" in error_message
+        assert f"using date {ex_date}" in error_message # Check the date used
+        assert "(as exDate)" in error_message
+        assert "Check stock history" in error_message
+        assert security.payment[0].quantity == UNINITIALIZED_QUANTITY
+
+    def test_calculate_quantity_raises_value_error_if_security_stock_missing(self, sample_period_from, sample_period_to):
+        statement, security = self._create_base_statement_and_security(
+            sample_period_from,
+            sample_period_to,
+            security_name="TestSecMissingStockOverall"
+        )
+        payment_event = create_security_payment(
+            payment_date=date(2023, 6, 1),
+            quantity=UNINITIALIZED_QUANTITY, # Needs calculation
+            name="DividendMissingStockOverall"
+        )
+        security.payment = [payment_event]
+        security.stock = [] # Explicitly empty
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+
+        with pytest.raises(ValueError) as excinfo:
+            calculator.calculate(statement)
+
+        error_message = str(excinfo.value)
+        assert "Missing stock data (Security.stock is None or empty)" in error_message
+        assert f"for security '{security.securityName}'" in error_message # Check for actual name
+        assert "which has payments requiring quantity calculation" in error_message
+        assert security.payment[0].quantity == UNINITIALIZED_QUANTITY
 
 
 class TestCleanupCalculatorIDGeneration:

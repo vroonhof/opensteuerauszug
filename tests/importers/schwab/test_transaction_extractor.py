@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple, Any, Dict
 from opensteuerauszug.importers.schwab.transaction_extractor import TransactionExtractor, KNOWN_ACTIONS
 from opensteuerauszug.model.position import Position, SecurityPosition, CashPosition
 from opensteuerauszug.model.ech0196 import SecurityStock, SecurityPayment, CurrencyId
+from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 # Helper to create a TransactionExtractor instance with a dummy filename
 def create_extractor(filename_for_depot_test: str = "Individual_XXX123_Transactions_20240101-000000.json") -> TransactionExtractor:
@@ -820,22 +821,22 @@ class TestSchwabTransactionExtractor:
             if payments_list:
                 for p in payments_list:
                     if p.name == "Credit Interest" and isinstance(pos_obj, CashPosition):
-                        assert p.quantity == Decimal("-1"), "Credit Interest quantity should be -1"
+                        assert p.quantity == UNINITIALIZED_QUANTITY, "Credit Interest quantity should be UNINITIALIZED_QUANTITY"
                         found_credit_interest_payment = True
                     elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "TGT":
-                        assert p.quantity == Decimal("-1"), "TGT Dividend (no schwab_qty) quantity should be -1"
+                        assert p.quantity == UNINITIALIZED_QUANTITY, "TGT Dividend (no schwab_qty) quantity should be UNINITIALIZED_QUANTITY"
                         found_tgt_dividend_payment = True
                     elif p.name == "Tax Withholding" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "TGT":
-                        assert p.quantity == Decimal("-1"), "TGT Tax Withholding quantity should be -1"
+                        assert p.quantity == UNINITIALIZED_QUANTITY, "TGT Tax Withholding quantity should be UNINITIALIZED_QUANTITY"
                         found_tgt_tax_payment = True
                     elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "MSFT":
                         assert p.quantity == Decimal("100"), "MSFT Dividend (with schwab_qty) quantity should be 100"
                         found_msft_dividend_payment = True
                     elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "VOO": # Reinvest Dividend becomes "Dividend" payment
-                        assert p.quantity == Decimal("-1"), "VOO Reinvest Dividend quantity should be -1"
+                        assert p.quantity == UNINITIALIZED_QUANTITY, "VOO Reinvest Dividend quantity should be UNINITIALIZED_QUANTITY"
                         found_voo_reinvest_dividend_payment = True
                     elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "ZEROQ":
-                        assert p.quantity == Decimal("-1"), "ZEROQ Dividend (schwab_qty 0) quantity should be -1"
+                        assert p.quantity == UNINITIALIZED_QUANTITY, "ZEROQ Dividend (schwab_qty 0) quantity should be UNINITIALIZED_QUANTITY"
                         found_zeroq_dividend_payment = True
 
         assert found_credit_interest_payment, "Credit Interest payment not found or not correctly processed"

@@ -7,7 +7,8 @@ from decimal import Decimal
 from opensteuerauszug.model.ech0196 import SecurityTaxValue, TaxStatement, SecurityStock, BankAccountPayment, SecurityPayment, Client, ClientNumber, CantonAbbreviation
 from opensteuerauszug.util.sorting import find_index_of_date, sort_security_stocks, sort_payments, sort_security_payments
 from opensteuerauszug.config.models import GeneralSettings
-from opensteuerauszug.core.position_reconciler import PositionReconciler # Added PositionReconciler
+from opensteuerauszug.core.position_reconciler import PositionReconciler
+from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 # from opensteuerauszug.core.identifier_loader import SecurityIdentifierMapLoader # Removed loader import
 
 class CleanupCalculator:
@@ -367,6 +368,18 @@ class CleanupCalculator:
 
                         # Process Security Payments for the current security
                         if security.payment:
+                            payments_needing_qty_update = any(
+                                p.quantity == UNINITIALIZED_QUANTITY for p in security.payment
+                            )
+
+                            if payments_needing_qty_update and not security.stock:
+                                # security_display_id and depot_id are defined above
+                                raise ValueError(
+                                    f"Missing stock data (Security.stock is None or empty) for security '{security_display_id}' "
+                                    f"(Depot: {depot_id}, ISIN: {security.isin or 'N/A'}, Valor: {security.valorNumber or 'N/A'}) "
+                                    f"which has payments requiring quantity calculation. Cannot proceed."
+                                )
+
                             original_sec_payment_count = len(security.payment)
 
                             # Sort security payments (silently)
@@ -386,25 +399,25 @@ class CleanupCalculator:
                                 else:
                                     self._log(f"  Security {pos_id}: Security payment filtering skipped (tax period not fully defined).")
 
-                            # --- Calculate SecurityPayment.quantity where it's Decimal('-1') ---
-                            # --- Calculate SecurityPayment.quantity where it's Decimal('-1') ---
-                            if security.payment and security.stock: # Need stocks to determine quantity
+                            # --- Calculate SecurityPayment.quantity where it's UNINITIALIZED_QUANTITY ---
+                            # This block is now only entered if security.stock is guaranteed to be non-empty (due to the check above)
+                            # OR if no payments needed update in the first place.
+                            if payments_needing_qty_update and security.stock: # security.stock check is technically redundant here but safe
                                 reconciler = PositionReconciler(list(security.stock), identifier=f"{pos_id}-payment-qty-reconcile")
                                 for payment_event in security.payment:
-                                    if payment_event.quantity == Decimal('-1'):
+                                    if payment_event.quantity == UNINITIALIZED_QUANTITY:
                                         date_to_use_for_reconciliation = payment_event.paymentDate
                                         log_date_source = "paymentDate"
                                         if payment_event.exDate:
                                             date_to_use_for_reconciliation = payment_event.exDate
                                             log_date_source = "exDate"
-                                            self._log(f"  Security {pos_id}: Using exDate ({payment_event.exDate}) for quantity calculation for payment on {payment_event.paymentDate} (Name: {payment_event.name or 'N/A'}).")
-
+                                            # Removed the preliminary "Using exDate..." log as requested.
+                                            # The information will be in the success or error message.
                                         reconciled_quantity_info = reconciler.synthesize_position_at_date(date_to_use_for_reconciliation)
 
-                                        if reconciled_quantity_info and reconciled_quantity_info.quantity is not None:
+                                        if reconciled_quantity_info is not None and reconciled_quantity_info.quantity is not None:
                                             original_dummy_qty = payment_event.quantity
                                             payment_event.quantity = reconciled_quantity_info.quantity
-                                            # Using a more descriptive field name for modified_fields
                                             payment_identifier_log = f"Payment (Name: {payment_event.name or 'N/A'}, Date: {payment_event.paymentDate}, exDate: {payment_event.exDate or 'N/A'})"
                                             self.modified_fields.append(f"{pos_id}.{payment_identifier_log}.quantity (updated via {log_date_source})")
                                             self._log(
@@ -412,19 +425,18 @@ class CleanupCalculator:
                                                 f"using {log_date_source} ({date_to_use_for_reconciliation}). Original dummy: {original_dummy_qty}."
                                             )
                                         else:
-                                            # If quantity remains -1 because reconcile returned None or quantity was None
-                                            self._log(
-                                                f"  Security {pos_id}: Quantity for payment (Name: {payment_event.name or 'N/A'}, Date: {payment_event.paymentDate}, exDate: {payment_event.exDate or 'N/A'}) remains {payment_event.quantity}. "
-                                                f"Could not determine stock quantity using {log_date_source} ({date_to_use_for_reconciliation})."
+                                            # Construct security_display_id for error message using the already available 'pos_id'
+                                            # which is f"{depot_id}/{security_display_id}"
+                                            # security_display_id itself is defined at the start of the security loop.
+                                            error_message = (
+                                                f"Could not determine stock quantity for security '{security_display_id}' "
+                                                f"(Depot: {depot_id}, Payment: '{payment_event.name or 'N/A'}' on {payment_event.paymentDate}, exDate: {payment_event.exDate or 'N/A'}) "
+                                                f"using date {date_to_use_for_reconciliation} (as {log_date_source}). Check stock history. Current quantity remains {payment_event.quantity}."
                                             )
-                            elif security.payment and not security.stock:
-                                # Log if payments exist that need calculation but no stock data is available
-                                for payment_event in security.payment:
-                                    if payment_event.quantity == Decimal('-1'):
-                                        self._log(
-                                            f"  Warning: Security {pos_id}: Cannot calculate SecurityPayment quantity for payment (Name: {payment_event.name or 'N/A'}, Date: {payment_event.paymentDate}, exDate: {payment_event.exDate or 'N/A'}) "
-                                            f"due to missing stock data. Quantity remains {payment_event.quantity}."
-                                        )
+                                            raise ValueError(error_message)
+                            # The case of (security.payment and not security.stock and payments_needing_qty_update)
+                            # is now handled by the ValueError raised before this loop.
+                            # If payments_needing_qty_update is False, this loop isn't problematic even if security.stock is empty.
                             # --- End Calculate SecurityPayment.quantity ---
         else:
             self._log("No securities accounts found to process.")
