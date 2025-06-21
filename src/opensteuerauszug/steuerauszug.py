@@ -390,15 +390,15 @@ def main(
             if tax_calculation_level == TaxCalculationLevel.MINIMAL:
                 print("Running MinimalTaxValueCalculator...")
                 calculator_name = "MinimalTaxValueCalculator"
-                tax_value_calculator = MinimalTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider)
+                tax_value_calculator = MinimalTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.KURSLISTE:
                 print("Running KurslisteTaxValueCalculator...")
                 calculator_name = "KurslisteTaxValueCalculator"
-                tax_value_calculator = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider)
+                tax_value_calculator = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 print("Running FillInTaxValueCalculator...")
                 calculator_name = "FillInTaxValueCalculator"
-                tax_value_calculator = FillInTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider)
+                tax_value_calculator = FillInTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
             
             if tax_value_calculator and calculator_name:
                 statement = tax_value_calculator.calculate(statement)
@@ -444,13 +444,13 @@ def main(
 
             if tax_calculation_level == TaxCalculationLevel.MINIMAL:
                 verifier_name = "MinimalTaxValueCalculator"
-                tax_value_verifier = MinimalTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify)
+                tax_value_verifier = MinimalTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.KURSLISTE:
                 verifier_name = "KurslisteTaxValueCalculator"
-                tax_value_verifier = KurslisteTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify)
+                tax_value_verifier = KurslisteTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 verifier_name = "FillInTaxValueCalculator"
-                tax_value_verifier = FillInTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify)
+                tax_value_verifier = FillInTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
 
             if tax_value_verifier and verifier_name:
                 print(f"Running {verifier_name} (Verify Mode)...")

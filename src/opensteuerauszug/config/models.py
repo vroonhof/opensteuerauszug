@@ -56,6 +56,10 @@ class IbkrAccountSettings(AccountSettingsBase):
 # class UBSAccountSettings(AccountSettingsBase):
 #     ubs_specific_feature_enabled: bool = False
 
+class CalculateSettings(BaseModel):
+    """Settings for the calculation process."""
+    keep_existing_payments: bool = Field(default=False, description="If True, keep existing payments when calculating tax values.")
+
 # A type union for all possible specific account settings models
 SpecificAccountSettingsUnion = Union[SchwabAccountSettings, IbkrAccountSettings] # Add other types like UBSAccountSettings here
 

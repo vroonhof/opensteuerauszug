@@ -275,7 +275,7 @@ class MinimalTaxValueCalculator(BaseCalculator):
         current = security.payment
 
         if self.mode == CalculationMode.OVERWRITE:
-            if keep_existing_payments:
+            if self.keep_existing_payments:
                 payments = current + payments
             security.payment = sorted(payments, key=lambda p: p.paymentDate)
             self.modified_fields.add(field_path)
@@ -289,7 +289,7 @@ class MinimalTaxValueCalculator(BaseCalculator):
         if self.mode not in (CalculationMode.VERIFY, CalculationMode.FILL):
             return
 
-        if keep_existing_payments:
+        if self.keep_existing_payments:
             # For debugging we force the list to be the merge even when verifying so
             # we can look at the rendered copy.
             merged = current + payments
