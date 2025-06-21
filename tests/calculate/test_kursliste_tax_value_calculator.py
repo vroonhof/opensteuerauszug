@@ -232,6 +232,7 @@ def test_compute_payments_with_tax_value_as_stock(kursliste_manager):
     assert first.quantity == Decimal("200")
     assert first.amount == Decimal("182.10")
 
+
 def test_propagate_payment_fields(kursliste_manager):
     """
     Test that `undefined`, `sign`, `gratis`, and `paymentType` fields are
@@ -299,3 +300,49 @@ def test_propagate_payment_fields(kursliste_manager):
     assert payment.undefined is True
     assert payment.sign == "XYZ"
     assert payment.gratis is True
+
+
+def test_compute_payments_skip_zero_quantity(kursliste_manager):
+    """
+    Test that payments are not generated when the quantity of outstanding
+    securities is zero on the payment date.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    # Create a security with stock that goes to zero before the payment date
+    sec = Security(
+        country="US",
+        securityName="Vanguard Total Stock Market ETF",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="FUND",
+        isin=ISINType("US9229087690"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("0"),  # Final quantity is zero
+            balanceCurrency="USD",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="USD",
+            ),
+            SecurityStock(
+                referenceDate=date(2024, 3, 1),  # Before the first payment date (2024-03-27)
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("-100"),  # Sell all shares
+                balanceCurrency="USD",
+            ),
+        ],
+    )
+
+    calc._handle_Security(sec, "sec")
+    # Should not generate any payments since quantity is zero on payment dates
+    assert len(sec.payment) == 0
