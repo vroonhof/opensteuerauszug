@@ -9,6 +9,7 @@ from ..core.position_reconciler import PositionReconciler
 from ..core.constants import WITHHOLDING_TAX_RATE
 from .base import CalculationMode
 from .minimal_tax_value import MinimalTaxValueCalculator
+from ..util.converters import security_tax_value_to_stock
 
 
 class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
@@ -116,7 +117,11 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
         result: List[SecurityPayment] = []
 
-        reconciler = PositionReconciler(list(security.stock), identifier=f"{security.isin or 'SEC'}-payments")
+        stock = list(security.stock)
+        if security.taxValue:
+            stock.append(security_tax_value_to_stock(security.taxValue))
+
+        reconciler = PositionReconciler(stock, identifier=f"{security.isin or 'SEC'}-payments")
 
         for pay in payments:
             if not pay.paymentDate:
@@ -131,6 +136,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             pos = reconciler.synthesize_position_at_date(reconciliation_date)
             if pos is None:
+                for l in reconciler.get_log():
+                    print(l)
                 raise ValueError(
                     f"No position found for {security.isin or security.securityName} on date {reconciliation_date}"
                 )
@@ -155,7 +162,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             sec_payment = SecurityPayment(
                 paymentDate=pay.paymentDate,
                 exDate=pay.exDate,
-                name=security.securityName,
+                name=f"KL:{security.securityName}",
                 quotationType=security.quotationType,
                 quantity=quantity,
                 amountCurrency=pay.currency,

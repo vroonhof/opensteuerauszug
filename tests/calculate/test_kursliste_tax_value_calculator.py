@@ -193,3 +193,36 @@ def test_compute_payments_from_kursliste(kursliste_manager):
     assert first.amount == Decimal("91.05")
     assert first.exchangeRate == Decimal("0.90565")
     assert first.grossRevenueB == Decimal("82.45900")
+
+
+def test_compute_payments_with_tax_value_as_stock(kursliste_manager):
+    """
+    Test that computePayments uses the closing stock from the tax value
+    if no other stock information is available.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    sec = Security(
+        country="US",
+        securityName="Vanguard Total Stock Market ETF",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="FUND",
+        isin=ISINType("US9229087690"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("200"),  # Different quantity
+            balanceCurrency="USD",
+        ),
+        stock=[],  # No initial stock
+    )
+
+    calc._handle_Security(sec, "sec")
+    assert len(sec.payment) == 4
+    first = sec.payment[0]
+    assert first.paymentDate == date(2024, 3, 27)
+    assert first.quantity == Decimal("200")
+    assert first.amount == Decimal("182.10")
