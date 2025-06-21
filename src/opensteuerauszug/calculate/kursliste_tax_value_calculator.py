@@ -127,15 +127,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     f"Kursliste payment on {pay.paymentDate} for {security.isin or security.securityName} missing paymentValueCHF"
                 )
 
-            if not pay.exDate:
-                raise ValueError(
-                    f"Kursliste payment on {pay.paymentDate} for {security.isin or security.securityName} missing exDate"
-                )
+            reconciliation_date = pay.exDate or pay.paymentDate
 
-            pos = reconciler.synthesize_position_at_date(pay.exDate)
+            pos = reconciler.synthesize_position_at_date(reconciliation_date)
             if pos is None:
                 raise ValueError(
-                    f"No position found for {security.isin or security.securityName} on exDate {pay.exDate}"
+                    f"No position found for {security.isin or security.securityName} on date {reconciliation_date}"
                 )
 
             quantity = pos.quantity

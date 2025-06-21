@@ -113,6 +113,48 @@ def test_handle_security_tax_value_from_kursliste(kursliste_manager):
     assert stv.kursliste is True
 
 
+def test_compute_payments_from_kursliste_missing_ex_date(kursliste_manager):
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    sec = Security(
+        country="IE",
+        securityName="iShares Core S&P 500 UCITS ETF USD (Acc)",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="FUND",
+        isin=ISINType("IE00B3B8PX14"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="USD",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="USD",
+            )
+        ],
+    )
+
+    # The Kursliste for this security has a payment with no exDate
+    calc._handle_Security(sec, "sec")
+    assert len(sec.payment) == 1
+    payment = sec.payment[0]
+    assert payment.paymentDate == date(2024, 6, 30)
+    assert payment.exDate is None
+    assert payment.amountCurrency == "USD"
+    assert payment.amountPerUnit == Decimal("1.5312762338")
+    assert payment.amount == Decimal("153.12762338")
+    assert payment.exchangeRate == Decimal("0.90405")
+    assert payment.grossRevenueB == Decimal("138.400")
+
+
 def test_compute_payments_from_kursliste(kursliste_manager):
     provider = KurslisteExchangeRateProvider(kursliste_manager)
     calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
