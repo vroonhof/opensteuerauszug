@@ -11,8 +11,8 @@ class FillInTaxValueCalculator(KurslisteTaxValueCalculator):
     Calculator that fills in missing values based on other available data,
     potentially after Kursliste and minimal calculations have been performed.
     """
-    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider):
-        super().__init__(mode, exchange_rate_provider)
+    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, keep_existing_payments: bool = False):
+        super().__init__(mode, exchange_rate_provider, keep_existing_payments=keep_existing_payments)
         print(f"FillInTaxValueCalculator initialized with mode: {mode.value} and provider: {type(exchange_rate_provider).__name__}")
 
     def _handle_SecurityPayment(self, sec_payment: SecurityPayment, path_prefix: str) -> None:

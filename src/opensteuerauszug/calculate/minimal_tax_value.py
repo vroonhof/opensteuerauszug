@@ -11,7 +11,9 @@ from ..model.ech0196 import (
     SecurityPayment,  # Added SecurityPayment
 )
 from ..core.exchange_rate_provider import ExchangeRateProvider
+from collections import defaultdict
 from decimal import Decimal, ROUND_HALF_UP
+from ..core.constants import WITHHOLDING_TAX_RATE
 from typing import Tuple, Optional, List
 from datetime import date
 
@@ -25,12 +27,15 @@ class MinimalTaxValueCalculator(BaseCalculator):
     _current_account_is_type_A: Optional[bool]
     _current_security_is_type_A: Optional[bool]
 
-    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider):
+    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, keep_existing_payments: bool = False):
         super().__init__(mode)
         self.exchange_rate_provider = exchange_rate_provider
+        self.keep_existing_payments = keep_existing_payments
         self._current_account_is_type_A = None
         self._current_security_is_type_A = None
-        print(f"MinimalTaxValueCalculator initialized with mode: {mode.value} and provider: {type(exchange_rate_provider).__name__}")
+        print(
+            f"MinimalTaxValueCalculator initialized with mode: {mode.value} and provider: {type(exchange_rate_provider).__name__}"
+        )
 
     def _convert_to_chf(self, amount: Optional[Decimal], currency: str, path_prefix_for_rate: str, reference_date: date) -> Tuple[Optional[Decimal], Decimal]:
         """
@@ -117,7 +122,9 @@ class MinimalTaxValueCalculator(BaseCalculator):
                 if self._current_account_is_type_A is True:
                     self._set_field_value(ba_payment, "grossRevenueA", chf_revenue, path_prefix)
                     # Calculate and set withholding tax for Type A revenue
-                    withholding_tax_amount = (chf_revenue * Decimal("0.35")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    withholding_tax_amount = (
+                        chf_revenue * WITHHOLDING_TAX_RATE
+                    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                     self._set_field_value(ba_payment, "withHoldingTaxClaim", withholding_tax_amount, path_prefix)
                 elif self._current_account_is_type_A is False:
                     self._set_field_value(ba_payment, "grossRevenueB", chf_revenue, path_prefix)
@@ -259,7 +266,21 @@ class MinimalTaxValueCalculator(BaseCalculator):
         otherwise. ``FILL`` behaves like ``VERIFY`` but writes the payments if the
         list on the security is empty.
         """
-        from collections import defaultdict
+
+        # In debug mode, merge payments instead of verifying or overwriting
+        if self.keep_existing_payments:
+            if payments:
+                merged = list(security.payment)
+                for p in payments:
+                    if p not in merged:
+                        merged.append(p)
+                security.payment = merged
+                security.kurslistePayments = payments
+            return
+
+        # If no payments are provided there is nothing to check or set.
+        if not payments:
+            return
 
         field_path = f"{path_prefix}.payment" if path_prefix else "payment"
         current = security.payment

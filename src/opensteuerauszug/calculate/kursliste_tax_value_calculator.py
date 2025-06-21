@@ -1,10 +1,12 @@
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, List
 
 from ..core.exchange_rate_provider import ExchangeRateProvider
 from ..core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from ..core.kursliste_manager import KurslisteManager
-from ..model.ech0196 import Security, SecurityTaxValue
+from ..model.ech0196 import Security, SecurityTaxValue, SecurityPayment
+from ..core.position_reconciler import PositionReconciler
+from ..core.constants import WITHHOLDING_TAX_RATE
 from .base import CalculationMode
 from .minimal_tax_value import MinimalTaxValueCalculator
 
@@ -15,8 +17,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
     tax values for securities.
     """
 
-    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider):
-        super().__init__(mode, exchange_rate_provider)
+    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, keep_existing_payments: bool = False):
+        super().__init__(mode, exchange_rate_provider, keep_existing_payments=keep_existing_payments)
         print(
             f"KurslisteTaxValueCalculator initialized with mode: {mode.value} "
             f"and provider: {type(exchange_rate_provider).__name__}"
@@ -98,8 +100,83 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         super()._handle_SecurityTaxValue(sec_tax_value, path_prefix)
 
     def computePayments(self, security: Security, path_prefix: str) -> None:
-        """Compute payments for a security using the Kursliste.
+        """Compute payments for a security using the Kursliste."""
+        if self.mode == CalculationMode.VERIFY:
+            return
 
-        For now this is a no-op; actual computation will be added later."""
-        return
+        if not self.kursliste_manager:
+            raise RuntimeError("kursliste_manager is required for Kursliste payments")
+
+        kl_sec = self._current_kursliste_security
+        if kl_sec is None:
+            super().computePayments(security, path_prefix)
+            return
+
+        payments = [p for p in kl_sec.payment if not p.deleted]
+
+        result: List[SecurityPayment] = []
+
+        reconciler = PositionReconciler(list(security.stock), identifier=f"{security.isin or 'SEC'}-payments")
+
+        for pay in payments:
+            if not pay.paymentDate:
+                continue
+
+            if pay.paymentValueCHF is None:
+                raise ValueError(
+                    f"Kursliste payment on {pay.paymentDate} for {security.isin or security.securityName} missing paymentValueCHF"
+                )
+
+            if not pay.exDate:
+                raise ValueError(
+                    f"Kursliste payment on {pay.paymentDate} for {security.isin or security.securityName} missing exDate"
+                )
+
+            pos = reconciler.synthesize_position_at_date(pay.exDate)
+            if pos is None:
+                raise ValueError(
+                    f"No position found for {security.isin or security.securityName} on exDate {pay.exDate}"
+                )
+
+            quantity = pos.quantity
+
+            amount_per_unit = pay.paymentValue if pay.paymentValue is not None else pay.paymentValueCHF
+            chf_per_unit = pay.paymentValueCHF
+
+            amount = amount_per_unit * quantity
+            chf_amount = chf_per_unit * quantity
+
+            rate = pay.exchangeRate
+            if rate is None:
+                if pay.currency == "CHF":
+                    rate = Decimal("1")
+                else:
+                    raise ValueError(
+                        f"Kursliste payment on {pay.paymentDate} for {security.isin or security.securityName} missing exchangeRate"
+                    )
+
+            sec_payment = SecurityPayment(
+                paymentDate=pay.paymentDate,
+                exDate=pay.exDate,
+                name=security.securityName,
+                quotationType=security.quotationType,
+                quantity=quantity,
+                amountCurrency=pay.currency,
+                amountPerUnit=amount_per_unit,
+                amount=amount,
+                exchangeRate=rate,
+                kursliste=True,
+            )
+
+            if pay.withHoldingTax:
+                sec_payment.grossRevenueA = chf_amount
+                sec_payment.withHoldingTaxClaim = (
+                    chf_amount * WITHHOLDING_TAX_RATE
+                ).quantize(Decimal("0.01"))
+            else:
+                sec_payment.grossRevenueB = chf_amount
+
+            result.append(sec_payment)
+
+        self.setKurslistePayments(security, result, path_prefix)
 
