@@ -193,8 +193,8 @@ def test_pdf_page_count(mock_render_to_barcodes, sample_tax_statement):
         # Check the number of pages using PyPDF2
         with open(tmp_path, "rb") as f:
             pdf_reader = pypdf.PdfReader(f)
-            # The PDF should now have exactly two pages
-            assert len(pdf_reader.pages) == 2
+            # The PDF should now have four pages (content, two info pages, barcode)
+            assert len(pdf_reader.pages) == 4
             
             # Check page content for validation
             text = pdf_reader.pages[0].extract_text()
@@ -204,7 +204,7 @@ def test_pdf_page_count(mock_render_to_barcodes, sample_tax_statement):
             assert "Seite 1" in text
             
             # Check the barcode page
-            text2 = pdf_reader.pages[1].extract_text()
+            text2 = pdf_reader.pages[3].extract_text()
             assert "Barcode Seite" in text2
     finally:
         # Cleanup temporary file
@@ -250,8 +250,8 @@ def test_barcode_rendering(mock_render_to_barcodes, sample_tax_statement):
         # Check the number of pages using PyPDF2
         with open(tmp_path, "rb") as f:
             pdf_reader = pypdf.PdfReader(f)
-            # Should have 2 pages (content + barcode page)
-            assert len(pdf_reader.pages) == 2
+            # Should have 4 pages (content, two info pages, barcode page)
+            assert len(pdf_reader.pages) == 4
             
             # Check content in the regular page
             text1 = pdf_reader.pages[0].extract_text()
@@ -259,7 +259,7 @@ def test_barcode_rendering(mock_render_to_barcodes, sample_tax_statement):
             assert "Zusammenfassung" in text1
             
             # Check content in the barcode page
-            text2 = pdf_reader.pages[1].extract_text()
+            text2 = pdf_reader.pages[3].extract_text()
             assert "Barcode Seite" in text2
     finally:
         # Cleanup temporary file
