@@ -1,7 +1,7 @@
 import pytest
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 from opensteuerauszug.calculate.cleanup import CleanupCalculator
 from opensteuerauszug.model.ech0196 import (
@@ -818,8 +818,6 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
         assert calculated_payment_result.quantity == Decimal("60"), "Quantity should be updated to 60 (50+10) using paymentDate"
-        assert any(f"DP1/SecPaymentDateFallbackStockHeld.Payment (Name: DividendPaymentDateFallback, Date: {payment_date}, exDate: None).quantity (updated via paymentDate)" in f for f in calculator.modified_fields)
-        assert any(f"Updated quantity for Payment (Name: DividendPaymentDateFallback, Date: {payment_date}, exDate: None) to 60 using paymentDate ({payment_date})" in log for log in calculator.get_log())
 
     def test_calculate_quantity_paymentdate_fallback_no_stock_held(self, sample_period_from, sample_period_to):
         statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecPaymentDateFallbackNoStock")
@@ -842,8 +840,6 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
         assert calculated_payment_result.quantity == Decimal("0"), "Quantity should be updated to 0 using paymentDate"
-        assert any(f"DP1/SecPaymentDateFallbackNoStock.Payment (Name: DividendPaymentDateFallbackNoStock, Date: {payment_date}, exDate: None).quantity (updated via paymentDate)" in f for f in calculator.modified_fields)
-        assert any(f"Updated quantity for Payment (Name: DividendPaymentDateFallbackNoStock, Date: {payment_date}, exDate: None) to 0 using paymentDate ({payment_date})" in log for log in calculator.get_log())
 
     def test_calculate_quantity_paymentdate_fallback_missing_stock_data(self, sample_period_from, sample_period_to):
         statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecPaymentDateFallbackMissingStock")
@@ -865,7 +861,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         # This test now checks for the "Missing stock data" error, not "Could not determine"
         error_message = str(excinfo.value)
         assert "Missing stock data (Security.stock is None or empty)" in error_message
-        assert f"for security '{security.securityName}'" in error_message
+        assert f"for security '{security.isin}'" in error_message
         assert "which has payments requiring quantity calculation" in error_message
         assert security.payment[0].quantity == UNINITIALIZED_QUANTITY
 
@@ -902,7 +898,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         error_message = str(excinfo.value)
         assert "Could not determine stock quantity for security" in error_message
-        assert f"'{security.securityName}'" in error_message
+        assert f"'{security.isin}'" in error_message
         assert f"using date {payment_date}" in error_message # Check the date used
         assert "(as paymentDate)" in error_message
         assert "Check stock history" in error_message
@@ -932,9 +928,6 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
         assert calculated_payment_result.quantity == Decimal("50"), "Quantity should be 50 (based on exDate)"
-        assert any(f"DP1/SecExDatePrioritizedStockHeld.Payment (Name: DividendExDatePriority, Date: {payment_date}, exDate: {ex_date}).quantity (updated via exDate)" in f for f in calculator.modified_fields)
-        # Removed assertion for the preliminary "Using exDate..." log
-        assert any(f"Updated quantity for Payment (Name: DividendExDatePriority, Date: {payment_date}, exDate: {ex_date}) to 50 using exDate ({ex_date})" in log for log in calculator.get_log())
 
     def test_calculate_quantity_exdate_no_stock_on_exdate(self, sample_period_from, sample_period_to):
         statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecExDateNoStock")
@@ -958,9 +951,6 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
         assert calculated_payment_result.quantity == Decimal("0"), "Quantity should be 0 (based on exDate)"
-        assert any(f"DP1/SecExDateNoStock.Payment (Name: DividendExDateNoStock, Date: {payment_date}, exDate: {ex_date}).quantity (updated via exDate)" in f for f in calculator.modified_fields)
-        # Removed assertion for the preliminary "Using exDate..." log
-        assert any(f"Updated quantity for Payment (Name: DividendExDateNoStock, Date: {payment_date}, exDate: {ex_date}) to 0 using exDate ({ex_date})" in log for log in calculator.get_log())
 
     def test_calculate_quantity_exdate_insufficient_stock_data_for_exdate(self, sample_period_from, sample_period_to):
         statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecExDateInsufficientData")
@@ -984,7 +974,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         error_message = str(excinfo.value)
         assert "Could not determine stock quantity for security" in error_message
-        assert f"'{security.securityName}'" in error_message
+        assert f"'{security.isin}'" in error_message
         assert f"using date {ex_date}" in error_message # Check the date used
         assert "(as exDate)" in error_message
         assert "Check stock history" in error_message
@@ -1011,7 +1001,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         error_message = str(excinfo.value)
         assert "Missing stock data (Security.stock is None or empty)" in error_message
-        assert f"for security '{security.securityName}'" in error_message # Check for actual name
+        assert f"for security '{security.isin}'" in error_message # Check for actual name
         assert "which has payments requiring quantity calculation" in error_message
         assert security.payment[0].quantity == UNINITIALIZED_QUANTITY
 

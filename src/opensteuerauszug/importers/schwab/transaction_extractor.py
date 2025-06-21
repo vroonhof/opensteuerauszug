@@ -336,7 +336,9 @@ class TransactionExtractor:
 
         elif action == "Dividend" or action == "Reinvest Dividend":
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
-                payment_quantity = schwab_qty if schwab_qty and schwab_qty != Decimal(0) else UNINITIALIZED_QUANTITY
+                if schwab_qty is not None and schwab_qty != Decimal(0):
+                    print(f"Warning: Ignoring non-zero quantity ({schwab_qty}) for action '{action}' on symbol {pos_object.symbol}. Payment quantity will be uninitialized.")
+                payment_quantity = UNINITIALIZED_QUANTITY
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE",
                     quantity=payment_quantity, amountCurrency=currency, # Use currency string
