@@ -629,7 +629,7 @@ def create_dual_info_boxes(styles, usable_width):
 
     table = Table(
         [[left_box, right_box]],
-        colWidths=[usable_width / 2 - 5*mm, usable_width / 2 - 5*mm],
+        colWidths=[usable_width / 2, usable_width / 2],
     )
     table.setStyle(
         TableStyle([
@@ -1390,10 +1390,10 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     if summary_table_data:
         story.append(summary_table_data)
 
+    story.append(Spacer(1, 0.5*cm))
+
     # Info boxes below the summary table
     story.append(create_dual_info_boxes(styles, usable_width))
-
-    story.append(Spacer(1, 0.5*cm))
 
     # --- Bank Accounts Section ---
     bank_table = create_bank_accounts_table(tax_statement, styles, usable_width)
