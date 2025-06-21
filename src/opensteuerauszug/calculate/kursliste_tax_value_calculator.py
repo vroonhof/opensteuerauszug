@@ -127,11 +127,6 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             if not pay.paymentDate:
                 continue
 
-            if pay.paymentValueCHF is None:
-                raise ValueError(
-                    f"Kursliste payment on {pay.paymentDate} for {security.isin or security.securityName} missing paymentValueCHF"
-                )
-
             reconciliation_date = pay.exDate or pay.paymentDate
 
             pos = reconciler.synthesize_position_at_date(reconciliation_date)
@@ -143,6 +138,29 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 )
 
             quantity = pos.quantity
+
+            if pay.undefined:
+                sec_payment = SecurityPayment(
+                    paymentDate=pay.paymentDate,
+                    exDate=pay.exDate,
+                    name=f"KL:{security.securityName}",
+                    quotationType=security.quotationType,
+                    quantity=quantity,
+                    amountCurrency=security.currency,
+                    kursliste=True,
+                )
+                sec_payment.undefined = True
+                if pay.sign is not None:
+                    sec_payment.sign = pay.sign
+                if hasattr(pay, "gratis") and pay.gratis is not None:
+                    sec_payment.gratis = pay.gratis
+                result.append(sec_payment)
+                continue
+
+            if pay.paymentValueCHF is None:
+                raise ValueError(
+                    f"Kursliste payment on {pay.paymentDate} for {security.isin or security.securityName} missing paymentValueCHF"
+                )
 
             amount_per_unit = pay.paymentValue if pay.paymentValue is not None else pay.paymentValueCHF
             chf_per_unit = pay.paymentValueCHF
@@ -171,6 +189,13 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 exchangeRate=rate,
                 kursliste=True,
             )
+
+            # Not all payment subtypes have these fields
+            # TODO: Should the typing be smarter?
+            if hasattr(pay, "sign") and pay.sign is not None:
+                sec_payment.sign = pay.sign
+            if hasattr(pay, "gratis") and pay.gratis is not None:
+                sec_payment.gratis = pay.gratis
 
             if pay.withHoldingTax:
                 sec_payment.grossRevenueA = chf_amount

@@ -13,6 +13,11 @@ from opensteuerauszug.model.ech0196 import (
     SecurityStock,
     TaxStatement,
 )
+from opensteuerauszug.model.kursliste import (
+    PaymentShare,
+    PaymentTypeESTV,
+    Share,
+)
 from tests.utils.samples import get_sample_files
 
 from .known_issues import _known_issue
@@ -226,3 +231,71 @@ def test_compute_payments_with_tax_value_as_stock(kursliste_manager):
     assert first.paymentDate == date(2024, 3, 27)
     assert first.quantity == Decimal("200")
     assert first.amount == Decimal("182.10")
+
+def test_propagate_payment_fields(kursliste_manager):
+    """
+    Test that `undefined`, `sign`, `gratis`, and `paymentType` fields are
+    correctly propagated from a Kursliste payment to a SecurityPayment.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    # Mock a Kursliste security with a special payment
+    kl_sec = Share(
+        id=1,
+        securityGroup="SHARE",
+        country="CH",
+        currency="CHF",
+        institutionId=123,
+        institutionName="Test Bank",
+        payment=[
+            PaymentShare(
+                id=101,
+                paymentDate=date(2024, 5, 10),
+                currency="CHF",
+                undefined=True,
+                sign="XYZ",
+                gratis=True,
+                paymentType=PaymentTypeESTV.GRATIS,
+            )
+        ]
+    )
+
+    sec = Security(
+        country="CH",
+        securityName="Test Security",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("CH0000000001"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="CHF",
+            )
+        ],
+    )
+
+    # Manually set the Kursliste security for the calculator
+    calc._current_kursliste_security = kl_sec
+
+    # Run the payment computation
+    calc.computePayments(sec, "sec")
+
+    # Assertions
+    assert len(sec.payment) == 1
+    payment = sec.payment[0]
+
+    assert payment.undefined is True
+    assert payment.sign == "XYZ"
+    assert payment.gratis is True
