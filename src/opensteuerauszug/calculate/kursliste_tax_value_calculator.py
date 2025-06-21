@@ -5,6 +5,7 @@ from ..core.exchange_rate_provider import ExchangeRateProvider
 from ..core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from ..core.kursliste_manager import KurslisteManager
 from ..model.ech0196 import Security, SecurityTaxValue, SecurityPayment
+from ..model.kursliste import PaymentTypeESTV
 from ..core.position_reconciler import PositionReconciler
 from ..core.constants import WITHHOLDING_TAX_RATE
 from .base import CalculationMode
@@ -139,11 +140,26 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             quantity = pos.quantity
 
+            payment_name = f"KL:{security.securityName}"
+            if pay.paymentType is None or pay.paymentType == PaymentTypeESTV.STANDARD:
+                if kl_sec.securityGroup == "SHARE":
+                    payment_name = "Dividend"
+                else:
+                    payment_name = "Distribution"
+            elif pay.paymentType == PaymentTypeESTV.GRATIS:
+                payment_name = "Stock Dividend"
+            elif pay.paymentType == PaymentTypeESTV.OTHER_BENEFIT:
+                payment_name = "Other Monetary Benefits"
+            elif pay.paymentType == PaymentTypeESTV.AGIO:
+                payment_name = "Premium/Agio"
+            elif pay.paymentType == PaymentTypeESTV.FUND_ACCUMULATION:
+                payment_name = "Taxable Income from Accumulating Fund"
+
             if pay.undefined:
                 sec_payment = SecurityPayment(
                     paymentDate=pay.paymentDate,
                     exDate=pay.exDate,
-                    name=f"KL:{security.securityName}",
+                    name=payment_name,
                     quotationType=security.quotationType,
                     quantity=quantity,
                     amountCurrency=security.currency,
@@ -180,7 +196,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             sec_payment = SecurityPayment(
                 paymentDate=pay.paymentDate,
                 exDate=pay.exDate,
-                name=f"KL:{security.securityName}",
+                name=payment_name,
                 quotationType=security.quotationType,
                 quantity=quantity,
                 amountCurrency=pay.currency,
