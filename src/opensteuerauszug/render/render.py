@@ -612,6 +612,46 @@ def create_costs_table(data, styles, usable_width):
     return KeepTogether([costs_table, Spacer(1, 2*mm), Paragraph(footnote_text, val_left)])
 
 
+# --- Info Box Helpers ---
+def create_dual_info_boxes(styles, usable_width):
+    """Create two side-by-side information boxes for the first page."""
+    val_left = styles['Val_LEFT']
+
+    left_box = Paragraph(
+        '<b>Hinweis für die Steuerbehörde</b><br/><br/>...',
+        val_left,
+    )
+
+    right_box = Paragraph(
+        '<b>Important Info & Actions for the tax payer</b><br/><br/>...',
+        val_left,
+    )
+
+    table = Table(
+        [[left_box, right_box]],
+        colWidths=[usable_width / 2 - 5*mm, usable_width / 2 - 5*mm],
+    )
+    table.setStyle(
+        TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOX', (0, 0), (0, 0), 0.5, colors.black),
+            ('BOX', (1, 0), (1, 0), 0.5, colors.black),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ])
+    )
+    return table
+
+
+def create_single_info_page(title, styles):
+    """Create simple text content for a dedicated information page."""
+    val_left = styles['Val_LEFT']
+
+    return Paragraph(f'<b>{title}</b><br/><br/>...', val_left)
+
+
 # --- Barcode Generation ---
 def get_barcode_image(data):
     """Generate a barcode image from the given data using Code128.
@@ -1349,7 +1389,10 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     summary_table_data = create_summary_table({"summary": summary_data}, styles, usable_width)
     if summary_table_data:
         story.append(summary_table_data)
-    
+
+    # Info boxes below the summary table
+    story.append(create_dual_info_boxes(styles, usable_width))
+
     story.append(Spacer(1, 0.5*cm))
 
     # --- Bank Accounts Section ---
@@ -1383,6 +1426,12 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
         story.append(Paragraph("Wertschriften DA-1 und USA-Werte", title_style))
         story.append(securities_table_da1)
         story.append(Spacer(1, 0.5*cm))
+
+    # Info pages before the barcode
+    story.append(PageBreak())
+    story.append(create_single_info_page('Hinweis für die Steuerbehörde', styles))
+    story.append(PageBreak())
+    story.append(create_single_info_page('Important Info & Actions for the tax payer', styles))
 
     # Add the barcode page
     make_barcode_pages(doc, story, tax_statement, title_style)
