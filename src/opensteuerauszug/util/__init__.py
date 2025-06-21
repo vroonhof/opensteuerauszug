@@ -1,5 +1,6 @@
 from decimal import Decimal, ROUND_HALF_UP
 from .date_coverage import DateRangeCoverage
+from .known_issues import is_known_issue
 
 def round_accounting(value: Decimal | float | int) -> Decimal:
     """

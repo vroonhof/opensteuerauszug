@@ -19,6 +19,7 @@ from .calculate.cleanup import CleanupCalculator
 from .calculate.minimal_tax_value import MinimalTaxValueCalculator
 from .calculate.kursliste_tax_value_calculator import KurslisteTaxValueCalculator
 from .calculate.fill_in_tax_value_calculator import FillInTaxValueCalculator
+from .util.known_issues import is_known_issue
 from .importers.schwab.schwab_importer import SchwabImporter
 from .importers.ibkr.ibkr_importer import IbkrImporter # Added IbkrImporter
 from .core.exchange_rate_provider import ExchangeRateProvider
@@ -454,11 +455,14 @@ def main(
 
             if tax_value_verifier and verifier_name:
                 print(f"Running {verifier_name} (Verify Mode)...")
-                tax_value_verifier.calculate(statement) # Does not modify statement in verify mode
+                tax_value_verifier.calculate(statement)  # Does not modify statement in verify mode
                 if tax_value_verifier.errors:
-                    print(f"{verifier_name} (Verify Mode) encountered {len(tax_value_verifier.errors)} errors:")
+                    print(
+                        f"{verifier_name} (Verify Mode) encountered {len(tax_value_verifier.errors)} errors:"
+                    )
                     for error in tax_value_verifier.errors:
-                        print(f"  Error: {error}")
+                        prefix = "Known" if is_known_issue(error, statement.institution) else "Error"
+                        print(f"  {prefix}: {error}")
                 else:
                     print(f"{verifier_name} (Verify Mode) found no errors.")
             elif tax_calculation_level != TaxCalculationLevel.NONE:
@@ -472,7 +476,8 @@ def main(
             if calculator.errors:
                 print(f"Encountered {len(calculator.errors)} fields during calculation")
                 for error in calculator.errors:
-                    print(f"Error: {error}")
+                    prefix = "Known" if is_known_issue(error, statement.institution) else "Error"
+                    print(f"{prefix}: {error}")
             else:
                 print("No errors calculation")
             
