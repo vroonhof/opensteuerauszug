@@ -267,17 +267,6 @@ class MinimalTaxValueCalculator(BaseCalculator):
         list on the security is empty.
         """
 
-        # In debug mode, merge payments instead of verifying or overwriting
-        if self.keep_existing_payments:
-            if payments:
-                merged = list(security.payment)
-                for p in payments:
-                    if p not in merged:
-                        merged.append(p)
-                security.payment = merged
-                security.kurslistePayments = payments
-            return
-
         # If no payments are provided there is nothing to check or set.
         if not payments:
             return
@@ -286,6 +275,8 @@ class MinimalTaxValueCalculator(BaseCalculator):
         current = security.payment
 
         if self.mode == CalculationMode.OVERWRITE:
+            if keep_existing_payments:
+                payments = current + payments
             security.payment = sorted(payments, key=lambda p: p.paymentDate)
             self.modified_fields.add(field_path)
             return
@@ -298,6 +289,12 @@ class MinimalTaxValueCalculator(BaseCalculator):
         if self.mode not in (CalculationMode.VERIFY, CalculationMode.FILL):
             return
 
+        if keep_existing_payments:
+            # For debugging we force the list to be the merge even when verifying so
+            # we can look at the rendered copy.
+            merged = current + payments
+            security.payment = sorted(merged, key=lambda p: p.paymentDate)
+        
         # Detailed comparison for VERIFY and FILL (with existing payments)
         current_by_date = defaultdict(list)
         for p in current:
