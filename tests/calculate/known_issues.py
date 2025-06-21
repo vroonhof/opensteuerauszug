@@ -36,7 +36,8 @@ def _known_issue(error: Exception, institution: Optional[Institution]) -> bool:
                     return True
         elif error.field_path.startswith("listOfSecurities"):
             # Truewealth seem to calculate internally to 6 decimal places
-            if (error.expected.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP) ==
+            if (error.expected is not None and error.actual is not None and
+                error.expected.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP) ==
                 error.actual.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)):
                 return True
             # The difference in TaxValue cascades, lets be a bit lenient here

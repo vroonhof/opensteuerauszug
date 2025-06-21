@@ -259,24 +259,79 @@ class MinimalTaxValueCalculator(BaseCalculator):
         otherwise. ``FILL`` behaves like ``VERIFY`` but writes the payments if the
         list on the security is empty.
         """
-
-        # If no payments are provided there is nothing to check or set.
-        if not payments:
-            return
+        from collections import defaultdict
 
         field_path = f"{path_prefix}.payment" if path_prefix else "payment"
         current = security.payment
 
         if self.mode == CalculationMode.OVERWRITE:
-            security.payment = list(payments)
+            security.payment = sorted(payments, key=lambda p: p.paymentDate)
             self.modified_fields.add(field_path)
             return
 
         if self.mode == CalculationMode.FILL and not current:
-            security.payment = list(payments)
+            security.payment = sorted(payments, key=lambda p: p.paymentDate)
             self.modified_fields.add(field_path)
             return
 
-        if len(current) != len(payments) or any(p1 != p2 for p1, p2 in zip(current, payments)):
-            if self.mode in (CalculationMode.VERIFY, CalculationMode.FILL):
-                self.errors.append(CalculationError(field_path, payments, current))
+        if self.mode not in (CalculationMode.VERIFY, CalculationMode.FILL):
+            return
+
+        # Detailed comparison for VERIFY and FILL (with existing payments)
+        current_by_date = defaultdict(list)
+        for p in current:
+            current_by_date[p.paymentDate].append(p)
+
+        expected_by_date = defaultdict(list)
+        for p in payments:
+            expected_by_date[p.paymentDate].append(p)
+
+        all_dates = sorted(list(set(current_by_date.keys()) | set(expected_by_date.keys())))
+
+        for d in all_dates:
+            current_on_date = current_by_date.get(d, [])
+            expected_on_date = expected_by_date.get(d, [])
+
+            if not current_on_date:
+                for p in expected_on_date:
+                    self.errors.append(CalculationError(f"{field_path}.date={d}", p, None))
+                continue
+
+            if not expected_on_date:
+                for p in current_on_date:
+                    self.errors.append(CalculationError(f"{field_path}.date={d}", None, p))
+                continue
+
+            # Try to match payments on the same date
+            unmatched_current = list(current_on_date)
+            remaining_expected = []
+            for p_expected in expected_on_date:
+                try:
+                    unmatched_current.remove(p_expected)
+                except ValueError:
+                    remaining_expected.append(p_expected)
+
+            if len(unmatched_current) == len(remaining_expected):
+                # To provide a stable diff, sort if possible.
+                try:
+                    unmatched_current.sort()
+                    remaining_expected.sort()
+                except TypeError:
+                    pass  # Not sortable, compare as is.
+
+                for p_curr, p_exp in zip(unmatched_current, remaining_expected):
+                    p_curr_vars = vars(p_curr)
+                    p_exp_vars = vars(p_exp)
+                    all_keys = sorted(list(set(p_curr_vars.keys()) | set(p_exp_vars.keys())))
+                    for key in all_keys:
+                        v_curr = p_curr_vars.get(key)
+                        v_exp = p_exp_vars.get(key)
+                        if v_curr != v_exp:
+                            # Create one error per differing field.
+                            error_path = f"{field_path}.date={d}.{key}"
+                            self.errors.append(CalculationError(error_path, v_exp, v_curr))
+            else:
+                for p in unmatched_current:
+                    self.errors.append(CalculationError(f"{field_path}.date={d}", None, p))
+                for p in remaining_expected:
+                    self.errors.append(CalculationError(f"{field_path}.date={d}", p, None))

@@ -84,7 +84,15 @@ class TestMinimalTaxValueCalculatorIntegration:
         # Process the statement.
         processed_statement = calculator.calculate(tax_statement_input)
 
-        filtered_errors = [e for e in calculator.errors if not _known_issue(e, tax_statement_input.institution)]
+        def _is_expected_payment_error(error: Exception) -> bool:
+            if not isinstance(error, CalculationError):
+                return False
+            # MinimalTaxValueCalculator is expected to find payments that it doesn't know about.
+            if ".payment" in error.field_path and error.expected is None and isinstance(error.actual, SecurityPayment):
+                return True
+            return False
+
+        filtered_errors = [e for e in calculator.errors if not _known_issue(e, tax_statement_input.institution) and not _is_expected_payment_error(e)]
 
         # Check if any errors were found during verification
         if filtered_errors:
