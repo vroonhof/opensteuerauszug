@@ -14,6 +14,8 @@ from opensteuerauszug.model.ech0196 import (
     TaxStatement,
 )
 from opensteuerauszug.model.kursliste import (
+    Fund,
+    PaymentFund,
     PaymentShare,
     PaymentTypeESTV,
     Share,
@@ -425,4 +427,68 @@ def test_compute_payments_skip_zero_quantity(kursliste_manager):
 
     calc._handle_Security(sec, "sec")
     # Should not generate any payments since quantity is zero on payment dates
+    assert len(sec.payment) == 0
+
+
+def test_compute_payments_capital_gain_scenario(kursliste_manager):
+    """
+    Test that payments marked as capital gains are ignored.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    # Mock a Kursliste security with a payment that is a capital gain
+    kl_sec = Fund(
+        id=1,
+        securityGroup=SecurityGroupESTV.FUND,
+        country="CH",
+        currency="CHF",
+        institutionId=123,
+        institutionName="Test Bank",
+        nominalValue=Decimal("1"),
+        payment=[
+            PaymentFund(
+                id=101,
+                paymentDate=date(2024, 5, 10),
+                currency="CHF",
+                paymentValue=Decimal("2.50"),
+                paymentValueCHF=Decimal("2.50"),
+                exchangeRate=Decimal("1.0"),
+                capitalGain=True,
+            )
+        ]
+    )
+
+    sec = Security(
+        country="CH",
+        securityName="Test Security",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="FUND",
+        isin=ISINType("CH0000000001"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="CHF",
+            )
+        ],
+    )
+
+    # Manually set the Kursliste security for the calculator
+    calc._current_kursliste_security = kl_sec
+
+    # Run the payment computation
+    calc.computePayments(sec, "sec")
+
+    # Assertions
     assert len(sec.payment) == 0

@@ -103,9 +103,6 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
     def computePayments(self, security: Security, path_prefix: str) -> None:
         """Compute payments for a security using the Kursliste."""
-        if self.mode == CalculationMode.VERIFY:
-            return
-
         if not self.kursliste_manager:
             raise RuntimeError("kursliste_manager is required for Kursliste payments")
 
@@ -126,6 +123,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
         for pay in payments:
             if not pay.paymentDate:
+                continue
+
+            # Capital gains are not relevant for personal income tax and can be omitted.
+            if hasattr(pay, "capitalGain") and pay.capitalGain:
                 continue
 
             reconciliation_date = pay.exDate or pay.paymentDate

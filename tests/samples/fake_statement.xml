@@ -10,9 +10,9 @@
               country="CH"
               canton="ZH"
               totalTaxValue="162750.00"
-              totalGrossRevenueA="0.00"
-              totalGrossRevenueB="2048.29"
-              totalWithHoldingTaxClaim="0.00"
+              totalGrossRevenueA="4800.00"
+              totalGrossRevenueB="548.29"
+              totalWithHoldingTaxClaim="1680.00"
               minorVersion="22">
   <institution name="Sample Foreign Bank ltd">
     <uid xmlns="http://www.ech.ch/xmlns/eCH-0196/2">
@@ -37,12 +37,11 @@
   <listOfExpenses totalExpenses="150.00" totalExpensesDeductible="150.00">
     <expense name="Depot Fees 2024" amountCurrency="CHF" expenses="150.00" expenseType="22" depotNumber="DEPOT-001"/>
   </listOfExpenses>
-  <listOfSecurities totalTaxValue="127750.00" totalGrossRevenueA="0.00" totalGrossRevenueB="1500.00" totalWithHoldingTaxClaim="0.00" totalLumpSumTaxCredit="0.00" totalNonRecoverableTax="0.00" totalAdditionalWithHoldingTaxUSA="0.00" totalGrossRevenueIUP="0.00" totalGrossRevenueConversion="0.00">
+  <listOfSecurities totalTaxValue="127750.00" totalGrossRevenueA="4800.00" totalGrossRevenueB="0.00" totalWithHoldingTaxClaim="1680.00" totalLumpSumTaxCredit="0.00" totalNonRecoverableTax="0.00" totalAdditionalWithHoldingTaxUSA="0.00" totalGrossRevenueIUP="0.00" totalGrossRevenueConversion="0.00">
     <depot depotNumber="DEPOT-001">
-      <security positionId="1" country="LU" currency="CHF" quotationType="PIECE" securityCategory="SHARE" securityName="Roche Holding Genussschein" valorNumber="1203204" isin="CH0012032048">
+      <security positionId="1" country="CH" currency="CHF" quotationType="PIECE" securityCategory="SHARE" securityName="Roche Holding Genussschein" valorNumber="1203204" isin="CH0012032048">
         <taxValue referenceDate="2024-12-31" quotationType="PIECE" quantity="500" balanceCurrency="CHF" unitPrice="255.50" value="127750.00" kursliste="1"/>
-        <payment paymentDate="2024-05-10" exDate="2024-05-08" name="Dividend" quotationType="PIECE" quantity="500" amountCurrency="CHF" amountPerUnit="2.00" amount="1000.00" grossRevenueA="0.00" grossRevenueB="1000.00" withHoldingTaxClaim="0.00" kursliste="1"/>
-        <payment paymentDate="2024-09-01" name="Securities Lending Income" quotationType="PIECE" quantity="500" amountCurrency="CHF" amount="500.00" grossRevenueA="0.00" grossRevenueB="500.00" withHoldingTaxClaim="0.00" securitiesLending="1"/>
+        <payment paymentDate="2024-03-18" exDate="2024-03-14" name="Dividend" quotationType="PIECE" quantity="500" amountCurrency="CHF" amountPerUnit="9.6" amount="4800.00" exchangeRate="1" grossRevenueA="4800.00" grossRevenueB="0.00" withHoldingTaxClaim="1680.00" kursliste="1" gratis="0"/>
         <stock referenceDate="2024-01-01" mutation="0" quotationType="PIECE" quantity="500" balanceCurrency="CHF" value="145000.00"/>
       </security>
     </depot>
