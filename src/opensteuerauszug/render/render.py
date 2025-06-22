@@ -37,9 +37,16 @@ from opensteuerauszug.core.security import determine_security_type, SecurityType
 # --- Import styles utility ---
 from opensteuerauszug.util.styles import get_custom_styles
 from opensteuerauszug.util import round_accounting
+from opensteuerauszug.render.info_loader import MarkdownInfo
 
 # --- Configuration ---
 DOC_INFO = "TODO: Place some compact info here"
+
+# Path to information markdown file
+INFO_MD_PATH = Path(__file__).resolve().parents[3] / "docs" / "info_pages.md"
+
+# Loader for informational markdown sections
+INFO_LOADER = MarkdownInfo(INFO_MD_PATH)
 
 __all__ = [
     'render_tax_statement',
@@ -617,13 +624,16 @@ def create_dual_info_boxes(styles, usable_width):
     """Create two side-by-side information boxes for the first page."""
     val_left = styles['Val_LEFT']
 
+    left_text = INFO_LOADER.get_html('Hinweis für die Steuerbehörde')
+    right_text = INFO_LOADER.get_html('Important Info & Actions for the tax payer')
+
     left_box = Paragraph(
-        '<b>Hinweis für die Steuerbehörde</b><br/><br/>...',
+        f'<b>Hinweis für die Steuerbehörde</b><br/><br/>{left_text}',
         val_left,
     )
 
     right_box = Paragraph(
-        '<b>Important Info & Actions for the tax payer</b><br/><br/>...',
+        f'<b>Important Info & Actions for the tax payer</b><br/><br/>{right_text}',
         val_left,
     )
 
@@ -649,7 +659,8 @@ def create_single_info_page(title, styles):
     """Create simple text content for a dedicated information page."""
     val_left = styles['Val_LEFT']
 
-    return Paragraph(f'<b>{title}</b><br/><br/>...', val_left)
+    body = INFO_LOADER.get_html(title)
+    return Paragraph(f'<b>{title}</b><br/><br/>{body}', val_left)
 
 
 # --- Barcode Generation ---
