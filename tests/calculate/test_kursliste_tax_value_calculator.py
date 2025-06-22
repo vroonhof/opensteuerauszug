@@ -17,6 +17,7 @@ from opensteuerauszug.model.kursliste import (
     PaymentShare,
     PaymentTypeESTV,
     Share,
+    SecurityGroupESTV,
 )
 from tests.utils.samples import get_sample_files
 
@@ -110,8 +111,8 @@ def test_handle_security_tax_value_from_kursliste(kursliste_manager):
     )
     calc._handle_Security(sec, "sec")
     stv = sec.taxValue
-    calc._handle_SecurityTaxValue(stv, "sec.taxValue")
     assert stv is not None
+    calc._handle_SecurityTaxValue(stv, "sec.taxValue")
     assert stv.unitPrice == Decimal("255.5")
     assert stv.value == Decimal("127750")
     assert stv.exchangeRate == Decimal("1")
@@ -157,7 +158,10 @@ def test_compute_payments_from_kursliste_missing_ex_date(kursliste_manager):
     assert payment.amountPerUnit == Decimal("1.5312762338")
     assert payment.amount == Decimal("153.12762338")
     assert payment.exchangeRate == Decimal("0.90405")
+    # Reality vs spec: All three fields should be set when at least one is set
+    assert payment.grossRevenueA == Decimal("0")
     assert payment.grossRevenueB == Decimal("138.400")
+    assert payment.withHoldingTaxClaim == Decimal("0")
 
 
 def test_compute_payments_from_kursliste(kursliste_manager):
@@ -197,7 +201,10 @@ def test_compute_payments_from_kursliste(kursliste_manager):
     assert first.amountPerUnit == Decimal("0.9105")
     assert first.amount == Decimal("91.05")
     assert first.exchangeRate == Decimal("0.90565")
+    # Reality vs spec: All three fields should be set when at least one is set
+    assert first.grossRevenueA == Decimal("0")
     assert first.grossRevenueB == Decimal("82.45900")
+    assert first.withHoldingTaxClaim == Decimal("0")
 
 
 def test_compute_payments_with_tax_value_as_stock(kursliste_manager):
@@ -244,7 +251,7 @@ def test_propagate_payment_fields(kursliste_manager):
     # Mock a Kursliste security with a special payment
     kl_sec = Share(
         id=1,
-        securityGroup="SHARE",
+        securityGroup=SecurityGroupESTV.SHARE,
         country="CH",
         currency="CHF",
         institutionId=123,
@@ -300,6 +307,79 @@ def test_propagate_payment_fields(kursliste_manager):
     assert payment.undefined is True
     assert payment.sign == "XYZ"
     assert payment.gratis is True
+
+
+def test_compute_payments_withholding_tax_scenario(kursliste_manager):
+    """
+    Test that payments with withholding tax correctly set all three fields:
+    grossRevenueA, grossRevenueB, and withHoldingTaxClaim.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    # Mock a Kursliste security with a payment that has withholding tax
+    kl_sec = Share(
+        id=1,
+        securityGroup=SecurityGroupESTV.SHARE,
+        country="CH",
+        currency="CHF",
+        institutionId=123,
+        institutionName="Test Bank",
+        payment=[
+            PaymentShare(
+                id=101,
+                paymentDate=date(2024, 5, 10),
+                currency="CHF",
+                paymentValue=Decimal("2.50"),  # 2.50 CHF per share
+                paymentValueCHF=Decimal("2.50"),  # Same in CHF
+                exchangeRate=Decimal("1.0"),
+                withHoldingTax=True,  # This triggers grossRevenueA and withHoldingTaxClaim
+            )
+        ]
+    )
+
+    sec = Security(
+        country="CH",
+        securityName="Test Security",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("CH0000000001"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="CHF",
+            )
+        ],
+    )
+
+    # Manually set the Kursliste security for the calculator
+    calc._current_kursliste_security = kl_sec
+
+    # Run the payment computation
+    calc.computePayments(sec, "sec")
+
+    # Assertions
+    assert len(sec.payment) == 1
+    payment = sec.payment[0]
+
+    # Reality vs spec: All three fields should be set when withholding tax applies
+    # grossRevenueA should contain the CHF amount (250.00)
+    # grossRevenueB should be zero
+    # withHoldingTaxClaim should be 35% of grossRevenueA (87.50)
+    assert payment.grossRevenueA == Decimal("250.00")  # 100 shares * 2.50 CHF
+    assert payment.grossRevenueB == Decimal("0")
+    assert payment.withHoldingTaxClaim == Decimal("87.50")  # 35% of 250.00
 
 
 def test_compute_payments_skip_zero_quantity(kursliste_manager):

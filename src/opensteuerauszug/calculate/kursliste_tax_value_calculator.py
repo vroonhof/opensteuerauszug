@@ -140,6 +140,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             quantity = pos.quantity
 
+            if quantity == 0:
+                # Skip payment generation if the quantity of outstanding securities is zero
+                continue
+
             payment_name = f"KL:{security.securityName}"
             if pay.paymentType is None or pay.paymentType == PaymentTypeESTV.STANDARD:
                 if kl_sec.securityGroup == "SHARE":
@@ -213,13 +217,18 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             if hasattr(pay, "gratis") and pay.gratis is not None:
                 sec_payment.gratis = pay.gratis
 
+            # Reality vs spec: Real-world files seem to have all three fields set when at least one is set,
+            # possibly with zero values, even though our reading of the spec suggests they should be mutually exclusive
             if pay.withHoldingTax:
                 sec_payment.grossRevenueA = chf_amount
+                sec_payment.grossRevenueB = Decimal("0")
                 sec_payment.withHoldingTaxClaim = (
                     chf_amount * WITHHOLDING_TAX_RATE
                 ).quantize(Decimal("0.01"))
             else:
+                sec_payment.grossRevenueA = Decimal("0")
                 sec_payment.grossRevenueB = chf_amount
+                sec_payment.withHoldingTaxClaim = Decimal("0")
 
             result.append(sec_payment)
 
