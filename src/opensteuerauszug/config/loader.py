@@ -8,7 +8,7 @@ try:
 except ImportError:
     import tomli as tomllib # Fallback for Python < 3.11
 
-from .models import GeneralSettings, BrokerSettings, AccountSettingsBase, SchwabAccountSettings, ConcreteAccountSettings, SpecificAccountSettingsUnion
+from .models import GeneralSettings, BrokerSettings, AccountSettingsBase, SchwabAccountSettings, ConcreteAccountSettings, SpecificAccountSettingsUnion, CalculateSettings
 
 class ConfigManager:
     def __init__(self, config_file_path: str = "config.toml"):
@@ -17,6 +17,7 @@ class ConfigManager:
 
         self.general_settings: Dict[str, Any] = self._raw_config.get("general", {})
         self.brokers_settings: Dict[str, Any] = self._raw_config.get("brokers", {})
+        self.calculate_settings: CalculateSettings = CalculateSettings(**self._raw_config.get("calculate", {}))
 
     def _load_raw_config(self) -> Dict[str, Any]:
         if not os.path.exists(self.config_file_path):

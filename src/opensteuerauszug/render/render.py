@@ -1141,9 +1141,12 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         # Render each entry
         for entry_type, entry_date, entry in entries:
             if entry_type == 'payment':
+                name = entry.name or ''
+                if entry.sign:
+                    name = f"{name} {entry.sign}"
                 table_data.append([
                     Paragraph(entry.paymentDate.strftime("%d.%m.%Y") if entry.paymentDate else '', val_left),
-                    Paragraph(entry.name or '', val_left),
+                    Paragraph(name, val_left),
                     Paragraph(format_stock_quantity(entry.quantity, False, stock_quantity_template), val_right),
                     Paragraph(entry.amountCurrency or '', val_right),
                     Paragraph(format_currency(entry.amount) if getattr(entry, 'amount', None) else '', val_right),
