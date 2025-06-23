@@ -24,6 +24,400 @@
     <currencyName lang="fr" name="Dollar"/>
     <currencyName lang="it" name="Dollaro"/>
   </currency>
+  <sign id="1" deleted="true" sign="(A)">
+    <signName lang="de" name="Die Erste Spalte entspricht 70% der Bruttodividende, die zweite 15% zusätzlicher Steuerrückbehalt USA."/>
+    <signName lang="en" name="The first column corresponds to 70% of gross dividends, the second one to 15% additional tax retention USA."/>
+    <signName lang="fr" name="La première colonne correspond à 70% du dividende brut, la deuxième à la retenue supplémentaire USA de 15%."/>
+    <signName lang="it" name="La prima colonna corrisponde al 70% del dividendo lordo; la seconda colonna corrisponde al 15% della trattenuta supplementare d'imposta statunitense."/>
+  </sign>
+  <sign id="2" sign="(B)">
+    <signName lang="de" name="Bonus"/>
+    <signName lang="en" name="Bonus"/>
+    <signName lang="fr" name="Bonus"/>
+    <signName lang="it" name="Bonus"/>
+  </sign>
+  <sign id="3" deleted="true" sign="(C)">
+    <signName lang="de" name="An schweizerischen Börsen nicht kotierte Wertpapiere"/>
+    <signName lang="en" name="Stocks not listed on the Swiss market"/>
+    <signName lang="fr" name="Titres non cotés auprès d'une bourse suisse"/>
+    <signName lang="it" name="Titoli non quotati sulle borse svizzere"/>
+  </sign>
+  <sign id="4" deleted="true" sign="(D)">
+    <signName lang="de" name="Siehe &quot;Doppelbesteuerungsabkommen&quot;"/>
+    <signName lang="en" name="See double taxation agreement"/>
+    <signName lang="fr" name="Voir &quot;Conventions en vue d'éviter les doubles impositions&quot;"/>
+    <signName lang="it" name="Vedi &quot;Convenzione per evitare le doppie imposizioni&quot;"/>
+  </sign>
+  <sign id="5" sign="(E)">
+    <signName lang="de" name="Anspruch auf die Dividenden haben diejenigen Personen, die am Tage vor der Ex-Notierung Besitzer solcher Aktien waren."/>
+    <signName lang="en" name="Those people who were owners of these stocks on the day before the ex-quotation have claims to dividends."/>
+    <signName lang="fr" name="Seules les personnes possédant de telles actions la veille de la cotation ex-dividende ont droit au paiement de ces dividendes."/>
+    <signName lang="it" name="Hanno diritto a ricevere i dividendi le persone che detenevano tali azioni il giorno precedente alla data di stacco dei dividendi."/>
+  </sign>
+  <sign id="6" deleted="true" sign="(F)">
+    <signName lang="de" name="Genussschein"/>
+    <signName lang="en" name="Participation certificates"/>
+    <signName lang="fr" name="Bon de jouissance"/>
+    <signName lang="it" name="Buono di godimento"/>
+  </sign>
+  <sign id="7" sign="(G)">
+    <signName lang="de" name="Verrechnungssteuerfreier Kapitalgewinn"/>
+    <signName lang="en" name="Withholding tax free capital gains"/>
+    <signName lang="fr" name="Bénéfice en capital non soumis à l'impôt anticipé"/>
+    <signName lang="it" name="Utili di capitale non assoggettati all'imposta preventiva"/>
+  </sign>
+  <sign id="27" deleted="true" sign="(GA)">
+    <signName lang="de" name="Gratisaktie"/>
+    <signName lang="en" name="Bonus share"/>
+    <signName lang="fr" name="Action gratuite"/>
+    <signName lang="it" name="Azione gratuita"/>
+  </sign>
+  <sign id="8" sign="(H)">
+    <signName lang="de" name="Anlagefonds mit direktem Grundbesitz"/>
+    <signName lang="en" name="Investment fund with direct real estate property"/>
+    <signName lang="fr" name="Fonds de placement avec immeubles en propriété directe"/>
+    <signName lang="it" name="Fondo d'investimento con possesso fondiario diretto"/>
+  </sign>
+  <sign id="9" sign="(I)">
+    <signName lang="de" name="Der steuerbare Ertrag konnte noch nicht ermittelt werden und wird später festgesetzt."/>
+    <signName lang="en" name="The taxable earnings could not yet be identified and will be determined later."/>
+    <signName lang="fr" name="Le rendement imposable n'a pas encore pu être déterminé et sera fixé ultérieurement."/>
+    <signName lang="it" name="Il reddito imponibile non è stato ancora determinato e sarà determinato in seguito."/>
+  </sign>
+  <sign id="30" sign="(IK)">
+    <signName lang="de" name="Die nicht steuerbare KEP-Ausschüttung konnte noch nicht ermittelt werden und wird später festgesetzt."/>
+    <signName lang="en" name="The non-taxable KEP distribution could not yet be identified and will be determined later."/>
+    <signName lang="fr" name="Le dividende PAC non imposable n'a pas encore pu être déterminé et sera fixé ultérieurement."/>
+    <signName lang="it" name="La distribuzione PAC non imponibile non è ancora stata determinata e sarà determinata in seguito."/>
+  </sign>
+  <sign id="31" sign="(IM)">
+    <signName lang="de" name="Wiederanlage der zurückbehaltenen Erträge spätestens 4 Monate nach Geschäftsabschluss."/>
+    <signName lang="en" name="Reinvestment of retained earnings at the latest 4 months after transaction."/>
+    <signName lang="fr" name="Réinvestissement des revenus retenus au plus tard 4 mois après la clôture de l'exercice comptable."/>
+    <signName lang="it" name="Reinvestimento dei redditi accumulati al più tardi entro 4 mesi dalla chiusura contabile."/>
+  </sign>
+  <sign id="10" deleted="true" sign="(J)">
+    <signName lang="de" name="Partizipationsschein"/>
+    <signName lang="en" name="Participation certificate"/>
+    <signName lang="fr" name="Bon de participation"/>
+    <signName lang="it" name="Certificato di partecipazione"/>
+  </sign>
+  <sign id="11" deleted="true" sign="(k)">
+    <signName lang="de" name="U.S. Original Shares"/>
+    <signName lang="en" name="U.S. Original Shares"/>
+    <signName lang="fr" name="U.S. Original Shares"/>
+    <signName lang="it" name="U.S. Original Shares"/>
+  </sign>
+  <sign id="29" sign="KEP">
+    <signName lang="de" name="Rückzahlung Kapitaleinlagen"/>
+    <signName lang="en" name="Repay capital contributions"/>
+    <signName lang="fr" name="Remboursement d'apports de capital"/>
+    <signName lang="it" name="Rimborso da apporti di capitale"/>
+  </sign>
+  <sign id="28" sign="(KG)">
+    <signName lang="de" name="Kapitalgewinn"/>
+    <signName lang="en" name="Capital gain"/>
+    <signName lang="fr" name="Bénéfice en capital"/>
+    <signName lang="it" name="Utili di capitale"/>
+  </sign>
+  <sign id="33" sign="(KR)">
+    <signName lang="de" name="Kapitalrückzahlung"/>
+    <signName lang="en" name="Return of Capital"/>
+    <signName lang="fr" name="Remboursement de capital"/>
+    <signName lang="it" name="Rimborso di capitale"/>
+  </sign>
+  <sign id="12" sign="(L)">
+    <signName lang="de" name="Kein Abzug von Verrechnungssteuer"/>
+    <signName lang="en" name="No deduction from withholding tax"/>
+    <signName lang="fr" name="Exempt de l'impôt anticipé"/>
+    <signName lang="it" name="Nessuna deduzione dell'imposta preventiva"/>
+  </sign>
+  <sign id="13" sign="(M)">
+    <signName lang="de" name="Thesaurierungsfonds/Fondsähnliche Vermögen (Schweiz)"/>
+    <signName lang="en" name="Re-investment fund / fund-like assets (Switzerland)"/>
+    <signName lang="fr" name="Fonds de thésaurisation/ensemble de biens assimilés à un fonds de placement (Suisse)"/>
+    <signName lang="it" name="Fondi di tesaurizzazione/Patrimoni simili ai fondi d'investimento comuni (Svizzera)"/>
+  </sign>
+  <sign id="35" sign="(MV)">
+    <signName lang="de" name="Ausschüttung im Meldeverfahren (Formular 105)"/>
+    <signName lang="en" name="Distribution in the notification procedure (Form 105)"/>
+    <signName lang="fr" name="Distribution dans le cadre de la procédure de déclaration (formulaire 105)"/>
+    <signName lang="it" name="Distribuzione nella procedura di notifica (Modulo 105)"/>
+  </sign>
+  <sign id="14" sign="(N)">
+    <signName lang="de" name="Thesaurierungsfonds / Fondsähnliche Vermögen (Ausland)"/>
+    <signName lang="en" name="Re-investment fund / fund-like assets (abroad)"/>
+    <signName lang="fr" name="Fonds de thésaurisation/ensemble de biens assimilés à un fonds de placement (étranger)"/>
+    <signName lang="it" name="Fondi di tesaurizzazione/Patrimoni simili ai fondi d'investimento comuni (estero)"/>
+  </sign>
+  <sign id="15" deleted="true" sign="(O)">
+    <signName lang="de" name="Thesaurierungsfonds SICAV"/>
+    <signName lang="en" name="Accumulation fund SICAV"/>
+    <signName lang="fr" name="Fonds de thésaurisation SICAV"/>
+    <signName lang="it" name="Fondi di tesaurizzazione SICAV"/>
+  </sign>
+  <sign id="16" sign="(P)">
+    <signName lang="de" name="Der Verrechnungssteuer unterliegendes ausländisches Einkommen (Art. 9 Abs. 1 VStG)"/>
+    <signName lang="en" name="Foreign earnings subject to the withholding tax (art. 9 par. 1 Property Tax Act)"/>
+    <signName lang="fr" name="Rendement étranger soumis à l'impôt anticipé (art. 9, al. 1, LIA)"/>
+    <signName lang="it" name="Redditi esteri assoggettati all'imposta preventiva (art. 9 cpv. 1 LIP)"/>
+  </sign>
+  <sign id="34" sign="PRO">
+    <signName lang="de" name="provisorisch"/>
+    <signName lang="en" name="provisional"/>
+    <signName lang="fr" name="provisoire"/>
+    <signName lang="it" name="provvisorio"/>
+  </sign>
+  <sign id="32" sign="(Q)">
+    <signName lang="de" name="Mit ausländischer Quellensteuer"/>
+    <signName lang="en" name="With foreign withholding tax"/>
+    <signName lang="fr" name="Soumis à l'impôt à la source étranger"/>
+    <signName lang="it" name="Assoggettato all'imposta alla fonte estera"/>
+  </sign>
+  <sign id="17" deleted="true" sign="(R)">
+    <signName lang="de" name="Belgien: entspricht 100/74,25 (titres AFV [avantages fiscaux] = 100/80) der netto belgische Steuer (&quot;précompte mobilier&quot;) ausbezahlten Dividende."/>
+    <signName lang="en" name="Belgium: 100/74,25 (titles AFV [tax benefits] = 100/80) corresponds to the net Belgian tax (withholding tax) paid dividend."/>
+    <signName lang="fr" name="Belgique: correspond à 100/74,25 (titres AFV [avantages fiscaux] = 100/80) du dividende net d'impôt belge (&quot;précompte mobilier&quot;)."/>
+    <signName lang="it" name="Belgio: corrisponde al 100/74,25 (titoli AFV [benefici fiscali] = 100/80) del dividendo versato al netto dell'imposta belga (&quot;précompte mobilier&quot;)."/>
+  </sign>
+  <sign id="18" deleted="true" sign="(S)">
+    <signName lang="de" name="Deutschland: in diesem Betrag ist eine zusätzliche Entlastung von 5% der erklärten Dividende berücksichtigt."/>
+    <signName lang="en" name="Germany: an additional tax relief of 5% of the declared dividend is considered in this figure."/>
+    <signName lang="fr" name="Allemagne: ce montant tient compte d'un dégrèvement supplémentaire, égal à 5% du dividende déclaré."/>
+    <signName lang="it" name="Germania: tale importo tiene conto di uno sgravio supplementare del 5% del dividendo dichiarato."/>
+  </sign>
+  <sign id="19" deleted="true" sign="(SG)">
+    <signName lang="de" name="Verzinsung nicht auf allen Anteilscheinen / oder nicht im Verhältnis zum Gesamtkapital"/>
+    <signName lang="en" name="Interest payment not on all shares / or not in relation to the total capital"/>
+    <signName lang="fr" name="L'intérêt n'est pas payé sur toutes les parts ou n'est pas proportionnel au capital global"/>
+    <signName lang="it" name="L'interesse non è pagato su tutte le quote di partecipazione o non in modo proporzionale al capitale totale."/>
+  </sign>
+  <sign id="20" deleted="true" sign="(T)">
+    <signName lang="de" name="Frankreich: in diesem Betrag ist die Steuergutschrift (&quot;avoir fiscal&quot;) von 50% der erklärten Dividende berücksichtigt."/>
+    <signName lang="en" name="France: this figure considers the tax credit (avoir fiscal) of 50% of the declared dividend."/>
+    <signName lang="fr" name="France: ce montant tient compte de l'attribution de l'avoir fiscal, égal à 50% du dividende déclaré."/>
+    <signName lang="it" name="Francia: tale importo tiene conto del credito d'imposta (&quot;avoir fiscal&quot;) del 50% del dividendo dichiarato."/>
+  </sign>
+  <sign id="21" deleted="true" sign="(U)">
+    <signName lang="de" name="Grossbritannien: in diesem Betrag ist die Steuergutschrift (&quot;tax credit&quot;) von 11.11% der erklärten Dividende berücksichtigt."/>
+    <signName lang="en" name="Great Britain: the tax credit of 11.11% of the declared dividend is considered in this figure."/>
+    <signName lang="fr" name="Grande-Bretagne: ce montant tient compte de l'attribution du &quot;tax credit&quot;, égal à 11.11% du dividende déclaré."/>
+    <signName lang="it" name="Gran Bretagna: tale importo tiene conto del credito d'imposta (&quot;tax credit&quot;) dell'11,11% del dividendo dichiarato."/>
+  </sign>
+  <sign id="22" sign="(V)">
+    <signName lang="de" name="Die Ausschüttung in Form von Aktien unterliegt nicht der Quellensteuer; es besteht kein Anspruch auf die Anrechnung ausländischer Quellensteuern. Wird die Ausschüttung hingegen bar bezogen, kann grundsätzlich die ausländische Quellensteuer angerechnet werden."/>
+    <signName lang="en" name="The distribution in the form of shares is not subject to withholding tax; there is no entitlement to the flat-rate tax credit. If, however, the distribution is paid in cash, the lump-sum tax credit can generally be claimed."/>
+    <signName lang="fr" name="Le paiement sous forme d'actions n'est pas soumis à l'impôt à la source; il n'y a, par conséquent, aucun droit à l'imputation d'impôts étrangers prélevés à la source. Si le paiement s'effectue en espèces, les impôts étrangers prélevés à la source peuvent en principe être imputés."/>
+    <signName lang="it" name="La distribuzione sotto forma di azioni non è assoggettata all'imposta alla fonte; non sussiste alcun diritto al computo di imposte alla fonte estere. Tuttavia, se la distribuzione è versata in contanti, di principio l'imposta alla fonte estera può essere computata."/>
+  </sign>
+  <sign id="23" deleted="true" sign="(W)">
+    <signName lang="de" name="Spanien: entspricht 100/75 der netto spanische Steuer ausbezahlten Dividende."/>
+    <signName lang="en" name="Spain: corresponds to 100/75 of net Spanish tax paid dividend."/>
+    <signName lang="fr" name="Espagne: correspond à 100/75 du dividende net d'impôt espagnol."/>
+    <signName lang="it" name="Spagna: corrisponde al 100/75 del dividendo versato al netto dell'imposta spagnola."/>
+  </sign>
+  <sign id="24" deleted="true" sign="(X)">
+    <signName lang="de" name="USA: für Dividenden zahlbar ab 1.2.1998, Anspruch auf Anrechnung ausländischer Quellensteuern. Zu versteuernder Ertrag = Bruttodividende (netto 70% + zusätzlicher Steuerrückbehalt 15% + nicht rückforderbare US-Steuer 15%)"/>
+    <signName lang="en" name="USA: for dividends payable from 1.2.1998 on, claims to flat-rate tax credits. Taxable earnings = gross dividend (net 70% + additional tax retention 15% + non-callable US tax 15%)"/>
+    <signName lang="fr" name="USA: les dividendes payables à partir du 1.2.1998 donnent droit à l'imputation d'impôts étrangers prélevés à la source. Revenu imposable = dividende brut (net 70% + retenue supplémentaire d'impôt 15% + impôt américain non récupérable 15%)"/>
+    <signName lang="it" name="USA: per i dividendi pagabili dopo l'1.2.1998 sussiste il diritto al computo delle imposte alla fonte estere. Reddito imponibile = dividendo lordo (70% netto + trattenuta supplemenare d'imposta 15% + imposta statunitense non recuperabile 15%)."/>
+  </sign>
+  <sign id="25" sign="(Y)">
+    <signName lang="de" name="Rückkauf eigener Aktien: die Differenz zwischen Rückkaufspreis der Aktien und deren Nominalwert unterliegt der Verrechnungssteuer; diese Differenz stellt ein steuerbares Einkommen dar."/>
+    <signName lang="en" name="Repurchase of own shares: the difference between the repurchase price of the shares and their nominal value is subject to withholding tax; this difference represents a taxable income."/>
+    <signName lang="fr" name="Rachat de propres actions: la différence entre le prix de rachat des actions et leur valeur nominale est soumise à l'impôt anticipé; cette différence constitue un rendement imposable."/>
+    <signName lang="it" name="Riacquisto di azioni proprie: la differenza tra il prezzo di riacquisto delle azioni e il loro valore nominale è assoggettata all'imposta preventiva; tale differenza costituisce un reddito imponibile."/>
+  </sign>
+  <sign id="26" sign="(Z)">
+    <signName lang="de" name="Quellensteuerfrei"/>
+    <signName lang="en" name="Withholding tax free"/>
+    <signName lang="fr" name="Non soumis à l'impôt à la source"/>
+    <signName lang="it" name="Esente dall'imposta alla fonte"/>
+  </sign>
+  <da1Rate id="234" country="AE" securityGroup="BOND" validFrom="2012-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="233" country="AE" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="4" country="AL" securityGroup="BOND" validFrom="2016-01-01" validTo="9999-12-31" value="15" release="10" nonRecoverable="5"/>
+  <da1Rate id="3" country="AL" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="8" release="0" nonRecoverable="8"/>
+  <da1Rate id="10" country="AM" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="9" country="AM" securityGroup="SHARE" validFrom="2018-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="8" country="AR" securityGroup="BOND" validFrom="2015-01-01" validTo="9999-12-31" value="35" release="23" nonRecoverable="12"/>
+  <da1Rate id="7" country="AR" securityGroup="SHARE" validFrom="2018-01-01" validTo="9999-12-31" value="7" release="0" nonRecoverable="7"/>
+  <da1Rate id="107" country="AT" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="106" country="AT" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
+  <da1Rate id="14" country="AU" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="13" country="AU" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="30" release="15" nonRecoverable="15"/>
+  <da1Rate id="12" country="AZ" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="11" country="AZ" securityGroup="SHARE" validFrom="2018-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="16" country="BD" securityGroup="BOND" validFrom="2010-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
+  <da1Rate id="15" country="BD" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="30" release="15" nonRecoverable="15"/>
+  <da1Rate id="20" country="BE" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="30" release="20" nonRecoverable="10"/>
+  <da1Rate id="19" country="BE" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="30" release="15" nonRecoverable="15"/>
+  <da1Rate id="22" country="BG" securityGroup="BOND" validFrom="2014-01-01" validTo="9999-12-31" value="10" release="5" nonRecoverable="5"/>
+  <da1Rate id="21" country="BG" securityGroup="SHARE" validFrom="2021-01-01" validTo="9999-12-31" value="5" release="0" nonRecoverable="5"/>
+  <da1Rate id="293" country="BR" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="294" country="BR" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="254" country="BS" securityGroup="BOND" validFrom="2015-01-01" validTo="9999-12-31" value="10" release="2" nonRecoverable="8"/>
+  <da1Rate id="255" country="BS" securityGroup="SHARE" validFrom="2016-01-01" validTo="9999-12-31" value="15" release="2" nonRecoverable="13"/>
+  <da1Rate id="18" country="BY" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="13" release="5" nonRecoverable="8"/>
+  <da1Rate id="17" country="BY" securityGroup="SHARE" validFrom="2015-01-01" validTo="9999-12-31" value="13" release="0" nonRecoverable="13"/>
+  <da1Rate id="65" country="CA" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="25" release="15" nonRecoverable="10"/>
+  <da1Rate id="64" country="CA" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
+  <da1Rate id="33" country="CI" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="18" release="3" nonRecoverable="15"/>
+  <da1Rate id="32" country="CI" securityGroup="SHARE" validFrom="2013-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="161" country="CL" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="35" release="25" nonRecoverable="10"/>
+  <da1Rate id="24" country="CN" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
+  <da1Rate id="23" country="CN" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
+  <da1Rate id="73" country="CO" securityGroup="BOND" validFrom="2024-01-01" validTo="9999-12-31" value="20" release="20" nonRecoverable="0"/>
+  <da1Rate id="72" country="CO" securityGroup="SHARE" validFrom="2024-01-01" validTo="9999-12-31" value="20" release="5" nonRecoverable="15"/>
+  <da1Rate id="145" country="CZ" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="15" nonRecoverable="0"/>
+  <da1Rate id="144" country="CZ" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="29" country="DE" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="28" country="DE" securityGroup="SHARE" securityType="SHARE.BONUS" validFrom="2009-01-01" validTo="9999-12-31" value="26.375" release="0" nonRecoverable="26.375"/>
+  <da1Rate id="27" country="DE" securityGroup="SHARE" validFrom="2010-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
+  <da1Rate id="26" country="DK" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="22" release="22" nonRecoverable="0"/>
+  <da1Rate id="25" country="DK" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="27" release="12" nonRecoverable="15"/>
+  <da1Rate id="6" country="DZ" securityGroup="BOND" validFrom="2010-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="5" country="DZ" securityGroup="SHARE" validFrom="2010-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="31" country="EC" securityGroup="BOND" validFrom="2013-01-01" validTo="9999-12-31" value="25" release="15" nonRecoverable="10"/>
+  <da1Rate id="30" country="EC" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="35" country="EE" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="34" country="EE" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="2" country="EG" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="5" nonRecoverable="15"/>
+  <da1Rate id="1" country="EG" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="10" release="10" nonRecoverable="0"/>
+  <da1Rate id="133" country="ES" securityGroup="BOND" validFrom="2016-01-01" validTo="9999-12-31" value="19" release="19" nonRecoverable="0"/>
+  <da1Rate id="132" country="ES" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="19" release="4" nonRecoverable="15"/>
+  <da1Rate id="297" country="ET" securityGroup="BOND" validFrom="2024-01-01" validTo="9999-12-31" value="10" release="5" nonRecoverable="5"/>
+  <da1Rate id="298" country="ET" securityGroup="SHARE" validFrom="2024-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="37" country="FI" securityGroup="BOND" validFrom="2012-01-01" validTo="9999-12-31" value="30" release="30" nonRecoverable="0"/>
+  <da1Rate id="36" country="FI" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="30" release="20" nonRecoverable="10"/>
+  <da1Rate id="39" country="FR" securityGroup="BOND" validFrom="2018-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="38" country="FR" securityGroup="SHARE" validFrom="2018-01-01" validTo="9999-12-31" value="12.8" release="0" nonRecoverable="12.8"/>
+  <da1Rate id="45" country="GB" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="20" nonRecoverable="0"/>
+  <da1Rate id="44" country="GB" securityGroup="SHARE" validFrom="2009-04-06" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="284" country="GE" securityGroup="BOND" validFrom="2021-01-01" validTo="9999-12-31" value="5" release="5" nonRecoverable="0"/>
+  <da1Rate id="285" country="GE" securityGroup="SHARE" validFrom="2021-01-01" validTo="9999-12-31" value="5" release="5" nonRecoverable="0"/>
+  <da1Rate id="41" country="GH" securityGroup="BOND" validFrom="2010-01-01" validTo="9999-12-31" value="8" release="0" nonRecoverable="8"/>
+  <da1Rate id="40" country="GH" securityGroup="SHARE" validFrom="2010-01-01" validTo="9999-12-31" value="8" release="0" nonRecoverable="8"/>
+  <da1Rate id="43" country="GR" securityGroup="BOND" validFrom="2021-01-01" validTo="9999-12-31" value="15" release="8" nonRecoverable="7"/>
+  <da1Rate id="42" country="GR" securityGroup="SHARE" validFrom="2021-01-01" validTo="9999-12-31" value="5" release="0" nonRecoverable="5"/>
+  <da1Rate id="295" country="HK" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="296" country="HK" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="74" country="HR" securityGroup="SHARE" validFrom="2024-01-01" validTo="9999-12-31" value="12" release="0" nonRecoverable="12"/>
+  <da1Rate id="151" country="HU" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="15" nonRecoverable="0"/>
+  <da1Rate id="150" country="HU" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="49" country="ID" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
+  <da1Rate id="48" country="ID" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="5" nonRecoverable="15"/>
+  <da1Rate id="53" country="IE" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="20" nonRecoverable="0"/>
+  <da1Rate id="52" country="IE" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
+  <da1Rate id="57" country="IL" securityGroup="BOND" validFrom="2004-01-01" validTo="9999-12-31" value="26.5" release="16.5" nonRecoverable="10"/>
+  <da1Rate id="56" country="IL" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
+  <da1Rate id="47" country="IN" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
+  <da1Rate id="46" country="IN" securityGroup="SHARE" validFrom="2023-01-01" validTo="9999-12-31" value="20" release="15" nonRecoverable="5"/>
+  <da1Rate id="51" country="IR" securityGroup="BOND" validFrom="2016-01-01" validTo="9999-12-31" value="3" release="0" nonRecoverable="3"/>
+  <da1Rate id="50" country="IR" securityGroup="SHARE" validFrom="2016-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="55" country="IS" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="12" release="12" nonRecoverable="0"/>
+  <da1Rate id="54" country="IS" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="22" release="7" nonRecoverable="15"/>
+  <da1Rate id="59" country="IT" securityGroup="BOND" validFrom="2014-01-01" validTo="9999-12-31" value="26" release="13.5" nonRecoverable="12.5"/>
+  <da1Rate id="58" country="IT" securityGroup="SHARE" validFrom="2014-01-01" validTo="9999-12-31" value="26" release="11" nonRecoverable="15"/>
+  <da1Rate id="61" country="JM" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="33.33" release="23.33" nonRecoverable="10"/>
+  <da1Rate id="60" country="JM" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="33.33" release="18.33" nonRecoverable="15"/>
+  <da1Rate id="63" country="JP" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
+  <da1Rate id="62" country="JP" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
+  <da1Rate id="71" country="KG" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="5" nonRecoverable="5"/>
+  <da1Rate id="70" country="KG" securityGroup="SHARE" validFrom="2021-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="139" country="KR" securityGroup="BOND" validFrom="2012-01-01" validTo="9999-12-31" value="22" release="12" nonRecoverable="10"/>
+  <da1Rate id="138" country="KR" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="22" release="7" nonRecoverable="15"/>
+  <da1Rate id="77" country="KW" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="76" country="KW" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="67" country="KZ" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
+  <da1Rate id="66" country="KZ" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="81" country="LI" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="80" country="LI" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="135" country="LK" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="5" release="0" nonRecoverable="5"/>
+  <da1Rate id="134" country="LK" securityGroup="SHARE" validFrom="2023-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="83" country="LT" securityGroup="BOND" validFrom="2010-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
+  <da1Rate id="82" country="LT" securityGroup="SHARE" validFrom="2011-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="85" country="LU" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="84" country="LU" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="79" country="LV" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
+  <da1Rate id="78" country="LV" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="20" release="5" nonRecoverable="15"/>
+  <da1Rate id="89" country="MA" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="88" country="MA" securityGroup="SHARE" validFrom="2016-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="95" country="MD" securityGroup="BOND" validFrom="2012-01-01" validTo="9999-12-31" value="12" release="2" nonRecoverable="10"/>
+  <da1Rate id="94" country="MD" securityGroup="SHARE" validFrom="2016-01-01" validTo="9999-12-31" value="6" release="0" nonRecoverable="6"/>
+  <da1Rate id="99" country="ME" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
+  <da1Rate id="98" country="ME" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="91" country="MK" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="90" country="MK" securityGroup="SHARE" validFrom="2015-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="97" country="MN" securityGroup="BOND" validFrom="2024-01-01" validTo="9999-12-31" value="5" release="5" nonRecoverable="0"/>
+  <da1Rate id="96" country="MN" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="5" nonRecoverable="15"/>
+  <da1Rate id="286" country="MT" securityGroup="BOND" validFrom="2021-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="287" country="MT" securityGroup="SHARE" validFrom="2021-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="93" country="MX" securityGroup="BOND" validFrom="2014-01-01" validTo="9999-12-31" value="35" release="25" nonRecoverable="10"/>
+  <da1Rate id="92" country="MX" securityGroup="SHARE" validFrom="2014-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="87" country="MY" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
+  <da1Rate id="103" country="NL" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="102" country="NL" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="105" country="NO" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="104" country="NO" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
+  <da1Rate id="101" country="NZ" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
+  <da1Rate id="100" country="NZ" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="30" release="15" nonRecoverable="15"/>
+  <da1Rate id="266" country="OM" securityGroup="BOND" validFrom="2018-01-01" validTo="9999-12-31" value="5" release="0" nonRecoverable="5"/>
+  <da1Rate id="267" country="OM" securityGroup="SHARE" validFrom="2018-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="248" country="PE" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="30" release="20" nonRecoverable="10"/>
+  <da1Rate id="249" country="PE" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="5" release="0" nonRecoverable="5"/>
+  <da1Rate id="111" country="PH" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="25" release="15" nonRecoverable="10"/>
+  <da1Rate id="110" country="PH" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
+  <da1Rate id="109" country="PK" securityGroup="BOND" validFrom="2010-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="108" country="PK" securityGroup="SHARE" validFrom="2018-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="113" country="PL" securityGroup="BOND" validFrom="2015-01-01" validTo="9999-12-31" value="20" release="15" nonRecoverable="5"/>
+  <da1Rate id="112" country="PL" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="19" release="4" nonRecoverable="15"/>
+  <da1Rate id="115" country="PT" securityGroup="BOND" validFrom="2012-01-01" validTo="9999-12-31" value="25" release="15" nonRecoverable="10"/>
+  <da1Rate id="114" country="PT" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
+  <da1Rate id="69" country="QA" securityGroup="BOND" validFrom="2016-01-01" validTo="9999-12-31" value="7" release="7" nonRecoverable="0"/>
+  <da1Rate id="68" country="QA" securityGroup="SHARE" validFrom="2016-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="117" country="RO" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="16" release="11" nonRecoverable="5"/>
+  <da1Rate id="116" country="RO" securityGroup="SHARE" validFrom="2024-01-01" validTo="9999-12-31" value="8" release="0" nonRecoverable="8"/>
+  <da1Rate id="125" country="RS" securityGroup="BOND" validFrom="2014-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
+  <da1Rate id="124" country="RS" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="119" country="RU" securityGroup="BOND" validFrom="2015-01-01" validTo="9999-12-31" value="30" release="30" nonRecoverable="0"/>
+  <da1Rate id="118" country="RU" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="121" country="SE" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="120" country="SE" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="30" release="15" nonRecoverable="15"/>
+  <da1Rate id="127" country="SG" securityGroup="BOND" validFrom="2016-01-01" validTo="9999-12-31" value="15" release="10" nonRecoverable="5"/>
+  <da1Rate id="126" country="SG" securityGroup="SHARE" validFrom="2016-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="131" country="SI" securityGroup="BOND" validFrom="2024-01-01" validTo="9999-12-31" value="25" release="20" nonRecoverable="5"/>
+  <da1Rate id="130" country="SI" securityGroup="SHARE" validFrom="2024-01-01" validTo="9999-12-31" value="25" release="12.5" nonRecoverable="12.5"/>
+  <da1Rate id="129" country="SK" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="19" release="14" nonRecoverable="5"/>
+  <da1Rate id="128" country="SK" securityGroup="SHARE" validFrom="2024-01-01" validTo="9999-12-31" value="7" release="0" nonRecoverable="7"/>
+  <da1Rate id="141" country="TH" securityGroup="BOND" validFrom="2019-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="140" country="TH" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="288" country="TJ" securityGroup="BOND" validFrom="2021-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
+  <da1Rate id="289" country="TJ" securityGroup="SHARE" validFrom="2021-01-01" validTo="9999-12-31" value="25" release="15" nonRecoverable="10"/>
+  <da1Rate id="277" country="TM" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
+  <da1Rate id="275" country="TM" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="147" country="TN" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
+  <da1Rate id="146" country="TN" securityGroup="SHARE" validFrom="2018-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="260" country="TR" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="261" country="TR" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="143" country="TT" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
+  <da1Rate id="142" country="TT" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="280" country="TW" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
+  <da1Rate id="278" country="TW" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="21" release="6" nonRecoverable="15"/>
+  <da1Rate id="149" country="UA" securityGroup="BOND" validFrom="2015-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
+  <da1Rate id="148" country="UA" securityGroup="SHARE" validFrom="2015-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
+  <da1Rate id="157" country="US" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="30" release="30" nonRecoverable="0"/>
+  <da1Rate id="156" country="US" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="30" release="15" nonRecoverable="15"/>
+  <da1Rate id="228" country="UY" securityGroup="BOND" validFrom="2012-01-01" validTo="9999-12-31" value="12" release="2" nonRecoverable="10"/>
+  <da1Rate id="227" country="UY" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="7" release="0" nonRecoverable="7"/>
+  <da1Rate id="153" country="UZ" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="5" nonRecoverable="5"/>
+  <da1Rate id="152" country="UZ" securityGroup="SHARE" validFrom="2021-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
+  <da1Rate id="155" country="VE" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="34" release="29" nonRecoverable="5"/>
+  <da1Rate id="154" country="VE" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="34" release="24" nonRecoverable="10"/>
+  <da1Rate id="159" country="VN" securityGroup="BOND" validFrom="2024-01-01" validTo="9999-12-31" value="5" release="0" nonRecoverable="5"/>
+  <da1Rate id="158" country="VN" securityGroup="SHARE" validFrom="2024-01-01" validTo="9999-12-31" value="5" release="0" nonRecoverable="5"/>
+  <da1Rate id="137" country="ZA" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="15" release="10" nonRecoverable="5"/>
+  <da1Rate id="136" country="ZA" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="20" release="5" nonRecoverable="15"/>
   <fund id="14957" valorNumber="1246192" isin="US9229087690" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityAppendix="ETF" validity="DEFINITIVE.CORRECTION" institutionId="48762" institutionName="Vanguard Total Stock Market ETF" country="US" currency="USD" nominalValue="0.001">
     <yearend id="18156675" quotationType="PIECE" taxValueCHF="262.6946875"/>
     <payment id="6389612" deleted="true" paymentDate="2024-03-27" currency="USD" paymentValue="0.9105" exchangeRate="0.90565" paymentValueCHF="0.82459" sign="(Q)" exDate="2024-03-22"/>
