@@ -9,8 +9,8 @@ from .kursliste_db_reader import KurslisteDBReader
 from ..model.kursliste import (
     Kursliste, Security,
     Share, Bond, Fund, Derivative, CoinBullion, CurrencyNote, LiborSwap, # Import concrete security types
-    ExchangeRate, ExchangeRateMonthly, ExchangeRateYearEnd,
-    SecurityGroupESTV, # For mapping
+    ExchangeRate, ExchangeRateMonthly, ExchangeRateYearEnd, Sign, Da1Rate, # Added Sign, Da1Rate
+    SecurityGroupESTV, SecurityTypeESTV, Da1RateType # For mapping and parameters
 )
 
 
@@ -146,6 +146,85 @@ class KurslisteAccessor:
                     results.extend(securities_from_xml)
             return results
         return [] # Should not be reached if data_source is correctly typed
+
+    @lru_cache(maxsize=None)
+    def get_sign_by_value(self, sign_value: str) -> Optional[Sign]:
+        """
+        Retrieves a Sign object by its sign_value for the accessor's tax_year.
+        Result is cached.
+        """
+        if isinstance(self.data_source, KurslisteDBReader):
+            return self.data_source.get_sign_by_value(sign_value, self.tax_year)
+        elif isinstance(self.data_source, list): # List[Kursliste]
+            for kl_instance in self.data_source:
+                if kl_instance.year == self.tax_year:
+                    if hasattr(kl_instance, 'signs') and kl_instance.signs:
+                        for sign_obj in kl_instance.signs:
+                            if sign_obj.sign == sign_value:
+                                return sign_obj
+            return None
+        return None
+
+    @lru_cache(maxsize=None)
+    def get_da1_rate(self, country: str, security_group: SecurityGroupESTV,
+                     security_type: Optional[SecurityTypeESTV] = None,
+                     da1_rate_type: Optional[Da1RateType] = None,
+                     reference_date: Optional[date] = None) -> Optional[Da1Rate]:
+        """
+        Retrieves a Da1Rate object based on criteria for the accessor's tax_year.
+        Result is cached.
+        """
+        if isinstance(self.data_source, KurslisteDBReader):
+            return self.data_source.get_da1_rate(
+                country=country,
+                security_group=security_group,
+                tax_year=self.tax_year,
+                security_type=security_type,
+                da1_rate_type=da1_rate_type,
+                reference_date=reference_date
+            )
+        elif isinstance(self.data_source, list): # List[Kursliste]
+            candidates: List[Da1Rate] = []
+            for kl_instance in self.data_source:
+                if kl_instance.year == self.tax_year:
+                    if hasattr(kl_instance, 'da1Rates') and kl_instance.da1Rates:
+                        for rate_obj in kl_instance.da1Rates:
+                            if rate_obj.country == country and rate_obj.securityGroup == security_group:
+                                candidates.append(rate_obj)
+
+            if not candidates:
+                return None
+
+            # Python-side filtering (similar to KurslisteDBReader's Python filtering part)
+            filtered_candidates = candidates
+            if security_type:
+                filtered_candidates = [
+                    r for r in filtered_candidates if r.securityType == security_type
+                ]
+
+            if da1_rate_type:
+                filtered_candidates = [
+                    r for r in filtered_candidates if r.da1RateType == da1_rate_type
+                ]
+
+            if reference_date:
+                final_candidates = []
+                for rate in filtered_candidates:
+                    is_valid = True
+                    if rate.validFrom and rate.validFrom > reference_date:
+                        is_valid = False
+                    if rate.validTo and rate.validTo < reference_date:
+                        is_valid = False
+                    if is_valid:
+                        final_candidates.append(rate)
+                filtered_candidates = final_candidates
+
+            if not filtered_candidates:
+                return None
+
+            # Return the first matching candidate. More sophisticated selection could be added.
+            return filtered_candidates[0]
+        return None
 
     @lru_cache(maxsize=None)
     def get_securities_by_isin(self, isin: str) -> List[Security]:
