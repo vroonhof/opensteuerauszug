@@ -25,6 +25,34 @@ def create_schema(conn):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_isin ON securities (isin);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tax_year ON securities (tax_year);")
 
+    # Signs Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS signs (
+            kl_id TEXT PRIMARY KEY,
+            sign_value TEXT,
+            tax_year INTEGER,
+            source_file TEXT,
+            sign_object_blob BLOB
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sign_value ON signs (sign_value);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_sign_tax_year ON signs (tax_year);")
+
+    # DA1 Rates Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS da1_rates (
+            kl_id TEXT PRIMARY KEY,
+            country TEXT,
+            security_group TEXT,
+            tax_year INTEGER,
+            source_file TEXT,
+            da1_rate_object_blob BLOB
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_da1_country ON da1_rates (country);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_da1_security_group ON da1_rates (security_group);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_da1_tax_year ON da1_rates (tax_year);")
+
     # Exchange Rates Daily Table - Changed rate from REAL to TEXT for Decimal precision
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS exchange_rates_daily (
@@ -206,6 +234,46 @@ def populate_data(conn, kursliste, tax_year, source_file_name):
             """, (currency_code, year, rate_value_str, rate_middle_str, denomination, tax_year, source_file_name))
     else:
         print("DEBUG: No year-end exchange rates to process")
+
+    # Populate signs
+    if hasattr(kursliste, 'signs') and kursliste.signs:
+        print(f"DEBUG: Processing {len(kursliste.signs)} signs...")
+        for sign_obj in kursliste.signs:
+            kl_id = str(getattr(sign_obj, 'id', None))
+            sign_value = getattr(sign_obj, 'sign', None) # This is the actual sign string like "KEST"
+
+            json_str = sign_obj.model_dump_json(by_alias=True)
+            blob_data = json_str.encode('utf-8')
+
+            print(f"DEBUG: Inserting sign: ID={kl_id}, SignValue={sign_value}")
+            cursor.execute("""
+                INSERT INTO signs (
+                    kl_id, sign_value, tax_year, source_file, sign_object_blob
+                ) VALUES (?, ?, ?, ?, ?)
+            """, (kl_id, sign_value, tax_year, source_file_name, blob_data))
+    else:
+        print("DEBUG: No signs to process")
+
+    # Populate da1_rates
+    if hasattr(kursliste, 'da1Rates') and kursliste.da1Rates:
+        print(f"DEBUG: Processing {len(kursliste.da1Rates)} DA1 rates...")
+        for da1_rate_obj in kursliste.da1Rates:
+            kl_id = str(getattr(da1_rate_obj, 'id', None))
+            country = getattr(da1_rate_obj, 'country', None)
+            security_group_enum = getattr(da1_rate_obj, 'securityGroup', None)
+            security_group = security_group_enum.value if security_group_enum else None
+
+            json_str = da1_rate_obj.model_dump_json(by_alias=True)
+            blob_data = json_str.encode('utf-8')
+
+            print(f"DEBUG: Inserting DA1 rate: ID={kl_id}, Country={country}, SecGroup={security_group}")
+            cursor.execute("""
+                INSERT INTO da1_rates (
+                    kl_id, country, security_group, tax_year, source_file, da1_rate_object_blob
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (kl_id, country, security_group, tax_year, source_file_name, blob_data))
+    else:
+        print("DEBUG: No DA1 rates to process")
             
     conn.commit()
 

@@ -744,8 +744,6 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         "legalForm",
         "sector", 
         "shortCut",
-        "sign",
-        "da1Rate",
         "mediumTermBond",
         "institution",
         "bond",

@@ -376,16 +376,16 @@ def main():
 
             # Definitions (Non-filtered - taken directly from source)
             # Ensure these attributes exist on kursliste_data before assigning
-            cantons=kursliste_data.cantons if kursliste_data.cantons else [],
-            capitalKeys=kursliste_data.capitalKeys if kursliste_data.capitalKeys else [],
-            securityGroups=kursliste_data.securityGroups if kursliste_data.securityGroups else [],
-            securityTypes=kursliste_data.securityTypes if kursliste_data.securityTypes else [],
-            legalForms=kursliste_data.legalForms if kursliste_data.legalForms else [],
-            sectors=kursliste_data.sectors if kursliste_data.sectors else [],
-            shortCuts=kursliste_data.shortCuts if kursliste_data.shortCuts else [],
-            signs=kursliste_data.signs if kursliste_data.signs else [],
-            da1Rates=kursliste_data.da1Rates if kursliste_data.da1Rates else [],
-            mediumTermBonds=kursliste_data.mediumTermBonds if kursliste_data.mediumTermBonds else [],
+            cantons=kursliste_data.cantons if hasattr(kursliste_data, 'cantons') and kursliste_data.cantons else [],
+            capitalKeys=kursliste_data.capitalKeys if hasattr(kursliste_data, 'capitalKeys') and kursliste_data.capitalKeys else [],
+            securityGroups=kursliste_data.securityGroups if hasattr(kursliste_data, 'securityGroups') and kursliste_data.securityGroups else [],
+            securityTypes=kursliste_data.securityTypes if hasattr(kursliste_data, 'securityTypes') and kursliste_data.securityTypes else [],
+            legalForms=kursliste_data.legalForms if hasattr(kursliste_data, 'legalForms') and kursliste_data.legalForms else [],
+            sectors=kursliste_data.sectors if hasattr(kursliste_data, 'sectors') and kursliste_data.sectors else [],
+            shortCuts=kursliste_data.shortCuts if hasattr(kursliste_data, 'shortCuts') and kursliste_data.shortCuts else [],
+            signs=kursliste_data.signs if hasattr(kursliste_data, 'signs') and kursliste_data.signs else [], # Keep signs
+            da1Rates=kursliste_data.da1Rates if hasattr(kursliste_data, 'da1Rates') and kursliste_data.da1Rates else [], # Keep da1Rates
+            mediumTermBonds=kursliste_data.mediumTermBonds if hasattr(kursliste_data, 'mediumTermBonds') and kursliste_data.mediumTermBonds else [],
             
             # Definitions (Filtered)
             countries=filtered_countries,
