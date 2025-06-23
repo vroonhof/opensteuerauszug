@@ -5,7 +5,7 @@ from ..core.exchange_rate_provider import ExchangeRateProvider
 from ..core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from ..core.kursliste_manager import KurslisteManager
 from ..model.ech0196 import Security, SecurityTaxValue, SecurityPayment
-from ..model.kursliste import PaymentTypeESTV
+from ..model.kursliste import PaymentTypeESTV, SecurityGroupESTV
 from ..core.position_reconciler import PositionReconciler
 from ..core.constants import WITHHOLDING_TAX_RATE
 from .base import CalculationMode
@@ -121,6 +121,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
         reconciler = PositionReconciler(stock, identifier=f"{security.isin or 'SEC'}-payments")
 
+        accessor = self.kursliste_manager.get_kurslisten_for_year(security.taxValue.referenceDate.year)
+
         for pay in payments:
             if not pay.paymentDate:
                 continue
@@ -230,6 +232,32 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 sec_payment.grossRevenueA = Decimal("0")
                 sec_payment.grossRevenueB = chf_amount
                 sec_payment.withHoldingTaxClaim = Decimal("0")
+
+            da1_security_group = kl_sec.securityGroup
+            da1_security_type = kl_sec.securityType
+            if pay.sign == "(Q)":
+                da1_security_group = SecurityGroupESTV.SHARE
+                da1_security_type = None
+
+            da1_rate = accessor.get_da1_rate(
+                kl_sec.country, da1_security_group, da1_security_type, reference_date=pay.paymentDate
+            )
+
+            if da1_rate:
+                sec_payment.lumpSumTaxCredit = True
+                sec_payment.lumpSumTaxCreditPercent = da1_rate.value
+                sec_payment.lumpSumTaxCreditAmount = (
+                    chf_amount * da1_rate.value / Decimal(100)
+                )
+                sec_payment.nonRecoverableTaxPercent = da1_rate.nonRecoverable
+                sec_payment.nonRecoverableTaxAmount = (
+                    chf_amount * da1_rate.nonRecoverable / Decimal(100)
+                )
+
+            if pay.sign == "(V)":
+                raise NotImplementedError(
+                    f"DA-1 for sign='(V)' not implemented for {security.isin or security.securityName} on {pay.paymentDate}"
+                )
 
             result.append(sec_payment)
 

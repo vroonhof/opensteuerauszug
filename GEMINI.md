@@ -1,0 +1,1 @@
+Never change the ech196 and kursliste models as they define the standards.

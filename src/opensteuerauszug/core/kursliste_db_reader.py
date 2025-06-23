@@ -312,22 +312,6 @@ class KurslisteDBReader:
         params = [country, security_group.value, tax_year]
         conditions = ["country = ?", "security_group = ?", "tax_year = ?"]
 
-        if security_type:
-            conditions.append("security_type = ?") # In DB, this will be from da1_rate_object_blob
-            # This query part is tricky if security_type is inside the blob.
-            # For now, we'll assume the DB schema for da1_rates might need security_type for direct query
-            # or we filter post-deserialization if it's only in the blob.
-            # Plan step 3 schema was: kl_id, country, security_group, tax_year, source_file, da1_rate_object_blob
-            # So, security_type is inside the blob. We will have to fetch candidates and then filter.
-            # This means we can't directly use security_type and da1_rate_type in the SQL WHERE clause effectively
-            # unless those fields are also top-level columns in the da1_rates table.
-            # Given the current schema, we fetch based on country, sec_group, tax_year and then filter in Python.
-            pass # Will filter in Python after fetching
-
-        if da1_rate_type:
-            # Similar to security_type, this is inside the blob.
-            pass # Will filter in Python
-
         # For now, let's fetch all DA1 rates for the main criteria and filter by date/type in Python
         query = f"""
             SELECT da1_rate_object_blob
