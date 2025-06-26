@@ -301,7 +301,7 @@ class KurslisteDBReader:
     def get_da1_rate(self, country: str, security_group: SecurityGroupESTV, tax_year: int,
                      security_type: Optional[SecurityTypeESTV] = None,
                      da1_rate_type: Optional[Da1RateType] = None,
-                     reference_date: Optional[date] = None) -> Optional[Da1Rate]:
+                     reference_date: Optional[date] = None) -> Optional[List[Da1Rate]]:
         """
         Retrieves a Da1Rate object based on criteria.
         Deserializes the Da1Rate object from BLOB.
@@ -358,9 +358,7 @@ class KurslisteDBReader:
         if not filtered_candidates:
             return None
 
-        # If multiple candidates remain, return the first one.
-        # More sophisticated logic might be needed here (e.g. sort by validity or priority).
-        return filtered_candidates[0]
+        return filtered_candidates
 
 
 if __name__ == '__main__':
