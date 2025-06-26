@@ -14,6 +14,8 @@ from opensteuerauszug.core.kursliste_manager import KurslisteManager
 from .kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from .constants import WITHHOLDING_TAX_RATE
 
+from .flag_override_provider import FlagOverrideProvider
+
 __all__ = [
     'KurslisteExchangeRateProvider',
     'compute_org_nr',
@@ -22,4 +24,5 @@ __all__ = [
     'SecurityType',
     'KurslisteManager',
     'WITHHOLDING_TAX_RATE',
+    'FlagOverrideProvider',
 ]

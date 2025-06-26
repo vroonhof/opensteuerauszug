@@ -4,6 +4,7 @@ from typing import Optional, List
 from ..core.exchange_rate_provider import ExchangeRateProvider
 from ..core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from ..core.kursliste_manager import KurslisteManager
+from ..core.flag_override_provider import FlagOverrideProvider
 from ..model.ech0196 import Security, SecurityTaxValue, SecurityPayment
 from ..model.kursliste import PaymentTypeESTV, SecurityGroupESTV
 from ..core.position_reconciler import PositionReconciler
@@ -19,7 +20,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
     tax values for securities.
     """
 
-    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, keep_existing_payments: bool = False):
+    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, flag_override_provider: Optional[FlagOverrideProvider] = None, keep_existing_payments: bool = False):
         super().__init__(mode, exchange_rate_provider, keep_existing_payments=keep_existing_payments)
         print(
             f"KurslisteTaxValueCalculator initialized with mode: {mode.value} "
@@ -28,6 +29,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         self.kursliste_manager: Optional[KurslisteManager] = None
         if isinstance(exchange_rate_provider, KurslisteExchangeRateProvider):
             self.kursliste_manager = exchange_rate_provider.kursliste_manager
+        self.flag_override_provider = flag_override_provider
         self._current_kursliste_security = None
         self._missing_kursliste_entries = []
 
@@ -215,8 +217,20 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             # Not all payment subtypes have these fields
             # TODO: Should the typing be smarter?
-            if hasattr(pay, "sign") and pay.sign is not None:
-                sec_payment.sign = pay.sign
+            effective_sign = pay.sign if hasattr(pay, "sign") and pay.sign is not None else None
+            print(f"DEBUG: ISIN: {security.isin}, Original Sign: {pay.sign if hasattr(pay, 'sign') else 'N/A'}")
+            if self.flag_override_provider and security.isin:
+                override_flag = self.flag_override_provider.get_flag(security.isin)
+                if override_flag:
+                    print(f"DEBUG: Found override flag '{override_flag}' for {security.isin}")
+                    if not (override_flag.startswith('(') and override_flag.endswith(')')):
+                        effective_sign = f"({override_flag})"
+                    else:
+                        effective_sign = override_flag
+            
+            print(f"DEBUG: Effective sign for {security.isin} is {effective_sign}")
+            sec_payment.sign = effective_sign
+
             if hasattr(pay, "gratis") and pay.gratis is not None:
                 sec_payment.gratis = pay.gratis
 
@@ -235,15 +249,18 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             da1_security_group = kl_sec.securityGroup
             da1_security_type = kl_sec.securityType
-            if pay.sign == "(Q)":
+            if effective_sign == "(Q)":
                 da1_security_group = SecurityGroupESTV.SHARE
                 da1_security_type = None
 
+            print(f"DEBUG: Calling get_da1_rate with: country={kl_sec.country}, group={da1_security_group}, type={da1_security_type}, date={pay.paymentDate}")
             da1_rate = accessor.get_da1_rate(
                 kl_sec.country, da1_security_group, da1_security_type, reference_date=pay.paymentDate
             )
+            print(f"DEBUG: get_da1_rate returned: {da1_rate}")
 
             if da1_rate:
+                print(f"DEBUG: Applying DA-1 rate for {security.isin}")
                 sec_payment.lumpSumTaxCredit = True
                 sec_payment.lumpSumTaxCreditPercent = da1_rate.value
                 sec_payment.lumpSumTaxCreditAmount = (
@@ -254,7 +271,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     chf_amount * da1_rate.nonRecoverable / Decimal(100)
                 )
 
-            if pay.sign == "(V)":
+            if effective_sign == "(V)":
                 raise NotImplementedError(
                     f"DA-1 for sign='(V)' not implemented for {security.isin or security.securityName} on {pay.paymentDate}"
                 )

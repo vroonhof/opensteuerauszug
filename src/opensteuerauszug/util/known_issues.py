@@ -23,11 +23,7 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
     if not institution or not getattr(institution, "name", None):
         return False
 
-    # These are not implemented yet.
-    UNIMPLEMENTED_FIELDS = ['TaxCredit', 'nonRecoverable']
-    # TODO implement tax witholding.
-    if error.expected is None and any(f in error.field_path for f in UNIMPLEMENTED_FIELDS):
-        return True
+    
     
     # All the example we have do not set the kurliste field
     if error.field_path.endswith(".kursliste") and error.actual is None:
