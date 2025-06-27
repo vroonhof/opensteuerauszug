@@ -627,10 +627,8 @@ def create_dual_info_boxes(styles, usable_width):
     with open(templates_path / 'tax_payer.en.md', 'r', encoding='utf-8') as f:
         right_markdown = f.read()
 
-    left_flowables = markdown_to_platypus(left_markdown, section='short-version')
-    text_content = " ".join([f.text for f in left_flowables if hasattr(f, 'text')])
-    logger.debug("left_flow = %s", text_content)
-    right_flowables = markdown_to_platypus(right_markdown, section='short-version')
+    left_flowables = markdown_to_platypus(left_markdown, styles=styles, section='short-version')
+    right_flowables = markdown_to_platypus(right_markdown, styles=styles, section='short-version')
 
     table = Table(
         [[left_flowables, right_flowables]],
@@ -650,7 +648,7 @@ def create_dual_info_boxes(styles, usable_width):
     return table
 
 
-def create_single_info_page(markdown_text, section=None):
+def create_single_info_page(markdown_text, styles, section=None):
     """Create simple text content for a dedicated information page."""
     return markdown_to_platypus(markdown_text, section=section)
 
@@ -1339,6 +1337,8 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     # --- Define styles centrally (same as before) ---
     styles = get_custom_styles()
 
+
+    
     story = []
 
     # --- Sections ---
@@ -1442,9 +1442,9 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
         tax_payer_markdown = f.read()
 
     story.append(PageBreak())
-    story.extend(create_single_info_page(tax_office_markdown, section='long-version'))
+    story.extend(create_single_info_page(tax_office_markdown, styles, section='long-version'))
     story.append(PageBreak())
-    story.extend(create_single_info_page(tax_payer_markdown, section='long-version'))
+    story.extend(create_single_info_page(tax_payer_markdown, styles, section='long-version'))
 
     # Add the barcode page
     make_barcode_pages(doc, story, tax_statement, title_style)

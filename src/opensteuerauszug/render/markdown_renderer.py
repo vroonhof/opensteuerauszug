@@ -81,10 +81,10 @@ class SectionExtractorTreeprocessor(Treeprocessor):
 
 
 class PlatypusTreeprocessor(Treeprocessor):
-    def __init__(self, md):
+    def __init__(self, md, styles=None):
         super().__init__(md)
         self.flowables = []
-        self.styles = getSampleStyleSheet()
+        self.styles = styles if styles is not None else getSampleStyleSheet()
 
     def run(self, root: Element):
         self.flowables = []
@@ -108,14 +108,14 @@ class PlatypusTreeprocessor(Treeprocessor):
             elif element.tag == 'p':
                 text = _etree_to_string(element)
                 if text:
-                    self.flowables.append(Paragraph(text, self.styles['BodyText']))
-                    self.flowables.append(Spacer(1, 0.2 * cm))
+                    self.flowables.append(Paragraph(text, self.styles['Normal']))
+                    # self.flowables.append(Spacer(1, 0.2 * cm))
 
             elif element.tag in ['ul', 'ol']:
                 items = []
                 for li in element:
                     text = _etree_to_string(li)
-                    items.append(ListItem(Paragraph(text, self.styles['BodyText'])))
+                    items.append(ListItem(Paragraph(text, self.styles['Normal'])))
                 
                 list_flowable = ListFlowable(
                     items,
@@ -131,18 +131,21 @@ class PlatypusTreeprocessor(Treeprocessor):
 class PlatypusExtension(Extension):
     def __init__(self, *args, **kwargs):
         self.section = kwargs.pop('section', None)
+        self.styles = kwargs.pop('styles', None)
         super().__init__(*args, **kwargs)
 
     def extendMarkdown(self, md):
         md.treeprocessors.register(SectionExtractorTreeprocessor(md, self.section), 'section_extractor', 6)
-        md.treeprocessors.register(PlatypusTreeprocessor(md), 'platypus', 5)
+        md.treeprocessors.register(PlatypusTreeprocessor(md, self.styles), 'platypus', 5)
 
 
-def markdown_to_platypus(markdown_text: str, section: str = None):
+def markdown_to_platypus(markdown_text: str, section: str = None, styles=None):
     """
     Converts a Markdown string to a list of ReportLab Platypus Flowables.
     """
-    platypus_ext = PlatypusExtension(section=section)
+    if styles is None:
+        styles = getSampleStyleSheet()
+    platypus_ext = PlatypusExtension(section=section, styles=styles)
     md = Markdown(extensions=['attr_list', platypus_ext], output_format="html")
     md.convert(markdown_text)
     

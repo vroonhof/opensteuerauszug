@@ -1,4 +1,4 @@
-# Hinweis für die Steuerbehörde
+## Hinweis für die Steuerbehörde
 
 Dieser text wird nicht aufgenommen
 
@@ -12,9 +12,12 @@ Sämtliche Steuerberechnungen basiert auf die Kurstliste dienen nur Informations
 Für mehr Information sehe die Seite "Hinweis für die Steuerbehörde"
 
 {: .long-version }
-## Long Section
 
-Content of the long section.
+Dieser Steuerauszug würde von den Steuerpflichting mit hilfe von Opensteuerauszug aus elektronichen Bankdaten erstellt.
+Sie dient der Vereinfachung vollständiger Dateneigenhabe und die Vermeidung von Typfehler.
 
-{: .long-version}
-#### a long section
+Sämtliche Steuerberechnungen basiert auf die Kurstliste dienen nur Informationszwecke.
+
+Für mehr Information sehe die Seite "Hinweis für die Steuerbehörde"
+
+
