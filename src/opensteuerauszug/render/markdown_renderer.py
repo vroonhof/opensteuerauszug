@@ -40,34 +40,43 @@ class SectionExtractorTreeprocessor(Treeprocessor):
         if not self.section:
             return root
 
-        new_root = Element("div")
-        in_section = False
-        for element in root:
-            # The attr_list extension adds attributes to the element
-            css_class = element.get('class', '')
+        section_content = []
+        
+        # The marker is a paragraph with the literal text like "{: .short-version }".
+        start_marker = f"{{: .{self.section} }}"
+        
+        start_marker_index = -1
+        for i, element in enumerate(root):
+            if element.tag == 'p' and element.text and element.text.strip() == start_marker:
+                start_marker_index = i
+                break
+        
+        if start_marker_index != -1:
+            # Content starts from the element *after* the marker.
+            content_start_index = start_marker_index + 1
             
-            if self.section in css_class:
-                # This is the start of a section we want to extract
-                in_section = True
-                # We don't include the section marker itself, just the content after it
-                continue
+            # Find the end of the section, which is the next marker or end of doc.
+            end_marker_index = len(root)
+            for i in range(content_start_index, len(root)):
+                element = root[i]
+                if element.tag == 'p' and element.text and (
+                    element.text.strip() == "{: .short-version }" or
+                    element.text.strip() == "{: .long-version }"
+                ):
+                    end_marker_index = i
+                    break
+            section_content = root[content_start_index:end_marker_index]
 
-            if in_section:
-                # If we encounter another section marker, we stop
-                if 'short-version' in css_class or 'long-version' in css_class:
-                    in_section = False
-                    continue
-                new_root.append(element)
-        
-        # If we are still in a section at the end, it means the section
-        # continued to the end of the document
-        if in_section:
-             # To be safe, we clear the original root and append the children
-             # of our new_root
-            root.clear()
-            for child in new_root:
-                root.append(child)
-        
+        # Preserve title if it exists
+        title = []
+        if len(root) > 0 and root[0].tag.startswith('h'):
+            title.append(root[0])
+            
+        # Replace the original root with the new one
+        root.clear()
+        root.extend(title)
+        root.extend(section_content)
+            
         return root
 
 

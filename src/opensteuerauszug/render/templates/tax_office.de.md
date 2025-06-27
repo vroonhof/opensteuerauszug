@@ -1,6 +1,20 @@
 # Hinweis für die Steuerbehörde
-{.short-version}
-Dieser Steuerauszug wurde elektronisch erstellt und ist ohne Unterschrift gültig.
 
-{.long-version}
-Dieser Steuerauszug wurde elektronisch erstellt und ist ohne Unterschrift gültig. Er entspricht den Anforderungen der ESTV.
+Dieser text wird nicht aufgenommen
+
+{: .short-version }
+
+Dieser Steuerauszug würde von den Steuerpflichting mit hilfe von Opensteuerauszug aus elektronichen Bankdaten erstellt.
+Sie dient der Vereinfachung vollständiger Dateneigenhabe und die Vermeidung von Typfehler.
+
+Sämtliche Steuerberechnungen basiert auf die Kurstliste dienen nur Informationszwecke.
+
+Für mehr Information sehe die Seite "Hinweis für die Steuerbehörde"
+
+{: .long-version }
+## Long Section
+
+Content of the long section.
+
+{: .long-version}
+#### a long section

@@ -625,6 +625,8 @@ def create_dual_info_boxes(styles, usable_width):
         right_markdown = f.read()
 
     left_flowables = markdown_to_platypus(left_markdown, section='short-version')
+    text_content = " ".join([f.text for f in left_flowables if hasattr(f, 'text')])
+    print(f"DEBUG: left_flow = {text_content}")
     right_flowables = markdown_to_platypus(right_markdown, section='short-version')
 
     table = Table(
