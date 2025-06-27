@@ -37,6 +37,7 @@ from opensteuerauszug.core.security import determine_security_type, SecurityType
 # --- Import styles utility ---
 from opensteuerauszug.util.styles import get_custom_styles
 from opensteuerauszug.util import round_accounting
+from opensteuerauszug.render.markdown_renderer import markdown_to_platypus
 
 # --- Configuration ---
 DOC_INFO = "TODO: Place some compact info here"
@@ -615,20 +616,19 @@ def create_costs_table(data, styles, usable_width):
 # --- Info Box Helpers ---
 def create_dual_info_boxes(styles, usable_width):
     """Create two side-by-side information boxes for the first page."""
-    val_left = styles['Val_LEFT']
+    templates_path = Path(__file__).parent / 'templates'
+    
+    with open(templates_path / 'tax_office.de.md', 'r', encoding='utf-8') as f:
+        left_markdown = f.read()
+        
+    with open(templates_path / 'tax_payer.en.md', 'r', encoding='utf-8') as f:
+        right_markdown = f.read()
 
-    left_box = Paragraph(
-        '<b>Hinweis für die Steuerbehörde</b><br/><br/>...',
-        val_left,
-    )
-
-    right_box = Paragraph(
-        '<b>Important Info & Actions for the tax payer</b><br/><br/>...',
-        val_left,
-    )
+    left_flowables = markdown_to_platypus(left_markdown, section='short-version')
+    right_flowables = markdown_to_platypus(right_markdown, section='short-version')
 
     table = Table(
-        [[left_box, right_box]],
+        [[left_flowables, right_flowables]],
         colWidths=[usable_width / 2, usable_width / 2],
     )
     table.setStyle(
@@ -645,11 +645,10 @@ def create_dual_info_boxes(styles, usable_width):
     return table
 
 
-def create_single_info_page(title, styles):
+def create_single_info_page(markdown_text, section=None):
     """Create simple text content for a dedicated information page."""
-    val_left = styles['Val_LEFT']
+    return markdown_to_platypus(markdown_text, section=section)
 
-    return Paragraph(f'<b>{title}</b><br/><br/>...', val_left)
 
 
 # --- Barcode Generation ---
@@ -1431,10 +1430,16 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
         story.append(Spacer(1, 0.5*cm))
 
     # Info pages before the barcode
+    templates_path = Path(__file__).parent / 'templates'
+    with open(templates_path / 'tax_office.de.md', 'r', encoding='utf-8') as f:
+        tax_office_markdown = f.read()
+    with open(templates_path / 'tax_payer.en.md', 'r', encoding='utf-8') as f:
+        tax_payer_markdown = f.read()
+
     story.append(PageBreak())
-    story.append(create_single_info_page('Hinweis für die Steuerbehörde', styles))
+    story.extend(create_single_info_page(tax_office_markdown, section='long-version'))
     story.append(PageBreak())
-    story.append(create_single_info_page('Important Info & Actions for the tax payer', styles))
+    story.extend(create_single_info_page(tax_payer_markdown, section='long-version'))
 
     # Add the barcode page
     make_barcode_pages(doc, story, tax_statement, title_style)
