@@ -19,8 +19,7 @@ from opensteuerauszug.model.kursliste import (
     SecurityGroupESTV,
 )
 
-@pytest.mark.skip("Currupts the shared state of the kursliste_manager fixture")
-def test_da1_calculation_with_q_sign(kursliste_manager):
+def test_da1_calculation_with_q_sign(kursliste_manager, monkeypatch):
     """
     Test that a security with a (Q) sign payment is treated as a share for DA-1 calculation.
     """
@@ -48,18 +47,34 @@ def test_da1_calculation_with_q_sign(kursliste_manager):
         ]
     )
 
-    # Mock the DA-1 rate for US shares
+    # Provide a DA-1 rate via a patched accessor method instead of mutating the
+    # shared fixture state
     accessor = kursliste_manager.get_kurslisten_for_year(2024)
-    accessor.data_source[0].da1Rates = []
-    accessor.data_source[0].da1Rates.append(
-        Da1Rate(
-            id=1,
-            country="US",
-            securityGroup=SecurityGroupESTV.SHARE,
-            value=Decimal("15"),
-            release=Decimal("15"),
-            nonRecoverable=Decimal("0"),
-        )
+    da1_rate = Da1Rate(
+        id=1,
+        country="US",
+        securityGroup=SecurityGroupESTV.SHARE,
+        value=Decimal("15"),
+        release=Decimal("15"),
+        nonRecoverable=Decimal("0"),
+    )
+
+    def mock_get_da1_rate(
+        self,
+        country,
+        security_group,
+        security_type=None,
+        da1_rate_type=None,
+        reference_date=None,
+    ):
+        if country == "US" and security_group == SecurityGroupESTV.SHARE:
+            return da1_rate
+        return None
+
+    monkeypatch.setattr(
+        accessor,
+        "get_da1_rate",
+        mock_get_da1_rate.__get__(accessor, type(accessor)),
     )
 
     sec = Security(
@@ -99,8 +114,7 @@ def test_da1_calculation_with_q_sign(kursliste_manager):
     assert payment.nonRecoverableTaxPercent == Decimal("0")
     assert payment.nonRecoverableTaxAmount == Decimal("0")
 
-@pytest.mark.skip("Currupts the shared state of the kursliste_manager fixture")
-def test_da1_calculation_for_share(kursliste_manager):
+def test_da1_calculation_for_share(kursliste_manager, monkeypatch):
     """
     Test DA-1 calculation for a regular share.
     """
@@ -127,16 +141,31 @@ def test_da1_calculation_for_share(kursliste_manager):
     )
 
     accessor = kursliste_manager.get_kurslisten_for_year(2024)
-    accessor.data_source[0].da1Rates = []
-    accessor.data_source[0].da1Rates.append(
-        Da1Rate(
-            id=2,
-            country="DE",
-            securityGroup=SecurityGroupESTV.SHARE,
-            value=Decimal("26.375"),
-            release=Decimal("15"),
-            nonRecoverable=Decimal("11.375"),
-        )
+    da1_rate = Da1Rate(
+        id=2,
+        country="DE",
+        securityGroup=SecurityGroupESTV.SHARE,
+        value=Decimal("26.375"),
+        release=Decimal("15"),
+        nonRecoverable=Decimal("11.375"),
+    )
+
+    def mock_get_da1_rate(
+        self,
+        country,
+        security_group,
+        security_type=None,
+        da1_rate_type=None,
+        reference_date=None,
+    ):
+        if country == "DE" and security_group == SecurityGroupESTV.SHARE:
+            return da1_rate
+        return None
+
+    monkeypatch.setattr(
+        accessor,
+        "get_da1_rate",
+        mock_get_da1_rate.__get__(accessor, type(accessor)),
     )
 
     sec = Security(
