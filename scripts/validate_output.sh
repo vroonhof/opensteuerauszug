@@ -10,5 +10,7 @@ OUTPUT_DIR="$ROOT_DIR/private/output"
 
 
 for xml_file in "$OUTPUT_DIR/"*.xml; do
+  if [[ -f "$xml_file" ]]; then
     java -cp ./scripts/ XmlValidator "$xml_file" specs/eCH-0196-2-2.xsd
+  fi
 done
