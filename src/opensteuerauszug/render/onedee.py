@@ -8,10 +8,13 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 # Import Tuple for type hinting from the correct module
 from typing import Tuple
+import logging
 # Import standard colors
 from reportlab.lib import colors
 
 PRINT_SCALE_CORRECTION = 1/0.97 # Allow for printer scaling (97% reduction)
+
+logger = logging.getLogger(__name__)
     
 class OneDeeBarCode:
     """
@@ -48,14 +51,14 @@ class OneDeeBarCode:
         """
         # --- Input Validation ---
         if not isinstance(page_number, int) or page_number < 1:
-            print("Error: page_number must be a positive integer.")
+            logger.error("page_number must be a positive integer.")
             return None
         if not isinstance(org_nr, str) or not org_nr.isdigit() or len(org_nr) != 5:
-            print(f"Error: org_nr '{org_nr}' must be a 5-digit string.")
+            logger.error("org_nr '%s' must be a 5-digit string.", org_nr)
             return None
         if not isinstance(is_barcode_page, bool):
-             print("Error: is_barcode_page must be a boolean (True or False).")
-             return None
+            logger.error("is_barcode_page must be a boolean (True or False).")
+            return None
 
         # --- Assemble Barcode Data ---
         page_str = f"{page_number:03d}" # Format to 3 digits with leading zeros
@@ -71,8 +74,8 @@ class OneDeeBarCode:
         ) # Total 16 digits
 
         if len(barcode_data) != 16:
-             print(f"Error: Internal logic error, generated data length is not 16: {barcode_data}")
-             return None
+            logger.error("Internal logic error, generated data length is not 16: %s", barcode_data)
+            return None
 
         # --- Create ReportLab Barcode Widget ---
         try:
@@ -95,7 +98,7 @@ class OneDeeBarCode:
             return barcode_widget
 
         except Exception as e:
-            print(f"Error generating barcode widget for page {page_number}: {e}")
+            logger.error("Error generating barcode widget for page %s: %s", page_number, e)
             raise e
             return None
 
@@ -201,7 +204,7 @@ if __name__ == '__main__':
         # Create canvas
         c = canvas.Canvas(output_pdf_path, pagesize=page_layout)
 
-        print(f"Creating example PDF: {output_pdf_path}")
+        logger.info("Creating example PDF: %s", output_pdf_path)
 
         # --- Draw Rotated Barcode and Manual Text using the class method ---
         generator.draw_barcode_on_canvas(c, barcode_widget_1, page_layout)
@@ -217,7 +220,7 @@ if __name__ == '__main__':
         # Save the PDF page and file
         c.showPage()
         c.save()
-        print(f"Example PDF saved.")
+        logger.info("Example PDF saved.")
 
     else:
-        print("Failed to generate the barcode widget.")
+        logger.error("Failed to generate the barcode widget.")

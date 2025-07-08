@@ -16,6 +16,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from ..core.constants import WITHHOLDING_TAX_RATE
 from typing import Tuple, Optional, List
 from datetime import date
+import logging
 
 
 class MinimalTaxValueCalculator(BaseCalculator):
@@ -33,8 +34,11 @@ class MinimalTaxValueCalculator(BaseCalculator):
         self.keep_existing_payments = keep_existing_payments
         self._current_account_is_type_A = None
         self._current_security_is_type_A = None
-        print(
-            f"MinimalTaxValueCalculator initialized with mode: {mode.value} and provider: {type(exchange_rate_provider).__name__}"
+        self.logger = logging.getLogger(__name__)
+        self.logger.info(
+            "MinimalTaxValueCalculator initialized with mode: %s and provider: %s",
+            mode.value,
+            type(exchange_rate_provider).__name__,
         )
 
     def _convert_to_chf(self, amount: Optional[Decimal], currency: str, path_prefix_for_rate: str, reference_date: date) -> Tuple[Optional[Decimal], Decimal]:
@@ -67,7 +71,11 @@ class MinimalTaxValueCalculator(BaseCalculator):
         self._current_account_is_type_A = None  # Reset state at the beginning of a calculation run
         self._current_security_is_type_A = None  # Reset state
         super().calculate(tax_statement)
-        print(f"MinimalTaxValueCalculator: Finished processing. Errors: {len(self.errors)}, Modified fields: {len(self.modified_fields)}")
+        self.logger.info(
+            "MinimalTaxValueCalculator: Finished processing. Errors: %s, Modified fields: %s",
+            len(self.errors),
+            len(self.modified_fields),
+        )
         return tax_statement
 
     def _handle_BankAccount(self, bank_account: BankAccount, path_prefix: str) -> None:

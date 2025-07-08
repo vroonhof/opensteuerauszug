@@ -1,13 +1,29 @@
 """Pydantic models for eCH-0196 Tax Statement standard."""
 
 from pydantic import BaseModel, Field, validator, field_validator, StringConstraints, AfterValidator
-from pydantic.fields import FieldInfo # Import FieldInfo
-from pydantic import ConfigDict # Import ConfigDict for model_config
-from typing import ClassVar, List, Optional, Any, Dict, TypeVar, Type, Union, get_origin, get_args, Literal, Annotated # Import helpers & Literal, Annotated
+from pydantic.fields import FieldInfo  # Import FieldInfo
+from pydantic import ConfigDict  # Import ConfigDict for model_config
+from typing import (
+    ClassVar,
+    List,
+    Optional,
+    Any,
+    Dict,
+    TypeVar,
+    Type,
+    Union,
+    get_origin,
+    get_args,
+    Literal,
+    Annotated,
+)
 from datetime import date, datetime
 from decimal import Decimal
 import lxml.etree as ET
 from inspect import isclass  # Add import for isclass function
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Define namespaces used in the XSD
 NS_MAP = {
@@ -352,9 +368,17 @@ class BaseXmlModel(BaseModel):
                          parsed_value = base_type(value) if callable(base_type) else value
                     data[field_name] = parsed_value
                 except (ValueError, TypeError) as e:
-                    print(f"Warning: Could not parse attribute '{name}'='{value}' as {base_type}: {e}")
+                    logger.warning(
+                        "Could not parse attribute '%s'='%s' as %s: %s",
+                        name,
+                        value,
+                        base_type,
+                        e,
+                    )
                     if strict_mode:
-                        raise ValueError(f"Could not parse attribute '{name}'='{value}' as {base_type}: {e}")
+                        raise ValueError(
+                            f"Could not parse attribute '{name}'='{value}' as {base_type}: {e}"
+                        )
                     unknown_attrs[name] = value
             elif name not in known_attrs:
                 # Check for XML namespace declarations if needed (e.g., xmlns:prefix=\"...\")
@@ -479,7 +503,12 @@ class BaseXmlModel(BaseModel):
                                 data[field_name] = parsed_item
                                 continue  # Successfully parsed Optional[Class] field
                             except Exception as e:
-                                print(f"Warning: Failed to parse child element <{child.tag}> as {actual_type}: {e}")
+                                logger.warning(
+                                    "Failed to parse child element <%s> as %s: %s",
+                                    child.tag,
+                                    actual_type,
+                                    e,
+                                )
                                 if strict_mode:
                                     raise ValueError(f"Failed to parse child element <{child.tag}> as {actual_type}: {e}")
                                 unknown_elements.append(child)
@@ -495,7 +524,7 @@ class BaseXmlModel(BaseModel):
                             data[field_name] = child_text
                         else:
                             error_msg = f"Invalid value '{child_text}' for Literal field, expected one of: {literal_values}"
-                            print(f"Warning: {error_msg}")
+                            logger.warning(error_msg)
                             if strict_mode:
                                 raise ValueError(error_msg)
                             unknown_elements.append(child)
@@ -532,7 +561,13 @@ class BaseXmlModel(BaseModel):
                                 else:
                                     value = child.text.strip()
                             except (ValueError, TypeError) as e:
-                                print(f"Warning: Could not parse element <{child.tag}> content '{child.text}' as {item_type}: {e}")
+                                logger.warning(
+                                    "Could not parse element <%s> content '%s' as %s: %s",
+                                    child.tag,
+                                    child.text,
+                                    item_type,
+                                    e,
+                                )
                                 if strict_mode:
                                     raise ValueError(f"Could not parse element <{child.tag}> content '{child.text}' as {item_type}: {e}")  
                                 unknown_elements.append(child)
@@ -548,12 +583,21 @@ class BaseXmlModel(BaseModel):
                                 data[field_name] = []
                             data[field_name].append(parsed_item)
                         except Exception as e:
-                            print(f"Warning: Failed to parse child element <{child.tag}> as {item_type}: {e}")
+                            logger.warning(
+                                "Failed to parse child element <%s> as %s: %s",
+                                child.tag,
+                                item_type,
+                                e,
+                            )
                             if strict_mode:
                                 raise ValueError(f"Failed to parse child element <{child.tag}> as {item_type}: {e}")
                             unknown_elements.append(child)
                     else:
-                        print(f"Warning: Unsupported item type for list field: {item_type} for tag {child.tag}")
+                        logger.warning(
+                            "Unsupported item type for list field: %s for tag %s",
+                            item_type,
+                            child.tag,
+                        )
                         if strict_mode:
                             raise ValueError(f"Unsupported item type for list field: {item_type} for tag {child.tag}")
                         unknown_elements.append(child)
@@ -563,7 +607,12 @@ class BaseXmlModel(BaseModel):
                         parsed_item = field_type._from_xml_element(child, strict=strict_mode)
                         data[field_name] = parsed_item
                     except Exception as e:
-                        print(f"Warning: Failed to parse child element <{child.tag}> as {field_type}: {e}")
+                        logger.warning(
+                            "Failed to parse child element <%s> as %s: %s",
+                            child.tag,
+                            field_type,
+                            e,
+                        )
                         if strict_mode:
                             raise ValueError(f"Failed to parse child element <{child.tag}> as {field_type}: {e}")
                         unknown_elements.append(child)
@@ -590,13 +639,23 @@ class BaseXmlModel(BaseModel):
                                 value = child.text.strip()
                             data[field_name] = value
                         except (ValueError, TypeError) as e:
-                            print(f"Warning: Could not parse element <{child.tag}> content '{child.text}' as {field_type}: {e}")
+                            logger.warning(
+                                "Could not parse element <%s> content '%s' as %s: %s",
+                                child.tag,
+                                child.text,
+                                field_type,
+                                e,
+                            )
                             if strict_mode:
                                 raise ValueError(f"Could not parse element <{child.tag}> content '{child.text}' as {field_type}: {e}")
                             unknown_elements.append(child)
                 else:
                     # Unknown complex type - we might need more handling here
-                    print(f"Warning: Unsupported field type for element <{child.tag}>: {field_type}")
+                    logger.warning(
+                        "Unsupported field type for element <%s>: %s",
+                        child.tag,
+                        field_type,
+                    )
                     if strict_mode:
                         raise ValueError(f"Unsupported field type for element <{child.tag}>: {field_type}")
                     unknown_elements.append(child)
@@ -1238,7 +1297,7 @@ class TaxStatementBase(BaseXmlModel):
     def validate_model(self):
         """Placeholder for schema validation logic."""
         # TODO: Implement validation based on XSD rules (required fields, types, constraints)
-        print("Validation logic not yet implemented.")
+        logger.info("Validation logic not yet implemented.")
         # Example checks:
         # if self.id is None:
         #     raise ValueError("'id' attribute is required")
@@ -1317,7 +1376,7 @@ class TaxStatement(TaxStatementBase):
         xml_bytes = self.to_xml_bytes(pretty_print=pretty_print)
         with open(file_path, 'wb') as f:
             f.write(xml_bytes)
-        print(f"Model successfully written to {file_path}")
+        logger.info("Model successfully written to %s", file_path)
 
     def dump_debug_xml(self, file_path: str):
         """Dumps the current model state to XML, potentially incomplete/invalid."""
@@ -1325,9 +1384,9 @@ class TaxStatement(TaxStatementBase):
         # Future: could add options to relax validation or add comments
         try:
             self.to_xml_file(file_path, pretty_print=True)
-            print(f"Debug XML dumped to: {file_path}")
+            logger.info("Debug XML dumped to: %s", file_path)
         except Exception as e:
-            print(f"Error dumping debug XML to {file_path}: {e}")
+            logger.error("Error dumping debug XML to %s: %s", file_path, e)
 
 # --- Description Helper Functions ---
 class Descriptions:
