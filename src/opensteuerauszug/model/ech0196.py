@@ -410,6 +410,9 @@ class BaseXmlModel(BaseModel):
                     elif isinstance(value, bytes):
                         # TODO: Implement base64 encoding if needed for fileData
                         raise NotImplementedError("Base64 encoding is not implemented")
+                    elif isinstance(value, Decimal):
+                        # Format Decimal as a plain string to avoid scientific notation
+                        str_value = f'{value:f}'
                     else:
                         str_value = str(value)
                     element.set(attr_name, str_value)
