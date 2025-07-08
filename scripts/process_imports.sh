@@ -45,17 +45,19 @@ for input in "${IMPORT_INPUTS[@]}"; do
     # exists as file or directory
     if [[ -d "$input_leaf" ]]; then
         pdf_name="${input}.pdf"
+	xml_name="${input}.xml"
     else
         if [[ -f "$input_leaf" ]]; then
             filename=$(basename "$input_leaf")
             pdf_name="${filename%.xml}.pdf"
+	    xml_name="${filename%.xml}.xml"
             echo "Processing $filename..."
         else
             continue
         fi
     fi
     importer=$(echo "$input" | cut -d'/' -f1)
-    python -m opensteuerauszug.steuerauszug "$input_leaf" --importer "$importer" $PHASES -o "$OUTPUT_DIR/$pdf_name" --debug-dump $OUTPUT_DIR/debug_$importer ${EXTRA_ARGS:-}
+    python -m opensteuerauszug.steuerauszug "$input_leaf" --importer "$importer" $PHASES -o "$OUTPUT_DIR/$pdf_name"  --xml-output "$OUTPUT_DIR/$xml_name" --debug-dump $OUTPUT_DIR/debug_$importer ${EXTRA_ARGS:-}
   done
 done
 
