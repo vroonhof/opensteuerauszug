@@ -24,7 +24,9 @@ from opensteuerauszug.model.ech0196 import (
     BaseXmlModel,
     NS_MAP,
     ns_tag,
-    Security # Added Security import
+    Security, # Added Security import
+    SecurityPayment,
+    SecurityStock
 )
 
 # --- Test Data ---
@@ -509,3 +511,59 @@ def test_decimal_serialization_avoids_scientific_notation():
     assert serialized_value is not None, "totalTaxValue attribute should be serialized"
     assert "E" not in serialized_value.upper(), f"Scientific notation found in serialized decimal: {serialized_value}"
     assert serialized_value == "0.0000000001", f"Serialized decimal has incorrect format: {serialized_value}"
+
+def test_optional_boolean_serialization():
+    """
+    Tests that optional boolean attributes are serialized correctly.
+    - True should be serialized to "1".
+    - False should be omitted from the XML.
+    """
+    # Test with gratis=True
+    payment_true = SecurityPayment(
+        paymentDate="2023-01-01",
+        quotationType="PIECE",
+        quantity=1,
+        amountCurrency="CHF",
+        gratis=True
+    )
+    xml_element_true = payment_true._build_xml_element(parent_element=None)
+    assert xml_element_true.get("gratis") == "1"
+
+    # Test with gratis=False
+    payment_false = SecurityPayment(
+        paymentDate="2023-01-01",
+        quotationType="PIECE",
+        quantity=1,
+        amountCurrency="CHF",
+        gratis=False
+    )
+    xml_element_false = payment_false._build_xml_element(parent_element=None)
+    assert "gratis" not in xml_element_false.attrib
+
+def test_required_boolean_serialization():
+    """
+    Tests that required boolean attributes are serialized correctly.
+    - True should be serialized to "1".
+    - False should be serialized to "0".
+    """
+    # Test with mutation=True
+    stock_true = SecurityStock(
+        referenceDate="2023-01-01",
+        mutation=True,
+        quotationType="PIECE",
+        quantity=1,
+        balanceCurrency="CHF"
+    )
+    xml_element_true = stock_true._build_xml_element(parent_element=None)
+    assert xml_element_true.get("mutation") == "1"
+
+    # Test with mutation=False
+    stock_false = SecurityStock(
+        referenceDate="2023-01-01",
+        mutation=False,
+        quotationType="PIECE",
+        quantity=1,
+        balanceCurrency="CHF"
+    )
+    xml_element_false = stock_false._build_xml_element(parent_element=None)
+    assert xml_element_false.get("mutation") == "0"

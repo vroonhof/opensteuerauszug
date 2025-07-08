@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field, validator, field_validator, StringConstraints, AfterValidator
 from pydantic.fields import FieldInfo  # Import FieldInfo
 from pydantic import ConfigDict  # Import ConfigDict for model_config
+from pydantic_core import PydanticUndefined
 from typing import (
     ClassVar,
     List,
@@ -406,7 +407,10 @@ class BaseXmlModel(BaseModel):
                         if value:
                             str_value = "1"
                         else:
-                            str_value = "0"
+                            if field_info.default is PydanticUndefined:
+                                str_value = "0"
+                            else:
+                                continue
                     elif isinstance(value, bytes):
                         # TODO: Implement base64 encoding if needed for fileData
                         raise NotImplementedError("Base64 encoding is not implemented")
