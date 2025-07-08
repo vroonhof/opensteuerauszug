@@ -29,7 +29,7 @@
     </bankAccount>
   </listOfBankAccounts>
   <listOfLiabilities totalTaxValue="250000.00" totalGrossRevenueB="3000.00">
-    <liabilityAccount bankAccountName="Mortgage Property ZH" bankAccountCountry="CH" bankAccountCurrency="CHF" totalTaxValue="250000.00" totalGrossRevenueB="3000.00" liabilityCategory="MORTGAGE" bankAccountNumber="HYPO-123">
+    <liabilityAccount bankAccountName="Mortgage Property ZH" bankAccountCountry="CH" bankAccountCurrency="CHF" totalTaxValue="250000.00" totalGrossRevenueB="3000.00" bankAccountNumber="HYPO-123">
       <taxValue referenceDate="2024-12-31" balanceCurrency="CHF" balance="250000.00" value="250000.00"/>
       <payment paymentDate="2024-12-31" name="Mortgage Interest Paid" amountCurrency="CHF" amount="3000.00" grossRevenueB="3000.00"/>
     </liabilityAccount>
@@ -41,7 +41,7 @@
     <depot depotNumber="DEPOT-001">
       <security positionId="1" country="CH" currency="CHF" quotationType="PIECE" securityCategory="SHARE" securityName="Roche Holding Genussschein" valorNumber="1203204" isin="CH0012032048">
         <taxValue referenceDate="2024-12-31" quotationType="PIECE" quantity="500" balanceCurrency="CHF" unitPrice="255.50" value="127750.00" kursliste="1"/>
-        <payment paymentDate="2024-03-18" exDate="2024-03-14" name="Dividend" quotationType="PIECE" quantity="500" amountCurrency="CHF" amountPerUnit="9.6" amount="4800.00" exchangeRate="1" grossRevenueA="4800.00" grossRevenueB="0.00" withHoldingTaxClaim="1680.00" kursliste="1" gratis="0"/>
+        <payment paymentDate="2024-03-18" exDate="2024-03-14" name="Dividend" quotationType="PIECE" quantity="500" amountCurrency="CHF" amountPerUnit="9.6" amount="4800.00" exchangeRate="1" grossRevenueA="4800.00" grossRevenueB="0.00" withHoldingTaxClaim="1680.00" kursliste="1"/>
         <stock referenceDate="2024-01-01" mutation="0" quotationType="PIECE" quantity="500" balanceCurrency="CHF" value="145000.00"/>
       </security>
     </depot>
