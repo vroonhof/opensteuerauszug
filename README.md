@@ -48,6 +48,19 @@ from opensteuerauszug import SteuerAuszug
 
 TODO
 
+### Verifying the generated XML
+
+When you export the final XML using `--xml-output`, you can validate it
+against the official eCH-0196 schema with common XML tools.  Examples:
+
+```bash
+# Using libxml2
+xmllint --noout --schema specs/eCH-0196-2-2.xsd output.xml
+
+# Using a Java based validator (Jing)
+java -jar jing.jar specs/eCH-0196-2-2.xsd output.xml
+```
+
 ## Scripts and Tools
 
 This project includes various scripts for data processing, testing, and utility tasks.
