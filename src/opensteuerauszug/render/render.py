@@ -21,6 +21,7 @@ from reportlab.lib.units import cm, mm
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
+import logging
 
 # --- Import TaxStatement model ---
 from opensteuerauszug.model.ech0196 import TaxStatement
@@ -38,6 +39,8 @@ from opensteuerauszug.core.security import determine_security_type, SecurityType
 from opensteuerauszug.util.styles import get_custom_styles
 from opensteuerauszug.util import round_accounting
 from opensteuerauszug.render.markdown_renderer import markdown_to_platypus
+
+logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 DOC_INFO = "TODO: Place some compact info here"
@@ -626,7 +629,7 @@ def create_dual_info_boxes(styles, usable_width):
 
     left_flowables = markdown_to_platypus(left_markdown, section='short-version')
     text_content = " ".join([f.text for f in left_flowables if hasattr(f, 'text')])
-    print(f"DEBUG: left_flow = {text_content}")
+    logger.debug("left_flow = %s", text_content)
     right_flowables = markdown_to_platypus(right_markdown, section='short-version')
 
     table = Table(
@@ -1481,16 +1484,16 @@ def main():
         # Validate org_nr format if provided
         if args.org_nr is not None:
             if not isinstance(args.org_nr, str) or not args.org_nr.isdigit() or len(args.org_nr) != 5:
-                print(f"Error: Invalid --org-nr '{args.org_nr}': Must be a 5-digit string.", file=sys.stderr)
+                logger.error("Invalid --org-nr '%s': Must be a 5-digit string.", args.org_nr)
                 return 1
         
         # Render to PDF
         output_path = render_tax_statement(tax_statement, args.output, override_org_nr=args.org_nr)
         
-        print(f"Tax statement successfully rendered to: {output_path}")
+        logger.info("Tax statement successfully rendered to: %s", output_path)
         return 0
     except Exception as e:
-        print(f"Error rendering tax statement: {e}", file=sys.stderr)
+        logger.error("Error rendering tax statement: %s", e)
         return 1
 
 if __name__ == "__main__":

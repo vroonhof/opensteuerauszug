@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any, cast, get_args # Added get_args im
 # import os # Removed os import
 # Removed pandas import
 from decimal import Decimal
+import logging
 from opensteuerauszug.model.ech0196 import SecurityTaxValue, TaxStatement, SecurityStock, BankAccountPayment, SecurityPayment, Client, ClientNumber, CantonAbbreviation
 from opensteuerauszug.util.sorting import find_index_of_date, sort_security_stocks, sort_payments, sort_security_payments
 from opensteuerauszug.config.models import GeneralSettings
@@ -36,6 +37,8 @@ class CleanupCalculator:
         self.config_settings = config_settings
         self.modified_fields: List[str] = []
         self.log_messages: List[str] = []
+
+        self.logger = logging.getLogger(__name__)
         
         # Log if an identifier map was provided
         if self.identifier_map is not None: # Check if it's not None, could be an empty dict
@@ -52,7 +55,7 @@ class CleanupCalculator:
     def _log(self, message: str):
         self.log_messages.append(message)
         if self.print_log:
-            print(f"  [CleanupCalculator] {message}")
+            self.logger.info("[CleanupCalculator] %s", message)
 
     from opensteuerauszug.model.ech0196 import TaxStatement  # Explicit import for clarity
 

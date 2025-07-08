@@ -3,6 +3,7 @@
 import io
 from PIL import Image as PILImage
 from decimal import Decimal, ROUND_HALF_UP
+import logging
 
 # --- ReportLab Imports ---
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak, KeepTogether
@@ -17,6 +18,8 @@ from reportlab.lib.pagesizes import A4, landscape
 FILENAME = "steuer_auszug_example_v8_shifted.pdf"
 COMPANY_NAME = "Bank WIR"
 DOC_INFO = "S. E. & O."
+
+logger = logging.getLogger(__name__)
 
 # --- Helper Function for Currency Formatting ---
 def format_currency(value, default='0.00'):
@@ -295,14 +298,14 @@ def get_barcode_image(data):
         from barcode import Code128
         code = Code128(str(data), writer=ImageWriter())
         pil_img = code.render(writer_options={'write_text': False, 'module_height': 10.0})
-        print(f"Generated barcode for '{data}'")
+        logger.debug("Generated barcode for '%s'", data)
         return pil_img
     except ImportError:
-        print("python-barcode library not found. Using placeholder image.")
+        logger.warning("python-barcode library not found. Using placeholder image.")
         img = PILImage.new('RGB', (800, 150), color = 'grey')
         return img
     except Exception as e:
-        print(f"Error generating barcode: {e}")
+        logger.error("Error generating barcode: %s", e)
         img = PILImage.new('RGB', (800, 150), color = 'red')
         return img
 
@@ -387,7 +390,7 @@ def generate_pdf(data):
             barcode_img.hAlign = 'CENTER'
             story.append(barcode_img)
         except Exception as e:
-            print(f"Error adding barcode image: {e}")
+            logger.error("Error adding barcode image: %s", e)
             story.append(Paragraph(f"[Error adding barcode: {e}]", styles['Italic']))
 
     # --- Build PDF ---
@@ -421,8 +424,8 @@ example_data = {
 
 # --- Generate and Save PDF ---
 if __name__ == "__main__":
-    print(f"Generating PDF: {FILENAME}...")
+    logger.info("Generating PDF: %s...", FILENAME)
     pdf_data = generate_pdf(example_data)
     with open(FILENAME, 'wb') as f:
         f.write(pdf_data)
-    print("PDF generated successfully.")
+    logger.info("PDF generated successfully.")

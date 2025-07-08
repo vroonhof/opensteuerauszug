@@ -1,5 +1,6 @@
 from decimal import Decimal
 from typing import Optional, List
+import logging
 
 from ..core.exchange_rate_provider import ExchangeRateProvider
 from ..core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
@@ -13,6 +14,8 @@ from .base import CalculationMode
 from .minimal_tax_value import MinimalTaxValueCalculator
 from ..util.converters import security_tax_value_to_stock
 
+logger = logging.getLogger(__name__)
+
 
 class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
     """
@@ -22,9 +25,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
     def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, flag_override_provider: Optional[FlagOverrideProvider] = None, keep_existing_payments: bool = False):
         super().__init__(mode, exchange_rate_provider, keep_existing_payments=keep_existing_payments)
-        print(
-            f"KurslisteTaxValueCalculator initialized with mode: {mode.value} "
-            f"and provider: {type(exchange_rate_provider).__name__}"
+        logger.info(
+            "KurslisteTaxValueCalculator initialized with mode: %s and provider: %s",
+            mode.value,
+            type(exchange_rate_provider).__name__,
         )
         self.kursliste_manager: Optional[KurslisteManager] = None
         if isinstance(exchange_rate_provider, KurslisteExchangeRateProvider):
@@ -37,9 +41,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         self._missing_kursliste_entries = []
         result = super().calculate(tax_statement)
         if self._missing_kursliste_entries:
-            print("Missing Kursliste entries for securities:")
+            logger.warning("Missing Kursliste entries for securities:")
             for entry in self._missing_kursliste_entries:
-                print(f"  - {entry}")
+                logger.warning("  - %s", entry)
         return result
 
     def _handle_Security(self, security: Security, path_prefix: str) -> None:
@@ -138,7 +142,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             pos = reconciler.synthesize_position_at_date(reconciliation_date)
             if pos is None:
                 for l in reconciler.get_log():
-                    print(l)
+                    logger.debug(l)
                 raise ValueError(
                     f"No position found for {security.isin or security.securityName} on date {reconciliation_date}"
                 )
@@ -221,7 +225,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             if self.flag_override_provider and security.isin:
                 override_flag = self.flag_override_provider.get_flag(security.isin)
                 if override_flag:
-                    print(f"DEBUG: Found override flag '{override_flag}' for {security.isin}")
+                    logger.debug("Found override flag '%s' for %s", override_flag, security.isin)
                     if not (override_flag.startswith('(') and override_flag.endswith(')')):
                         effective_sign = f"({override_flag})"
                     else:

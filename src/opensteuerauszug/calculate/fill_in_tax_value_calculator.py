@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from typing import Optional
+import logging
 
 from opensteuerauszug.model.ech0196 import SecurityPayment
 from .kursliste_tax_value_calculator import KurslisteTaxValueCalculator
@@ -10,6 +11,8 @@ from ..core.exchange_rate_provider import ExchangeRateProvider
 
 from ..core.flag_override_provider import FlagOverrideProvider
 
+logger = logging.getLogger(__name__)
+
 class FillInTaxValueCalculator(KurslisteTaxValueCalculator):
     """
     Calculator that fills in missing values based on other available data,
@@ -17,7 +20,11 @@ class FillInTaxValueCalculator(KurslisteTaxValueCalculator):
     """
     def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, flag_override_provider: Optional[FlagOverrideProvider] = None, keep_existing_payments: bool = False):
         super().__init__(mode, exchange_rate_provider, flag_override_provider=flag_override_provider, keep_existing_payments=keep_existing_payments)
-        print(f"FillInTaxValueCalculator initialized with mode: {mode.value} and provider: {type(exchange_rate_provider).__name__}")
+        logger.info(
+            "FillInTaxValueCalculator initialized with mode: %s and provider: %s",
+            mode.value,
+            type(exchange_rate_provider).__name__,
+        )
 
     def _handle_SecurityPayment(self, sec_payment: SecurityPayment, path_prefix: str) -> None:
         """Handles SecurityPayment objects for currency conversion and revenue categorization."""
