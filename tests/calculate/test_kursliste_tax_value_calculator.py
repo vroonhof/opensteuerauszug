@@ -69,7 +69,11 @@ class TestKurslisteTaxValueCalculatorIntegration:
             e for e in calculator.errors if not _known_issue(e, tax_statement_input.institution)
         ]
 
-        assert filtered_errors == [], "Unexpected verification errors"
+        # Check if any errors were found during verification
+        if filtered_errors:
+            error_messages = [str(e) for e in filtered_errors]
+            error_details = "\n".join(error_messages)
+            pytest.fail(f"Unexpected validation errors for {sample_file} with {len(filtered_errors)} errors:\n{error_details}")
         assert processed_statement is tax_statement_input
 
 

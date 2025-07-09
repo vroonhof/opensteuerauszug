@@ -182,6 +182,21 @@ class TestMinimalTaxValueCalculatorHandlers:
             calculator._handle_BankAccountPayment(bap, "bap")
         assert "parent BankAccount has no country specified" in str(excinfo.value)
 
+    def test_handle_bank_account_payment_zero_revenue(self, minimal_tax_value_calculator_fill: MinimalTaxValueCalculator):
+        calculator = minimal_tax_value_calculator_fill
+        calculator._current_account_is_type_A = True
+        bap = BankAccountPayment(
+            amount=Decimal("0"),
+            amountCurrency="CHF",
+            paymentDate=date(2023, 6, 30)
+        )
+        calculator._handle_BankAccountPayment(bap, "bap")
+        assert bap.exchangeRate == Decimal("1")
+        assert bap.grossRevenueA == Decimal("0")
+        assert bap.grossRevenueB == Decimal("0")
+        assert bap.withHoldingTaxClaim == Decimal("0")
+
+        
     def test_handle_liability_account_tax_value(self, minimal_tax_value_calculator_fill: MinimalTaxValueCalculator):
         calculator = minimal_tax_value_calculator_fill
         latv = LiabilityAccountTaxValue(

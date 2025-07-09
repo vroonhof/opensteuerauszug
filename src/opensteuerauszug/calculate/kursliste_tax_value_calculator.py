@@ -69,8 +69,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         if not kl_sec and security.isin:
             kl_sec = accessor.get_security_by_isin(security.isin)
 
-
         if kl_sec:
+            logger.debug("Kursliste security found: %s", kl_sec.isin or kl_sec.valorNumber or kl_sec.securityName)
+            
             self._current_kursliste_security = kl_sec
             if security.valorNumber is None and kl_sec.valorNumber is not None:
                 try:
@@ -149,6 +150,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             quantity = pos.quantity
 
+            logger.debug("quantity %s found for date %s", quantity, reconciliation_date) 
             if quantity == 0:
                 # Skip payment generation if the quantity of outstanding securities is zero
                 continue
@@ -233,7 +235,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             
             sec_payment.sign = effective_sign
 
-            if hasattr(pay, "gratis") and pay.gratis is not None:
+            if hasattr(pay, "gratis") and pay.gratis:
                 sec_payment.gratis = pay.gratis
 
             # Reality vs spec: Real-world files seem to have all three fields set when at least one is set,

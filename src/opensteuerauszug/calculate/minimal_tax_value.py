@@ -126,19 +126,26 @@ class MinimalTaxValueCalculator(BaseCalculator):
             )
             self._set_field_value(ba_payment, "exchangeRate", rate, path_prefix)
 
-            if chf_revenue is not None and chf_revenue != Decimal(0): # Only process if there's actual revenue
+            gross_revenue_a = Decimal(0)
+            gross_revenue_b = Decimal(0)
+            withholding_tax = Decimal(0)
+
+            if chf_revenue is not None and chf_revenue > 0: # Only process if there's actual revenue
                 if self._current_account_is_type_A is True:
-                    self._set_field_value(ba_payment, "grossRevenueA", chf_revenue, path_prefix)
+                    gross_revenue_a = chf_revenue
                     # Calculate and set withholding tax for Type A revenue
-                    withholding_tax_amount = (
+                    withholding_tax = (
                         chf_revenue * WITHHOLDING_TAX_RATE
                     ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                    self._set_field_value(ba_payment, "withHoldingTaxClaim", withholding_tax_amount, path_prefix)
                 elif self._current_account_is_type_A is False:
-                    self._set_field_value(ba_payment, "grossRevenueB", chf_revenue, path_prefix)
+                    gross_revenue_b = chf_revenue
                 elif self._current_account_is_type_A is None:
                     # If country was not set on parent BankAccount and there's revenue, it's an error.
                     raise ValueError(f"BankAccountPayment at {path_prefix} has revenue, but parent BankAccount has no country specified to determine Type A/B revenue.")
+
+            self._set_field_value(ba_payment, "grossRevenueA", gross_revenue_a, path_prefix)
+            self._set_field_value(ba_payment, "grossRevenueB", gross_revenue_b, path_prefix)
+            self._set_field_value(ba_payment, "withHoldingTaxClaim", withholding_tax, path_prefix)
 
     def _handle_LiabilityAccountTaxValue(self, lia_tax_value: LiabilityAccountTaxValue, path_prefix: str) -> None:
         """Handles LiabilityAccountTaxValue objects during traversal."""
@@ -228,34 +235,9 @@ class MinimalTaxValueCalculator(BaseCalculator):
 
     def _handle_SecurityPayment(self, sec_payment: SecurityPayment, path_prefix: str) -> None:
         """Handles SecurityPayment objects for currency conversion and revenue categorization."""
-        
-        # TODO: Decide what to with any payments provided by the importer.
-        return
-    
-        # Do not handle SecurityPayment for minimal tax value calculation.
-        # We will move this to fill in calculator
-        if hasattr(sec_payment, 'amountCurrency') and sec_payment.amountCurrency:
-            payment_date = getattr(sec_payment, 'paymentDate', None)
-            if payment_date is None:
-                raise ValueError(f"SecurityPayment at {path_prefix} has amountCurrency but no paymentDate. Cannot determine exchange rate.")
-
-            amount = getattr(sec_payment, 'amount', None)
-            
-            chf_revenue, rate = self._convert_to_chf(
-                amount,
-                sec_payment.amountCurrency,
-                f"{path_prefix}.exchangeRate",
-                payment_date
-            )
-            self._set_field_value(sec_payment, "exchangeRate", rate, path_prefix)
-
-            if chf_revenue is not None and chf_revenue != Decimal(0): # Only process if there's actual revenue
-                if self._current_security_is_type_A is True:
-                    self._set_field_value(sec_payment, "grossRevenueA", chf_revenue, path_prefix)
-                elif self._current_security_is_type_A is False:
-                    self._set_field_value(sec_payment, "grossRevenueB", chf_revenue, path_prefix)
-                elif self._current_security_is_type_A is None:
-                    raise ValueError(f"SecurityPayment at {path_prefix} has revenue, but parent Security has no country specified to determine Type A/B revenue.")
+        # In the base implementation all payments will have been cleared (outside of debugging and verify mode)
+        # Avoid doing computation here to handle broken inputs on verify + minimal mode.
+        pass
 
     def computePayments(self, security: Security, path_prefix: str) -> None:
         """Compute and set payments for a security.
@@ -276,8 +258,8 @@ class MinimalTaxValueCalculator(BaseCalculator):
         """
 
         # If no payments are provided there is nothing to check or set.
-        if not payments:
-            return
+        # if payments == None:
+        #    return
 
         field_path = f"{path_prefix}.payment" if path_prefix else "payment"
         current = security.payment
