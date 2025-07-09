@@ -7,6 +7,7 @@ from ..model.ech0196 import Institution, SecurityPayment
 
 # With our current structure we cannot auto detect.
 TRUEWEALTH_USES_CHF = [
+    "LU1109942653",
     "IE00B3B8PX14",
     "IE00B4WPHX27",
     "IE00B7452L46",

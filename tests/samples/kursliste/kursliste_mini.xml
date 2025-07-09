@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.0.0.0" creationDate="2025-04-18T20:05:21" year="2024">
+<kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.0.0.0" creationDate="2025-06-27T20:21:34" year="2024">
   <currency id="432" currency="CHF">
     <currencyName lang="de" name="Franken"/>
     <currencyName lang="en" name="Franc"/>
@@ -234,15 +234,12 @@
     <signName lang="fr" name="Non soumis à l'impôt à la source"/>
     <signName lang="it" name="Esente dall'imposta alla fonte"/>
   </sign>
-  <da1Rate id="234" country="AE" securityGroup="BOND" validFrom="2012-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
-  <da1Rate id="233" country="AE" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="4" country="AL" securityGroup="BOND" validFrom="2016-01-01" validTo="9999-12-31" value="15" release="10" nonRecoverable="5"/>
   <da1Rate id="3" country="AL" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="8" release="0" nonRecoverable="8"/>
   <da1Rate id="10" country="AM" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
   <da1Rate id="9" country="AM" securityGroup="SHARE" validFrom="2018-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
   <da1Rate id="8" country="AR" securityGroup="BOND" validFrom="2015-01-01" validTo="9999-12-31" value="35" release="23" nonRecoverable="12"/>
   <da1Rate id="7" country="AR" securityGroup="SHARE" validFrom="2018-01-01" validTo="9999-12-31" value="7" release="0" nonRecoverable="7"/>
-  <da1Rate id="107" country="AT" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="106" country="AT" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
   <da1Rate id="14" country="AU" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
   <da1Rate id="13" country="AU" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="30" release="15" nonRecoverable="15"/>
@@ -267,55 +264,39 @@
   <da1Rate id="161" country="CL" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="35" release="25" nonRecoverable="10"/>
   <da1Rate id="24" country="CN" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
   <da1Rate id="23" country="CN" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
-  <da1Rate id="73" country="CO" securityGroup="BOND" validFrom="2024-01-01" validTo="9999-12-31" value="20" release="20" nonRecoverable="0"/>
   <da1Rate id="72" country="CO" securityGroup="SHARE" validFrom="2024-01-01" validTo="9999-12-31" value="20" release="5" nonRecoverable="15"/>
-  <da1Rate id="145" country="CZ" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="15" nonRecoverable="0"/>
   <da1Rate id="144" country="CZ" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
-  <da1Rate id="29" country="DE" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="28" country="DE" securityGroup="SHARE" securityType="SHARE.BONUS" validFrom="2009-01-01" validTo="9999-12-31" value="26.375" release="0" nonRecoverable="26.375"/>
   <da1Rate id="27" country="DE" securityGroup="SHARE" validFrom="2010-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
-  <da1Rate id="26" country="DK" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="22" release="22" nonRecoverable="0"/>
   <da1Rate id="25" country="DK" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="27" release="12" nonRecoverable="15"/>
   <da1Rate id="6" country="DZ" securityGroup="BOND" validFrom="2010-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
   <da1Rate id="5" country="DZ" securityGroup="SHARE" validFrom="2010-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
   <da1Rate id="31" country="EC" securityGroup="BOND" validFrom="2013-01-01" validTo="9999-12-31" value="25" release="15" nonRecoverable="10"/>
   <da1Rate id="30" country="EC" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
-  <da1Rate id="35" country="EE" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="34" country="EE" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="2" country="EG" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="5" nonRecoverable="15"/>
-  <da1Rate id="1" country="EG" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="10" release="10" nonRecoverable="0"/>
-  <da1Rate id="133" country="ES" securityGroup="BOND" validFrom="2016-01-01" validTo="9999-12-31" value="19" release="19" nonRecoverable="0"/>
   <da1Rate id="132" country="ES" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="19" release="4" nonRecoverable="15"/>
   <da1Rate id="297" country="ET" securityGroup="BOND" validFrom="2024-01-01" validTo="9999-12-31" value="10" release="5" nonRecoverable="5"/>
   <da1Rate id="298" country="ET" securityGroup="SHARE" validFrom="2024-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
-  <da1Rate id="37" country="FI" securityGroup="BOND" validFrom="2012-01-01" validTo="9999-12-31" value="30" release="30" nonRecoverable="0"/>
   <da1Rate id="36" country="FI" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="30" release="20" nonRecoverable="10"/>
-  <da1Rate id="39" country="FR" securityGroup="BOND" validFrom="2018-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
+  <da1Rate id="300" country="FO" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="27" release="12" nonRecoverable="15"/>
   <da1Rate id="38" country="FR" securityGroup="SHARE" validFrom="2018-01-01" validTo="9999-12-31" value="12.8" release="0" nonRecoverable="12.8"/>
-  <da1Rate id="45" country="GB" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="20" nonRecoverable="0"/>
-  <da1Rate id="44" country="GB" securityGroup="SHARE" validFrom="2009-04-06" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
-  <da1Rate id="284" country="GE" securityGroup="BOND" validFrom="2021-01-01" validTo="9999-12-31" value="5" release="5" nonRecoverable="0"/>
-  <da1Rate id="285" country="GE" securityGroup="SHARE" validFrom="2021-01-01" validTo="9999-12-31" value="5" release="5" nonRecoverable="0"/>
   <da1Rate id="41" country="GH" securityGroup="BOND" validFrom="2010-01-01" validTo="9999-12-31" value="8" release="0" nonRecoverable="8"/>
   <da1Rate id="40" country="GH" securityGroup="SHARE" validFrom="2010-01-01" validTo="9999-12-31" value="8" release="0" nonRecoverable="8"/>
   <da1Rate id="43" country="GR" securityGroup="BOND" validFrom="2021-01-01" validTo="9999-12-31" value="15" release="8" nonRecoverable="7"/>
   <da1Rate id="42" country="GR" securityGroup="SHARE" validFrom="2021-01-01" validTo="9999-12-31" value="5" release="0" nonRecoverable="5"/>
-  <da1Rate id="295" country="HK" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="296" country="HK" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="74" country="HR" securityGroup="SHARE" validFrom="2024-01-01" validTo="9999-12-31" value="12" release="0" nonRecoverable="12"/>
-  <da1Rate id="151" country="HU" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="15" nonRecoverable="0"/>
   <da1Rate id="150" country="HU" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
   <da1Rate id="49" country="ID" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
   <da1Rate id="48" country="ID" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="5" nonRecoverable="15"/>
-  <da1Rate id="53" country="IE" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="20" nonRecoverable="0"/>
   <da1Rate id="52" country="IE" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
   <da1Rate id="57" country="IL" securityGroup="BOND" validFrom="2004-01-01" validTo="9999-12-31" value="26.5" release="16.5" nonRecoverable="10"/>
   <da1Rate id="56" country="IL" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
   <da1Rate id="47" country="IN" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
-  <da1Rate id="46" country="IN" securityGroup="SHARE" validFrom="2023-01-01" validTo="9999-12-31" value="20" release="15" nonRecoverable="5"/>
+  <da1Rate id="46" country="IN" securityGroup="SHARE" validFrom="2023-01-01" validTo="2024-12-31" value="20" release="15" nonRecoverable="5"/>
   <da1Rate id="51" country="IR" securityGroup="BOND" validFrom="2016-01-01" validTo="9999-12-31" value="3" release="0" nonRecoverable="3"/>
   <da1Rate id="50" country="IR" securityGroup="SHARE" validFrom="2016-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
-  <da1Rate id="55" country="IS" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="12" release="12" nonRecoverable="0"/>
   <da1Rate id="54" country="IS" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="22" release="7" nonRecoverable="15"/>
   <da1Rate id="59" country="IT" securityGroup="BOND" validFrom="2014-01-01" validTo="9999-12-31" value="26" release="13.5" nonRecoverable="12.5"/>
   <da1Rate id="58" country="IT" securityGroup="SHARE" validFrom="2014-01-01" validTo="9999-12-31" value="26" release="11" nonRecoverable="15"/>
@@ -327,14 +308,9 @@
   <da1Rate id="70" country="KG" securityGroup="SHARE" validFrom="2021-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
   <da1Rate id="139" country="KR" securityGroup="BOND" validFrom="2012-01-01" validTo="9999-12-31" value="22" release="12" nonRecoverable="10"/>
   <da1Rate id="138" country="KR" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="22" release="7" nonRecoverable="15"/>
-  <da1Rate id="77" country="KW" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
-  <da1Rate id="76" country="KW" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="67" country="KZ" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
   <da1Rate id="66" country="KZ" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
-  <da1Rate id="81" country="LI" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
-  <da1Rate id="80" country="LI" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="135" country="LK" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="5" release="0" nonRecoverable="5"/>
-  <da1Rate id="134" country="LK" securityGroup="SHARE" validFrom="2023-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="83" country="LT" securityGroup="BOND" validFrom="2010-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
   <da1Rate id="82" country="LT" securityGroup="SHARE" validFrom="2011-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
   <da1Rate id="85" country="LU" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
@@ -349,16 +325,13 @@
   <da1Rate id="98" country="ME" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
   <da1Rate id="91" country="MK" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
   <da1Rate id="90" country="MK" securityGroup="SHARE" validFrom="2015-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
-  <da1Rate id="97" country="MN" securityGroup="BOND" validFrom="2024-01-01" validTo="9999-12-31" value="5" release="5" nonRecoverable="0"/>
   <da1Rate id="96" country="MN" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="5" nonRecoverable="15"/>
   <da1Rate id="286" country="MT" securityGroup="BOND" validFrom="2021-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
-  <da1Rate id="287" country="MT" securityGroup="SHARE" validFrom="2021-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="93" country="MX" securityGroup="BOND" validFrom="2014-01-01" validTo="9999-12-31" value="35" release="25" nonRecoverable="10"/>
   <da1Rate id="92" country="MX" securityGroup="SHARE" validFrom="2014-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
   <da1Rate id="87" country="MY" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
   <da1Rate id="103" country="NL" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
   <da1Rate id="102" country="NL" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
-  <da1Rate id="105" country="NO" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="104" country="NO" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
   <da1Rate id="101" country="NZ" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
   <da1Rate id="100" country="NZ" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="30" release="15" nonRecoverable="15"/>
@@ -374,15 +347,12 @@
   <da1Rate id="112" country="PL" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="19" release="4" nonRecoverable="15"/>
   <da1Rate id="115" country="PT" securityGroup="BOND" validFrom="2012-01-01" validTo="9999-12-31" value="25" release="15" nonRecoverable="10"/>
   <da1Rate id="114" country="PT" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="25" release="10" nonRecoverable="15"/>
-  <da1Rate id="69" country="QA" securityGroup="BOND" validFrom="2016-01-01" validTo="9999-12-31" value="7" release="7" nonRecoverable="0"/>
   <da1Rate id="68" country="QA" securityGroup="SHARE" validFrom="2016-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="117" country="RO" securityGroup="BOND" validFrom="2022-01-01" validTo="9999-12-31" value="16" release="11" nonRecoverable="5"/>
   <da1Rate id="116" country="RO" securityGroup="SHARE" validFrom="2024-01-01" validTo="9999-12-31" value="8" release="0" nonRecoverable="8"/>
   <da1Rate id="125" country="RS" securityGroup="BOND" validFrom="2014-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
   <da1Rate id="124" country="RS" securityGroup="SHARE" validFrom="2022-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
-  <da1Rate id="119" country="RU" securityGroup="BOND" validFrom="2015-01-01" validTo="9999-12-31" value="30" release="30" nonRecoverable="0"/>
   <da1Rate id="118" country="RU" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
-  <da1Rate id="121" country="SE" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="120" country="SE" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="30" release="15" nonRecoverable="15"/>
   <da1Rate id="127" country="SG" securityGroup="BOND" validFrom="2016-01-01" validTo="9999-12-31" value="15" release="10" nonRecoverable="5"/>
   <da1Rate id="126" country="SG" securityGroup="SHARE" validFrom="2016-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
@@ -398,7 +368,6 @@
   <da1Rate id="275" country="TM" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
   <da1Rate id="147" country="TN" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="20" release="10" nonRecoverable="10"/>
   <da1Rate id="146" country="TN" securityGroup="SHARE" validFrom="2018-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
-  <da1Rate id="260" country="TR" securityGroup="BOND" validFrom="2020-01-01" validTo="9999-12-31" value="0" release="0" nonRecoverable="0"/>
   <da1Rate id="261" country="TR" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
   <da1Rate id="143" country="TT" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
   <da1Rate id="142" country="TT" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="10" release="0" nonRecoverable="10"/>
@@ -406,7 +375,6 @@
   <da1Rate id="278" country="TW" securityGroup="SHARE" validFrom="2020-01-01" validTo="9999-12-31" value="21" release="6" nonRecoverable="15"/>
   <da1Rate id="149" country="UA" securityGroup="BOND" validFrom="2015-01-01" validTo="9999-12-31" value="15" release="5" nonRecoverable="10"/>
   <da1Rate id="148" country="UA" securityGroup="SHARE" validFrom="2015-01-01" validTo="9999-12-31" value="15" release="0" nonRecoverable="15"/>
-  <da1Rate id="157" country="US" securityGroup="BOND" validFrom="2008-01-01" validTo="9999-12-31" value="30" release="30" nonRecoverable="0"/>
   <da1Rate id="156" country="US" securityGroup="SHARE" validFrom="2008-01-01" validTo="9999-12-31" value="30" release="15" nonRecoverable="15"/>
   <da1Rate id="228" country="UY" securityGroup="BOND" validFrom="2012-01-01" validTo="9999-12-31" value="12" release="2" nonRecoverable="10"/>
   <da1Rate id="227" country="UY" securityGroup="SHARE" validFrom="2012-01-01" validTo="9999-12-31" value="7" release="0" nonRecoverable="7"/>
@@ -789,6 +757,12 @@
     <payment id="6388488" paymentDate="2024-06-07" currency="EUR" paymentValue="0.1685" exchangeRate="0.9694" paymentValueCHF="0.16334" exDate="2024-05-22"/>
     <payment id="6498671" paymentDate="2024-09-05" currency="EUR" paymentValue="0.1857" exchangeRate="0.93985" paymentValueCHF="0.17453" exDate="2024-08-21"/>
     <payment id="6609739" paymentDate="2024-11-29" currency="EUR" paymentValue="0.1846" exchangeRate="0.9305" paymentValueCHF="0.17177" exDate="2024-11-13"/>
+    <payment id="6989360" paymentDate="2024-12-31" currency="EUR" paymentValue="0.29397" exchangeRate="0.93845" paymentValueCHF="0.27587" paymentType="5" taxEvent="true">
+      <remark lang="de" text="16.05.2025: Nachträgliche Publikation, zahlb. 31.12.2024"/>
+      <remark lang="en" text="16.05.2025: Subsequent publication, payable 31.12.2024"/>
+      <remark lang="fr" text="16.05.2025: Publication supplémentaire, payable 31.12.2024"/>
+      <remark lang="it" text="16.05.2025: Pubblicazione supplementare, pagabile 31.12.2024"/>
+    </payment>
   </fund>
   <fund id="606399" valorNumber="38262748" isin="IE00BD8PH067" securityGroup="FUND" securityType="FUND.DISTRIBUTION" securityAppendix="Hedged CHF" institutionId="47312" institutionName="iShares IV PLC" institutionAppendix="iShares USD Treasury Bond 20+yr UCITS ETF" country="IE" currency="CHF" nominalValue="0">
     <yearend id="18198565" quotationType="PIECE" taxValue="2.7551" taxValueCHF="2.7551"/>
