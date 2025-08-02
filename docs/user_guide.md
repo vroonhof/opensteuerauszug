@@ -2,16 +2,39 @@
 
 ## Introduction
 
-Welcome to OpenSteuerAuszug! This tool is designed to help you generate a Swiss tax statement (Steuerauszug) from transaction data provided by various banks and brokers, especially those that do not natively support the official eCH-0196 format. The primary goal is to simplify the process of preparing your tax return by automating the collection and formatting of relevant financial data.
+Welcome to OpenSteuerAuszug! This tool is designed to help you generate a Swiss tax statement (Steuerauszug) from transaction data provided by various banks and brokers, especially those that do not natively support the official eCH-0196 format. 
+
+The primary goal is to simplify the process of preparing your tax return by automating the collection and import of relevant financial data into the tax preparation software (e.g. "PrivateTax" if you are in Zurich). i.e. to help you save effort typing and avoid copying mistakes. *You* are still responsible for making sure the correct information information lands in the tax return and that the calculated taxes are correct.
 
 This guide will walk you through the necessary steps to use OpenSteuerAuszug effectively.
+
+## Short Primer on Tax data and calculatons
+
+### What data are we aiming for
+
+When you fill your tax return manually the key bits of information are
+
+   * How much of a given security were you holding when income (or equivalent taxable events) was generated. This so income tax can be determined.
+   * How much of a given security were you holding at the end (and the beginning) of year. This is so your wealth can be determined for wealth tax. Additionally this is used a a sanity check whether your wealth increase matches expectations.
+
+### How is it used and what is the 'Kursliste'
+
+Most tax software, including PrivateTax as well as the software used by the tax office itself, can compute all the relevant tax information from here based on an official tax assessment called the [Kursliste](https://www.ictax.admin.ch/extern/en.html#/ratelist) or ICtax. In this language a security is called a "Valor" and all such securities have a "Valornumber"/
+
+Unfortunately there is no standardized way to import banking data in Swiss Tax software. Instead there the (e-)SteuerAuszug which in the modern shape is three things
+   * An XML representation of the relevant transaction and valuation data encoded in fancy barcodes in a PDF (valornumber, transactions and positions)
+   * A calculation of the estimated taxes based on this made by your Swiss bank.
+   * a text rendering of the transaction info and these calculations for you to check and to allow for a paper based tax calculation workflow where most of the calculation is one by the bank's computer.
+
+For a modern work flow only the first part is really necessary as the tax software can re-do all the computations, but for historic reasons and convenience we still have to do the rest. For this reason the main focus of this software is on the transaction data and *both the textual information and any income and valuation information should be taken as illustrative only*. The old "paper process" that trusts the calculations is specifically not supported.
+
 
 ## General Workflow
 
 Using OpenSteuerAuszug to generate your Steuerauszug generally involves the following steps:
 
 1.  **Preparation**:
-    *   Obtain the official **Kursliste** (a list of securities and their tax values) from the Swiss Federal Tax Administration (ESTV/FTA).
+    *   Obtain the official **Kursliste** (a list of securities and their tax values) from the Swiss Federal Tax Administration (ESTV/FTA). 
     *   Optionally, convert the Kursliste XML into an SQLite database for faster processing.
     *   Prepare your bank/broker statements in the required format.
     *   Configure OpenSteuerAuszug by creating and customizing a `config.toml` file with your personal details and account information.
@@ -23,7 +46,19 @@ Using OpenSteuerAuszug to generate your Steuerauszug generally involves the foll
     *   OpenSteuerAuszug processes the imported data, reconciles positions, and calculates tax-relevant values based on your chosen method (Minimal or Kursliste-based).
 
 4.  **Generating the PDF Steuerauszug**:
-    *   The final output is a PDF document in the official eCH-0196 format, ready for use with your tax software or for submission with your tax return. It also includes a 2D barcode for easy import by tax authorities/software.
+    *   The final output is a PDF document in the official eCH-0196 format, ready for use with your tax software.
+
+5.  **Check the generated document**
+    * Check that no errors or warnings were generated (e.g. about securities where information could not be found)
+    * Check that all securities were included, correctly mapped to right Valor, that all all transactions are present and that end of your positions are correct.
+
+    The generated document will have instructions for this as well.
+
+5.  **Import into the Tax Software**
+
+    * Your Tax software will have the ability to upload e-Steuerauszug instead of adding adding manual securities.
+    * Remove any manual entries you may have used in previous years.
+    * **Recalculate the tax information using the tax software**. Most tax software offers the ability to recompute tax values based on the latest Kursliste, accept that option.
 
 ## Disclaimer and User Responsibility
 
@@ -43,9 +78,9 @@ The **Kursliste** is an official list published annually by the Swiss Federal Ta
 
 ### Obtaining the Kursliste
 
-You need to obtain the official Kursliste XML file for the relevant tax year. This is usually available for download from the ESTV website. Search for "Kursliste ESTV" or "listes des cours ICTA" to find the download page for the desired year.
+You need to obtain the official Kursliste XML file for the relevant tax year. This is usually available for download from the [ESTV website](https://www.ictax.admin.ch/extern/en.html#/xml). Always down the latest file marked "Initial" in the latest format, V2.0 at this time). 
 
-The file is typically named something like `kursliste_JJJJ.xml` (e.g., `kursliste_2023.xml`).
+After unzipping, Tthe file is typically named something like `kursliste_JJJJ.xml` (e.g., `kursliste_2023.xml`).
 
 ### Storing the Kursliste
 
@@ -56,10 +91,6 @@ For more detailed information on naming conventions and how OpenSteuerAuszug man
 ### Converting Kursliste XML to SQLite (Recommended)
 
 For significantly improved performance, especially with large Kursliste files or frequent use, it is **highly recommended** to convert the Kursliste XML file into an SQLite database. OpenSteuerAuszug includes a script for this purpose.
-
-**Why convert?**
-*   **Speed**: Reading from and querying an SQLite database is much faster than parsing large XML files repeatedly.
-*   **Efficiency**: The `KurslisteManager` will automatically prioritize SQLite files if both XML and SQLite versions for the same year are present.
 
 **How to convert:**
 1.  Navigate to the root directory of the OpenSteuerAuszug project in your terminal.
