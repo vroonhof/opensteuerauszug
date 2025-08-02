@@ -16,6 +16,7 @@ When you fill your tax return manually the key bits of information are
 
    * How much of a given security were you holding when income (or equivalent taxable events) was generated. This so income tax can be determined.
    * How much of a given security were you holding at the end (and the beginning) of year. This is so your wealth can be determined for wealth tax. Additionally this is used a a sanity check whether your wealth increase matches expectations.
+   * Any income generated that cannot be computed from the other information (e.g. interests).
 
 ### How is it used and what is the 'Kursliste'
 
@@ -37,6 +38,7 @@ Using OpenSteuerAuszug to generate your Steuerauszug generally involves the foll
     *   Obtain the official **Kursliste** (a list of securities and their tax values) from the Swiss Federal Tax Administration (ESTV/FTA). 
     *   Optionally, convert the Kursliste XML into an SQLite database for faster processing.
     *   Prepare your bank/broker statements in the required format.
+    *   Please also keep all the normal human readable statements for validation and later referral.
     *   Configure OpenSteuerAuszug by creating and customizing a `config.toml` file with your personal details and account information.
 
 2.  **Importing Data**:
@@ -51,6 +53,8 @@ Using OpenSteuerAuszug to generate your Steuerauszug generally involves the foll
 5.  **Check the generated document**
     * Check that no errors or warnings were generated (e.g. about securities where information could not be found)
     * Check that all securities were included, correctly mapped to right Valor, that all all transactions are present and that end of your positions are correct.
+    * Check that cash balances are correct.
+    * Check that interest received is correctly represented (at a minimum check the end of year totals.)
 
     The generated document will have instructions for this as well.
 
@@ -145,14 +149,15 @@ Please refer to the documentation for your specific broker by clicking the links
 
 ### Calculation Options
 
-OpenSteuerAuszug offers different ways to calculate the tax values of your securities:
+As stated above, the modern tax return flow does not need any of the textual content and any calculable tax information can and should be be recomputed in the main tax return software.
+
+OpenSteuerAuszug offers different ways to what to do the to calculate the tax values of your securities in the generated files.:
 
 1.  **Minimal Calculation**:
-    *   **What it does**: This option focuses on accurately reporting the securities you held, their quantities, and any income (dividends, interest). However, it generally does **not** fill in the official tax values from the Kursliste for each security. Instead, it provides the necessary identification (ISIN, Valor number) for your tax software to look up these values itself. Some basic valuations might be done (e.g., for cash).
+    *   **What it does**: This option focuses on accurately reporting the securities you held, their quantities. It sometimes does minimal computations to make the XML valid. However, it generally does **not** fill in the official tax values from the Kursliste for each security. Instead, it only provides the necessary identification (ISIN, Valor number) for your tax software to look up these values itself. Some basic valuations might be done (e.g., for cash interest).
     *   **Advantages**:
-        *   Simpler and faster if your primary goal is just to get the transactions and holdings into your tax software.
-        *   Relies on your official tax software (e.g., Private Tax, Dr. Tax, eTax) to perform the definitive tax value lookups using the Kursliste data they have integrated. This can be seen as more robust if you trust the tax software's data more.
-        *   Less dependent on having a perfect and complete Kursliste available within OpenSteuerAuszug itself for every single security.
+        *   Relies on your official tax software (e.g., Private Tax, Dr. Tax, eTax) to perform the definitive tax value lookups using the Kursliste data they have integrated. This software will have been formally audited.
+        *   The generated PDF and tax values are clearly wrong so there potentially less confusion about the informational calculations done by this software.
 
 2.  **Kursliste-Based Calculation**:
     *   **What it does**: This option actively uses the provided Kursliste (XML or SQLite) to look up each security and populate its official end-of-year tax value, as well as any taxable income components (e.g., portion of dividend subject to tax).
@@ -160,15 +165,32 @@ OpenSteuerAuszug offers different ways to calculate the tax values of your secur
         *   Provides a more complete Steuerauszug where tax values are pre-filled. This can be useful for cross-verification or if your tax software has issues importing detailed positions.
         *   The generated PDF is closer to what a Swiss bank would provide.
         *   Can help identify discrepancies if your own understanding of a security's value differs from the official Kursliste.
+    * Missing securities (or perhaps incorrect values) can be added easily to the kursliste by contacting the ESTV (e.g. by e-mail). Recompute the Steuerauszug with the newly published Kursliste.
+    * The Kursliste gets refreshed frequently (even long after the March 31st deadline), always use the latest version.
 
 The choice between these options might depend on your tax software, your confidence in the Kursliste data you provide to OpenSteuerAuszug, and your personal preference for detail in the generated document. You typically configure the desired calculation strategy within your `config.toml` or via command-line options when running the tool.
 
-### Advanced Options
+Remember the calculations in this software are not formally audited.
+*You* are responsible for the final values in the tax software in any setting.
+
+#### Advanced Options
+
+Neither of the the following options is currently complete and should not be used.
+
+* In the future a mode will be provided to sanity check the kursliste calculations against reported income and tax withholding with the bank, however this currently must be done manually.
 
 *   **"Fill-in" Calculation**:
-    *   This is an advanced calculation method. It attempts to derive tax values for securities that might not be directly found in the Kursliste, potentially by using other provided data or estimation techniques.
-    *   **Use Case**: This might be useful for less common securities or if there are gaps in the Kursliste. However, values derived this way should be treated with extra caution and verified carefully.
-    *   It's generally recommended to rely on the "Minimal" or "Kursliste-Based" calculations unless you have a specific reason and understand the implications of this method.
+    *   This is an advanced calculation method. It attempts to derive tax values for securities that might not be directly found in the Kursliste by computing it purely on broker provided data. However this involves lots of assumptions and judgement about swiss tax rules that cannot be automated and needs substantial auditing. I left it in the code mostly for tax nerds.
+    * The correct way to handle missing information in the Kursliste is to ask it to be added. This can be done with a simple e-mail to ESTV. (or even by API but this software does not implement it yet.)
+ 
+
+### Running the software
+
+One all the data is setup the Steuerauszug can be generated with
+
+```console
+python -m opensteuerauszug.steuerauszug {broker data location} --importer {schwab|ibkr} --tax-year {tax year} -o {output filename.pdf} 
+```
 
 ---
 
@@ -184,23 +206,29 @@ This can be useful for:
 
 ### Workflow
 
-1.  **Input**: You will need the existing Steuerauszug in its **XML format** (eCH-0196). PDF versions cannot be directly processed for verification. Many tax software or e-banking portals allow exporting the Steuerauszug data as XML.
+1.  **Input**: You will need the existing Steuerauszug in its **XML format** (eCH-0196). This XML can be extracted from an e-Steuerauszug using 'scripts/decode.py'. This is needs a python PDF417 decoder with support for multipart barcodes, e.g. using 
+
+```console
+pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
+```
+until the version with the fixes has been published on pypi.
+
 2.  **Kursliste**: Have the relevant Kursliste (XML or SQLite in `data/kursliste/`) for the tax year of the Steuerauszug you are verifying. This allows OpenSteuerAuszug to perform its own lookup of tax values.
 3.  **Configuration**: Your `config.toml` should be set up, although fewer parameters might be strictly necessary compared to generating a new statement from raw broker data. The tool might extract some metadata from the XML itself.
-4.  **Execution**: Run OpenSteuerAuszug with a command or option that specifies you want to verify an existing XML file.
-    *(Specific command-line usage or API calls for this mode should be detailed here once known. For example: `python -m opensteuerauszug --verify-xml path/to/your/existing_steuerauszug.xml ...`)*
-5.  **Output**:
-    *   The tool will typically parse the input XML, recalculate values based on its own logic and the provided Kursliste.
-    *   It may then output a comparison, a new PDF generated from the input XML's data (allowing visual comparison), or log any discrepancies found.
-    *   *(The exact output format and comparison method should be documented based on the tool's capabilities.)*
+4.  **Execution**: Run OpenSteuerAuszug telling it to start wit the xml as raw input and then run the verify phase:
+```console
+python -m opensteuerauszug.steuerauszug {xml file} --tax-year {tax year} --raw-import -p verify 
+```
 
-### Key Aspects of Verification
+5.  **Output and known issues**:
+    *  The tool will report discrepancies between its calculations and the input data. You may need to refer to the XML source to find the exact source.
+    * Because the in practice small deviations from the norm (e.g. around rounding or by using different kurstliste versions) exist you can amend `src/opensteuerauszug/util/known_issues.py` to turn them into warnings.
 
-*   **Data Source**: The primary source of data is the content of the input XML file.
-*   **Recalculation**: Tax values, totals, and summaries are recalculated.
-*   **Comparison**: Differences in calculated values versus the values present in the input XML are the main focus.
+This whole process can be automated to provided integration testing for the tax calculations in this software. The integration tests will fail for any deviations not listed as known_issues.
+    
+The author is grateful for feedback generated from this validation process incl examples stripped of real financial data.
 
-This feature helps increase confidence in both your existing documents and in OpenSteuerAuszug's processing capabilities.
+
 
 ---
 
@@ -208,7 +236,8 @@ This feature helps increase confidence in both your existing documents and in Op
 
 While OpenSteuerAuszug aims to be comprehensive, there are certain limitations to be aware of:
 
-*   **Complex Financial Instruments**: Highly complex derivatives, structured products, or certain types of bonds might not be fully supported or may require manual data supplementation.
+*   **Complex Financial Instruments**: At the moment the software supports simple equities (Shares and Funds) and cash holdings. Derivatives, fees, liabilities, bonds, currencies for investment and other complex investments including those 'Differenzbesteurung' are not supported.
+*   **Swiss Brokers or non-standard withholding**: Currently for import it targets the use cases the author has. US brokers, W8-BEN in place.
 *   **Corporate Actions**: While common corporate actions (e.g., stock splits, simple dividends) are generally handled, very complex or unusual ones (e.g., mergers with mixed cash/stock offers, spin-offs with non-standard terms) might not be interpreted correctly automatically and could require manual adjustments in your tax software.
 *   **Broker Data Quality**: The accuracy of the generated Steuerauszug heavily depends on the quality and completeness of the data provided by your bank/broker. If their export files are missing information or contain errors, OpenSteuerAuszug may not be able to compensate.
 *   **Kursliste Gaps**: If a security is not listed in the official Kursliste, OpenSteuerAuszug may not be able to assign an official tax value (unless using the "fill-in" method, which has its own caveats).
@@ -233,26 +262,33 @@ Use this tool as an aid to simplify data aggregation and formatting, not as a su
 
 ## Open Questions
 
-*(This section is a placeholder for questions identified during development or by users that need clarification or further investigation.)*
+### Testing and real world usage status
 
-*   How are specific types of fees (e.g., custody vs. transaction) best represented if not explicitly detailed in broker reports?
-*   What is the best practice for handling securities denominated in currencies with no direct end-of-year rate in the Kursliste?
+As of the writing this software 
+* produces valid XML for the authors recent tax years,
+* agrees with e-Steuerausweis from the authors' Bank.
+* the output has been imported once in a test session with ZH PrivateTax
 
----
+but because the author wisely decided to finish their tax return before embarking on this madness it has not yet been used in a real tax return. In particular it is unknown how the tax authorities will react.
 
-## Next Steps / Open Issues
+### Next Steps / Open Issues
 
+* Recruit more testers fro real world data use.
+* Implement plausibility checks, in particular for tax withholding.
+* produce more automated test scenarios.
+* See if this can be deployed as a standalone web pages with WASM.
+
+
+### Unimplemented future plans
+
+
+### Specific issues
 *(This section is a placeholder for planned features, improvements, or known issues that are being tracked.)*
 
-*   Issue #XX: Improve handling of specific corporate action type Y.
-*   Feature #YY: Add support for Broker Z.
-*   Enhancement #ZZ: Provide more detailed comparison output in verification mode.
-
+TODO: List common issues and refer to github/
 ---
 
 ## Notes / Insights
 
-*(This section is a placeholder for any interesting observations, learnings, or insights gained during the development or use of OpenSteuerAuszug that might be useful for users or future developers.)*
-
-*   Insight: The XML schema for eCH-0196 has specific constraints on field lengths (e.g., security names) that require careful handling of data from brokers.
-*   Note: The naming convention for Kursliste files in `data/kursliste/` is important for automatic detection.
+* The [ECH-0196](https://www.ech.ch/de/ech/ech-0196/2.2.0) standard refers to a bundle of sample software that disappeared form the internet. The author has not been able to locate a copy to cross validate.
+* Similarly there is an contact email address (eSteuerauszug.support@ssk.ewv-ete.ch) to notify of new "banks" using the e-Steuerausweiss and for clarifying questions. The author has not been able to get a response.
