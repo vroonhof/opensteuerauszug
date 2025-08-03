@@ -44,10 +44,10 @@ class ImporterType(str, Enum):
     NONE = "none"
 
 class TaxCalculationLevel(str, Enum):
-    NONE = "None"
-    MINIMAL = "Minimal"
-    KURSLISTE = "Kursliste"
-    FILL_IN = "Fill-In"
+    NONE = "none"
+    MINIMAL = "minimal"
+    KURSLISTE = "kursliste"
+    FILL_IN = "fillin"
 
 default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RENDER]
 
@@ -70,7 +70,7 @@ def main(
     ),
     strict_consistency_flag: bool = typer.Option(True, "--strict-consistency/--no-strict-consistency", help="Enable/disable strict consistency checks in importers (e.g., Schwab). Defaults to strict."),
     filter_to_period_flag: bool = typer.Option(True, "--filter-to-period/--no-filter-to-period", help="Filter transactions and stock events to the tax period (with closing balances). Defaults to enabled."),
-    tax_calculation_level: TaxCalculationLevel = typer.Option(TaxCalculationLevel.FILL_IN, "--tax-calculation-level", help="Specify the level of detail for tax value calculations."),
+    tax_calculation_level: TaxCalculationLevel = typer.Option(TaxCalculationLevel.KURSLISTE, "--tax-calculation-level", help="Specify the level of detail for tax value calculations."),
     config_file: Path = typer.Option("config.toml", "--config", "-c", help="Path to the configuration TOML file."),
     broker_name: Optional[str] = typer.Option(None, "--broker", help="Broker name (e.g., 'schwab') from config.toml to use for this run."),
     override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
@@ -488,7 +488,7 @@ def main(
                 print("No errors calculation")
             
             # Fill in missing fields to make rendering possible
-            calulator = TotalCalculator(mode=CalculationMode.FILL)
+            calculator = TotalCalculator(mode=CalculationMode.FILL)
             statement = calculator.calculate(statement)
             print(f"Calculation successful.")
             dump_debug_model(current_phase.value, statement)
