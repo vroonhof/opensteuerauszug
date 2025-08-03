@@ -174,6 +174,13 @@ Schwab provides only symbols for equities, no ISINS or other identifiers. You ne
 
 TODO: elaborate.
 
+## Running Opensteuerauszug
+
+```console
+python -m opensteuerauszug.steuerauszug --importer schwab <path to data directory> ...
+```
+
+
 ## Importer Specifics & Known Quirks
 
 *   **Brittle Conventions** because Schwab provides a a bunch of partial solutions for manual inputs, this has been tested mostly only with the authors' real world data.

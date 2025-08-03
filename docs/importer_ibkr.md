@@ -71,10 +71,11 @@ python -m opensteuerauszug.steuerauszug --importer ibkr <flex query xml file> ..
 
 ## Importer Specifics & Known Quirks
 
-*   **Flex Query Customization**: It's crucial that your Flex Query includes all necessary data fields. Missing fields might lead to incomplete or inaccurate Steuerauszug generation. *(Provide a link to a sample recommended Flex Query configuration if possible)*
-*   **Multi-Currency**: IBKR accounts often involve multiple currencies. Ensure your reports include currency information for all transactions and balances. OpenSteuerAuszug will handle currency conversions based on the Kursliste.
-*   **Corporate Actions**: Complex corporate actions might require manual review or adjustments. *(Clarify how these are handled)*
-*   **Fees**: Ensure all relevant fees (transaction fees, custody fees if applicable) are included in your reports.
+*   **Corporate Actions**: The author does not currently have examples of corporate actions such as stock splits in his real world data. The documentation in this regard from IBKR is very limited. Please review carefully. If you can send sample snippets of how flex statements represent them that would be very welcome
+
+*   **Flex Query Customization**: It's crucial that your Flex Query includes all necessary data fields. Missing fields might lead to incomplete or inaccurate Steuerauszug generation. The code tries to ensure all required fields are present (even if empty when not applicable) but these scenarios have not been extensively tested.
+
+*   **Fees**: Currently fee information is not propagated to to the Steuerauszug.
 
 ## Troubleshooting
 
