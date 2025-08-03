@@ -49,6 +49,13 @@ class TaxCalculationLevel(str, Enum):
     KURSLISTE = "kursliste"
     FILL_IN = "fillin"
 
+class LogLevel(str, Enum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
 default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RENDER]
 
 @app.command()
@@ -71,6 +78,7 @@ def main(
     strict_consistency_flag: bool = typer.Option(True, "--strict-consistency/--no-strict-consistency", help="Enable/disable strict consistency checks in importers (e.g., Schwab). Defaults to strict."),
     filter_to_period_flag: bool = typer.Option(True, "--filter-to-period/--no-filter-to-period", help="Filter transactions and stock events to the tax period (with closing balances). Defaults to enabled."),
     tax_calculation_level: TaxCalculationLevel = typer.Option(TaxCalculationLevel.KURSLISTE, "--tax-calculation-level", help="Specify the level of detail for tax value calculations."),
+    log_level: LogLevel = typer.Option(LogLevel.INFO, "--log-level", help="Set the log level for console output."),
     config_file: Path = typer.Option("config.toml", "--config", "-c", help="Path to the configuration TOML file."),
     broker_name: Optional[str] = typer.Option(None, "--broker", help="Broker name (e.g., 'schwab') from config.toml to use for this run."),
     override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
@@ -78,7 +86,7 @@ def main(
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
-    logging.basicConfig(level=logging.DEBUG, format="%(levelname)s:%(name)s:%(message)s")
+    logging.basicConfig(level=log_level.value, format="%(levelname)s:%(name)s:%(message)s")
     sys.stdout.reconfigure(line_buffering=True)  # Ensure stdout is line-buffered for mixing with logging
     
     phases_specified_by_user = run_phases_input is not None
