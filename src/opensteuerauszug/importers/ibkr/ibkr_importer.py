@@ -111,7 +111,8 @@ class IbkrImporter:
             # Depending on desired behavior, could raise an error here too.
 
         if not self.account_settings_list:
-            logger.warning(
+            # Currently no account info is used so we keep stumm.
+            logger.debug(
                 "IbkrImporter initialized with an empty list of "
                 "account settings."
             )
@@ -301,6 +302,11 @@ class IbkrImporter:
                         trade.ibCommission if trade.ibCommission is not None else '0',
                         'ibCommission', f"Trade {symbol}"
                     )
+
+                    if asset_category == "CASH":
+                        # FX trades are neutral to the portfolio, so we skip them.
+                        logger.debug("Skipped CASH trade {symbol}")
+                        continue
 
                     # Added ETF, FUND
                     if asset_category not in [
