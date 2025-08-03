@@ -58,8 +58,7 @@ class TestGetConfiguredAccountInfo(unittest.TestCase):
         self.assertIsNone(acc_num)
         self.assertEqual(display_id, "...000")
 
-    @patch('builtins.print')
-    def test_non_awards_multiple_matches_uses_first(self, mock_print):
+    def test_non_awards_multiple_matches_uses_first(self):
         settings = [
             SchwabAccountSettings(account_number="FR987654321", account_name_alias="secondary", broker_name="schwab", canton="ZH", full_name="Test User"),
             SchwabAccountSettings(account_number="CH123454321", account_name_alias="primary", broker_name="schwab", canton="ZH", full_name="Test User")
@@ -72,10 +71,16 @@ class TestGetConfiguredAccountInfo(unittest.TestCase):
         self.assertEqual(acc_num, "FR987654321")
         self.assertEqual(display_id, "FR987654321")
 
-        # Check if print was called with a warning
-        args, kwargs = mock_print.call_args
-        self.assertIn("WARNING: Multiple configured Schwab accounts end with '...321'", args[0])
-        self.assertIn("'FR987654321' (alias: 'secondary')", args[0])
+        # Check if a warning was logged
+        with self.assertLogs('opensteuerauszug.importers.schwab.schwab_importer', level='WARNING') as cm:
+            _get_configured_account_info(
+                depot_short_id="321",
+                account_settings_list=settings,
+                is_awards_depot=False
+            )
+            self.assertEqual(len(cm.output), 1)
+            self.assertIn("Multiple configured Schwab accounts end with '...321'", cm.output[0])
+            self.assertIn("'FR987654321' (alias: 'secondary')", cm.output[0])
 
 
     def test_non_awards_empty_settings(self):

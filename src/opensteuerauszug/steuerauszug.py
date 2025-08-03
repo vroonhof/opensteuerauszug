@@ -379,12 +379,10 @@ def main(
                 period_to=parsed_period_to,
                 identifier_map=security_identifier_map,
                 enable_filtering=filter_to_period_flag,
-                print_log=True,
                 importer_name=importer_type.value,
                 config_settings=general_config_settings
             )
             statement = cleanup_calculator.calculate(statement)
-            # Logs are printed by the calculator itself if print_log=True
             print(f"CleanupCalculator finished. Summary: Modified fields count: {len(cleanup_calculator.modified_fields)}")
             dump_debug_model(current_phase.value + "_after_cleanup", statement) # Optional intermediate dump
 
