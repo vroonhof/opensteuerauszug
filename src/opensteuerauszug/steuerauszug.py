@@ -482,7 +482,7 @@ def main(
                 print("No errors calculation")
             
             # Fill in missing fields to make rendering possible
-            calulator = TotalCalculator(mode=CalculationMode.FILL)
+            calculator = TotalCalculator(mode=CalculationMode.FILL)
             statement = calculator.calculate(statement)
             print(f"Calculation successful.")
             dump_debug_model(current_phase.value, statement)
