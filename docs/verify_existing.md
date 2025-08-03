@@ -15,7 +15,7 @@ This can be useful for:
     ```console
     pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
     ```
-    until the version with the fixes has been published on pypi.
+    until the version with the fixes has been published on PyPI.
 
 2.  **Kursliste**: Have the relevant Kursliste (XML or SQLite in `data/kursliste/`) for the tax year of the Steuerauszug you are verifying. This allows OpenSteuerAuszug to perform its own lookup of tax values.
 3.  **Configuration**: Your `config.toml` should be set up, although fewer parameters might be strictly necessary compared to generating a new statement from raw broker data. The tool might extract some metadata from the XML itself.

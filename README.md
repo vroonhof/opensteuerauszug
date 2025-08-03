@@ -28,7 +28,7 @@ The tool can also be used to cross check and existing existing Steuerauszug (eCH
 
 - Import broker data provide transaction and position data in [ECH-0196](https://www.ech.ch/de/ech/ech-0196/2.2.0) compliant format.
 - Perform simple tax approximations for informational purposes.
-- Cross verify calculations against existing e-Steuerausweis data
+- Cross verify calculations against existing E-Steuerauszug data
 - Create standardized formatted PDF that can be imported into Tax Software. 
 
 ## Supported Brokers
@@ -38,7 +38,7 @@ For now the focus is on brokers / banks that the author has
 - Charles Schwab (main trading account and Equity Awards)
 - Interactive Brokers
   
-Additionally we can recalculate and verify any existing steuer-auszug (this is mostly to increase confidence in the software itself)
+Additionally we can recalculate and verify any existing steuerauszug (this is mostly to increase confidence in the software itself)
 
 ## Installation
 
@@ -86,7 +86,7 @@ To set up the development environment:
 ```bash
 # Create and activate virtual environment
 python -m venv .venv
-source venv/bin/activate  # On Windows: venv\Scriptsctivate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -e ".[dev]"
@@ -95,7 +95,7 @@ pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=pytho
 
 ### Testing
 
-```bash
+```console
 pytest tests/
 ```
 
@@ -108,7 +108,7 @@ This project includes utility scripts for development and data management. For d
 
 ### Code quality and AI usage.
 
-This project exists in part for me to try out AI based coding outside of $WORKSPLACE to try out various tools. As a result code quality and style is inconsistent and contains various AIisms. Code has been cleaned-up, reviewed and controlled by me where it matters.
+This project exists in part for me to try out AI based coding outside of $WORKPLACE to try out various tools. As a result code quality and style is inconsistent and contains various AIisms. Code has been cleaned-up, reviewed and controlled by me where it matters.
 
 That said all mistakes, hallucinations etc are probably mine.
 

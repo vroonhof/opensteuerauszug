@@ -8,7 +8,7 @@ The primary goal is to simplify the process of preparing your tax return by auto
 
 This guide will walk you through the necessary steps to use OpenSteuerAuszug effectively.
 
-## Short Primer on Tax data and calculatons
+## Short Primer on Tax data and calculations
 
 ### What data are we aiming for
 
@@ -20,7 +20,7 @@ When you fill your tax return manually the key bits of information are
 
 ### How is it used and what is the 'Kursliste'
 
-Most tax software, including PrivateTax as well as the software used by the tax office itself, can compute all the relevant tax information from here based on an official tax assessment called the [Kursliste](https://www.ictax.admin.ch/extern/en.html#/ratelist) or ICtax. In this language a security is called a "Valor" and all such securities have a "Valornumber"/
+Most tax software, including PrivateTax as well as the software used by the tax office itself, can compute all the relevant tax information from here based on an official tax assessment called the [Kursliste](https://www.ictax.admin.ch/extern/en.html#/ratelist) or ICtax. In this language a security is called a "Valor" and all such securities have a "valornumber"/
 
 Unfortunately there is no standardized way to import banking data in Swiss Tax software. Instead there the (e-)SteuerAuszug which in the modern shape is three things
    * An XML representation of the relevant transaction and valuation data encoded in fancy barcodes in a PDF (valornumber, transactions and positions)
@@ -84,7 +84,7 @@ The **Kursliste** is an official list published annually by the Swiss Federal Ta
 
 You need to obtain the official Kursliste XML file for the relevant tax year. This is usually available for download from the [ESTV website](https://www.ictax.admin.ch/extern/en.html#/xml). Always down the latest file marked "Initial" in the latest format, V2.0 at this time). 
 
-After unzipping, Tthe file is typically named something like `kursliste_JJJJ.xml` (e.g., `kursliste_2023.xml`).
+After unzipping, the file is typically named something like `kursliste_JJJJ.xml` (e.g., `kursliste_2023.xml`).
 
 ### Storing the Kursliste
 
@@ -192,6 +192,14 @@ One all the data is setup the Steuerauszug can be generated with
 python -m opensteuerauszug.steuerauszug {broker data location} --importer {schwab|ibkr} --tax-year {tax year} -o {output filename.pdf} 
 ```
 
+for minimal mode
+
+```console
+python -m opensteuerauszug.steuerauszug {broker data location} --importer {schwab|ibkr} --tax-calculation-level minimal --tax-year {tax year} -o {output filename.pdf} 
+```
+
+If doing active development it is best to place any real tax data including the generated output outside of the source tree or in the `/private` directory. 
+
 ---
 
 
@@ -206,7 +214,7 @@ See [docs/verify_existing.md](verify_existing.md) for instructions on verifying 
 
 While OpenSteuerAuszug aims to be comprehensive, there are certain limitations to be aware of:
 
-*   **Complex Financial Instruments**: At the moment the software supports simple equities (Shares and Funds) and cash holdings. Derivatives, fees, liabilities, bonds, currencies for investment and other complex investments including those 'Differenzbesteurung' are not supported.
+*   **Complex Financial Instruments**: At the moment the software supports simple equities (Shares and Funds) and cash holdings. Derivatives, fees, liabilities, bonds, currencies for investment and other complex investments including those 'Differenzbesteuerung' are not supported.
 *   **Swiss Brokers or non-standard withholding**: Currently for import it targets the use cases the author has. US brokers, W8-BEN in place.
 *   **Corporate Actions**: While common corporate actions (e.g., stock splits, simple dividends) are generally handled, very complex or unusual ones (e.g., mergers with mixed cash/stock offers, spin-offs with non-standard terms) might not be interpreted correctly automatically and could require manual adjustments in your tax software.
 *   **Broker Data Quality**: The accuracy of the generated Steuerauszug heavily depends on the quality and completeness of the data provided by your bank/broker. If their export files are missing information or contain errors, OpenSteuerAuszug may not be able to compensate.
@@ -236,7 +244,7 @@ Use this tool as an aid to simplify data aggregation and formatting, not as a su
 
 As of the writing this software 
 * produces valid XML for the authors recent tax years,
-* agrees with e-Steuerausweis from the authors' Bank.
+* agrees with e-Steuerauszug from the authors' Bank.
 * the output has been imported once in a test session with ZH PrivateTax
 
 but because the author wisely decided to finish their tax return before embarking on this madness it has not yet been used in a real tax return. In particular it is unknown how the tax authorities will react.
@@ -262,4 +270,4 @@ TODO: List common issues and refer to github
 ## Notes / Insights
 
 * The [ECH-0196](https://www.ech.ch/de/ech/ech-0196/2.2.0) standard refers to a bundle of sample software that disappeared form the internet. The author has not been able to locate a copy to cross validate.
-* Similarly there is a contact email address (eSteuerauszug.support@ssk.ewv-ete.ch) to notify of new "banks" using the e-Steuerausweiss and for clarifying questions. The author has not been able to get a response.
+* Similarly there is a contact email address (eSteuerauszug.support@ssk.ewv-ete.ch) to notify of new "banks" using the e-Steuerauszug and for clarifying questions. The author has not been able to get a response.
