@@ -29,6 +29,8 @@ from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from .config import ConfigManager, ConcreteAccountSettings
 
+logger = logging.getLogger(__name__)
+
 app = typer.Typer()
 
 class Phase(str, Enum):
@@ -121,26 +123,26 @@ def main(
             if temp_period_from.year != tax_year:
                 raise typer.BadParameter(f"--period-from date '{temp_period_from}' is not within the specified --tax-year '{tax_year}'.")
             parsed_period_from = temp_period_from
-            print(f"Using explicit --period-from: {parsed_period_from}")
+            logger.debug(f"Using explicit --period-from: {parsed_period_from}")
         else:
             parsed_period_from = year_start_date
-            print(f"Defaulting --period-from to start of tax year: {parsed_period_from}")
+            logger.debug(f"Defaulting --period-from to start of tax year: {parsed_period_from}")
 
         if temp_period_to:
             if temp_period_to.year != tax_year:
                 raise typer.BadParameter(f"--period-to date '{temp_period_to}' is not within the specified --tax-year '{tax_year}'.")
             parsed_period_to = temp_period_to
-            print(f"Using explicit --period-to: {parsed_period_to}")
+            logger.debug(f"Using explicit --period-to: {parsed_period_to}")
         else:
             parsed_period_to = year_end_date
-            print(f"Defaulting --period-to to end of tax year: {parsed_period_to}")
+            logger.debug(f"Defaulting --period-to to end of tax year: {parsed_period_to}")
     else:
         parsed_period_from = temp_period_from
         parsed_period_to = temp_period_to
         if parsed_period_from:
-            print(f"Using explicit --period-from: {parsed_period_from}")
+            logger.debug(f"Using explicit --period-from: {parsed_period_from}")
         if parsed_period_to:
-            print(f"Using explicit --period-to: {parsed_period_to}")
+            logger.debug(f"Using explicit --period-to: {parsed_period_to}")
 
     if parsed_period_from and parsed_period_to and parsed_period_from > parsed_period_to:
         raise typer.BadParameter(f"--period-from '{parsed_period_from}' cannot be after --period-to '{parsed_period_to}'.")
@@ -189,9 +191,9 @@ def main(
 
     if target_broker_kind_for_config_loading:
         try:
-            print(f"Loading all account configurations for broker kind '{target_broker_kind_for_config_loading}' from '{config_file}'...")
+            logger.debug(f"Loading all account configurations for broker kind '{target_broker_kind_for_config_loading}' from '{config_file}'...")
             if override_configs:
-                print(f"Applying CLI overrides: {override_configs}")
+                logger.debug(f"Applying CLI overrides: {override_configs}")
 
             concrete_accounts_list = config_manager.get_all_account_settings_for_broker(
                 target_broker_kind_for_config_loading,
@@ -212,7 +214,7 @@ def main(
             if target_broker_kind_for_config_loading == "schwab" and not all_schwab_account_settings_models and concrete_accounts_list:
                 raise ValueError(f"No valid Schwab account configurations found for broker 'schwab', though other configurations might exist.")
             if target_broker_kind_for_config_loading == "ibkr" and not all_ibkr_account_settings_models and concrete_accounts_list:
-                print(f"Warning: No valid IBKR account configurations loaded for broker 'ibkr', though other configurations might exist.")
+                logger.debug(f"Warning: No valid IBKR account configurations loaded for broker 'ibkr', though other configurations might exist.")
 
             if all_schwab_account_settings_models:
                 print(f"Successfully loaded {len(all_schwab_account_settings_models)} Schwab account(s).")
@@ -329,7 +331,7 @@ def main(
                 print(f"Importer '{importer_type.value}' not yet implemented or not applicable. Creating empty TaxStatement.")
                 statement = TaxStatement(minorVersion=2) # type: ignore
 
-            print(f"Import successful (placeholder)." )
+            print(f"Import successful." )
             dump_debug_model(current_phase.value, statement)
 
         # ... (rest of the phases: VALIDATE, CALCULATE, VERIFY, RENDER remain the same) ...
@@ -359,10 +361,10 @@ def main(
                 src_dir = os.path.dirname(src_opensteuerauszug_dir)
                 project_root_dir = os.path.dirname(src_dir)
                 effective_identifiers_csv_path = os.path.join(project_root_dir, "data", "security_identifiers.csv")
-                print(f"Using default security identifiers CSV path: {effective_identifiers_csv_path}")
+                logger.debug(f"Using default security identifiers CSV path: {effective_identifiers_csv_path}")
             else:
                 effective_identifiers_csv_path = identifiers_csv_path_opt
-                print(f"Using user-provided security identifiers CSV path: {effective_identifiers_csv_path}")
+                logger.debug(f"Using user-provided security identifiers CSV path: {effective_identifiers_csv_path}")
 
             print(f"Attempting to load security identifiers from: {effective_identifiers_csv_path}")
             identifier_loader = SecurityIdentifierMapLoader(effective_identifiers_csv_path)
