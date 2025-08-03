@@ -230,5 +230,5 @@ class PositionReconciler:
                     current_quantity -= delta_quantity # Un-apply the mutation
                     _synth_log(f"{log_prefix} Synthesizing BACKWARD for {target_date}: Un-applied mutation on {mutation_event.referenceDate}, Name='{mutation_event.name or 'N/A'}', Qty Change={-delta_quantity}. New Qty: {current_quantity}.")
             
-            _synth_log(f"{log_prefix} Synthesized BACKWARD position for START of {target_date}: Final Qty: {current_quantity} ({current_currency}).")
+            logger.debug(f"{log_prefix} Synthesized BACKWARD position for START of {target_date}: Final Qty: {current_quantity} ({current_currency}).")
             return ReconciledQuantity(reference_date=target_date, quantity=current_quantity, currency=current_currency) 

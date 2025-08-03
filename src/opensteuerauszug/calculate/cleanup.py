@@ -28,7 +28,7 @@ class CleanupCalculator:
                  importer_name: str, # Added importer_name parameter
                  identifier_map: Optional[Dict[str, Dict[str, Any]]] = None,
                  enable_filtering: bool = True,
-                 print_log: bool = False, # Kept for compatibility, but not used
+                 
                  config_settings: Optional[GeneralSettings] = None):
         self.period_from = period_from
         self.period_to = period_to
@@ -228,7 +228,7 @@ class CleanupCalculator:
             except NotImplementedError as e: # Should ideally not be raised if logic is complete
                 logger.error(f"Error generating TaxStatement.id (NotImplemented): {e}")
             #except Exception as e: # Catch any other unexpected error during ID generation
-            #    self._log(f"Unexpected error during TaxStatement.id generation: {e}")
+            #    logger.error(f"Unexpected error during TaxStatement.id generation: {e}")
             #    # statement.id will remain None, allowing process to potentially continue
 
         # Process Bank Accounts
@@ -436,7 +436,7 @@ class CleanupCalculator:
                             # If payments_needing_qty_update is False, this loop isn't problematic even if security.stock is empty.
                             # --- End Calculate SecurityPayment.quantity ---
         else:
-            self._log("No securities accounts found to process.")
+            logger.info("No securities accounts found to process.")
 
         if self.modified_fields:
             logger.info(f"Cleanup calculation finished. Summary: Modified fields count: {len(self.modified_fields)}")

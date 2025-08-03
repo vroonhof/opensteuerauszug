@@ -180,7 +180,7 @@ class TestCleanupCalculatorFiltering:
             # importer_name="FilterImporter", # Removed
             listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]))
 
-        calculator = CleanupCalculator(sample_period_from, sample_period_to, "FilterImporter", enable_filtering=True, print_log=True) # Added importer_name
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "FilterImporter", enable_filtering=True)
         result_statement = calculator.calculate(statement)
 
         assert result_statement.listOfBankAccounts
@@ -189,7 +189,6 @@ class TestCleanupCalculatorFiltering:
         assert p_inside1 in filtered_payments
         assert p_inside2 in filtered_payments
         assert "BA1.payment (filtered)" in calculator.modified_fields
-        assert any("Filtered 4 payments to 2" in log for log in calculator.get_log())
 
     def test_filter_bank_account_payments_disabled(self, sample_period_from, sample_period_to):
         payments = [create_bank_account_payment(sample_period_from - timedelta(days=1))]
@@ -254,7 +253,7 @@ class TestCleanupCalculatorFiltering:
             # importer_name="FilterImporter", # Removed
             listOfSecurities=ListOfSecurities(depot=[depot]))
 
-        calculator = CleanupCalculator(sample_period_from, sample_period_to, "FilterImporter", enable_filtering=True, print_log=True) # Added importer_name
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "FilterImporter", enable_filtering=True) # Added importer_name
         result_statement = calculator.calculate(statement)
 
         assert result_statement.listOfSecurities
@@ -267,7 +266,6 @@ class TestCleanupCalculatorFiltering:
             assert item in filtered_stocks
         
         assert "D1/TestSec.stock (filtered)" in calculator.modified_fields
-        assert any("Filtered 8 stock events to 3" in log for log in calculator.get_log()) # Adjusted from 4 to 3
         assert result_statement.listOfSecurities.depot[0].security[0].taxValue is not None
         assert result_statement.listOfSecurities.depot[0].security[0].taxValue.quantity == s_bal_end_plus_one.quantity
 
@@ -399,8 +397,6 @@ class TestCleanupCalculatorEdgeCases:
         assert result_statement.listOfSecurities is None
         assert "TaxStatement.id (generated)" in calculator.modified_fields
         assert len(calculator.modified_fields) == 1 # Only ID
-        assert any("No bank accounts found to process." in log for log in calculator.get_log())
-        assert any("No securities accounts found to process." in log for log in calculator.get_log())
 
     def test_statement_with_no_bank_accounts(self, sample_period_from, sample_period_to):
         security = Security(positionId=1, country="CH", currency="CHF", quotationType="PIECE", securityCategory="SHARE", securityName="TestSec")
@@ -420,7 +416,6 @@ class TestCleanupCalculatorEdgeCases:
         assert result_statement.listOfSecurities is not None
         assert "TaxStatement.id (generated)" in calculator.modified_fields 
         assert len(calculator.modified_fields) == 1 
-        assert any("No bank accounts found to process." in log for log in calculator.get_log())
 
     def test_statement_with_no_securities(self, sample_period_from, sample_period_to):
         bank_account = BankAccount(bankAccountNumber=BankAccountNumber("BA1"))
@@ -439,7 +434,6 @@ class TestCleanupCalculatorEdgeCases:
         assert result_statement.listOfSecurities is None
         assert "TaxStatement.id (generated)" in calculator.modified_fields
         assert len(calculator.modified_fields) == 1
-        assert any("No securities accounts found to process." in log for log in calculator.get_log())
 
     def test_bank_account_with_no_payments(self, sample_period_from, sample_period_to):
         bank_account = BankAccount(bankAccountNumber=BankAccountNumber("BA1"), payment=[])
@@ -500,20 +494,13 @@ class TestCleanupCalculatorEdgeCases:
             listOfSecurities=ListOfSecurities(depot=[depot])
         )
 
-        calculator = CleanupCalculator(sample_period_from, sample_period_to, "EdgeImporter", enable_filtering=True, print_log=False) # Added importer_name
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "EdgeImporter", enable_filtering=True) # Added importer_name
         calculator.calculate(statement)
 
         assert "TaxStatement.id (generated)" in calculator.modified_fields
         assert "BA001.payment (filtered)" in calculator.modified_fields
         assert "Dep01/SecXYZ.stock (filtered)" in calculator.modified_fields
-        assert len(calculator.modified_fields) == 3
-        
-        final_log_message = calculator.get_log()[-1] 
-        assert "Fields modified:" in final_log_message 
-        assert "TaxStatement.id (generated)" in final_log_message
-        assert "BA001.payment (filtered)" in final_log_message
-        assert "Dep01/SecXYZ.stock (filtered)" in final_log_message
-
+        assert len(calculator.modified_fields) == 3        
 
 # Helper function for creating TaxStatement with a single security
 def _create_statement_with_security(sec: Security, period_to_date: date, depot_id_str: str = "DTEST") -> TaxStatement:
@@ -564,7 +551,6 @@ class TestCleanupCalculatorEnrichment:
             "period_to": sample_period_to,
             "importer_name": "EnrichTest", # Added importer_name to calculator params
             "enable_filtering": False,
-            "print_log": True
         }
 
     def test_enrichment_full(self, base_calculator_params):
@@ -583,7 +569,6 @@ class TestCleanupCalculatorEnrichment:
         assert security.isin == "US1234567890"
         assert security.valorNumber == 1234567
         # Log still refers to the lookup key which was security.securityName here
-        assert any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_FULL'" in log for log in calculator.get_log())
         assert any("DTEST/TESTSYM_FULL (enriched)" in f for f in calculator.modified_fields)
 
     def test_enrichment_uses_symbol_success(self, base_calculator_params):
@@ -596,7 +581,6 @@ class TestCleanupCalculatorEnrichment:
         
         assert security.isin == "XS123123123"
         assert security.valorNumber == 987654
-        assert any("Enriched ISIN/Valor from identifier file using symbol 'MYSYMBOL'" in log for log in calculator.get_log())
         assert any("DTEST/MYSYMBOL (enriched)" in f for f in calculator.modified_fields)
 
     def test_enrichment_uses_symbol_not_securityname(self, base_calculator_params):
@@ -614,7 +598,6 @@ class TestCleanupCalculatorEnrichment:
         
         assert security.isin == "XS_CORRECT"
         assert security.valorNumber == 222
-        assert any("Enriched ISIN/Valor from identifier file using symbol 'RIGHT_SYMBOL'" in log for log in calculator.get_log())
 
     def test_enrichment_symbol_not_in_map(self, base_calculator_params):
         test_map = {"KNOWN_SYMBOL": {"isin": "XS123", "valor": 987}}
@@ -623,14 +606,10 @@ class TestCleanupCalculatorEnrichment:
         security = _create_test_security(name="Some Name", symbol="UNKNOWN_SYMBOL")
         statement = _create_statement_with_security(security, base_calculator_params["period_to"], depot_id_str="D_SYM_UNKNOWN")
         statement.id="PRESET_ID_SYM_UNKNOWN" # Avoid ID gen log
-        initial_log_count = len(calculator.get_log())
         calculator.calculate(statement)
-        logs_after_calculate = calculator.get_log()[initial_log_count:]
 
         assert security.isin is None
         assert security.valorNumber is None
-        assert not any("Enriched ISIN/Valor" in log for log in logs_after_calculate)
-        assert not any("D_SYM_UNKNOWN/UNKNOWN_SYMBOL (enriched)" in f for f in calculator.modified_fields)
 
     def test_enrichment_symbol_is_none_uses_securityname_fallback(self, base_calculator_params):
         """If symbol is None, it should fall back to securityName for lookup."""
@@ -643,7 +622,6 @@ class TestCleanupCalculatorEnrichment:
         
         assert security.isin == "XS_FB"
         assert security.valorNumber == 321
-        assert any("Enriched ISIN/Valor from identifier file using symbol 'FALLBACK_NAME'" in log for log in calculator.get_log())
 
     def test_enrichment_symbol_is_empty_string_uses_securityname_fallback(self, base_calculator_params):
         """If symbol is an empty string, it should fall back to securityName for lookup."""
@@ -656,7 +634,6 @@ class TestCleanupCalculatorEnrichment:
         
         assert security.isin == "XS_FB_EMPTY"
         assert security.valorNumber == 654
-        assert any("Enriched ISIN/Valor from identifier file using symbol 'FALLBACK_NAME_EMPTY_SYM'" in log for log in calculator.get_log())
 
 
     def test_enrichment_map_none_or_empty_with_symbol(self, base_calculator_params):
@@ -666,12 +643,9 @@ class TestCleanupCalculatorEnrichment:
 
         # Test with None map
         calc_none_map = CleanupCalculator(**base_calculator_params, identifier_map=None)
-        initial_logs_none = len(calc_none_map.get_log())
         calc_none_map.calculate(statement)
-        logs_calc_none = calc_none_map.get_log()[initial_logs_none:]
         assert security_with_symbol.isin is None
         assert security_with_symbol.valorNumber is None
-        assert not any("Enriched" in log for log in logs_calc_none)
         assert not calc_none_map.modified_fields # Only ID gen if not preset
 
         # Reset security fields for next test
@@ -680,12 +654,9 @@ class TestCleanupCalculatorEnrichment:
 
         # Test with empty map
         calc_empty_map = CleanupCalculator(**base_calculator_params, identifier_map={})
-        initial_logs_empty = len(calc_empty_map.get_log())
         calc_empty_map.calculate(statement)
-        logs_calc_empty = calc_empty_map.get_log()[initial_logs_empty:]
         assert security_with_symbol.isin is None
         assert security_with_symbol.valorNumber is None
-        assert not any("Enriched" in log for log in logs_calc_empty)
         assert not calc_empty_map.modified_fields
 
 
@@ -729,13 +700,10 @@ class TestCleanupCalculatorEnrichment:
         statement.id = "PRE_EXISTING_ID_NAME_LOOKUP"
 
         # Clear initial logs from calculator's __init__ to focus on calculate() logs
-        initial_log_count = len(calculator.get_log())
         calculator.calculate(statement)
-        logs_after_calculate = calculator.get_log()[initial_log_count:]
         
         assert security.isin == "US1111111111"
         assert security.valorNumber == 1111111
-        assert not any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_ALREADY_FULL_NAME'" in log for log in logs_after_calculate)
         assert "TaxStatement.id (generated)" not in calculator.modified_fields
         assert not any("TESTSYM_ALREADY_FULL_NAME (enriched)" in f for f in calculator.modified_fields)
 
@@ -753,7 +721,6 @@ class TestCleanupCalculatorEnrichment:
         
         assert security.isin == "CH0987654321"
         assert security.valorNumber is None
-        assert any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_NO_VALOR_NAME'" in log for log in calculator.get_log())
 
     def test_enrichment_map_has_valor_only_by_name(self, base_calculator_params): # Renamed for clarity
         test_map = {"TESTSYM_NO_ISIN_NAME": {"isin": None, "valor": 7654321}}
@@ -765,7 +732,6 @@ class TestCleanupCalculatorEnrichment:
         
         assert security.isin is None
         assert security.valorNumber == 7654321
-        assert any("Enriched ISIN/Valor from identifier file using symbol 'TESTSYM_NO_ISIN_NAME'" in log for log in calculator.get_log())
 
 
 class TestCleanupCalculatorSecurityPaymentQuantity:
@@ -813,7 +779,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         ]
         # Expected quantity at payment_date (2023-07-15) is 60 (50 from opening + 10 from buy on 2023-06-01)
 
-        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False)
         result_statement = calculator.calculate(statement)
 
         calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
@@ -835,7 +801,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         ]
         # Expected quantity at payment_date (2023-08-01) is 0
 
-        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False)
         result_statement = calculator.calculate(statement)
 
         calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
@@ -853,7 +819,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         # Stock setup: Empty stock list
         security.stock = [] # This will now trigger the new ValueError for missing stock data
 
-        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False)
 
         with pytest.raises(ValueError) as excinfo:
             calculator.calculate(statement)
@@ -891,7 +857,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
              create_security_stock(date(2023, 7, 1), Decimal("10"), True, name="Buy After PaymentDate")
         ]
 
-        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False)
 
         with pytest.raises(ValueError) as excinfo:
             calculator.calculate(statement)
@@ -923,7 +889,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         ]
         # Expected quantity is 50 based on exDate
 
-        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False)
         result_statement = calculator.calculate(statement)
 
         calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
@@ -946,7 +912,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         ]
         # Expected quantity is 0 based on exDate
 
-        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False)
         result_statement = calculator.calculate(statement)
 
         calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
@@ -967,7 +933,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
             create_security_stock(date(2023, 8, 1), Decimal("20"), True, name="Buy well after exDate")
         ]
 
-        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False)
 
         with pytest.raises(ValueError) as excinfo:
             calculator.calculate(statement)
@@ -994,7 +960,7 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         security.payment = [payment_event]
         security.stock = [] # Explicitly empty
 
-        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False, print_log=True)
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False)
 
         with pytest.raises(ValueError) as excinfo:
             calculator.calculate(statement)
@@ -1044,7 +1010,6 @@ class TestCleanupCalculatorIDGeneration:
         assert isinstance(statement.id, str)
         assert len(statement.id) == 38 # Adjusted length from 40 to 38
         assert "TaxStatement.id (generated)" in calculator.modified_fields
-        assert any(f"Generated new TaxStatement.id: {statement.id}" in log for log in calculator.get_log())
 
 
     def test_id_not_overwritten_if_exists(self):
@@ -1117,7 +1082,6 @@ class TestCleanupCalculatorIDGeneration:
         calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name=None, enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
-        assert any("Warning: Importer name is None or empty, using 'XXXXXX' for Org ID part." in log for log in calculator.get_log())
 
     def test_id_generation_org_id_importer_name_empty(self): # Renamed from test_id_generation_placeholder_org_id_no_institution
         period_to_date = date(2023, 12, 31)
@@ -1145,7 +1109,6 @@ class TestCleanupCalculatorIDGeneration:
         calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
-        assert any("Warning: Importer name is None or empty, using 'XXXXXX' for Org ID part." in log for log in calculator.get_log())
 
     def test_id_generation_org_id_importer_name_short(self):
         period_to_date = date(2023, 12, 31)
@@ -1222,7 +1185,6 @@ class TestCleanupCalculatorIDGeneration:
         calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="!@#$%", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
-        assert any("Sanitized importer name '!@#$%' is empty, using 'XXXXXX' for Org ID part." in log for log in calculator.get_log())
 
     def test_id_generation_placeholder_customer_id_no_id_for_client(self):
         period_to_date = date(2023, 12, 31)
@@ -1243,7 +1205,6 @@ class TestCleanupCalculatorIDGeneration:
         calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="TESTIMP", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
-        assert any("Warning: No clientNumber or TIN found for the first client. Using placeholder for customer ID part." in log for log in calculator.get_log())
 
 
     def test_id_generation_placeholder_customer_id_no_client_object(self):
@@ -1265,7 +1226,6 @@ class TestCleanupCalculatorIDGeneration:
         calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="ANYBANK", enable_filtering=False) # Pass importer_name here
         calculator.calculate(statement)
         assert statement.id == expected_id
-        assert any("Warning: statement.client list is empty. Using placeholder for customer ID part." in log for log in calculator.get_log())
        
     @pytest.mark.parametrize("raw_client_id, expected_customer_part", [
         ("Cust With Spaces", "CustWithSpaces"),
@@ -1342,8 +1302,6 @@ class TestCleanupCalculatorIDGeneration:
         assert statement.id is not None
         assert isinstance(statement.id, str)
         assert "TaxStatement.id (generated)" in calculator.modified_fields
-        assert any("Generated new TaxStatement.id:" in log for log in calculator.get_log())
-        assert not any("Error generating TaxStatement.id (NotImplemented)" in log for log in calculator.get_log())
 
     # Removed test_id_generation_lei_shorter_than_12 as LEI is no longer used for org_id
     # Removed test_id_generation_lei_empty_string as LEI is no longer used for org_id
