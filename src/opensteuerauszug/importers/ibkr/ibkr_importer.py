@@ -1,8 +1,11 @@
 import os
+import logging
 from typing import Final, List, Any, Dict, Literal
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
@@ -102,15 +105,14 @@ class IbkrImporter:
         if not IBFLEX_AVAILABLE:
             # This check could also be done in the CLI or app entry point
             # to provide a cleaner error to the user.
-            print(
-                "CRITICAL: ibflex library is not installed. "
-                "IbkrImporter will not function."
+            logger.critical(
+                "ibflex library is not installed. IbkrImporter will not function."
             )
             # Depending on desired behavior, could raise an error here too.
 
         if not self.account_settings_list:
-            print(
-                "Warning: IbkrImporter initialized with an empty list of "
+            logger.warning(
+                "IbkrImporter initialized with an empty list of "
                 "account settings."
             )
         # else:
@@ -187,11 +189,11 @@ class IbkrImporter:
                     f"IBKR Flex statement file not found: {filename}"
                 )
             if not filename.lower().endswith(".xml"):
-                print(f"Warning: Skipping non-XML file: {filename}")
+                logger.warning(f"Skipping non-XML file: {filename}")
                 continue
 
             try:
-                print(f"Parsing IBKR Flex statement: {filename}")
+                logger.info(f"Parsing IBKR Flex statement: {filename}")
                 response = ibflex.parser.parse(filename)
                 # response.FlexStatements is a list of FlexStatement objects
                 # Each FlexStatement corresponds to an account
@@ -201,15 +203,15 @@ class IbkrImporter:
                         # accounts are in one file and account_settings_list
                         # specifies which one to process.
                         # For now, accumulate all statements found.
-                        print(
-                            f"Successfully parsed statement for account: "
-                            f"{stmt.accountId}, Period: {stmt.fromDate} "
-                            f"to {stmt.toDate}"
-                        )
+                        logger.info(
+                        f"Successfully parsed statement for account: "
+                        f"{stmt.accountId}, Period: {stmt.fromDate} "
+                        f"to {stmt.toDate}"
+                    )
                         all_flex_statements.append(stmt)
                 else:
-                    print(
-                        f"Warning: No FlexStatements found in {filename} "
+                    logger.warning(
+                        f"No FlexStatements found in {filename} "
                         "or response was empty."
                     )
             except FlexParserError as e:
@@ -227,8 +229,8 @@ class IbkrImporter:
         if not all_flex_statements:
             # This might be an error or just a case of no relevant data.
             # "If data is missing do a hard error" - might need adjustment
-            print(
-                "Warning: No Flex statements were successfully parsed. "
+            logger.warning(
+                "No Flex statements were successfully parsed. "
                 "Returning empty TaxStatement."
             )
             return TaxStatement(
@@ -249,7 +251,7 @@ class IbkrImporter:
                 stmt, 'accountId', 'FlexStatement'
             )
             # account_id_processed = account_id # Keep track for summary
-            print(f"Processing statement for account: {account_id}")
+            logger.info(f"Processing statement for account: {account_id}")
 
             # --- Process Trades ---
             if stmt.Trades:
@@ -304,8 +306,8 @@ class IbkrImporter:
                     if asset_category not in [
                         "STK", "OPT", "FUT", "BOND", "ETF", "FUND"
                     ]:
-                        print(
-                            f"Warning: Skipping trade for unhandled asset "
+                        logger.warning(
+                            f"Skipping trade for unhandled asset "
                             f"category: {asset_category} (Symbol: {symbol})"
                         )
                         continue
@@ -374,8 +376,8 @@ class IbkrImporter:
                     if asset_category not in [
                         "STK", "OPT", "FUT", "BOND", "ETF", "FUND"
                     ]:
-                        print(
-                            f"Warning: Skipping open position for unhandled "
+                        logger.warning(
+                            f"Skipping open position for unhandled "
                             f"asset category: {asset_category} "
                             f"(Symbol: {symbol})"
                         )
@@ -546,11 +548,11 @@ class IbkrImporter:
                             continue
                         elif tx_type in [ibflex.CashAction.BROKERINTPAID]:
                             # TODO: Optionally create a liabilities section.
-                            print(f"Warning: Broker interest paid for {description} is not handled for liabilities.")
+                            logger.warning(f"Broker interest paid for {description} is not handled for liabilities.")
                             continue
                         elif tx_type in [ibflex.CashAction.FEES]:
                             # TODO: Optionally create a costs sectioons.
-                            print(f"Warning: Fees paid for {description} are ignored for statement.")
+                            logger.warning(f"Fees paid for {description} are ignored for statement.")
                             continue
                         elif tx_type in [ibflex.CashAction.BROKERINTRCVD]:
                             # Tax relevant event. Fall through to create a bank payment.
@@ -797,8 +799,13 @@ class IbkrImporter:
                     balance=closing_balance_value
                 )
             else:
+                logger.warning(
+                    f"No closing cash balance found in CashReport "
+                    f"for account {acc_id}, currency {curr} for date "
+                    f"{self.period_to}."
+                )
                 raise ValueError(
-                    f"Warning: No closing cash balance found in CashReport "
+                    f"No closing cash balance found in CashReport "
                     f"for account {acc_id}, currency {curr} for date "
                     f"{self.period_to}."
                 )
@@ -827,7 +834,7 @@ class IbkrImporter:
             listOfSecurities=list_of_securities,
             listOfBankAccounts=list_of_bank_accounts
         )
-        print(
+        logger.info(
             "Partial TaxStatement created with Trades, OpenPositions, "
             "and basic CashTransactions mapping."
         )
@@ -888,14 +895,15 @@ class IbkrImporter:
 
 
 if __name__ == '__main__':
-    print("IbkrImporter module loaded.")
+    logging.basicConfig(level=logging.INFO) # Set a default level for standalone execution
+    logger.info("IbkrImporter module loaded.")
     if not IBFLEX_AVAILABLE:
-        print(
+        logger.critical(
             "ibflex library not available. Run 'pip install ibflex' "
             "to use this importer."
         )
     else:
-        print("ibflex library is available.")
+        logger.info("ibflex library is available.")
     # Example usage:
     # from opensteuerauszug.config.models import IbkrAccountSettings # Create
     # settings = IbkrAccountSettings(account_id="U1234567")
@@ -944,7 +952,7 @@ if __name__ == '__main__':
     # finally:
     #     if os.path.exists(DUMMY_FILE):
     #         os.remove(DUMMY_FILE)
-    print(
+    logger.info(
         "Example usage in __main__ needs IbkrAccountSettings to be defined "
         "in config.models and 'pip install ibflex devtools'."
     )
