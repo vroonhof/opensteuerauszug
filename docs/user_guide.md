@@ -226,6 +226,15 @@ While OpenSteuerAuszug aims to be comprehensive, there are certain limitations t
 
 Always review the generated documents carefully and consult with a qualified tax professional if you have complex financial affairs or are unsure about any aspect of your tax return.
 
+
+### Limitations of the E-Steuerauszug format
+
+The  E-Steuerauszug format was designed with swiss
+financial institutes in mind and assume authority,
+this does not always fit what we are trying to do.
+
+For more detail see [Technical notes](technical_notes.md).
+
 ---
 
 ## Verification and User Liability

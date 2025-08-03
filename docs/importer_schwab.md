@@ -172,7 +172,7 @@ The `account_number` in `config.toml` is used to link the transaction files (and
 
 Schwab provides only symbols for equities, no ISINs or other identifiers. You need to provide a (reusable) mapping in `data/security_identifiers.csv`.
 
-Ssee the [Configuration Guide](config.md#security-identifier-enrichment) for how to do this.
+See the [Configuration Guide](config.md#security-identifier-enrichment) for how to do this.
 
 ## Running Opensteuerauszug
 
