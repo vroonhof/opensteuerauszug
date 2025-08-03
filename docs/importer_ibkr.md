@@ -18,7 +18,7 @@ OpenSteuerAuszug processes IBKR data using [**Flex Query XML files**](https://ww
 
 ### Essential Flex Query Sections and Fields:
 
-Unfortunately these is no simple way to programmatically set the configuration. However it only needs to be done once and *it should be ok to select all sections and all fields*, so try that first.
+Unfortunately these is no simple way to programmatically set the configuration. However it only needs to be done once and **it should be ok to select all sections and all fields**, so try that first.
 
 The importer uses the `ibflex` library to parse the XML, this can be quite sensitive to Interactive Brokers adding new fields, in that case you can unselect the problematic fields or patch `ibflex`. I provide a vendored fork at https://github.com/vroonhof/ibflex
 
