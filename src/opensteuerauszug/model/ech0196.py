@@ -1383,7 +1383,7 @@ class TaxStatement(TaxStatementBase):
         xml_bytes = self.to_xml_bytes(pretty_print=pretty_print)
         with open(file_path, 'wb') as f:
             f.write(xml_bytes)
-        logger.info("Model successfully written to %s", file_path)
+        logger.debug("Model successfully written to %s", file_path)
 
     def dump_debug_xml(self, file_path: str):
         """Dumps the current model state to XML, potentially incomplete/invalid."""
@@ -1391,7 +1391,7 @@ class TaxStatement(TaxStatementBase):
         # Future: could add options to relax validation or add comments
         try:
             self.to_xml_file(file_path, pretty_print=True)
-            logger.info("Debug XML dumped to: %s", file_path)
+            logger.debug("Debug XML dumped to: %s", file_path)
         except Exception as e:
             logger.error("Error dumping debug XML to %s: %s", file_path, e)
 

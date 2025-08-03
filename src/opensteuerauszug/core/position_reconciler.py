@@ -1,9 +1,13 @@
+import logging
 from dataclasses import dataclass
 from datetime import date
 from typing import List, Optional, Tuple
 from decimal import Decimal
 from opensteuerauszug.model.ech0196 import SecurityStock, CurrencyId, QuotationType
 from opensteuerauszug.util.sorting import sort_security_stocks
+
+# A logger for this module
+logger = logging.getLogger(__name__)
 
 @dataclass
 class ReconciledQuantity:
@@ -28,17 +32,6 @@ class PositionReconciler:
         """
         self.identifier = identifier
         self.sorted_stocks: List[SecurityStock] = sort_security_stocks(initial_stocks)
-        self.reconciliation_log: List[str] = []
-
-    def _add_log(self, message: str, print_immediately: bool = False):
-        """Adds a message to the internal log. Optionally prints it."""
-        self.reconciliation_log.append(message)
-        if print_immediately:
-            print(message)
-
-    def get_log(self) -> List[str]:
-        """Returns the collected log messages."""
-        return list(self.reconciliation_log)
 
     def check_consistency(self, print_log: bool = False, raise_on_error: bool = False) -> Tuple[bool, List[str]]:
         """
@@ -58,12 +51,11 @@ class PositionReconciler:
         Raises:
             ValueError: If raise_on_error is True and inconsistencies are found.
         """
-        self.reconciliation_log = [] # Reset log
         log_prefix = f"[{self.identifier}]"
 
         if not self.sorted_stocks:
-            self._add_log(f"{log_prefix} No stock data to check.", print_immediately=print_log)
-            return True, self.reconciliation_log # Empty is trivially consistent
+            logger.info(f"{log_prefix} No stock data to check.")
+            return True, [] # Empty is trivially consistent
 
         first_balance_idx = -1
         for i, stock in enumerate(self.sorted_stocks):
@@ -73,18 +65,19 @@ class PositionReconciler:
         
         if first_balance_idx == -1:
             msg = f"{log_prefix} Consistency check failed: No balance statement (mutation=False) found to start reconciliation."
-            self._add_log(msg, print_immediately=print_log)
+            logger.error(msg)
             if raise_on_error:
                 raise ValueError(msg)
-            return False, self.reconciliation_log
+            return False, [msg]
 
         start_balance_event = self.sorted_stocks[first_balance_idx]
         current_quantity = start_balance_event.quantity
         current_date = start_balance_event.referenceDate
         
-        self._add_log(f"{log_prefix} Starting consistency check from initial balance on {current_date}. Initial Qty: {current_quantity} ({start_balance_event.balanceCurrency}).", print_immediately=print_log)
+        logger.debug(f"{log_prefix} Starting consistency check from initial balance on {current_date}. Initial Qty: {current_quantity} ({start_balance_event.balanceCurrency}).")
         
         is_consistent = True
+        log_messages = []
 
         for i in range(first_balance_idx + 1, len(self.sorted_stocks)):
             stock_event = self.sorted_stocks[i]
@@ -92,7 +85,9 @@ class PositionReconciler:
             
             if event_date < current_date:
                  # This should not happen if stocks are correctly sorted.
-                self._add_log(f"ERROR: {log_prefix} Stock events appear out of order: event on {event_date} after processing {current_date}. Aborting.", print_immediately=print_log)
+                msg = f"ERROR: {log_prefix} Stock events appear out of order: event on {event_date} after processing {current_date}. Aborting."
+                logger.error(msg)
+                log_messages.append(msg)
                 is_consistent = False
                 break 
             
@@ -102,33 +97,35 @@ class PositionReconciler:
             if stock_event.mutation:
                 delta_quantity = stock_event.quantity # For mutations, quantity is the change
                 calculated_new_quantity = current_quantity + delta_quantity
-                self._add_log(f"{log_prefix} Date: {event_date}. Applying mutation: Name='{stock_event.name or 'N/A'}', Qty Change={delta_quantity}. Old Qty: {current_quantity}, Calc New Qty: {calculated_new_quantity}.", print_immediately=print_log)
+                logger.debug(f"{log_prefix} Date: {event_date}. Applying mutation: Name='{stock_event.name or 'N/A'}', Qty Change={delta_quantity}. Old Qty: {current_quantity}, Calc New Qty: {calculated_new_quantity}.")
                 current_quantity = calculated_new_quantity
                 current_date = event_date # Event processed, advance current_date cursor
             else: # This is a new balance statement
                 reported_quantity = stock_event.quantity
-                self._add_log(f"{log_prefix} Date: {event_date}. Encountered balance statement: Name='{stock_event.name or 'N/A'}', Reported Qty={reported_quantity}. Current Calculated Qty: {current_quantity}.", print_immediately=print_log)
+                logger.debug(f"{log_prefix} Date: {event_date}. Encountered balance statement: Name='{stock_event.name or 'N/A'}', Reported Qty={reported_quantity}. Current Calculated Qty: {current_quantity}.")
 
                 if current_quantity != reported_quantity:
                     is_consistent = False
                     discrepancy = reported_quantity - current_quantity
-                    self._add_log(f"ERROR: {log_prefix} Mismatch on {event_date}! Calculated Qty: {current_quantity}, Reported Qty in statement: {reported_quantity}. Discrepancy: {discrepancy}.", print_immediately=print_log)
+                    msg = f"ERROR: {log_prefix} Mismatch on {event_date}! Calculated Qty: {current_quantity}, Reported Qty in statement: {reported_quantity}. Discrepancy: {discrepancy}."
+                    logger.error(msg)
+                    log_messages.append(msg)
                 else:
-                    self._add_log(f"{log_prefix} Match on {event_date}: Calculated Qty {current_quantity} == Reported Qty {reported_quantity}.", print_immediately=print_log)
+                    logger.debug(f"{log_prefix} Match on {event_date}: Calculated Qty {current_quantity} == Reported Qty {reported_quantity}.")
                 
                 # Reset current_quantity to the reported balance for continued reconciliation from this known point.
                 current_quantity = reported_quantity
                 current_date = event_date # Event processed, advance current_date cursor
         
         if is_consistent:
-            self._add_log(f"{log_prefix} Consistency check finished successfully.", print_immediately=print_log)
+            logger.info(f"{log_prefix} Consistency check finished successfully.")
         else:
-            self._add_log(f"{log_prefix} Consistency check finished with errors.", print_immediately=print_log)
+            logger.error(f"{log_prefix} Consistency check finished with errors.")
             if raise_on_error:
-                error_summary = f"[{self.identifier}] Position reconciliation failed. Log:\n" + "\n".join(self.reconciliation_log)
+                error_summary = f"[{self.identifier}] Position reconciliation failed. Log:\n" + "\n".join(log_messages)
                 raise ValueError(error_summary)
             
-        return is_consistent, self.reconciliation_log
+        return is_consistent, log_messages
 
     def synthesize_position_at_date(self, target_date: date, print_log: bool = False) -> Optional[ReconciledQuantity]:
         """
@@ -146,14 +143,12 @@ class PositionReconciler:
         synthesis_log: List[str] = []
         log_prefix = f"[{self.identifier}]"
 
-        def _synth_log(msg):
-            synthesis_log.append(msg)
+        def _synth_log(msg, level=logging.DEBUG):
             if print_log:
-                print(msg)
+                logger.log(level, msg)
 
         if not self.sorted_stocks:
             _synth_log(f"{log_prefix} Cannot synthesize position for {target_date}: No stock data.")
-            self.reconciliation_log.extend(synthesis_log) # Append to main log
             return None
 
         last_balance_event: Optional[SecurityStock] = None
@@ -192,7 +187,6 @@ class PositionReconciler:
                     _synth_log(f"{log_prefix} Synthesizing FORWARD for {target_date}: Applied mutation on {mutation_event.referenceDate}, Name='{mutation_event.name or 'N/A'}', Qty Change={delta_quantity}. New Qty: {current_quantity}.")
 
             _synth_log(f"{log_prefix} Synthesized FORWARD position for START of {target_date}: Final Qty: {current_quantity} ({current_currency}).")
-            self.reconciliation_log.extend(synthesis_log)
             return ReconciledQuantity(reference_date=target_date, quantity=current_quantity, currency=current_currency)
         else:
             # --- Attempt Backward Synthesis Path --- 
@@ -211,7 +205,6 @@ class PositionReconciler:
             
             if first_future_balance_event is None:
                 _synth_log(f"{log_prefix} Cannot synthesize BACKWARD for {target_date}: No balance (mutation=False) found after this date to serve as a starting point.")
-                self.reconciliation_log.extend(synthesis_log)
                 return None
 
             current_quantity = first_future_balance_event.quantity
@@ -238,5 +231,4 @@ class PositionReconciler:
                     _synth_log(f"{log_prefix} Synthesizing BACKWARD for {target_date}: Un-applied mutation on {mutation_event.referenceDate}, Name='{mutation_event.name or 'N/A'}', Qty Change={-delta_quantity}. New Qty: {current_quantity}.")
             
             _synth_log(f"{log_prefix} Synthesized BACKWARD position for START of {target_date}: Final Qty: {current_quantity} ({current_currency}).")
-            self.reconciliation_log.extend(synthesis_log)
             return ReconciledQuantity(reference_date=target_date, quantity=current_quantity, currency=current_currency) 

@@ -1,3 +1,4 @@
+import logging
 import json
 from typing import List, Optional, Tuple, Any, Annotated
 from datetime import date, datetime
@@ -5,6 +6,9 @@ from decimal import Decimal, InvalidOperation
 from opensteuerauszug.model.position import Position, SecurityPosition, CashPosition
 from opensteuerauszug.model.ech0196 import SecurityStock, SecurityPayment, CurrencyId, QuotationType
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
+
+# A logger for this module
+logger = logging.getLogger(__name__)
 
 # Known actions from formats.md
 KNOWN_ACTIONS = {
@@ -243,7 +247,7 @@ class TransactionExtractor:
                 as_of_date_parsed = datetime.strptime(as_of_date_str_part, "%m/%d/%Y").date()
                 log_context_action = schwab_tx.get('Action', 'N/A')
                 log_context_symbol = schwab_tx.get('Symbol', '')
-                print(f"Info: Extracted 'as of' date: {as_of_date_parsed} (transaction date: {tx_date}) from full string '{tx_date_str}' for action '{log_context_action}' symbol '{log_context_symbol}'.")
+                logger.debug(f"Extracted 'as of' date: {as_of_date_parsed} (transaction date: {tx_date}) from full string '{tx_date_str}' for action '{log_context_action}' symbol '{log_context_symbol}'.")
             except ValueError:
                 print(f"Warning: Could not parse 'as of' date part: '{as_of_date_str_part}' from full string '{tx_date_str}' in {schwab_tx}")
                 # as_of_date_parsed remains None, processing continues with tx_date

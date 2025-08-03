@@ -12,6 +12,8 @@ from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 # from opensteuerauszug.core.identifier_loader import SecurityIdentifierMapLoader # Removed loader import
 
+logger = logging.getLogger(__name__)
+
 class CleanupCalculator:
     """
     Calculator responsible for initial cleanup tasks:
@@ -26,36 +28,29 @@ class CleanupCalculator:
                  importer_name: str, # Added importer_name parameter
                  identifier_map: Optional[Dict[str, Dict[str, Any]]] = None,
                  enable_filtering: bool = True,
-                 print_log: bool = False,
+                 print_log: bool = False, # Kept for compatibility, but not used
                  config_settings: Optional[GeneralSettings] = None):
         self.period_from = period_from
         self.period_to = period_to
         self.importer_name = importer_name # Store importer_name
         self.identifier_map = identifier_map
         self.enable_filtering = enable_filtering
-        self.print_log = print_log
         self.config_settings = config_settings
         self.modified_fields: List[str] = []
-        self.log_messages: List[str] = []
 
-        self.logger = logging.getLogger(__name__)
-        
         # Log if an identifier map was provided
         if self.identifier_map is not None: # Check if it's not None, could be an empty dict
-            self._log(f"CleanupCalculator initialized with an identifier map containing {len(self.identifier_map)} entries.")
+            logger.info(f"Initialized with an identifier map containing {len(self.identifier_map)} entries.")
         else:
-            self._log("CleanupCalculator initialized without an identifier map. Enrichment will be skipped.")
+            logger.info("Initialized without an identifier map. Enrichment will be skipped.")
 
         # Log if configuration was provided
         if self.config_settings:
-            self._log(f"CleanupCalculator initialized with configuration settings.")
+            logger.info(f"Initialized with configuration settings.")
         else:
-            self._log("CleanupCalculator initialized without configuration settings.")
+            logger.info("Initialized without configuration settings.")
 
-    def _log(self, message: str):
-        self.log_messages.append(message)
-        if self.print_log:
-            self.logger.info("[CleanupCalculator] %s", message)
+    
 
     from opensteuerauszug.model.ech0196 import TaxStatement  # Explicit import for clarity
 
@@ -73,7 +68,7 @@ class CleanupCalculator:
         country_code = statement.country
         if not country_code or not country_code.strip(): # Check for None or empty/whitespace string
             country_code = "XX"
-            self._log("Warning: TaxStatement.country is None, using 'XX' for ID generation.")
+            logger.warning("TaxStatement.country is None, using 'XX' for ID generation.")
         else:
             country_code = country_code.strip()
         country_code = country_code.upper()
@@ -82,17 +77,17 @@ class CleanupCalculator:
         # 2. Organization ID (12 chars): "OPNAUS" + 6 chars from importer name
         # Use importer_name passed during calculator initialization
         raw_importer_name = self.importer_name
-        # self._log(f"Info: Using raw_importer_name='{raw_importer_name}' from self.importer_name for Org ID generation.")
+        # logger.info(f"Info: Using raw_importer_name='{raw_importer_name}' from self.importer_name for Org ID generation.")
 
         if not raw_importer_name or not raw_importer_name.strip():
             importer_name_part = "XXXXXX"
-            self._log("Warning: Importer name is None or empty, using 'XXXXXX' for Org ID part.")
+            logger.warning("Importer name is None or empty, using 'XXXXXX' for Org ID part.")
         else:
             upper_importer_name = raw_importer_name.upper()
             sanitized_importer_name = re.sub(r'[^a-zA-Z0-9]', '', upper_importer_name)
             if not sanitized_importer_name:
                 importer_name_part = "XXXXXX"
-                self._log(f"Warning: Sanitized importer name '{upper_importer_name}' is empty, using 'XXXXXX' for Org ID part.")
+                logger.warning(f"Sanitized importer name '{upper_importer_name}' is empty, using 'XXXXXX' for Org ID part.")
             elif len(sanitized_importer_name) >= 6:
                 importer_name_part = sanitized_importer_name[:6]
             else: # len < 6
@@ -122,11 +117,11 @@ class CleanupCalculator:
             else:
                 customer_id_raw = "NOIDENTIFIER" # Placeholder before padding
                 customer_id_source = "placeholder_no_client_id"
-                self._log("Warning: No clientNumber or TIN found for the first client. Using placeholder for customer ID part.")
+                logger.warning("No clientNumber or TIN found for the first client. Using placeholder for customer ID part.")
         else:
             customer_id_raw = "NOCLIENTDATA" # Placeholder before padding
             customer_id_source = "placeholder_no_clients"
-            self._log("Warning: statement.client list is empty. Using placeholder for customer ID part.")
+            logger.warning("statement.client list is empty. Using placeholder for customer ID part.")
 
         # Remove spaces and special characters (sanitize)
         sanitized_customer_id = re.sub(r'[^a-zA-Z0-9]', '', customer_id_raw)
@@ -148,14 +143,13 @@ class CleanupCalculator:
         # Concatenate all parts
         final_id = f"{country_code}{org_id}{customer_id}{date_str}{seq_no}"
 
-        self._log(f"Generated ID components: Country='{country_code}', Org='{org_id}' (ImporterRaw: '{raw_importer_name}'), CustRaw='{customer_id_raw}' (Source: {customer_id_source}), CustSanitized='{customer_id}', Date='{date_str}', Seq='{seq_no}'")
+        logger.debug(f"Generated ID components: Country='{country_code}', Org='{org_id}' (ImporterRaw: '{raw_importer_name}'), CustRaw='{customer_id_raw}' (Source: {customer_id_source}), CustSanitized='{customer_id}', Date='{date_str}', Seq='{seq_no}'")
         
         return final_id
 
     def calculate(self, statement: TaxStatement) -> TaxStatement:
         self.modified_fields = []
-        self.log_messages = []
-        self._log("Starting cleanup calculation...")
+        logger.info("Starting cleanup calculation...")
 
         # set some standard values
         statement.minorVersion = 22
@@ -177,9 +171,9 @@ class CleanupCalculator:
             if canton_value in valid_cantons:
                 statement.canton = cast(CantonAbbreviation, canton_value)
                 self.modified_fields.append("TaxStatement.canton (from config)")
-                self._log(f"Set canton from configuration: {statement.canton}")
+                logger.info(f"Set canton from configuration: {statement.canton}")
             else:
-                self._log(f"Warning: Invalid canton '{canton_value}'. Valid cantons are: {', '.join(valid_cantons)}")
+                logger.warning(f"Invalid canton '{canton_value}'. Valid cantons are: {', '.join(valid_cantons)}")
 
         # Set client name from configuration if client exists but lacks name
         if self.config_settings and self.config_settings.full_name:
@@ -205,7 +199,7 @@ class CleanupCalculator:
                 )
                 statement.client = [new_client]
                 self.modified_fields.append("TaxStatement.client (created from config)")
-                self._log(f"Created client from configuration: {config_full_name}")
+                logger.info(f"Created client from configuration: {config_full_name}")
             else:
                 # Check if existing clients need name updates
                 for i, client in enumerate(statement.client):
@@ -223,16 +217,16 @@ class CleanupCalculator:
                     
                     if client_modified:
                         self.modified_fields.append(f"TaxStatement.client[{i}] (name from config)")
-                        self._log(f"Updated client[{i}] name from configuration: {config_full_name}")
+                        logger.info(f"Updated client[{i}] name from configuration: {config_full_name}")
 
         # Generate statement ID if it's missing
         if statement.id is None:
             try:
                 statement.id = self._generate_tax_statement_id(statement)
-                self._log(f"Generated new TaxStatement.id: {statement.id}")
+                logger.info(f"Generated new TaxStatement.id: {statement.id}")
                 self.modified_fields.append("TaxStatement.id (generated)")
             except NotImplementedError as e: # Should ideally not be raised if logic is complete
-                self._log(f"Error generating TaxStatement.id (NotImplemented): {e}")
+                logger.error(f"Error generating TaxStatement.id (NotImplemented): {e}")
             #except Exception as e: # Catch any other unexpected error during ID generation
             #    self._log(f"Unexpected error during TaxStatement.id generation: {e}")
             #    # statement.id will remain None, allowing process to potentially continue
@@ -257,13 +251,13 @@ class CleanupCalculator:
                             if removed_count > 0:
                                 bank_account.payment = filtered_payments
                                 self.modified_fields.append(f"{account_id}.payment (filtered)")
-                                self._log(f"  BankAccount {account_id}: Filtered {original_payment_count} payments to {len(bank_account.payment)} for period [{self.period_from} - {self.period_to}].")
+                                logger.debug(f"  BankAccount {account_id}: Filtered {original_payment_count} payments to {len(bank_account.payment)} for period [{self.period_from} - {self.period_to}].")
                             # No log if no payments were removed by filtering
                         else:
-                            self._log(f"  BankAccount {account_id}: Payment filtering skipped (tax period not fully defined).")
+                            logger.info(f"  BankAccount {account_id}: Payment filtering skipped (tax period not fully defined).")
                     # No log if filtering is disabled globally
         else:
-            self._log("No bank accounts found to process.")
+            logger.info("No bank accounts found to process.")
 
         # Process Securities Accounts
         if statement.listOfSecurities and statement.listOfSecurities.depot:
@@ -312,7 +306,7 @@ class CleanupCalculator:
                                     # This ensures logs for filtering etc. use the enriched ID.
                                     # However, for the enrichment log itself, we use the original pos_id or lookup_symbol.
                                     log_pos_id_for_enrichment = f"{depot_id}/{lookup_key}" # Use symbol for this specific log.
-                                    self._log(f"  Security {log_pos_id_for_enrichment}: Enriched ISIN/Valor from identifier file using symbol '{lookup_key}'.")
+                                    logger.info(f"  Security {log_pos_id_for_enrichment}: Enriched ISIN/Valor from identifier file using symbol '{lookup_key}'.")
                                     self.modified_fields.append(f"{log_pos_id_for_enrichment} (enriched)")
                                     # Update pos_id for subsequent operations in this loop, if needed
                                     pos_id = f"{depot_id}/{security_display_id}"
@@ -363,10 +357,10 @@ class CleanupCalculator:
                                     if removed_count > 0:
                                         security.stock = newly_filtered_stocks
                                         self.modified_fields.append(f"{pos_id}.stock (filtered)")
-                                        self._log(f"  Security {pos_id}: Filtered {original_stock_count} stock events to {len(security.stock)} for period [{self.period_from} - {self.period_to}] (retaining start/end balances & period mutations).")
+                                        logger.debug(f"  Security {pos_id}: Filtered {original_stock_count} stock events to {len(security.stock)} for period [{self.period_from} - {self.period_to}] (retaining start/end balances & period mutations).")
                                     # No log if no stock events were removed by filtering
                                 else:
-                                    self._log(f"  Security {pos_id}: Stock event filtering skipped (tax period not fully defined).")
+                                    logger.info(f"  Security {pos_id}: Stock event filtering skipped (tax period not fully defined).")
                             # No log if filtering is disabled globally
 
                         # Process Security Payments for the current security
@@ -398,9 +392,9 @@ class CleanupCalculator:
                                     if removed_sec_payment_count > 0:
                                         security.payment = filtered_sec_payments
                                         self.modified_fields.append(f"{pos_id}.payment (filtered)")
-                                        self._log(f"  Security {pos_id}: Filtered {original_sec_payment_count} security payments to {len(security.payment)} for period [{self.period_from} - {self.period_to}].")
+                                        logger.debug(f"  Security {pos_id}: Filtered {original_sec_payment_count} security payments to {len(security.payment)} for period [{self.period_from} - {self.period_to}].")
                                 else:
-                                    self._log(f"  Security {pos_id}: Security payment filtering skipped (tax period not fully defined).")
+                                    logger.info(f"  Security {pos_id}: Security payment filtering skipped (tax period not fully defined).")
 
                             # --- Calculate SecurityPayment.quantity where it's UNINITIALIZED_QUANTITY ---
                             # This block is now only entered if security.stock is guaranteed to be non-empty (due to the check above)
@@ -423,7 +417,7 @@ class CleanupCalculator:
                                             payment_event.quantity = reconciled_quantity_info.quantity
                                             payment_identifier_log = f"Payment (Name: {payment_event.name or 'N/A'}, Date: {payment_event.paymentDate}, exDate: {payment_event.exDate or 'N/A'})"
                                             self.modified_fields.append(f"{pos_id}.{payment_identifier_log}.quantity (updated via {log_date_source})")
-                                            self._log(
+                                            logger.debug(
                                                 f"  Security {pos_id}: Updated quantity for {payment_identifier_log} to {payment_event.quantity} "
                                                 f"using {log_date_source} ({date_to_use_for_reconciliation}). Original dummy: {original_dummy_qty}."
                                             )
@@ -445,10 +439,10 @@ class CleanupCalculator:
             self._log("No securities accounts found to process.")
 
         if self.modified_fields:
-            self._log(f"Cleanup calculation finished. Fields modified: {', '.join(self.modified_fields)}.")
+            logger.info(f"Cleanup calculation finished. Summary: Modified fields count: {len(self.modified_fields)}")
+            logger.debug(f"Detailed list of modified fields: {', '.join(self.modified_fields)}")
         else:
-            self._log("Cleanup calculation finished. No data was modified.") # Adjusted log
+            logger.info("Cleanup calculation finished. No data was modified.") # Adjusted log
         return statement
 
-    def get_log(self) -> List[str]:
-        return list(self.log_messages)
+    

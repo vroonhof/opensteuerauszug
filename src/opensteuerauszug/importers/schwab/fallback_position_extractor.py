@@ -1,9 +1,12 @@
+import logging
 from typing import List, Optional, Tuple
 from datetime import date, datetime # Added datetime
 import csv # Added for CSV parsing
 from decimal import Decimal, InvalidOperation # Added for Decimal
 from opensteuerauszug.model.position import Position
 from opensteuerauszug.model.ech0196 import SecurityStock, QuotationType, CurrencyId
+
+logger = logging.getLogger(__name__)
 
 class FallbackPositionExtractor:
     """
@@ -19,10 +22,10 @@ class FallbackPositionExtractor:
             with open(self.filename, 'r', encoding='utf-8-sig') as f: # utf-8-sig to handle potential BOM
                 return f.read()
         except FileNotFoundError:
-            print(f"FallbackPositionExtractor: File not found: {self.filename}")
+            logger.error(f"File not found: {self.filename}")
             return None
         except IOError as e:
-            print(f"FallbackPositionExtractor: Error reading file {self.filename}: {e}")
+            logger.error(f"Error reading file {self.filename}: {e}")
             return None
 
     def _parse_csv_string(self, file_content: str) -> Optional[Tuple[List[str], List[List[str]]]]:

@@ -86,7 +86,7 @@ def main(
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
-    logging.basicConfig(level=log_level.value, format="%(levelname)s:%(name)s:%(message)s")
+    logging.basicConfig(level=log_level.value)
     sys.stdout.reconfigure(line_buffering=True)  # Ensure stdout is line-buffered for mixing with logging
     
     phases_specified_by_user = run_phases_input is not None

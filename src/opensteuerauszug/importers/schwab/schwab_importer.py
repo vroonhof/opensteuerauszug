@@ -1,3 +1,4 @@
+import logging
 import pprint
 from typing import List, Dict, Any, Optional, Tuple
 import os
@@ -16,6 +17,8 @@ from collections import defaultdict
 from opensteuerauszug.core.position_reconciler import PositionReconciler, ReconciledQuantity
 from opensteuerauszug.config.models import SchwabAccountSettings # Add this
 
+logger = logging.getLogger(__name__)
+
 # Placeholder import for TransactionExtractor (to be implemented)
 # from .TransactionExtractor import TransactionExtractor
 
@@ -33,7 +36,7 @@ def _get_configured_account_info(depot_short_id: str, account_settings_list: Lis
         for setting in account_settings_list:
             if setting.account_number.endswith(depot_short_id):
                 if found_account_number is not None:
-                    print(f"WARNING: Multiple configured Schwab accounts end with '...{depot_short_id}'. Using first found: '{found_account_number}' (alias: '{first_matching_alias}'). Consider refining configurations if this is not intended.")
+                    logger.warning(f"Multiple configured Schwab accounts end with '...{depot_short_id}'. Using first found: '{found_account_number}' (alias: '{first_matching_alias}'). Consider refining configurations if this is not intended.")
                     continue  # Stick with the first one found
                 else:
                     found_account_number = setting.account_number
@@ -81,10 +84,10 @@ class SchwabImporter:
         # it needs to be adapted. For now, we'll assume most logic will be adapted later.
         # If absolutely needed for the code to run, use the first account with a TODO.
         if self.account_settings_list:
-            print(f"SchwabImporter initialized with {len(self.account_settings_list)} account(s). First account number: {self.account_settings_list[0].account_number}")
+            logger.info(f"SchwabImporter initialized with {len(self.account_settings_list)} account(s). First account number: {self.account_settings_list[0].account_number}")
         else:
             # This case should ideally be prevented by the CLI loading logic
-            print("Warning: SchwabImporter initialized with an empty list of account settings.")
+            logger.warning("SchwabImporter initialized with an empty list of account settings.")
 
     def _determine_synthesized_stock_currency(
         self,
@@ -120,7 +123,7 @@ class SchwabImporter:
             raise_on_error=self.strict_consistency
         )
         if not is_consistent_initial and not self.strict_consistency:
-            print(f"WARNING: [{current_identifier}] Initial consistency check on raw data failed. Review logs. Proceeding with synthesis.")
+            logger.warning(f"[{current_identifier}] Initial consistency check on raw data failed. Review logs. Proceeding with synthesis.")
 
         live_stocks_list = list(initial_pos_stocks) # Use a distinct name for the list being modified
 
@@ -138,12 +141,12 @@ class SchwabImporter:
 
             if start_pos_synth:
                 qty_to_set_at_start = start_pos_synth.quantity
-                print(f"[{current_identifier}] Synthesized start position for {self.period_from}: Qty {qty_to_set_at_start} {currency_at_start}")
+                logger.info(f"[{current_identifier}] Synthesized start position for {self.period_from}: Qty {qty_to_set_at_start} {currency_at_start}")
             else:
                 earliest_stock_date = min(s.referenceDate for s in live_stocks_list) if live_stocks_list else None
                 if not earliest_stock_date or earliest_stock_date > self.period_from or \
                    (earliest_stock_date == self.period_from and live_stocks_list[0].mutation):
-                    print(f"[{current_identifier}] No suitable existing/synthesizable start balance for {self.period_from}. Inserting zero balance.")
+                    logger.info(f"[{current_identifier}] No suitable existing/synthesizable start balance for {self.period_from}. Inserting zero balance.")
 
             start_balance_stock = SecurityStock(
                 referenceDate=self.period_from,
