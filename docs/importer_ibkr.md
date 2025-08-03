@@ -1,24 +1,28 @@
 # Interactive Brokers (IBKR) Importer Guide
 
-This guide explains how to prepare your data from Interactive Brokers (IBKR) for use with OpenSteuerAuszug.
+This guide explains how to prepare your data from [Interactive Brokers (IBKR)](https://www.interactivebrokers.com/) for use with OpenSteuerAuszug.
 
 ## Required Input: Flex Query XML File
 
-OpenSteuerAuszug processes IBKR data using **Flex Query XML files**. You need to configure a Flex Query in your IBKR Account Management that includes specific sections and fields covering the entire tax year.
+OpenSteuerAuszug processes IBKR data using [**Flex Query XML files**](https://www.ibkrguides.com/orgportal/performanceandstatements/activityflex.htm). You need to configure a Flex Query in your IBKR Account Management that includes specific sections and fields covering the entire tax year.
 
 ### How to Obtain the Flex Query XML:
 
 1.  **Log in** to your IBKR Account Management portal.
 2.  Navigate to **"Performance & Reports" > "Flex Queries"**.
-3.  **Create a new Flex Query** or modify an existing one.
+3.  (onetime) **Create a new Flex Query** or modify an existing one.
     *   Give your query a descriptive name (e.g., "Annual Tax Report").
     *   Select the **XML format**.
-    *   Choose the **period** (e.g., "Last Calendar Year" or a custom date range covering your full tax year).
-    *   Ensure the following sections are included in your query configuration. The importer relies on specific fields within these sections:
+    *   Ensure the following sections are included in your query configuration. The importer relies on specific fields within these sections (see below).
+4. [**Run the Flex Query**](https://www.ibkrguides.com/orgportal/performanceandstatements/runflex.htm). Select a *custom date range* that goes from *Jan 1st to Dec 31st in the relevant year*. For some reason the convenient "Last Calendar Year" option is missing from this drop down/
 
 ### Essential Flex Query Sections and Fields:
 
-The importer uses the `ibflex` library to parse the XML. Below are the key sections and some of the critical fields expected:
+Unfortunately these is no simple way to programmatically set the configuration. However it only needs to be done once and *it should be ok to select all sections and all fields*, so try that first.
+
+The importer uses the `ibflex` library to parse the XML, this can be quite sensitive to Interactive Brokers adding new fields, in that case you can unselect the problematic fields or patch `ibflex`. I provide a vendored fork at https://github.com/vroonhof/ibflex
+
+ Below are the key sections and some of the critical fields expected (I recommend selecting all fields by default to avoid fiddling with the UI):
 
 1.  **Account Information (`AccountInformation`)**:
     *   Provides account holder details.
@@ -57,19 +61,13 @@ It is crucial that the Flex Query covers the **entire tax year** and is in **XML
 
 ## Configuration (`config.toml`)
 
-In your `config.toml` file, you'll need to set up a section for your IBKR account(s). This tells OpenSteuerAuszug which account ID from the Flex Query XML corresponds to your settings.
+Because Interactive Brokers specifies relatively complete data in its exports, this importer currently requires no specific configuration.
 
-```toml
-# Example for an IBKR account
-[brokers.ibkr] # Or any other alias you prefer for IBKR
-  # Broker-level settings if any (e.g., specific processing flags)
+## Running Opensteuerauszug
 
-  [brokers.ibkr.accounts.main_account] # Your alias for this IBKR account
-  account_number = "U1234567" # Your actual IBKR account number
-  # Account-specific settings if any
+```console
+python -m opensteuerauszug.steuerauszug --importer ibkr <flex query xml file> ...
 ```
-
-Ensure the `account_number` in your `config.toml` matches the account number in your IBKR statements.
 
 ## Importer Specifics & Known Quirks
 

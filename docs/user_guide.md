@@ -147,6 +147,8 @@ Currently supported brokers and their specific guides:
 
 Please refer to the documentation for your specific broker by clicking the links above to understand what files to download, their formats, and any specific configurations required in `config.toml`.
 
+The full workflow happens on your computer using data you manually download which avoids authorization issues.
+
 ### Calculation Options
 
 As stated above, the modern tax return flow does not need any of the textual content and any calculable tax information can and should be be recomputed in the main tax return software.
