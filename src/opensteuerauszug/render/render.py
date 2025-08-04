@@ -621,7 +621,7 @@ def create_minimal_placeholder(styles):
     """Create a placeholder paragraph for minimal tax statements."""
     text = (
         "Dies ist kein echter Steuerauszug. Dieses Minimaldokument dient nur dazu, "
-        "die Bankdaten über Barcodes zu importieren."
+        "die Bankdaten über Barcodes zu importieren. Das die Totale nicht ermittelt werden wird auf eine Zusammenfassung verzichtet."
     )
     return Paragraph(text, styles['Normal'])
 
