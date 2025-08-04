@@ -220,54 +220,77 @@ class KurslisteDBReader:
         """
         rate_value = None
 
+        query_year_end = """
+            SELECT rate FROM exchange_rates_year_end
+            WHERE currency_code = ? AND year = ? AND tax_year = ?
+            ORDER BY id DESC LIMIT 1
+        """
+
+        # Prefer year-end rate on December 31st
+        if reference_date.month == 12 and reference_date.day == 31:
+            row_year_end = self._execute_query_fetchone(
+                query_year_end, (currency_code, reference_date.year, reference_date.year)
+            )
+            if row_year_end and row_year_end["rate"] is not None:
+                try:
+                    return Decimal(str(row_year_end["rate"]))
+                except InvalidOperation:
+                    print(
+                        f"Warning: Could not convert year_end rate '{row_year_end['rate']}' to Decimal."
+                    )
+
         # 1. Try daily rates
         date_iso = reference_date.isoformat()
         query_daily = """
             SELECT rate FROM exchange_rates_daily
             WHERE currency_code = ? AND date = ? AND tax_year = ?
-            ORDER BY id DESC LIMIT 1 
-        """ 
+            ORDER BY id DESC LIMIT 1
+        """
         # Assuming tax_year in exchange_rates_daily refers to the year of the Kursliste publication
         # For daily rates, matching the reference_date's year seems most logical.
-        row_daily = self._execute_query_fetchone(query_daily, (currency_code, date_iso, reference_date.year))
+        row_daily = self._execute_query_fetchone(
+            query_daily, (currency_code, date_iso, reference_date.year)
+        )
         if row_daily and row_daily["rate"] is not None:
             try:
                 return Decimal(str(row_daily["rate"]))
             except InvalidOperation:
-                print(f"Warning: Could not convert daily rate '{row_daily['rate']}' to Decimal.")
-
+                print(
+                    f"Warning: Could not convert daily rate '{row_daily['rate']}' to Decimal."
+                )
 
         # 2. Try monthly rates if daily not found or rate is None
-        month_str = reference_date.strftime("%m") # Format month as "01", "02", etc.
+        month_str = reference_date.strftime("%m")  # Format month as "01", "02", etc.
         query_monthly = """
             SELECT rate FROM exchange_rates_monthly
             WHERE currency_code = ? AND year = ? AND month = ? AND tax_year = ?
             ORDER BY id DESC LIMIT 1
         """
         # tax_year in exchange_rates_monthly should also match the reference_date's year
-        row_monthly = self._execute_query_fetchone(query_monthly, (currency_code, reference_date.year, month_str, reference_date.year))
+        row_monthly = self._execute_query_fetchone(
+            query_monthly, (currency_code, reference_date.year, month_str, reference_date.year)
+        )
         if row_monthly and row_monthly["rate"] is not None:
             try:
                 return Decimal(str(row_monthly["rate"]))
             except InvalidOperation:
-                 print(f"Warning: Could not convert monthly rate '{row_monthly['rate']}' to Decimal.")
-
+                print(
+                    f"Warning: Could not convert monthly rate '{row_monthly['rate']}' to Decimal."
+                )
 
         # 3. Try year-end rates if monthly not found or rate is None
-        query_year_end = """
-            SELECT rate FROM exchange_rates_year_end
-            WHERE currency_code = ? AND year = ? AND tax_year = ?
-            ORDER BY id DESC LIMIT 1
-        """
-        # tax_year in exchange_rates_year_end should match the reference_date's year
-        row_year_end = self._execute_query_fetchone(query_year_end, (currency_code, reference_date.year, reference_date.year))
+        row_year_end = self._execute_query_fetchone(
+            query_year_end, (currency_code, reference_date.year, reference_date.year)
+        )
         if row_year_end and row_year_end["rate"] is not None:
             try:
                 return Decimal(str(row_year_end["rate"]))
             except InvalidOperation:
-                print(f"Warning: Could not convert year_end rate '{row_year_end['rate']}' to Decimal.")
+                print(
+                    f"Warning: Could not convert year_end rate '{row_year_end['rate']}' to Decimal."
+                )
 
-        return None # If no rate found or convertible rate is None
+        return None  # If no rate found or convertible rate is None
 
     def close(self):
         """Closes the database connection."""

@@ -63,6 +63,7 @@ SAMPLE_XML_CONTENT = f"""<?xml version="1.0" encoding="UTF-8"?>
     <exchangeRate currency="EUR" date="{TAX_YEAR}-10-25" denomination="1" value="0.9500" />
     <exchangeRateMonthly currency="EUR" year="{TAX_YEAR}" month="10" denomination="1" value="0.9600" />
     <exchangeRateMonthly currency="GBP" year="{TAX_YEAR}" month="11" denomination="1" value="1.1200" />
+    <exchangeRateMonthly currency="USD" year="{TAX_YEAR}" month="12" denomination="1" value="0.8700" />
     <exchangeRateYearEnd currency="JPY" year="{TAX_YEAR}" denomination="100" value="0.0065" />
     <exchangeRateYearEnd currency="USD" year="{TAX_YEAR}" denomination="1" value="0.8800" valueMiddle="0.8850" />
 </kursliste>
@@ -161,9 +162,10 @@ def test_find_securities_by_isin_plural(db_path):
 def test_get_exchange_rate(db_path):
     with KurslisteDBReader(str(db_path)) as reader:
         assert reader.get_exchange_rate("USD", date(TAX_YEAR, 10, 25)) == Decimal("0.8900")
-        assert reader.get_exchange_rate("EUR", date(TAX_YEAR, 10, 25)) == Decimal("0.9500") 
-        assert reader.get_exchange_rate("GBP", date(TAX_YEAR, 11, 15)) == Decimal("1.1200") 
-        assert reader.get_exchange_rate("JPY", date(TAX_YEAR, 12, 31)) == Decimal("0.0065") 
-        assert reader.get_exchange_rate("JPY", date(TAX_YEAR, 1, 1)) == Decimal("0.0065")   
+        assert reader.get_exchange_rate("EUR", date(TAX_YEAR, 10, 25)) == Decimal("0.9500")
+        assert reader.get_exchange_rate("GBP", date(TAX_YEAR, 11, 15)) == Decimal("1.1200")
+        assert reader.get_exchange_rate("USD", date(TAX_YEAR, 12, 31)) == Decimal("0.8800")
+        assert reader.get_exchange_rate("JPY", date(TAX_YEAR, 12, 31)) == Decimal("0.0065")
+        assert reader.get_exchange_rate("JPY", date(TAX_YEAR, 1, 1)) == Decimal("0.0065")
         assert reader.get_exchange_rate("AUD", date(TAX_YEAR, 10, 25)) is None
         assert reader.get_exchange_rate("USD", date(TAX_YEAR, 1, 1)) == Decimal("0.8800")
