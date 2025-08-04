@@ -1089,7 +1089,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         Paragraph('Steuerrückbehalt USA<br/> in CHF', header_style),
     ]
     
-    col_widths = [18*mm, 50*mm, 16*mm, 18*mm, 18*mm, 18*mm, 18*mm, 22*mm, 8, 22*mm, 8, 22*mm, 25*mm, 25*mm]
+    col_widths = [18*mm, 50*mm, 20*mm, 18*mm, 18*mm, 14*mm, 18*mm, 22*mm, 8, 22*mm, 8, 22*mm, 25*mm, 25*mm]
     col_widths = [1.0*w for w in col_widths]
     assert len(col_widths) == len(table_header)
     # Hide columns not used in this table
