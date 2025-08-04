@@ -514,7 +514,19 @@ def main(
                     raise ValueError(f"Invalid --org-nr '{org_nr}': Must be a 5-digit string.")
             
             # Use the render_tax_statement function to generate the PDF
-            rendered_path = render_tax_statement(statement, output_file, override_org_nr=org_nr)
+            rendered_path = render_tax_statement(
+                statement,
+                output_file,
+                override_org_nr=org_nr,
+                minimal_frontpage_placeholder=(
+                    (tax_calculation_level == TaxCalculationLevel.MINIMAL)
+                    and (
+                        general_config_settings.minimal_uses_placeholder_frontpage
+                        if general_config_settings
+                        else True
+                    )
+                ),
+            )
             print(f"Rendering successful to {rendered_path}")
 
         if final_xml_path:

@@ -211,6 +211,27 @@ def test_pdf_page_count(mock_render_to_barcodes, sample_tax_statement):
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
+
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes')
+def test_render_tax_statement_minimal_placeholder(mock_render_to_barcodes, sample_tax_statement):
+    """Ensure minimal mode renders placeholder instead of summary."""
+    mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
+        temp_path = temp_file.name
+
+    try:
+        render_tax_statement(sample_tax_statement, temp_path, minimal_frontpage_placeholder=True)
+
+        with open(temp_path, "rb") as f:
+            pdf_reader = pypdf.PdfReader(f)
+            text = pdf_reader.pages[0].extract_text()
+            assert "Minimaldokument" in text
+            assert "1'001" not in text
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
 @mock.patch('opensteuerauszug.render.render.render_to_barcodes')
 def test_pdf_title_metadata(mock_render_to_barcodes, sample_tax_statement):
     """Verify that the rendered PDF sets a descriptive title."""
