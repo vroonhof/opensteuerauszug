@@ -9,6 +9,9 @@ from opensteuerauszug.model.ech0196 import (
 )
 from opensteuerauszug.core.exchange_rate_provider import DummyExchangeRateProvider, ExchangeRateProvider
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
+from opensteuerauszug.core.kursliste_manager import KurslisteManager
+from scripts.convert_kursliste_to_sqlite import convert_kursliste_xml_to_sqlite
+from tests.core.test_kursliste_db_reader import SAMPLE_XML_CONTENT, TAX_YEAR
 from datetime import date, datetime
 from typing import Optional
 from tests.utils.samples import get_sample_files
@@ -31,6 +34,18 @@ def minimal_tax_value_calculator_fill() -> MinimalTaxValueCalculator:
     """Returns a MinimalTaxValueCalculator in FILL mode."""
     provider: ExchangeRateProvider = DummyExchangeRateProvider()
     return MinimalTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+
+@pytest.fixture
+def db_exchange_rate_provider(tmp_path) -> KurslisteExchangeRateProvider:
+    """Create a KurslisteExchangeRateProvider backed by a SQLite Kursliste DB."""
+    sample_xml_file = tmp_path / f"sample_kursliste_{TAX_YEAR}.xml"
+    sample_xml_file.write_text(SAMPLE_XML_CONTENT)
+    db_file = tmp_path / f"kursliste_test_{TAX_YEAR}.sqlite"
+    convert_kursliste_xml_to_sqlite(str(sample_xml_file), str(db_file))
+    manager = KurslisteManager()
+    manager.load_directory(tmp_path)
+    return KurslisteExchangeRateProvider(manager)
 
 @pytest.fixture
 def empty_tax_statement() -> TaxStatement:
@@ -137,13 +152,24 @@ class TestMinimalTaxValueCalculatorHandlers:
     def test_handle_bank_account_tax_value_chf(self, minimal_tax_value_calculator_fill: MinimalTaxValueCalculator):
         calculator = minimal_tax_value_calculator_fill
         batv = BankAccountTaxValue(
-            balance=Decimal("1000"), 
-            balanceCurrency="CHF", 
+            balance=Decimal("1000"),
+            balanceCurrency="CHF",
             referenceDate=date(2023, 12, 31)
         )
         calculator._handle_BankAccountTaxValue(batv, "batv")
         assert batv.exchangeRate == Decimal("1")
         assert batv.value == Decimal("1000")
+
+    def test_handle_bank_account_tax_value_uses_year_end_rate(self, db_exchange_rate_provider):
+        calculator = MinimalTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=db_exchange_rate_provider)
+        batv = BankAccountTaxValue(
+            balance=Decimal("1000"),
+            balanceCurrency="USD",
+            referenceDate=date(TAX_YEAR, 12, 31)
+        )
+        calculator._handle_BankAccountTaxValue(batv, "batv")
+        assert batv.exchangeRate == Decimal("0.8800")
+        assert batv.value == Decimal("880.0")
 
     def test_handle_bank_account_payment_type_a(self, minimal_tax_value_calculator_fill: MinimalTaxValueCalculator):
         calculator = minimal_tax_value_calculator_fill
