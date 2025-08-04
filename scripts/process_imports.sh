@@ -11,10 +11,20 @@ OUTPUT_DIR="$ROOT_DIR/private/output"
 
 # Default phase selection
 VERIFY_MODE=true
+TAX_CALCULATION_LEVEL="kursliste"
+PDF_POSTFIX=".pdf"
+XML_POSTFIX=".xml"
+
+if [[ "$1" == "--minimal" ]]; then
+  TAX_CALCULATION_LEVEL="minimal"
+  PDF_POSTFIX="_min.pdf"
+  XML_POSTFIX="_min.xml"
+  shift # consume the argument
+fi
 
 PHASES="-p import -p calculate -p render"
 
-EXTRA_ARGS="--tax-year 2024"
+EXTRA_ARGS="--tax-year 2024 --tax-calculation-level $TAX_CALCULATION_LEVEL"
 
 # Ensure output directory exists
 mkdir -p "$OUTPUT_DIR"
@@ -44,13 +54,13 @@ for input in "${IMPORT_INPUTS[@]}"; do
   for input_leaf in "$SAMPLE_DIR"/import/$input; do
     # exists as file or directory
     if [[ -d "$input_leaf" ]]; then
-        pdf_name="${input}.pdf"
-	xml_name="${input}.xml"
+        pdf_name="${input}${PDF_POSTFIX}"
+        xml_name="${input}${XML_POSTFIX}"
     else
         if [[ -f "$input_leaf" ]]; then
             filename=$(basename "$input_leaf")
-            pdf_name="${filename%.xml}.pdf"
-	    xml_name="${filename%.xml}.xml"
+            pdf_name="${filename%.xml}${PDF_POSTFIX}"
+            xml_name="${filename%.xml}${XML_POSTFIX}"
             echo "Processing $filename..."
         else
             continue
