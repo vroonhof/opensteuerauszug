@@ -7,6 +7,13 @@ class GeneralSettings(BaseModel):
     full_name: str = Field(description="Your full name for tax documents.")
     language: str = Field(default="de", description="Default language for documents (e.g., 'de', 'fr', 'it').")
     processing_flags: Dict[str, bool] = Field(default_factory=dict, description="Default processing flags.")
+    minimal_uses_placeholder_frontpage: bool = Field(
+        default=True,
+        description=(
+            "If True, a minimal tax statement replaces the summary on the first "
+            "page with a placeholder notice and different info texts."
+        ),
+    )
 
     model_config = ConfigDict(extra="allow")
 
