@@ -25,7 +25,7 @@ vollständiger Dateneigenhabe und der Vermeidung von Tippfehlern.
 Die Verantwortung für die Richtigkeit und Vollständigkeit obliegt immer noch dem Steuerpflichtigen.
 
 - Er/Sie kontrolliert Bestände, Transaktionen, Valorennummern und Zinszahlungen.
-- Die auf der Kursliste basierende Steuerberechnung sollte von der Steuersoftware und/oder Veranlagungssoftware übernommen werden.
+- Die definitive auf der Kursliste basierende Steuerberechnung sollte von der Steuersoftware und/oder Veranlagungssoftware übernommen werden.
 
 Sämtliche Steuerberechnungen in dieser Datei basieren auf der Kursliste und dienen nur Informationszwecken.
 

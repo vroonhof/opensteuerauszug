@@ -25,7 +25,7 @@ of this document.
 - **Positions**: Double-check that the end-of-year positions for all your holdings are accurate.
 - **Cash**: Verify that all cash balances are correct.
 - **Income**: Check that all interest and dividend income is correctly reported.
-- **Recalculate in Tax Software**: After importing this document into your tax software, use its feature to **recalculate all tax values** based on the official Kursliste data it contains.
+- **Recalculate in Tax Software**: After importing this document into your tax software, use its feature to **recalculate all tax values** based on the official Kursliste data.
 - **Verify the data landed in the Tax Software**: PrivateTax for example allows showing the imported structured information in the editor view.
 
 ### Disclaimer and Your Responsibility
