@@ -27,6 +27,7 @@ The importer uses the `ibflex` library to parse the XML, this can be quite sensi
 1.  **Account Information (`AccountInformation`)**:
     *   Provides account holder details.
     *   Fields used: `accountId`, `name`, `firstName`, `lastName`, `accountHolderName`.
+    *   Name parsing: if `lastName` is missing but `name` or `accountHolderName` contains a full name, it is split into first and last components.
 
 2.  **Trades (`Trades`)**:
     *   Details all buy and sell transactions.

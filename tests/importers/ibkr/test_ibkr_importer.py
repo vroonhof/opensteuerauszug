@@ -551,8 +551,8 @@ CLIENT_INFO_TEST_CASES = [
         "account_info_xml": """
           <AccountInformation accountId="U9876543" acctAlias="Test Alias" name="John Doe" />""",
         "expected_client_number": "U9876543",
-        "expected_first_name": None,
-        "expected_last_name": "John Doe",
+        "expected_first_name": "John",
+        "expected_last_name": "Doe",
         "description": "name present in AccountInformation",
     },
     # Scenario 2: Different name
@@ -560,8 +560,8 @@ CLIENT_INFO_TEST_CASES = [
         "account_info_xml": """
           <AccountInformation accountId="U9876544" acctAlias="Another Alias" name="Jane Smith" />""",
         "expected_client_number": "U9876544",
-        "expected_first_name": None,
-        "expected_last_name": "Jane Smith",
+        "expected_first_name": "Jane",
+        "expected_last_name": "Smith",
         "description": "different name present in AccountInformation",
     },
     # Scenario 3: No name provided, client should not be created
@@ -677,6 +677,61 @@ def test_import_files_with_client_information(client_data, sample_ibkr_settings)
             # print(f"  Expected: clientNumber={client_data['expected_client_number']}, firstName={client_data['expected_first_name']}, lastName={client_data['expected_last_name']}")
             # print(f"  Actual:   clientNumber={client_obj.clientNumber}, firstName={client_obj.firstName}, lastName={client_obj.lastName}")
 
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_import_files_with_firstname_and_name(monkeypatch, sample_ibkr_settings):
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    class DummyAccountInfo:
+        def __init__(self) -> None:
+            self.accountId = "U1111111"
+            self.name = "Bob Builder"
+            self.firstName = "Bob"
+            self.lastName = None
+            self.accountHolderName = None
+
+    class DummyFlexStatement:
+        def __init__(self) -> None:
+            self.accountId = "U1111111"
+            self.fromDate = period_from
+            self.toDate = period_to
+            self.AccountInformation = DummyAccountInfo()
+            self.Trades = []
+            self.OpenPositions = []
+            self.Transfers = []
+            self.CashTransactions = []
+            self.CashReport = []
+
+    class DummyResponse:
+        def __init__(self) -> None:
+            self.FlexStatements = [DummyFlexStatement()]
+
+    def fake_parse(_filename):
+        return DummyResponse()
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    monkeypatch.setattr(ibflex_parser, "parse", fake_parse)
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write("<FlexQueryResponse></FlexQueryResponse>")
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement.client is not None
+        assert len(tax_statement.client) == 1
+        client_obj = tax_statement.client[0]
+        assert client_obj.firstName == "Bob"
+        assert client_obj.lastName == "Builder"
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
