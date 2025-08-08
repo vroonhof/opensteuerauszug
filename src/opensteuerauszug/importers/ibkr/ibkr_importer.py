@@ -878,13 +878,22 @@ class IbkrImporter:
                 def is_valid_string(value):
                     return value is not None and isinstance(value, str) and value.strip()
 
+                def split_full_name(value):
+                    parts = str(value).strip().split()
+                    if len(parts) > 1:
+                        return parts[0], " ".join(parts[1:])
+                    return None, str(value).strip()
+
                 if is_valid_string(first_name) and is_valid_string(last_name):
                     client_first_name = str(first_name).strip()
                     client_last_name = str(last_name).strip()
+                elif is_valid_string(first_name) and is_valid_string(name):
+                    client_first_name = str(first_name).strip()
+                    _, client_last_name = split_full_name(name)
                 elif is_valid_string(name):
-                    client_last_name = str(name).strip()
+                    client_first_name, client_last_name = split_full_name(name)
                 elif is_valid_string(account_holder_name):
-                    client_last_name = str(account_holder_name).strip()
+                    client_first_name, client_last_name = split_full_name(account_holder_name)
 
                 if account_id and client_last_name: # lastName is mandatory for Client
                     client_obj = Client(
