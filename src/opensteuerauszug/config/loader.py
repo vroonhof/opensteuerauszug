@@ -1,5 +1,6 @@
 import os
 import copy
+import logging
 from typing import Dict, Any, List, Optional
 from decimal import Decimal, InvalidOperation as DecimalInvalidOperation
 
@@ -8,7 +9,17 @@ try:
 except ImportError:
     import tomli as tomllib # Fallback for Python < 3.11
 
-from .models import GeneralSettings, BrokerSettings, AccountSettingsBase, SchwabAccountSettings, ConcreteAccountSettings, SpecificAccountSettingsUnion
+from .models import (
+    GeneralSettings,
+    BrokerSettings,
+    AccountSettingsBase,
+    SchwabAccountSettings,
+    ConcreteAccountSettings,
+    SpecificAccountSettingsUnion,
+    CalculateSettings,
+)
+
+logger = logging.getLogger(__name__)
 
 class ConfigManager:
     def __init__(self, config_file_path: str = "config.toml"):
@@ -17,13 +28,17 @@ class ConfigManager:
 
         self.general_settings: Dict[str, Any] = self._raw_config.get("general", {})
         self.brokers_settings: Dict[str, Any] = self._raw_config.get("brokers", {})
+        self.calculate_settings: CalculateSettings = CalculateSettings(**self._raw_config.get("calculate", {}))
 
     def _load_raw_config(self) -> Dict[str, Any]:
         if not os.path.exists(self.config_file_path):
             # In a real application, you might raise an error or log a more severe warning.
             # For now, returning an empty dict allows the app to proceed with default Pydantic model values if possible,
             # or fail later if essential configs like 'canton' or 'full_name' are missing and accessed.
-            print(f"Warning: Configuration file '{self.config_file_path}' not found. Using empty config.")
+            logger.warning(
+                "Configuration file '%s' not found. Using empty config.",
+                self.config_file_path,
+            )
             return {}
         try:
             with open(self.config_file_path, "rb") as f:
@@ -81,16 +96,25 @@ class ConfigManager:
         
         for override_entry in overrides:
             if '=' not in override_entry:
-                print(f"Warning: Invalid override format '{override_entry}'. Skipping. Expected 'path.to.key=value'.")
+                logger.warning(
+                    "Invalid override format '%s'. Skipping. Expected 'path.to.key=value'.",
+                    override_entry,
+                )
                 continue
             
             path_str, value_str = override_entry.split('=', 1)
             try:
                 self._set_nested_value(modified_config_dict, path_str, value_str)
             except ValueError as e:
-                print(f"Warning: Could not apply override '{override_entry}': {e}. Skipping.")
-            except Exception as e: # Catch any other unexpected errors during override
-                print(f"Warning: Unexpected error applying override '{override_entry}': {e}. Skipping.")
+                logger.warning(
+                    "Could not apply override '%s': %s. Skipping.", override_entry, e
+                )
+            except Exception as e:  # Catch any other unexpected errors during override
+                logger.warning(
+                    "Unexpected error applying override '%s': %s. Skipping.",
+                    override_entry,
+                    e,
+                )
 
         return modified_config_dict
 
@@ -115,8 +139,11 @@ class ConfigManager:
         else:
             # Log a warning if the broker is not found, but proceed with general settings.
             # Specific account settings might still exist if the structure is flat, though not per spec.
-            print(f"Warning: Broker '{broker_name}' not found in configuration. "
-                  f"Proceeding with general settings for broker-level defaults for account '{account_name_alias}'.")
+            logger.warning(
+                "Broker '%s' not found in configuration. Proceeding with general settings for account '%s'.",
+                broker_name,
+                account_name_alias,
+            )
             broker_accounts_data = {}
 
 
@@ -159,8 +186,10 @@ class ConfigManager:
             # For now, we can try to use AccountSettingsBase if no specific model matches,
             # but this might not be ideal if specific fields are expected later.
             # A stricter approach would be to raise an error.
-            print(f"Warning: No specific Pydantic model defined for broker '{broker_name}'. "
-                  f"Using AccountSettingsBase. Some broker-specific features might not be available.")
+            logger.warning(
+                "No specific Pydantic model defined for broker '%s'. Using AccountSettingsBase. Some broker-specific features might not be available.",
+                broker_name,
+            )
             # This will fail if AccountSettingsBase itself is not meant to be instantiated directly
             # or if current_config has fields not allowed by AccountSettingsBase.
             # Given the current setup, SchwabAccountSettings is derived from AccountSettingsBase
@@ -197,18 +226,24 @@ class ConfigManager:
         Returns a list of ConcreteAccountSettings objects.
         '''
         if not self._raw_config:
-            print(f"Warning: Configuration file '{self.config_file_path}' not found or empty. "
-                  f"Cannot retrieve accounts for broker '{broker_name}'.")
+            logger.warning(
+                "Configuration file '%s' not found or empty. Cannot retrieve accounts for broker '%s'.",
+                self.config_file_path,
+                broker_name,
+            )
             return []
 
         broker_config_raw = self.brokers_settings.get(broker_name, {})
         if not broker_config_raw:
-            print(f"Warning: Broker '{broker_name}' not found in configuration. Cannot list accounts.")
+            logger.warning(
+                "Broker '%s' not found in configuration. Cannot list accounts.",
+                broker_name,
+            )
             return []
 
         account_aliases = list(broker_config_raw.get("accounts", {}).keys())
         if not account_aliases:
-            print(f"Info: No accounts found configured under broker '{broker_name}'.")
+            logger.info("No accounts found configured under broker '%s'.", broker_name)
             return []
 
         all_settings: List[ConcreteAccountSettings] = []
@@ -223,7 +258,12 @@ class ConfigManager:
                 all_settings.append(account_specific_settings)
             except ValueError as e:
                 # Log the error for the specific account and continue with others
-                print(f"Warning: Could not load settings for account '{alias}' under broker '{broker_name}': {e}")
+                logger.warning(
+                    "Could not load settings for account '%s' under broker '%s': %s",
+                    alias,
+                    broker_name,
+                    e,
+                )
         
         return all_settings
 

@@ -19,10 +19,14 @@ from opensteuerauszug.model.ech0196 import (
     Client,
     ClientNumber,
     BankAccount,
+    BankAccountName,
+    BankAccountNumber,
     BaseXmlModel,
     NS_MAP,
     ns_tag,
-    Security # Added Security import
+    Security, # Added Security import
+    SecurityPayment,
+    SecurityStock
 )
 
 # --- Test Data ---
@@ -480,3 +484,86 @@ def test_security_symbol_not_serialized_to_xml():
 
     found_namespaced_symbol_element = parsed_element.find(ns_tag('eCH-0196', 'symbol')) # Namespaced check
     assert found_namespaced_symbol_element is None, "Parsed XML should not have a namespaced child element named 'symbol'"
+
+def test_decimal_serialization_avoids_scientific_notation():
+    """Test that Decimal values are serialized as plain strings, not scientific notation."""
+    # A very small decimal value that might be serialized to scientific notation
+    small_decimal = Decimal('0.0000000001') # 1e-10
+    
+    # Create a simple model instance with this decimal value
+    # We can use BankAccount and set one of its Decimal attributes
+    bank_account = BankAccount(
+        iban="CH1234567890123456789",
+        bankAccountNumber=BankAccountNumber("ACC123"),
+        bankAccountName=BankAccountName("Test Account"),
+        totalTaxValue=small_decimal
+    )
+    
+    # Serialize to an lxml element
+    # The _build_xml_element method needs a parent if it's not the root
+    temp_parent = ET.Element("temp", nsmap={None: 'http://www.ech.ch/xmlns/eCH-0196/2'})
+    xml_element = bank_account._build_xml_element(temp_parent)
+    
+    # Get the serialized value of the 'totalTaxValue' attribute
+    serialized_value = xml_element.get("totalTaxValue")
+    
+    # Assert that the serialized value is a plain string, not in scientific notation
+    assert serialized_value is not None, "totalTaxValue attribute should be serialized"
+    assert "E" not in serialized_value.upper(), f"Scientific notation found in serialized decimal: {serialized_value}"
+    assert serialized_value == "0.0000000001", f"Serialized decimal has incorrect format: {serialized_value}"
+
+def test_optional_boolean_serialization():
+    """
+    Tests that optional boolean attributes are serialized correctly.
+    - True should be serialized to "1".
+    - False should be omitted from the XML.
+    """
+    # Test with gratis=True
+    payment_true = SecurityPayment(
+        paymentDate="2023-01-01",
+        quotationType="PIECE",
+        quantity=1,
+        amountCurrency="CHF",
+        gratis=True
+    )
+    xml_element_true = payment_true._build_xml_element(parent_element=None)
+    assert xml_element_true.get("gratis") == "1"
+
+    # Test with gratis=False
+    payment_false = SecurityPayment(
+        paymentDate="2023-01-01",
+        quotationType="PIECE",
+        quantity=1,
+        amountCurrency="CHF",
+        gratis=False
+    )
+    xml_element_false = payment_false._build_xml_element(parent_element=None)
+    assert "gratis" not in xml_element_false.attrib
+
+def test_required_boolean_serialization():
+    """
+    Tests that required boolean attributes are serialized correctly.
+    - True should be serialized to "1".
+    - False should be serialized to "0".
+    """
+    # Test with mutation=True
+    stock_true = SecurityStock(
+        referenceDate="2023-01-01",
+        mutation=True,
+        quotationType="PIECE",
+        quantity=1,
+        balanceCurrency="CHF"
+    )
+    xml_element_true = stock_true._build_xml_element(parent_element=None)
+    assert xml_element_true.get("mutation") == "1"
+
+    # Test with mutation=False
+    stock_false = SecurityStock(
+        referenceDate="2023-01-01",
+        mutation=False,
+        quotationType="PIECE",
+        quantity=1,
+        balanceCurrency="CHF"
+    )
+    xml_element_false = stock_false._build_xml_element(parent_element=None)
+    assert xml_element_false.get("mutation") == "0"

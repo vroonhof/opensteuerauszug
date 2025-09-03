@@ -1,17 +1,22 @@
 import os
+import logging
 from typing import Final, List, Any, Dict, Literal
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
 
+logger = logging.getLogger(__name__)
+
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    ClientNumber, Institution, OrganisationName, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
+    BankAccountName, ClientNumber, Institution, OrganisationName, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
     Security, SecurityStock, SecurityPayment,
     BankAccount, BankAccountPayment, BankAccountTaxValue,
     CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client
 )
+from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
+from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 # Import ibflex components to avoid RuntimeWarning about module loading order
 try:
@@ -100,15 +105,15 @@ class IbkrImporter:
         if not IBFLEX_AVAILABLE:
             # This check could also be done in the CLI or app entry point
             # to provide a cleaner error to the user.
-            print(
-                "CRITICAL: ibflex library is not installed. "
-                "IbkrImporter will not function."
+            logger.critical(
+                "ibflex library is not installed. IbkrImporter will not function."
             )
             # Depending on desired behavior, could raise an error here too.
 
         if not self.account_settings_list:
-            print(
-                "Warning: IbkrImporter initialized with an empty list of "
+            # Currently no account info is used so we keep stumm.
+            logger.debug(
+                "IbkrImporter initialized with an empty list of "
                 "account settings."
             )
         # else:
@@ -116,6 +121,50 @@ class IbkrImporter:
             #     f"IbkrImporter initialized. Primary account (if used): "
             #     f"{self.account_settings_list[0].account_id}"
             # )
+
+    def _aggregate_stocks_by_date(self, stocks: List[SecurityStock]) -> List[SecurityStock]:
+        """Aggregate buy and sell entries on the same date without reordering."""
+
+        aggregated: List[SecurityStock] = []
+        pending: SecurityStock | None = None
+
+        for stock in stocks:
+            if stock.mutation:
+                if (
+                    pending
+                    and pending.referenceDate == stock.referenceDate
+                    and pending.balanceCurrency == stock.balanceCurrency
+                    and pending.quotationType == stock.quotationType
+                    # test for same sign of quantity
+                    and (pending.quantity * stock.quantity) > 0
+                ):
+                    pending.quantity += stock.quantity
+                    if pending.quantity > 0:
+                        pending.name = "Buy"
+                    else:
+                        pending.name = "Sell"
+                else:
+                    if pending:
+                        aggregated.append(pending)
+                    pending = SecurityStock(
+                        referenceDate=stock.referenceDate,
+                        mutation=True,
+                        quantity=stock.quantity,
+                        name=stock.name,
+                        balanceCurrency=stock.balanceCurrency,
+                        quotationType=stock.quotationType,
+                    )
+            else:
+                if pending:
+                    aggregated.append(pending)
+                    pending = None
+                aggregated.append(stock)
+
+        if pending:
+            aggregated.append(pending)
+
+        return aggregated
+
 
     def import_files(self, filenames: List[str]) -> TaxStatement:
         """
@@ -141,11 +190,11 @@ class IbkrImporter:
                     f"IBKR Flex statement file not found: {filename}"
                 )
             if not filename.lower().endswith(".xml"):
-                print(f"Warning: Skipping non-XML file: {filename}")
+                logger.warning(f"Skipping non-XML file: {filename}")
                 continue
 
             try:
-                print(f"Parsing IBKR Flex statement: {filename}")
+                logger.info(f"Parsing IBKR Flex statement: {filename}")
                 response = ibflex.parser.parse(filename)
                 # response.FlexStatements is a list of FlexStatement objects
                 # Each FlexStatement corresponds to an account
@@ -155,15 +204,15 @@ class IbkrImporter:
                         # accounts are in one file and account_settings_list
                         # specifies which one to process.
                         # For now, accumulate all statements found.
-                        print(
-                            f"Successfully parsed statement for account: "
-                            f"{stmt.accountId}, Period: {stmt.fromDate} "
-                            f"to {stmt.toDate}"
-                        )
+                        logger.info(
+                        f"Successfully parsed statement for account: "
+                        f"{stmt.accountId}, Period: {stmt.fromDate} "
+                        f"to {stmt.toDate}"
+                    )
                         all_flex_statements.append(stmt)
                 else:
-                    print(
-                        f"Warning: No FlexStatements found in {filename} "
+                    logger.warning(
+                        f"No FlexStatements found in {filename} "
                         "or response was empty."
                     )
             except FlexParserError as e:
@@ -181,8 +230,8 @@ class IbkrImporter:
         if not all_flex_statements:
             # This might be an error or just a case of no relevant data.
             # "If data is missing do a hard error" - might need adjustment
-            print(
-                "Warning: No Flex statements were successfully parsed. "
+            logger.warning(
+                "No Flex statements were successfully parsed. "
                 "Returning empty TaxStatement."
             )
             return TaxStatement(
@@ -203,7 +252,7 @@ class IbkrImporter:
                 stmt, 'accountId', 'FlexStatement'
             )
             # account_id_processed = account_id # Keep track for summary
-            print(f"Processing statement for account: {account_id}")
+            logger.info(f"Processing statement for account: {account_id}")
 
             # --- Process Trades ---
             if stmt.Trades:
@@ -228,7 +277,7 @@ class IbkrImporter:
                     )
 
                     conid = str(self._get_required_field(trade, 'conid', 'Trade'))
-                    isin = getattr(trade, 'isin', None)  # Optional
+                    isin = trade.isin  # Optional field always present on dataclass
                     valor = None  # Flex does not typically provide Valor
 
                     quantity = self._to_decimal(
@@ -250,16 +299,21 @@ class IbkrImporter:
                     buy_sell = self._get_required_field(trade, 'buySell', 'Trade')
 
                     ib_commission = self._to_decimal(
-                        getattr(trade, 'ibCommission', '0'),
+                        trade.ibCommission if trade.ibCommission is not None else '0',
                         'ibCommission', f"Trade {symbol}"
                     )
+
+                    if asset_category == "CASH":
+                        # FX trades are neutral to the portfolio, so we skip them.
+                        logger.debug("Skipped CASH trade {symbol}")
+                        continue
 
                     # Added ETF, FUND
                     if asset_category not in [
                         "STK", "OPT", "FUT", "BOND", "ETF", "FUND"
                     ]:
-                        print(
-                            f"Warning: Skipping trade for unhandled asset "
+                        logger.warning(
+                            f"Skipping trade for unhandled asset "
                             f"category: {asset_category} (Symbol: {symbol})"
                         )
                         continue
@@ -285,33 +339,20 @@ class IbkrImporter:
                         stock_mutation
                     )
 
-                    payment_amount = trade_money
-                    if quantity > 0:  # BUY
-                        payment_amount = -abs(payment_amount)
-                    else:  # SELL
-                        payment_amount = abs(payment_amount)
-
-                    # ib_commission is typically negative
-                    payment_amount += ib_commission
-
-                    trade_payment = SecurityPayment(
-                        paymentDate=settle_date,
-                        name=f"Trade: {buy_sell} {symbol}",
-                        amountCurrency=currency,
-                        amount=payment_amount,
-                        quantity=abs(quantity),  # Assuming quantity here
-                        quotationType="PIECE"
-                    )
-                    processed_security_positions[sec_pos]['payments'].append(
-                        trade_payment
-                    )
+                    # Cash movements resulting from trades are tracked via the cash transaction section. Only the stock mutation is stored here.
 
             # --- Process Open Positions (End of Period Snapshot) ---
             if stmt.OpenPositions:
+                end_plus_one = self.period_to + timedelta(days=1)
                 for open_pos in stmt.OpenPositions:
-                    report_date = self._get_required_field(
+                    # Ignore the reportDate from the Flex statement and
+                    # use period end + 1 as reference date for the balance
+                    # entry. This avoids creating a separate stock entry on
+                    # the period end itself which would later result in a
+                    # duplicate closing balance.
+                    _ = self._get_required_field(
                         open_pos, 'reportDate', 'OpenPosition'
-                    )
+                    )  # validation only
                     symbol = self._get_required_field(
                         open_pos, 'symbol', 'OpenPosition'
                     )
@@ -325,7 +366,7 @@ class IbkrImporter:
                     conid = str(self._get_required_field(
                         open_pos, 'conid', 'OpenPosition'
                     ))
-                    isin = getattr(open_pos, 'isin', None)
+                    isin = open_pos.isin
                     valor = None
 
                     quantity = self._to_decimal(
@@ -341,8 +382,8 @@ class IbkrImporter:
                     if asset_category not in [
                         "STK", "OPT", "FUT", "BOND", "ETF", "FUND"
                     ]:
-                        print(
-                            f"Warning: Skipping open position for unhandled "
+                        logger.warning(
+                            f"Skipping open position for unhandled "
                             f"asset category: {asset_category} "
                             f"(Symbol: {symbol})"
                         )
@@ -357,7 +398,8 @@ class IbkrImporter:
                     )
 
                     balance_stock = SecurityStock(
-                        referenceDate=report_date,
+                        # Balance as of the period end + 1
+                        referenceDate=end_plus_one,
                         mutation=False,
                         quantity=quantity,
                         name=f"End of Period Balance {symbol}",
@@ -366,6 +408,80 @@ class IbkrImporter:
                     )
                     processed_security_positions[sec_pos]['stocks'].append(
                         balance_stock
+                    )
+
+            # --- Process Transfers ---
+            if stmt.Transfers:
+                for transfer in stmt.Transfers:
+                    asset_category = transfer.assetCategory
+                    asset_cat_val = (
+                        asset_category.value if hasattr(asset_category, 'value') else str(asset_category)
+                    )
+                    if str(asset_cat_val).upper() == 'CASH':
+                        continue
+
+                    tx_date = transfer.date
+                    if tx_date is None:
+                        tx_dt = transfer.dateTime
+                        if tx_dt is not None:
+                            tx_date = tx_dt.date() if hasattr(tx_dt, 'date') else tx_dt
+                    if tx_date is None:
+                        raise ValueError('Transfer missing date/dateTime')
+
+                    symbol = self._get_required_field(transfer, 'symbol', 'Transfer')
+                    description = self._get_required_field(
+                        transfer, 'description', 'Transfer'
+                    )
+                    conid = str(self._get_required_field(transfer, 'conid', 'Transfer'))
+                    isin = transfer.isin
+
+                    quantity = self._to_decimal(
+                        self._get_required_field(transfer, 'quantity', 'Transfer'),
+                        'quantity', f"Transfer {symbol}"
+                    )
+
+                    direction = transfer.direction
+                    direction_val = direction.value.upper() if direction else None
+                    if direction_val == 'OUT' and quantity > 0:
+                        raise ValueError(
+                            f"Transfer direction OUT but quantity {quantity} positive"
+                            f" for {symbol}"
+                        )
+                    if direction_val == 'IN' and quantity < 0:
+                        raise ValueError(
+                            f"Transfer direction IN but quantity {quantity} negative"
+                            f" for {symbol}"
+                        )
+
+                    currency = self._get_required_field(
+                        transfer, 'currency', 'Transfer'
+                    )
+
+                    transfer_type = self._get_required_field(
+                        transfer, 'type', 'Transfer'
+                    )
+                    transfer_type_val = transfer_type.value
+                    account = self._get_required_field(transfer, 'account', 'Transfer')
+
+                    sec_pos = SecurityPosition(
+                        depot=account_id,
+                        valor=None,
+                        isin=ISINType(isin) if isin else None,
+                        symbol=conid,
+                        description=f"{description} ({symbol})",
+                    )
+
+                    stock_mutation = SecurityStock(
+                        referenceDate=tx_date,
+                        mutation=True,
+                        quantity=quantity,
+                        name=f"{transfer_type_val} {account}",
+                        balanceCurrency=currency,
+                        quotationType="PIECE",
+                    )
+
+                    processed_security_positions[sec_pos]['stocks'].append(
+                        stock_mutation
                     )
 
             # --- Process Cash Transactions ---
@@ -393,17 +509,73 @@ class IbkrImporter:
                         cash_tx, 'currency', 'CashTransaction'
                     )
 
-                    cash_pos_key = (account_id, currency, "MAIN_CASH")
+                    security_id = cash_tx.conid
+                    tx_type = cash_tx.type
+                    if tx_type is None:
+                        raise ValueError(f"CashTransaction type is missing for {description}")
 
-                    bank_payment = BankAccountPayment(
-                        paymentDate=tx_date,
-                        name=description,
-                        amountCurrency=currency,
-                        amount=amount
-                    )
-                    processed_cash_positions[cash_pos_key]['payments'].append(
-                        bank_payment
-                    )
+                    if security_id:
+                        tx_type_str = tx_type.value
+                        assert 'interest' not in str(tx_type_str).lower()
+
+                        sec_pos_key = None
+                        for pos in processed_security_positions.keys():
+                            if pos.depot == account_id and pos.symbol == str(security_id):
+                                sec_pos_key = pos
+                                break
+
+                        if sec_pos_key is None:
+                            isin_attr = cash_tx.isin
+                            sym_attr = cash_tx.symbol
+                            sec_pos_key = SecurityPosition(
+                                depot=account_id,
+                                valor=None,
+                                isin=ISINType(isin_attr) if isin_attr else None,
+                                symbol=str(security_id),
+                                description=(
+                                    f"{description} ({sym_attr})" if sym_attr else description
+                                ),
+                            )
+
+                        sec_payment = SecurityPayment(
+                            paymentDate=tx_date,
+                            name=description,
+                            amountCurrency=currency,
+                            amount=amount,
+                            quotationType='PIECE',
+                            quantity=UNINITIALIZED_QUANTITY
+                        )
+                        processed_security_positions[sec_pos_key]['payments'].append(
+                            sec_payment
+                        )
+                    else:
+                        if tx_type in [ibflex.CashAction.DEPOSITWITHDRAW]:
+                            # Not Tax Relant event
+                            continue
+                        elif tx_type in [ibflex.CashAction.BROKERINTPAID]:
+                            # TODO: Optionally create a liabilities section.
+                            logger.warning(f"Broker interest paid for {description} is not handled for liabilities.")
+                            continue
+                        elif tx_type in [ibflex.CashAction.FEES]:
+                            # TODO: Optionally create a costs sectioons.
+                            logger.warning(f"Fees paid for {description} are ignored for statement.")
+                            continue
+                        elif tx_type in [ibflex.CashAction.BROKERINTRCVD]:
+                            # Tax relevant event. Fall through to create a bank payment.
+                            pass
+                        else:
+                            raise ValueError(f"CashTransaction type {tx_type} is not supported for {description}")
+                        cash_pos_key = (account_id, currency, "MAIN_CASH")
+
+                        bank_payment = BankAccountPayment(
+                            paymentDate=tx_date,
+                            name=description,
+                            amountCurrency=currency,
+                            amount=amount
+                        )
+                        processed_cash_positions[cash_pos_key]['payments'].append(
+                            bank_payment
+                        )
 
         # --- Construct ListOfSecurities ---
         # account_id -> list of Security objects
@@ -411,9 +583,7 @@ class IbkrImporter:
         sec_pos_idx = 0
         for sec_pos_obj, data in processed_security_positions.items():
             sec_pos_idx += 1
-            sorted_stocks = sorted(
-                data['stocks'], key=lambda s: (s.referenceDate, s.mutation)
-            )
+            sorted_stocks = self._aggregate_stocks_by_date(data['stocks'])
             sorted_payments = sorted(
                 data['payments'], key=lambda p: p.paymentDate
             )
@@ -452,8 +622,9 @@ class IbkrImporter:
             elif sorted_payments and hasattr(sorted_payments[0], 'assetCategory'):
                 asset_cat_source = sorted_payments[0]
 
-            asset_cat = (getattr(asset_cat_source, 'assetCategory', 'STK')
-                         if asset_cat_source else 'STK')
+            asset_cat = (
+                asset_cat_source.assetCategory if asset_cat_source else 'STK'
+            )
 
             sec_category_str: SecurityCategory = "SHARE"
             if (asset_cat == "BOND"):
@@ -470,6 +641,65 @@ class IbkrImporter:
                 sec_category_str = "SHARE"
             else:
                 raise ValueError(f"Unknown asset category: {asset_cat}")
+
+            # --- Ensure balance at period start and period end + 1 using PositionReconciler ---
+            reconciler = PositionReconciler(list(sorted_stocks), identifier=f"{sec_pos_obj.symbol}-reconcile")
+            end_plus_one = self.period_to + timedelta(days=1)
+            end_pos = reconciler.synthesize_position_at_date(end_plus_one)
+            closing_balance = end_pos.quantity if end_pos else Decimal("0")
+
+            trades_quantity_total = sum(
+                s.quantity for s in sorted_stocks if s.mutation
+            )
+
+            start_pos = reconciler.synthesize_position_at_date(self.period_from)
+            if start_pos:
+                opening_balance = start_pos.quantity
+            else:
+                tentative_opening = closing_balance - trades_quantity_total
+                opening_balance = tentative_opening if tentative_opening >= 0 else Decimal("0")
+
+            if opening_balance < 0 or closing_balance < 0:
+                raise ValueError(
+                    f"Negative balance computed for security {sec_pos_obj.symbol}"
+                    f" (start {opening_balance}, end {closing_balance})"
+                )
+
+            start_exists = any(
+                (not s.mutation and s.referenceDate == self.period_from)
+                for s in sorted_stocks
+            )
+            if not start_exists:
+                sorted_stocks.append(
+                    SecurityStock(
+                        referenceDate=self.period_from,
+                        mutation=False,
+                        quotationType=primary_quotation_type,
+                        quantity=opening_balance,
+                        balanceCurrency=primary_currency,
+                        name="Opening balance"
+                    )
+                )
+
+            end_exists = any(
+                (not s.mutation and s.referenceDate == end_plus_one)
+                for s in sorted_stocks
+            )
+            if not end_exists:
+                sorted_stocks.append(
+                    SecurityStock(
+                        referenceDate=end_plus_one,
+                        mutation=False,
+                        quotationType=primary_quotation_type,
+                        quantity=closing_balance,
+                        balanceCurrency=primary_currency,
+                        name="Closing balance"
+                    )
+                )
+
+            sorted_stocks = sorted(
+                sorted_stocks, key=lambda s: (s.referenceDate, s.mutation)
+            )
 
             sec = Security(
                 positionId=sec_pos_idx,
@@ -499,51 +729,72 @@ class IbkrImporter:
 
         # --- Construct ListOfBankAccounts ---
         final_bank_accounts: List[BankAccount] = []
-        aggregated_bank_payments: defaultdict[tuple, Dict[str, Any]] = \
-            defaultdict(lambda: {'payments': [], 'account_id': None,
-                                'currency': None})
+        
+        # First, collect all currencies from CashReport that have closing balances
+        all_currencies_with_balances: Dict[tuple, Dict[str, Any]] = {}
+        
+        for s_stmt in all_flex_statements:
+            account_id = s_stmt.accountId
+            if s_stmt.CashReport:
+                for cash_report_currency_obj in s_stmt.CashReport:
+                    curr = cash_report_currency_obj.currency
 
-        for (stmt_account_id, currency_code, _), data in \
-                processed_cash_positions.items():
+                    # Skip BASE_SUMMARY entries (IBKR internal aggregation, not a real currency)
+                    if curr == "BASE_SUMMARY":
+                        continue
+
+                    key = (account_id, curr)
+
+                    # Extract closing balance
+                    closing_balance_value = None
+                    if cash_report_currency_obj.endingCash is not None:
+                        closing_balance_value = self._to_decimal(
+                            cash_report_currency_obj.endingCash,
+                            'endingCash',
+                            f"CashReport {account_id} {curr}"
+                        )
+                    elif (
+                        cash_report_currency_obj.balance is not None
+                        and cash_report_currency_obj.reportDate == self.period_to
+                    ):
+                        closing_balance_value = self._to_decimal(
+                            cash_report_currency_obj.balance,
+                            'balance',
+                            f"CashReport {account_id} {curr}"
+                        )
+
+                    if closing_balance_value is not None:
+                        all_currencies_with_balances[key] = {
+                            'account_id': account_id,
+                            'currency': curr,
+                            'closing_balance': closing_balance_value,
+                            'payments': []
+                        }
+
+        # Now add payments from cash transactions to the relevant currencies
+        for (stmt_account_id, currency_code, _), data in processed_cash_positions.items():
             key = (stmt_account_id, currency_code)
-            aggregated_bank_payments[key]['payments'].extend(data['payments'])
-            aggregated_bank_payments[key]['account_id'] = stmt_account_id
-            aggregated_bank_payments[key]['currency'] = currency_code
+            if key in all_currencies_with_balances:
+                all_currencies_with_balances[key]['payments'].extend(data['payments'])
+            else:
+                # This currency has transactions but no closing balance in CashReport
+                # Still create an entry for it
+                all_currencies_with_balances[key] = {
+                    'account_id': stmt_account_id,
+                    'currency': currency_code,
+                    'closing_balance': None,
+                    'payments': data['payments']
+                }
 
-        for key, data_dict in aggregated_bank_payments.items():
+        # Create bank accounts for all currencies
+        for key, data_dict in all_currencies_with_balances.items():
             acc_id = data_dict['account_id']
             curr = data_dict['currency']
             payments = data_dict['payments']
+            closing_balance_value = data_dict['closing_balance']
 
             # Ensure payments is a list before sorting
             sorted_payments = sorted(payments or [], key=lambda p: p.paymentDate)
-
-
-            closing_balance_value = None
-            for s_stmt in all_flex_statements:
-                if (s_stmt.accountId == acc_id and
-                        hasattr(s_stmt, 'CashReport') and s_stmt.CashReport):
-                    for cash_report_currency_obj in s_stmt.CashReport:
-                        if (hasattr(cash_report_currency_obj, 'currency') and
-                                cash_report_currency_obj.currency == curr):
-                            if hasattr(cash_report_currency_obj, 'endingCash'):
-                                closing_balance_value = self._to_decimal(
-                                    cash_report_currency_obj.endingCash,
-                                    'endingCash',
-                                    f"CashReport {acc_id} {curr}"
-                                )
-                                break
-                            elif (hasattr(cash_report_currency_obj, 'balance') and
-                                  hasattr(cash_report_currency_obj, 'reportDate') and
-                                  cash_report_currency_obj.reportDate == self.period_to):
-                                closing_balance_value = self._to_decimal(
-                                    cash_report_currency_obj.balance,
-                                    'balance',
-                                    f"CashReport {acc_id} {curr}"
-                                )
-                                break
-                    if closing_balance_value is not None:
-                        break
 
             bank_account_tax_value_obj = None
             if closing_balance_value is not None:
@@ -554,15 +805,22 @@ class IbkrImporter:
                     balance=closing_balance_value
                 )
             else:
-                print(
-                    f"Warning: No closing cash balance found in CashReport "
+                logger.warning(
+                    f"No closing cash balance found in CashReport "
                     f"for account {acc_id}, currency {curr} for date "
-                    f"{self.period_to}. BankAccountTaxValue will be missing."
+                    f"{self.period_to}."
+                )
+                raise ValueError(
+                    f"No closing cash balance found in CashReport "
+                    f"for account {acc_id}, currency {curr} for date "
+                    f"{self.period_to}."
                 )
 
             bank_account_num_str = f"{acc_id}-{curr}"
+            bank_account_name_str = f"{acc_id} {curr} position"
 
             ba = BankAccount(
+                bankAccountName=BankAccountName(bank_account_name_str),
                 bankAccountNumber=BankAccountNumber(bank_account_num_str),
                 bankAccountCountry="US",
                 bankAccountCurrency=curr,
@@ -582,7 +840,7 @@ class IbkrImporter:
             listOfSecurities=list_of_securities,
             listOfBankAccounts=list_of_bank_accounts
         )
-        print(
+        logger.info(
             "Partial TaxStatement created with Trades, OpenPositions, "
             "and basic CashTransactions mapping."
         )
@@ -620,13 +878,22 @@ class IbkrImporter:
                 def is_valid_string(value):
                     return value is not None and isinstance(value, str) and value.strip()
 
+                def split_full_name(value):
+                    parts = str(value).strip().split()
+                    if len(parts) > 1:
+                        return parts[0], " ".join(parts[1:])
+                    return None, str(value).strip()
+
                 if is_valid_string(first_name) and is_valid_string(last_name):
                     client_first_name = str(first_name).strip()
                     client_last_name = str(last_name).strip()
+                elif is_valid_string(first_name) and is_valid_string(name):
+                    client_first_name = str(first_name).strip()
+                    _, client_last_name = split_full_name(name)
                 elif is_valid_string(name):
-                    client_last_name = str(name).strip()
+                    client_first_name, client_last_name = split_full_name(name)
                 elif is_valid_string(account_holder_name):
-                    client_last_name = str(account_holder_name).strip()
+                    client_first_name, client_last_name = split_full_name(account_holder_name)
 
                 if account_id and client_last_name: # lastName is mandatory for Client
                     client_obj = Client(
@@ -643,14 +910,15 @@ class IbkrImporter:
 
 
 if __name__ == '__main__':
-    print("IbkrImporter module loaded.")
+    logging.basicConfig(level=logging.INFO) # Set a default level for standalone execution
+    logger.info("IbkrImporter module loaded.")
     if not IBFLEX_AVAILABLE:
-        print(
+        logger.critical(
             "ibflex library not available. Run 'pip install ibflex' "
             "to use this importer."
         )
     else:
-        print("ibflex library is available.")
+        logger.info("ibflex library is available.")
     # Example usage:
     # from opensteuerauszug.config.models import IbkrAccountSettings # Create
     # settings = IbkrAccountSettings(account_id="U1234567")
@@ -699,7 +967,7 @@ if __name__ == '__main__':
     # finally:
     #     if os.path.exists(DUMMY_FILE):
     #         os.remove(DUMMY_FILE)
-    print(
+    logger.info(
         "Example usage in __main__ needs IbkrAccountSettings to be defined "
         "in config.models and 'pip install ibflex devtools'."
     )

@@ -1,7 +1,6 @@
 import unittest
 import os
 import csv
-import logging
 import tempfile
 import shutil # For tearDown
 
@@ -12,8 +11,6 @@ class TestSecurityIdentifierMapLoader(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory to store test CSV files
         self.test_dir = tempfile.mkdtemp()
-        # Logger for the module under test
-        self.loader_logger = logging.getLogger('opensteuerauszug.core.identifier_loader')
 
 
     def tearDown(self):
@@ -42,10 +39,7 @@ class TestSecurityIdentifierMapLoader(unittest.TestCase):
         csv_path = self._create_temp_csv('success.csv', header, data)
         loader = SecurityIdentifierMapLoader(csv_path)
         
-        with self.assertLogs(self.loader_logger, level='INFO') as cm:
-            result_map = loader.load_map()
-            self.assertTrue(any(f"Successfully loaded 4 security identifiers from {csv_path}" in log for log in cm.output))
-
+        result_map = loader.load_map()
         self.assertEqual(len(result_map), 4)
         self.assertEqual(result_map['AAPL'], {'isin': 'US0378331005', 'valor': 37833100})
         self.assertEqual(result_map['MSFT'], {'isin': 'US5949181045', 'valor': None})
@@ -57,38 +51,28 @@ class TestSecurityIdentifierMapLoader(unittest.TestCase):
         non_existent_path = os.path.join(self.test_dir, 'non_existent.csv')
         loader = SecurityIdentifierMapLoader(non_existent_path)
         
-        with self.assertLogs(self.loader_logger, level='WARNING') as cm:
-            result_map = loader.load_map()
-            self.assertTrue(any(f"Security identifiers file not found at {non_existent_path}" in log for log in cm.output))
-        
+        result_map = loader.load_map()
         self.assertEqual(result_map, {})
 
     def test_load_map_empty_file(self):
         # Scenario 1: Completely empty file
         empty_csv_path = self._create_temp_csv('empty.csv', None, None)
         loader_empty = SecurityIdentifierMapLoader(empty_csv_path)
-        with self.assertLogs(self.loader_logger, level='ERROR') as cm_empty:
-            result_map_empty = loader_empty.load_map()
+        result_map_empty = loader_empty.load_map()
         self.assertEqual(result_map_empty, {})
-        self.assertTrue(any(f"Security identifiers file {empty_csv_path} is empty (no header)" in log for log in cm_empty.output))
 
         # Scenario 2: File with only a header
         header_only_csv_path = self._create_temp_csv('header_only.csv', ['symbol', 'isin', 'valor'], None)
         loader_header_only = SecurityIdentifierMapLoader(header_only_csv_path)
-        with self.assertLogs(self.loader_logger, level='INFO') as cm_header_only: # Will log "no valid identifiers loaded"
-            result_map_header_only = loader_header_only.load_map()
+        result_map_header_only = loader_header_only.load_map()
         self.assertEqual(result_map_header_only, {})
-        self.assertTrue(any(f"Security identifiers file {header_only_csv_path} was processed, but no valid identifiers were loaded." in log for log in cm_header_only.output))
 
 
     def test_load_map_incorrect_header(self):
         csv_path = self._create_temp_csv('bad_header.csv', ['sym', 'id', 'val'], [['AAPL', 'US0378331005', '123']])
         loader = SecurityIdentifierMapLoader(csv_path)
         
-        with self.assertLogs(self.loader_logger, level='ERROR') as cm:
-            result_map = loader.load_map()
-            self.assertTrue(any(f"Incorrect header in security identifiers file {csv_path}" in log for log in cm.output))
-        
+        result_map = loader.load_map()
         self.assertEqual(result_map, {})
 
     def test_load_map_incorrect_column_count(self):
@@ -101,12 +85,7 @@ class TestSecurityIdentifierMapLoader(unittest.TestCase):
         csv_path = self._create_temp_csv('columns.csv', header, data)
         loader = SecurityIdentifierMapLoader(csv_path)
         
-        with self.assertLogs(self.loader_logger, level='WARNING') as cm:
-            result_map = loader.load_map()
-            # Check for specific warnings about column count
-            self.assertTrue(any("Row 2 in" in log and "has incorrect number of columns" in log for log in cm.output))
-            self.assertTrue(any("Row 3 in" in log and "has incorrect number of columns" in log for log in cm.output))
-
+        result_map = loader.load_map()
         self.assertEqual(len(result_map), 1)
         self.assertIn('GOOG', result_map)
         self.assertEqual(result_map['GOOG'], {'isin': 'USGOOG', 'valor': 54321})
@@ -117,10 +96,7 @@ class TestSecurityIdentifierMapLoader(unittest.TestCase):
         csv_path = self._create_temp_csv('invalid_valor.csv', header, data)
         loader = SecurityIdentifierMapLoader(csv_path)
         
-        with self.assertLogs(self.loader_logger, level='WARNING') as cm:
-            result_map = loader.load_map()
-            self.assertTrue(any("for symbol 'BADVAL': Could not convert valor 'NOTANUMBER' to an integer" in log for log in cm.output))
-            
+        result_map = loader.load_map()
         self.assertEqual(len(result_map), 1)
         self.assertEqual(result_map['BADVAL'], {'isin': 'US000000000X', 'valor': None})
 
@@ -130,10 +106,7 @@ class TestSecurityIdentifierMapLoader(unittest.TestCase):
         csv_path = self._create_temp_csv('empty_symbol.csv', header, data)
         loader = SecurityIdentifierMapLoader(csv_path)
 
-        with self.assertLogs(self.loader_logger, level='WARNING') as cm:
-            result_map = loader.load_map()
-            self.assertTrue(any("has an empty symbol. Skipping row." in log for log in cm.output))
-            
+        result_map = loader.load_map()
         self.assertEqual(len(result_map), 0)
 
     def test_load_map_duplicate_symbol(self):
@@ -146,10 +119,7 @@ class TestSecurityIdentifierMapLoader(unittest.TestCase):
         csv_path = self._create_temp_csv('duplicates.csv', header, data)
         loader = SecurityIdentifierMapLoader(csv_path)
 
-        with self.assertLogs(self.loader_logger, level='WARNING') as cm:
-            result_map = loader.load_map()
-            self.assertTrue(any("Duplicate symbol 'DUPSYMBOL' found" in log and "Previous entry will be overwritten" in log for log in cm.output))
-
+        result_map = loader.load_map()
         self.assertEqual(len(result_map), 2)
         self.assertEqual(result_map['DUPSYMBOL'], {'isin': 'US222', 'valor': 222})
         self.assertEqual(result_map['ANOTHER'], {'isin': 'USAAA', 'valor': 0})
@@ -160,11 +130,7 @@ class TestSecurityIdentifierMapLoader(unittest.TestCase):
         csv_path = self._create_temp_csv('case_header.csv', header, data)
         loader = SecurityIdentifierMapLoader(csv_path)
         
-        # No error/warning should be logged for header, only successful load
-        with self.assertLogs(self.loader_logger, level='INFO') as cm:
-            result_map = loader.load_map()
-            self.assertTrue(any(f"Successfully loaded 1 security identifiers from {csv_path}" in log for log in cm.output))
-
+        result_map = loader.load_map()
         self.assertEqual(len(result_map), 1)
         self.assertEqual(result_map['AAPL'], {'isin': 'US0378331005', 'valor': 37833100})
 

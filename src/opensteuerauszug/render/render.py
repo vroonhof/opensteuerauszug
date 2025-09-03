@@ -21,6 +21,7 @@ from reportlab.lib.units import cm, mm
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
+import logging
 
 # --- Import TaxStatement model ---
 from opensteuerauszug.model.ech0196 import TaxStatement
@@ -37,6 +38,9 @@ from opensteuerauszug.core.security import determine_security_type, SecurityType
 # --- Import styles utility ---
 from opensteuerauszug.util.styles import get_custom_styles
 from opensteuerauszug.util import round_accounting
+from opensteuerauszug.render.markdown_renderer import markdown_to_platypus
+
+logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 DOC_INFO = "TODO: Place some compact info here"
@@ -86,13 +90,24 @@ def format_currency_2dp(value: Decimal, default='0.00'):
 
 # For most values we use 2 decimals, or leave blank it None or zero
 def format_currency(value: Optional[Decimal], default=''):
-    """Format currency with 2 decimals, for detail tables."""
-    if value is None or value == Decimal(0): return default
+    """Format currency, trimming trailing zeros for better alignment."""
+    if value is None or value == Decimal(0):
+        return default
+
     try:
         decimal_value = round_accounting(value)
-        formatted = '{:,f}'.format(decimal_value).replace(',', "'")
-        return formatted
-    except: return default
+
+        two_dec = decimal_value.quantize(Decimal("0.01"))
+        three_dec = decimal_value.quantize(Decimal("0.001"))
+
+        if two_dec == three_dec:
+            formatted = "{:,.2f}".format(two_dec)
+        else:
+            formatted = "{:,.3f}".format(three_dec)
+
+        return formatted.replace(',', "'")
+    except Exception:
+        return default
 
 # For exchange rates we limit to 4 decimals, don't show if 1
 def format_exchange_rate(value: Decimal, default=''):
@@ -601,6 +616,60 @@ def create_costs_table(data, styles, usable_width):
     return KeepTogether([costs_table, Spacer(1, 2*mm), Paragraph(footnote_text, val_left)])
 
 
+# --- Info Box Helpers ---
+def create_minimal_placeholder(styles):
+    """Create a placeholder paragraph for minimal tax statements."""
+    text = (
+        "Dies ist kein echter Steuerauszug. Dieses Minimaldokument dient nur dazu, "
+        "die Bankdaten über Barcodes zu importieren. Das die Totale nicht ermittelt werden wird auf eine Zusammenfassung verzichtet."
+    )
+    return Paragraph(text, styles['Normal'])
+
+
+def create_dual_info_boxes(styles, usable_width, minimal: bool = False):
+    """Create two side-by-side information boxes for the first page."""
+    templates_path = Path(__file__).parent / 'templates'
+
+    if minimal:
+        left_file = 'tax_office_minimal.de.md'
+        right_file = 'tax_payer_minimal.en.md'
+    else:
+        left_file = 'tax_office.de.md'
+        right_file = 'tax_payer.en.md'
+
+    with open(templates_path / left_file, 'r', encoding='utf-8') as f:
+        left_markdown = f.read()
+
+    with open(templates_path / right_file, 'r', encoding='utf-8') as f:
+        right_markdown = f.read()
+
+    left_flowables = markdown_to_platypus(left_markdown, styles=styles, section='short-version')
+    right_flowables = markdown_to_platypus(right_markdown, styles=styles, section='short-version')
+
+    table = Table(
+        [[left_flowables, right_flowables]],
+        colWidths=[usable_width / 2, usable_width / 2],
+    )
+    table.setStyle(
+        TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOX', (0, 0), (0, 0), 0.5, colors.black),
+            ('BOX', (1, 0), (1, 0), 0.5, colors.black),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ])
+    )
+    return table
+
+
+def create_single_info_page(markdown_text, styles, section=None):
+    """Create simple text content for a dedicated information page."""
+    return markdown_to_platypus(markdown_text, section=section)
+
+
+
 # --- Barcode Generation ---
 def get_barcode_image(data):
     """Generate a barcode image from the given data using Code128.
@@ -1020,7 +1089,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         Paragraph('Steuerrückbehalt USA<br/> in CHF', header_style),
     ]
     
-    col_widths = [18*mm, 50*mm, 16*mm, 18*mm, 18*mm, 18*mm, 18*mm, 22*mm, 8, 22*mm, 8, 22*mm, 25*mm, 25*mm]
+    col_widths = [18*mm, 50*mm, 20*mm, 18*mm, 18*mm, 14*mm, 18*mm, 22*mm, 8, 22*mm, 8, 22*mm, 25*mm, 25*mm]
     col_widths = [1.0*w for w in col_widths]
     assert len(col_widths) == len(table_header)
     # Hide columns not used in this table
@@ -1090,9 +1159,12 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         # Render each entry
         for entry_type, entry_date, entry in entries:
             if entry_type == 'payment':
+                name = entry.name or ''
+                if entry.sign:
+                    name = f"{name} {entry.sign}"
                 table_data.append([
                     Paragraph(entry.paymentDate.strftime("%d.%m.%Y") if entry.paymentDate else '', val_left),
-                    Paragraph(entry.name or '', val_left),
+                    Paragraph(name, val_left),
                     Paragraph(format_stock_quantity(entry.quantity, False, stock_quantity_template), val_right),
                     Paragraph(entry.amountCurrency or '', val_right),
                     Paragraph(format_currency(entry.amount) if getattr(entry, 'amount', None) else '', val_right),
@@ -1210,13 +1282,20 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
     return securities_table
 
 # --- Main API function to be called from steuerauszug.py ---
-def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Path], override_org_nr: Optional[str] = None) -> Path:
+def render_tax_statement(
+    tax_statement: TaxStatement,
+    output_path: Union[str, Path],
+    override_org_nr: Optional[str] = None,
+    minimal_frontpage_placeholder: bool = False,
+) -> Path:
     """Render a tax statement to PDF.
     
     Args:
         tax_statement: The TaxStatement model to render
         output_path: Path where to save the generated PDF
         override_org_nr: Optional override for organization number (5 digits)
+        minimal_frontpage_placeholder: If True, replace the summary on the first
+            page with a placeholder suitable for minimal tax statements
         
     Returns:
         Path to the generated PDF file
@@ -1259,9 +1338,15 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     # Compute the organization number
     doc.org_nr = compute_org_nr(tax_statement, override_org_nr)
     doc.company_name = tax_statement.institution.name if tax_statement.institution else ""
-    
+
     # Store tax statement for header access
     doc.tax_statement = tax_statement
+
+    # Set the PDF title using institution name and tax year
+    company_name = tax_statement.institution.name if tax_statement.institution else ""
+    tax_year = str(tax_statement.taxPeriod) if tax_statement.taxPeriod else ""
+    title_parts = ["Steuerauszug", company_name, tax_year]
+    doc.title = " ".join(part for part in title_parts if part)
     
     # Extract and store client information for header display (backward compatibility)
     doc.client_info = extract_client_info(tax_statement)
@@ -1275,65 +1360,77 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
     # --- Define styles centrally (same as before) ---
     styles = get_custom_styles()
 
+
+    
     story = []
 
     # --- Sections ---
     title_style = ParagraphStyle(name='SectionTitle', parent=styles['h2'], alignment=TA_LEFT, fontSize=10, spaceAfter=4*mm)
     # Would love to use this, but following text then overlaps.
     # title_style = styles['HeaderTitle']
- 
-    # 1. Summary Section
+
+    use_minimal_frontpage = minimal_frontpage_placeholder
+
+    # 1. Summary Section or placeholder
     story.append(Paragraph("Steuerauszug | Zusammenfassung", title_style))
-    
-    # Extract tax period and period end date - both are mandatory in the model
-    tax_period = str(tax_statement.taxPeriod)
-    
-    # Format period end date - periodTo is mandatory in the model
-    if tax_statement.periodTo:
-        period_end_date = tax_statement.periodTo.strftime("%d.%m.%Y")
+
+    if use_minimal_frontpage:
+        story.append(create_minimal_placeholder(styles))
+        story.append(Spacer(1, 0.5*cm))
+        story.append(create_dual_info_boxes(styles, usable_width, minimal=True))
     else:
-        raise ValueError("PeriodTo is mandatory in the model")
-    
-    # Calculate total gross revenue if not already set
-    if tax_statement.total_brutto_gesamt is None:
-        total_gross_revenue_a = tax_statement.totalGrossRevenueA or Decimal('0')
-        total_gross_revenue_b = tax_statement.totalGrossRevenueB or Decimal('0')
-        tax_statement.total_brutto_gesamt = total_gross_revenue_a + total_gross_revenue_b
-    
-    # Ensure the model fields are populated
-    if tax_statement.svGrossRevenueA is None:
-        tax_statement.svGrossRevenueA = tax_statement.totalGrossRevenueA or Decimal('0')
-    
-    if tax_statement.svGrossRevenueB is None:
-        tax_statement.svGrossRevenueB = tax_statement.totalGrossRevenueB or Decimal('0')
-    
-    # Create summary data dictionary from model fields
-    summary_data = {
-        "steuerwert_ab": ((tax_statement.svTaxValueA or Decimal('0'))
-                          + (tax_statement.svTaxValueB or Decimal('0'))),
-        "steuerwert_a": tax_statement.svTaxValueA or Decimal('0'),
-        "steuerwert_b": tax_statement.svTaxValueB or Decimal('0'),
-        "brutto_mit_vst": tax_statement.svGrossRevenueA,
-        "brutto_ohne_vst": tax_statement.svGrossRevenueB,
-        "vst_anspruch": tax_statement.totalWithHoldingTaxClaim,
-        "steuerwert_da1_usa": tax_statement.da1TaxValue,
-        "brutto_da1_usa": tax_statement.da_GrossRevenue,
-        "pauschale_da1": tax_statement.listOfSecurities.totalNonRecoverableTax if tax_statement.listOfSecurities else Decimal('0'),  
-        "rueckbehalt_usa": tax_statement.listOfSecurities.totalAdditionalWithHoldingTaxUSA if tax_statement.listOfSecurities else Decimal('0'),
-        "total_steuerwert": tax_statement.totalTaxValue,
-        "total_brutto_mit_vst": tax_statement.totalGrossRevenueA,
-        "total_brutto_ohne_vst": tax_statement.totalGrossRevenueB,
-        "total_brutto_gesamt": tax_statement.total_brutto_gesamt,
-        "tax_period": tax_period,
-        "period_end_date": period_end_date
-    }
-    
-    # Create summary table with direct data
-    summary_table_data = create_summary_table({"summary": summary_data}, styles, usable_width)
-    if summary_table_data:
-        story.append(summary_table_data)
-    
-    story.append(Spacer(1, 0.5*cm))
+        # Extract tax period and period end date - both are mandatory in the model
+        tax_period = str(tax_statement.taxPeriod)
+
+        # Format period end date - periodTo is mandatory in the model
+        if tax_statement.periodTo:
+            period_end_date = tax_statement.periodTo.strftime("%d.%m.%Y")
+        else:
+            raise ValueError("PeriodTo is mandatory in the model")
+
+        # Calculate total gross revenue if not already set
+        if tax_statement.total_brutto_gesamt is None:
+            total_gross_revenue_a = tax_statement.totalGrossRevenueA or Decimal('0')
+            total_gross_revenue_b = tax_statement.totalGrossRevenueB or Decimal('0')
+            tax_statement.total_brutto_gesamt = total_gross_revenue_a + total_gross_revenue_b
+
+        # Ensure the model fields are populated
+        if tax_statement.svGrossRevenueA is None:
+            tax_statement.svGrossRevenueA = tax_statement.totalGrossRevenueA or Decimal('0')
+
+        if tax_statement.svGrossRevenueB is None:
+            tax_statement.svGrossRevenueB = tax_statement.totalGrossRevenueB or Decimal('0')
+
+        # Create summary data dictionary from model fields
+        summary_data = {
+            "steuerwert_ab": ((tax_statement.svTaxValueA or Decimal('0'))
+                              + (tax_statement.svTaxValueB or Decimal('0'))),
+            "steuerwert_a": tax_statement.svTaxValueA or Decimal('0'),
+            "steuerwert_b": tax_statement.svTaxValueB or Decimal('0'),
+            "brutto_mit_vst": tax_statement.svGrossRevenueA,
+            "brutto_ohne_vst": tax_statement.svGrossRevenueB,
+            "vst_anspruch": tax_statement.totalWithHoldingTaxClaim,
+            "steuerwert_da1_usa": tax_statement.da1TaxValue,
+            "brutto_da1_usa": tax_statement.da_GrossRevenue,
+            "pauschale_da1": tax_statement.listOfSecurities.totalNonRecoverableTax if tax_statement.listOfSecurities else Decimal('0'),
+            "rueckbehalt_usa": tax_statement.listOfSecurities.totalAdditionalWithHoldingTaxUSA if tax_statement.listOfSecurities else Decimal('0'),
+            "total_steuerwert": tax_statement.totalTaxValue,
+            "total_brutto_mit_vst": tax_statement.totalGrossRevenueA,
+            "total_brutto_ohne_vst": tax_statement.totalGrossRevenueB,
+            "total_brutto_gesamt": tax_statement.total_brutto_gesamt,
+            "tax_period": tax_period,
+            "period_end_date": period_end_date
+        }
+
+        # Create summary table with direct data
+        summary_table_data = create_summary_table({"summary": summary_data}, styles, usable_width)
+        if summary_table_data:
+            story.append(summary_table_data)
+
+        story.append(Spacer(1, 0.5*cm))
+
+        # Info boxes below the summary table
+        story.append(create_dual_info_boxes(styles, usable_width))
 
     # --- Bank Accounts Section ---
     bank_table = create_bank_accounts_table(tax_statement, styles, usable_width)
@@ -1366,6 +1463,24 @@ def render_tax_statement(tax_statement: TaxStatement, output_path: Union[str, Pa
         story.append(Paragraph("Wertschriften DA-1 und USA-Werte", title_style))
         story.append(securities_table_da1)
         story.append(Spacer(1, 0.5*cm))
+
+    # Info pages before the barcode
+    templates_path = Path(__file__).parent / 'templates'
+    if use_minimal_frontpage:
+        tax_office_file = 'tax_office_minimal.de.md'
+        tax_payer_file = 'tax_payer_minimal.en.md'
+    else:
+        tax_office_file = 'tax_office.de.md'
+        tax_payer_file = 'tax_payer.en.md'
+    with open(templates_path / tax_office_file, 'r', encoding='utf-8') as f:
+        tax_office_markdown = f.read()
+    with open(templates_path / tax_payer_file, 'r', encoding='utf-8') as f:
+        tax_payer_markdown = f.read()
+
+    story.append(PageBreak())
+    story.extend(create_single_info_page(tax_office_markdown, styles, section='long-version'))
+    story.append(PageBreak())
+    story.extend(create_single_info_page(tax_payer_markdown, styles, section='long-version'))
 
     # Add the barcode page
     make_barcode_pages(doc, story, tax_statement, title_style)
@@ -1405,16 +1520,16 @@ def main():
         # Validate org_nr format if provided
         if args.org_nr is not None:
             if not isinstance(args.org_nr, str) or not args.org_nr.isdigit() or len(args.org_nr) != 5:
-                print(f"Error: Invalid --org-nr '{args.org_nr}': Must be a 5-digit string.", file=sys.stderr)
+                logger.error("Invalid --org-nr '%s': Must be a 5-digit string.", args.org_nr)
                 return 1
         
         # Render to PDF
         output_path = render_tax_statement(tax_statement, args.output, override_org_nr=args.org_nr)
         
-        print(f"Tax statement successfully rendered to: {output_path}")
+        logger.info("Tax statement successfully rendered to: %s", output_path)
         return 0
     except Exception as e:
-        print(f"Error rendering tax statement: {e}", file=sys.stderr)
+        logger.error("Error rendering tax statement: %s", e)
         return 1
 
 if __name__ == "__main__":

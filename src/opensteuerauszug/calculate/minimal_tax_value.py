@@ -1,4 +1,4 @@
-from .base import BaseCalculator, CalculationMode
+from .base import BaseCalculator, CalculationMode, CalculationError
 from ..model.ech0196 import (
     TaxStatement,
     BankAccount,  # Added BankAccount
@@ -11,9 +11,12 @@ from ..model.ech0196 import (
     SecurityPayment,  # Added SecurityPayment
 )
 from ..core.exchange_rate_provider import ExchangeRateProvider
+from collections import defaultdict
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Tuple, Optional
+from ..core.constants import WITHHOLDING_TAX_RATE
+from typing import Tuple, Optional, List
 from datetime import date
+import logging
 
 
 class MinimalTaxValueCalculator(BaseCalculator):
@@ -25,12 +28,18 @@ class MinimalTaxValueCalculator(BaseCalculator):
     _current_account_is_type_A: Optional[bool]
     _current_security_is_type_A: Optional[bool]
 
-    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider):
+    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, keep_existing_payments: bool = False):
         super().__init__(mode)
         self.exchange_rate_provider = exchange_rate_provider
+        self.keep_existing_payments = keep_existing_payments
         self._current_account_is_type_A = None
         self._current_security_is_type_A = None
-        print(f"MinimalTaxValueCalculator initialized with mode: {mode.value} and provider: {type(exchange_rate_provider).__name__}")
+        self.logger = logging.getLogger(__name__)
+        self.logger.info(
+            "MinimalTaxValueCalculator initialized with mode: %s and provider: %s",
+            mode.value,
+            type(exchange_rate_provider).__name__,
+        )
 
     def _convert_to_chf(self, amount: Optional[Decimal], currency: str, path_prefix_for_rate: str, reference_date: date) -> Tuple[Optional[Decimal], Decimal]:
         """
@@ -62,7 +71,11 @@ class MinimalTaxValueCalculator(BaseCalculator):
         self._current_account_is_type_A = None  # Reset state at the beginning of a calculation run
         self._current_security_is_type_A = None  # Reset state
         super().calculate(tax_statement)
-        print(f"MinimalTaxValueCalculator: Finished processing. Errors: {len(self.errors)}, Modified fields: {len(self.modified_fields)}")
+        self.logger.info(
+            "MinimalTaxValueCalculator: Finished processing. Errors: %s, Modified fields: %s",
+            len(self.errors),
+            len(self.modified_fields),
+        )
         return tax_statement
 
     def _handle_BankAccount(self, bank_account: BankAccount, path_prefix: str) -> None:
@@ -113,17 +126,26 @@ class MinimalTaxValueCalculator(BaseCalculator):
             )
             self._set_field_value(ba_payment, "exchangeRate", rate, path_prefix)
 
-            if chf_revenue is not None and chf_revenue != Decimal(0): # Only process if there's actual revenue
+            gross_revenue_a = Decimal(0)
+            gross_revenue_b = Decimal(0)
+            withholding_tax = Decimal(0)
+
+            if chf_revenue is not None and chf_revenue > 0: # Only process if there's actual revenue
                 if self._current_account_is_type_A is True:
-                    self._set_field_value(ba_payment, "grossRevenueA", chf_revenue, path_prefix)
+                    gross_revenue_a = chf_revenue
                     # Calculate and set withholding tax for Type A revenue
-                    withholding_tax_amount = (chf_revenue * Decimal("0.35")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                    self._set_field_value(ba_payment, "withHoldingTaxClaim", withholding_tax_amount, path_prefix)
+                    withholding_tax = (
+                        chf_revenue * WITHHOLDING_TAX_RATE
+                    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                 elif self._current_account_is_type_A is False:
-                    self._set_field_value(ba_payment, "grossRevenueB", chf_revenue, path_prefix)
+                    gross_revenue_b = chf_revenue
                 elif self._current_account_is_type_A is None:
                     # If country was not set on parent BankAccount and there's revenue, it's an error.
                     raise ValueError(f"BankAccountPayment at {path_prefix} has revenue, but parent BankAccount has no country specified to determine Type A/B revenue.")
+
+            self._set_field_value(ba_payment, "grossRevenueA", gross_revenue_a, path_prefix)
+            self._set_field_value(ba_payment, "grossRevenueB", gross_revenue_b, path_prefix)
+            self._set_field_value(ba_payment, "withHoldingTaxClaim", withholding_tax, path_prefix)
 
     def _handle_LiabilityAccountTaxValue(self, lia_tax_value: LiabilityAccountTaxValue, path_prefix: str) -> None:
         """Handles LiabilityAccountTaxValue objects during traversal."""
@@ -174,6 +196,10 @@ class MinimalTaxValueCalculator(BaseCalculator):
 
         # BaseCalculator does not have a _handle_Security method.
 
+        # After the basic context is set up compute the expected payments
+        # from the Kursliste (empty for this minimal calculator).
+        self.computePayments(security, path_prefix)
+
     def _handle_SecurityTaxValue(self, sec_tax_value: SecurityTaxValue, path_prefix: str) -> None:
         """Handles SecurityTaxValue objects for currency conversion."""
         # This calculator converts an existing 'value' (assumed to be in 'balanceCurrency') to CHF 
@@ -209,31 +235,111 @@ class MinimalTaxValueCalculator(BaseCalculator):
 
     def _handle_SecurityPayment(self, sec_payment: SecurityPayment, path_prefix: str) -> None:
         """Handles SecurityPayment objects for currency conversion and revenue categorization."""
+        # In the base implementation all payments will have been cleared (outside of debugging and verify mode)
+        # Avoid doing computation here to handle broken inputs on verify + minimal mode.
+        pass
+
+    def computePayments(self, security: Security, path_prefix: str) -> None:
+        """Compute and set payments for a security.
+
+        This minimal implementation passes an empty list to ``setKurslistePayments``.
+        Subclasses can override to provide actual computation.
+        """
+        self.setKurslistePayments(security, [], path_prefix)
+
+    def setKurslistePayments(self, security: Security, payments: List[SecurityPayment], path_prefix: str) -> None:
+        """Set or verify the list of payments derived from the Kursliste.
+
+        In ``OVERWRITE`` mode the given ``payments`` are written to ``security.payment``.
+        In ``VERIFY`` mode the method checks that the payments already present on
+        ``security`` are equal to ``payments`` and records a ``CalculationError``
+        otherwise. ``FILL`` behaves like ``VERIFY`` but writes the payments if the
+        list on the security is empty.
+        """
+
+        # If no payments are provided there is nothing to check or set.
+        # if payments == None:
+        #    return
+
+        field_path = f"{path_prefix}.payment" if path_prefix else "payment"
+        current = security.payment
+
+        if self.mode == CalculationMode.OVERWRITE:
+            if self.keep_existing_payments:
+                payments = current + payments
+            security.payment = sorted(payments, key=lambda p: p.paymentDate)
+            self.modified_fields.add(field_path)
+            return
+
+        if self.mode == CalculationMode.FILL and not current:
+            security.payment = sorted(payments, key=lambda p: p.paymentDate)
+            self.modified_fields.add(field_path)
+            return
+
+        if self.mode not in (CalculationMode.VERIFY, CalculationMode.FILL):
+            return
+
+        if self.keep_existing_payments:
+            # For debugging we force the list to be the merge even when verifying so
+            # we can look at the rendered copy.
+            merged = current + payments
+            security.payment = sorted(merged, key=lambda p: p.paymentDate)
         
-        # TODO: Decide what to with any payments provided by the importer.
-        return
-    
-        # Do not handle SecurityPayment for minimal tax value calculation.
-        # We will move this to fill in calculator
-        if hasattr(sec_payment, 'amountCurrency') and sec_payment.amountCurrency:
-            payment_date = getattr(sec_payment, 'paymentDate', None)
-            if payment_date is None:
-                raise ValueError(f"SecurityPayment at {path_prefix} has amountCurrency but no paymentDate. Cannot determine exchange rate.")
+        # Detailed comparison for VERIFY and FILL (with existing payments)
+        current_by_date = defaultdict(list)
+        for p in current:
+            current_by_date[p.paymentDate].append(p)
 
-            amount = getattr(sec_payment, 'amount', None)
-            
-            chf_revenue, rate = self._convert_to_chf(
-                amount,
-                sec_payment.amountCurrency,
-                f"{path_prefix}.exchangeRate",
-                payment_date
-            )
-            self._set_field_value(sec_payment, "exchangeRate", rate, path_prefix)
+        expected_by_date = defaultdict(list)
+        for p in payments:
+            expected_by_date[p.paymentDate].append(p)
 
-            if chf_revenue is not None and chf_revenue != Decimal(0): # Only process if there's actual revenue
-                if self._current_security_is_type_A is True:
-                    self._set_field_value(sec_payment, "grossRevenueA", chf_revenue, path_prefix)
-                elif self._current_security_is_type_A is False:
-                    self._set_field_value(sec_payment, "grossRevenueB", chf_revenue, path_prefix)
-                elif self._current_security_is_type_A is None:
-                    raise ValueError(f"SecurityPayment at {path_prefix} has revenue, but parent Security has no country specified to determine Type A/B revenue.")
+        all_dates = sorted(list(set(current_by_date.keys()) | set(expected_by_date.keys())))
+
+        for d in all_dates:
+            current_on_date = current_by_date.get(d, [])
+            expected_on_date = expected_by_date.get(d, [])
+
+            if not current_on_date:
+                for p in expected_on_date:
+                    self.errors.append(CalculationError(f"{field_path}.date={d}", p, None))
+                continue
+
+            if not expected_on_date:
+                for p in current_on_date:
+                    self.errors.append(CalculationError(f"{field_path}.date={d}", None, p))
+                continue
+
+            # Try to match payments on the same date
+            unmatched_current = list(current_on_date)
+            remaining_expected = []
+            for p_expected in expected_on_date:
+                try:
+                    unmatched_current.remove(p_expected)
+                except ValueError:
+                    remaining_expected.append(p_expected)
+
+            if len(unmatched_current) == len(remaining_expected):
+                # To provide a stable diff, sort if possible.
+                try:
+                    unmatched_current.sort()
+                    remaining_expected.sort()
+                except TypeError:
+                    pass  # Not sortable, compare as is.
+
+                for p_curr, p_exp in zip(unmatched_current, remaining_expected):
+                    p_curr_vars = vars(p_curr)
+                    p_exp_vars = vars(p_exp)
+                    all_keys = sorted(list(set(p_curr_vars.keys()) | set(p_exp_vars.keys())))
+                    for key in all_keys:
+                        v_curr = p_curr_vars.get(key)
+                        v_exp = p_exp_vars.get(key)
+                        if v_curr != v_exp:
+                            # Create one error per differing field.
+                            error_path = f"{field_path}.date={d}.{key}"
+                            self.errors.append(CalculationError(error_path, v_exp, v_curr))
+            else:
+                for p in unmatched_current:
+                    self.errors.append(CalculationError(f"{field_path}.date={d}", None, p))
+                for p in remaining_expected:
+                    self.errors.append(CalculationError(f"{field_path}.date={d}", p, None))

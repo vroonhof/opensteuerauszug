@@ -7,9 +7,11 @@ to report security prices for tax purposes.
 import datetime
 import sys
 import lxml.etree as ET
+# Added logging
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
+import logging
 # Add Any for type hinting the validator function
 from typing import Any, ClassVar, Dict, List, Literal, Optional, Set, Union
 # Removed io import as debugging is removed
@@ -18,6 +20,8 @@ from pydantic import (BaseModel, ConfigDict, Field, StringConstraints,
                       ValidationError, field_validator)
 from typing_extensions import Annotated
 from pydantic_xml import BaseXmlModel as PydanticXmlModel, attr, element
+
+logger = logging.getLogger(__name__)
 
 # --- Namespace ---
 KURSLISTE_NS = "http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste"
@@ -744,8 +748,6 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         "legalForm",
         "sector", 
         "shortCut",
-        "sign",
-        "da1Rate",
         "mediumTermBond",
         "institution",
         "bond",
@@ -806,7 +808,7 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         else:
             for child in to_remove:
                 root.remove(child)
-            print(f"Filtered {len(to_remove)} elements based on denylist.")
+            logger.info("Filtered %s elements based on denylist.", len(to_remove))
             
         return root
     
@@ -845,8 +847,8 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         except ET.ParseError as e:
             raise ValueError(f"XML parsing error in file {file_path}: {e}") from e
         except ValidationError as e:
-             print(f"Pydantic Validation Errors:\n{e}")
-             raise ValueError(f"Data validation error loading XML file {file_path}: {e}") from e
+            logger.error("Pydantic Validation Errors:\n%s", e)
+            raise ValueError(f"Data validation error loading XML file {file_path}: {e}") from e
         except Exception as e:
             raise RuntimeError(f"An unexpected error occurred while processing {file_path}: {e}") from e
 

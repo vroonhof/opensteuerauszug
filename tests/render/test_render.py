@@ -29,6 +29,7 @@ from opensteuerauszug.render.render import (
     BarcodeDocTemplate,
     create_bank_accounts_table
 )
+import opensteuerauszug.render.render as render
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import Paragraph, Spacer, SimpleDocTemplate, Table
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
@@ -192,8 +193,8 @@ def test_pdf_page_count(mock_render_to_barcodes, sample_tax_statement):
         # Check the number of pages using PyPDF2
         with open(tmp_path, "rb") as f:
             pdf_reader = pypdf.PdfReader(f)
-            # The PDF should now have exactly two pages
-            assert len(pdf_reader.pages) == 2
+            # The PDF should now have four pages (content, two info pages, barcode)
+            assert len(pdf_reader.pages) == 4
             
             # Check page content for validation
             text = pdf_reader.pages[0].extract_text()
@@ -203,10 +204,52 @@ def test_pdf_page_count(mock_render_to_barcodes, sample_tax_statement):
             assert "Seite 1" in text
             
             # Check the barcode page
-            text2 = pdf_reader.pages[1].extract_text()
+            text2 = pdf_reader.pages[3].extract_text()
             assert "Barcode Seite" in text2
     finally:
         # Cleanup temporary file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes')
+def test_render_tax_statement_minimal_placeholder(mock_render_to_barcodes, sample_tax_statement):
+    """Ensure minimal mode renders placeholder instead of summary."""
+    mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
+        temp_path = temp_file.name
+
+    try:
+        render_tax_statement(sample_tax_statement, temp_path, minimal_frontpage_placeholder=True)
+
+        with open(temp_path, "rb") as f:
+            pdf_reader = pypdf.PdfReader(f)
+            text = pdf_reader.pages[0].extract_text()
+            assert "Minimaldokument" in text
+            assert "1'001" not in text
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes')
+def test_pdf_title_metadata(mock_render_to_barcodes, sample_tax_statement):
+    """Verify that the rendered PDF sets a descriptive title."""
+    mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        render_tax_statement(sample_tax_statement, tmp_path)
+
+        with open(tmp_path, "rb") as f:
+            pdf_reader = pypdf.PdfReader(f)
+            assert (
+                pdf_reader.metadata.title
+                == "Steuerauszug Test Bank AG 2023"
+            )
+    finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
@@ -228,8 +271,8 @@ def test_barcode_rendering(mock_render_to_barcodes, sample_tax_statement):
         # Check the number of pages using PyPDF2
         with open(tmp_path, "rb") as f:
             pdf_reader = pypdf.PdfReader(f)
-            # Should have 2 pages (content + barcode page)
-            assert len(pdf_reader.pages) == 2
+            # Should have 4 pages (content, two info pages, barcode page)
+            assert len(pdf_reader.pages) == 4
             
             # Check content in the regular page
             text1 = pdf_reader.pages[0].extract_text()
@@ -237,7 +280,7 @@ def test_barcode_rendering(mock_render_to_barcodes, sample_tax_statement):
             assert "Zusammenfassung" in text1
             
             # Check content in the barcode page
-            text2 = pdf_reader.pages[1].extract_text()
+            text2 = pdf_reader.pages[3].extract_text()
             assert "Barcode Seite" in text2
     finally:
         # Cleanup temporary file
@@ -412,3 +455,12 @@ def test_create_bank_accounts_table_multiple_accounts_with_payments():
     assert "Konto1" in all_text
     assert "Konto2" in all_text
     assert "Zinszahlung" in all_text
+
+
+def test_format_currency_trailing_zero():
+    value_two_dec = Decimal("50.00")
+    value_three_dec = Decimal("50.005")
+
+    assert render.format_currency(value_two_dec) == "50.00"
+    assert render.format_currency(value_three_dec) == "50.005"
+

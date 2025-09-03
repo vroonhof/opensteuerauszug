@@ -38,7 +38,6 @@ class TestCleanupCalculatorConfig:
         # Assert
         assert result.canton == "ZH"
         assert "TaxStatement.canton (from config)" in calculator.modified_fields
-        assert any("Set canton from configuration: ZH" in log for log in calculator.get_log())
 
     def test_do_not_override_existing_canton(self):
         """Test that existing canton is not overridden by config."""
@@ -103,7 +102,6 @@ class TestCleanupCalculatorConfig:
         assert result.client[0].firstName == "John"
         assert result.client[0].lastName == "Doe"
         assert "TaxStatement.client (created from config)" in calculator.modified_fields
-        assert any("Created client from configuration: John Doe" in log for log in calculator.get_log())
 
     def test_update_existing_client_missing_names(self):
         """Test that existing client with missing names is updated from config."""
@@ -136,7 +134,6 @@ class TestCleanupCalculatorConfig:
         assert result.client[0].firstName == "Jane"
         assert result.client[0].lastName == "Smith"
         assert "TaxStatement.client[0] (name from config)" in calculator.modified_fields
-        assert any("Updated client[0] name from configuration: Jane Smith" in log for log in calculator.get_log())
 
     def test_do_not_override_existing_client_names(self):
         """Test that existing client names are not overridden by config."""

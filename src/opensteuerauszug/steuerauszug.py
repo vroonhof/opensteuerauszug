@@ -1,4 +1,6 @@
+import logging
 import typer
+import sys
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional
@@ -19,12 +21,15 @@ from .calculate.cleanup import CleanupCalculator
 from .calculate.minimal_tax_value import MinimalTaxValueCalculator
 from .calculate.kursliste_tax_value_calculator import KurslisteTaxValueCalculator
 from .calculate.fill_in_tax_value_calculator import FillInTaxValueCalculator
+from .util.known_issues import is_known_issue
 from .importers.schwab.schwab_importer import SchwabImporter
 from .importers.ibkr.ibkr_importer import IbkrImporter # Added IbkrImporter
 from .core.exchange_rate_provider import ExchangeRateProvider
 from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from .config import ConfigManager, ConcreteAccountSettings
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer()
 
@@ -41,10 +46,17 @@ class ImporterType(str, Enum):
     NONE = "none"
 
 class TaxCalculationLevel(str, Enum):
-    NONE = "None"
-    MINIMAL = "Minimal"
-    KURSLISTE = "Kursliste"
-    FILL_IN = "Fill-In"
+    NONE = "none"
+    MINIMAL = "minimal"
+    KURSLISTE = "kursliste"
+    FILL_IN = "fillin"
+
+class LogLevel(str, Enum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
 
 default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RENDER]
 
@@ -54,6 +66,7 @@ def main(
     output_file: Path = typer.Option(None, "--output", "-o", help="Output PDF file path."),
     run_phases_input: List[Phase] = typer.Option(None, "--phases", "-p", help="Phases to run (default: all). Specify multiple times or comma-separated."),
     debug_dump_path: Optional[Path] = typer.Option(None, "--debug-dump", help="Directory to dump intermediate model state after each phase (as XML)."),
+    final_xml_path: Optional[Path] = typer.Option(None, "--xml-output", help="Write the final tax statement XML to this file."),
     raw_import: bool = typer.Option(False, "--raw-import", help="Import directly from XML model dump instead of using an importer."),
     importer_type: ImporterType = typer.Option(ImporterType.NONE, "--importer", help="Specify the importer to use."),
     period_from_str: Optional[str] = typer.Option(None, "--period-from", help="Start date of the tax period (YYYY-MM-DD), required for some importers like Schwab."),
@@ -66,7 +79,8 @@ def main(
     ),
     strict_consistency_flag: bool = typer.Option(True, "--strict-consistency/--no-strict-consistency", help="Enable/disable strict consistency checks in importers (e.g., Schwab). Defaults to strict."),
     filter_to_period_flag: bool = typer.Option(True, "--filter-to-period/--no-filter-to-period", help="Filter transactions and stock events to the tax period (with closing balances). Defaults to enabled."),
-    tax_calculation_level: TaxCalculationLevel = typer.Option(TaxCalculationLevel.FILL_IN, "--tax-calculation-level", help="Specify the level of detail for tax value calculations."),
+    tax_calculation_level: TaxCalculationLevel = typer.Option(TaxCalculationLevel.KURSLISTE, "--tax-calculation-level", help="Specify the level of detail for tax value calculations."),
+    log_level: LogLevel = typer.Option(LogLevel.INFO, "--log-level", help="Set the log level for console output."),
     config_file: Path = typer.Option("config.toml", "--config", "-c", help="Path to the configuration TOML file."),
     broker_name: Optional[str] = typer.Option(None, "--broker", help="Broker name (e.g., 'schwab') from config.toml to use for this run."),
     override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
@@ -74,6 +88,9 @@ def main(
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
+    logging.basicConfig(level=log_level.value)
+    sys.stdout.reconfigure(line_buffering=True)  # Ensure stdout is line-buffered for mixing with logging
+    
     phases_specified_by_user = run_phases_input is not None
     run_phases = run_phases_input if phases_specified_by_user else default_phases[:]
 
@@ -106,26 +123,26 @@ def main(
             if temp_period_from.year != tax_year:
                 raise typer.BadParameter(f"--period-from date '{temp_period_from}' is not within the specified --tax-year '{tax_year}'.")
             parsed_period_from = temp_period_from
-            print(f"Using explicit --period-from: {parsed_period_from}")
+            logger.debug(f"Using explicit --period-from: {parsed_period_from}")
         else:
             parsed_period_from = year_start_date
-            print(f"Defaulting --period-from to start of tax year: {parsed_period_from}")
+            logger.debug(f"Defaulting --period-from to start of tax year: {parsed_period_from}")
 
         if temp_period_to:
             if temp_period_to.year != tax_year:
                 raise typer.BadParameter(f"--period-to date '{temp_period_to}' is not within the specified --tax-year '{tax_year}'.")
             parsed_period_to = temp_period_to
-            print(f"Using explicit --period-to: {parsed_period_to}")
+            logger.debug(f"Using explicit --period-to: {parsed_period_to}")
         else:
             parsed_period_to = year_end_date
-            print(f"Defaulting --period-to to end of tax year: {parsed_period_to}")
+            logger.debug(f"Defaulting --period-to to end of tax year: {parsed_period_to}")
     else:
         parsed_period_from = temp_period_from
         parsed_period_to = temp_period_to
         if parsed_period_from:
-            print(f"Using explicit --period-from: {parsed_period_from}")
+            logger.debug(f"Using explicit --period-from: {parsed_period_from}")
         if parsed_period_to:
-            print(f"Using explicit --period-to: {parsed_period_to}")
+            logger.debug(f"Using explicit --period-to: {parsed_period_to}")
 
     if parsed_period_from and parsed_period_to and parsed_period_from > parsed_period_to:
         raise typer.BadParameter(f"--period-from '{parsed_period_from}' cannot be after --period-to '{parsed_period_to}'.")
@@ -174,9 +191,9 @@ def main(
 
     if target_broker_kind_for_config_loading:
         try:
-            print(f"Loading all account configurations for broker kind '{target_broker_kind_for_config_loading}' from '{config_file}'...")
+            logger.debug(f"Loading all account configurations for broker kind '{target_broker_kind_for_config_loading}' from '{config_file}'...")
             if override_configs:
-                print(f"Applying CLI overrides: {override_configs}")
+                logger.debug(f"Applying CLI overrides: {override_configs}")
 
             concrete_accounts_list = config_manager.get_all_account_settings_for_broker(
                 target_broker_kind_for_config_loading,
@@ -197,7 +214,7 @@ def main(
             if target_broker_kind_for_config_loading == "schwab" and not all_schwab_account_settings_models and concrete_accounts_list:
                 raise ValueError(f"No valid Schwab account configurations found for broker 'schwab', though other configurations might exist.")
             if target_broker_kind_for_config_loading == "ibkr" and not all_ibkr_account_settings_models and concrete_accounts_list:
-                print(f"Warning: No valid IBKR account configurations loaded for broker 'ibkr', though other configurations might exist.")
+                logger.debug(f"Warning: No valid IBKR account configurations loaded for broker 'ibkr', though other configurations might exist.")
 
             if all_schwab_account_settings_models:
                 print(f"Successfully loaded {len(all_schwab_account_settings_models)} Schwab account(s).")
@@ -314,7 +331,7 @@ def main(
                 print(f"Importer '{importer_type.value}' not yet implemented or not applicable. Creating empty TaxStatement.")
                 statement = TaxStatement(minorVersion=2) # type: ignore
 
-            print(f"Import successful (placeholder)." )
+            print(f"Import successful." )
             dump_debug_model(current_phase.value, statement)
 
         # ... (rest of the phases: VALIDATE, CALCULATE, VERIFY, RENDER remain the same) ...
@@ -344,10 +361,10 @@ def main(
                 src_dir = os.path.dirname(src_opensteuerauszug_dir)
                 project_root_dir = os.path.dirname(src_dir)
                 effective_identifiers_csv_path = os.path.join(project_root_dir, "data", "security_identifiers.csv")
-                print(f"Using default security identifiers CSV path: {effective_identifiers_csv_path}")
+                logger.debug(f"Using default security identifiers CSV path: {effective_identifiers_csv_path}")
             else:
                 effective_identifiers_csv_path = identifiers_csv_path_opt
-                print(f"Using user-provided security identifiers CSV path: {effective_identifiers_csv_path}")
+                logger.debug(f"Using user-provided security identifiers CSV path: {effective_identifiers_csv_path}")
 
             print(f"Attempting to load security identifiers from: {effective_identifiers_csv_path}")
             identifier_loader = SecurityIdentifierMapLoader(effective_identifiers_csv_path)
@@ -364,12 +381,10 @@ def main(
                 period_to=parsed_period_to,
                 identifier_map=security_identifier_map,
                 enable_filtering=filter_to_period_flag,
-                print_log=True,
                 importer_name=importer_type.value,
                 config_settings=general_config_settings
             )
             statement = cleanup_calculator.calculate(statement)
-            # Logs are printed by the calculator itself if print_log=True
             print(f"CleanupCalculator finished. Summary: Modified fields count: {len(cleanup_calculator.modified_fields)}")
             dump_debug_model(current_phase.value + "_after_cleanup", statement) # Optional intermediate dump
 
@@ -390,14 +405,15 @@ def main(
             if tax_calculation_level == TaxCalculationLevel.MINIMAL:
                 print("Running MinimalTaxValueCalculator...")
                 calculator_name = "MinimalTaxValueCalculator"
-                tax_value_calculator = MinimalTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider)
+                tax_value_calculator = MinimalTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.KURSLISTE:
                 print("Running KurslisteTaxValueCalculator...")
                 calculator_name = "KurslisteTaxValueCalculator"
-                tax_value_calculator = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider)
+                tax_value_calculator = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 print("Running FillInTaxValueCalculator...")
-                tax_value_calculator = FillInTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider)
+                calculator_name = "FillInTaxValueCalculator"
+                tax_value_calculator = FillInTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
             
             if tax_value_calculator and calculator_name:
                 statement = tax_value_calculator.calculate(statement)
@@ -443,21 +459,24 @@ def main(
 
             if tax_calculation_level == TaxCalculationLevel.MINIMAL:
                 verifier_name = "MinimalTaxValueCalculator"
-                tax_value_verifier = MinimalTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify)
+                tax_value_verifier = MinimalTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.KURSLISTE:
                 verifier_name = "KurslisteTaxValueCalculator"
-                tax_value_verifier = KurslisteTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify)
+                tax_value_verifier = KurslisteTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 verifier_name = "FillInTaxValueCalculator"
-                tax_value_verifier = FillInTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify)
+                tax_value_verifier = FillInTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
 
             if tax_value_verifier and verifier_name:
                 print(f"Running {verifier_name} (Verify Mode)...")
-                tax_value_verifier.calculate(statement) # Does not modify statement in verify mode
+                tax_value_verifier.calculate(statement)  # Does not modify statement in verify mode
                 if tax_value_verifier.errors:
-                    print(f"{verifier_name} (Verify Mode) encountered {len(tax_value_verifier.errors)} errors:")
+                    print(
+                        f"{verifier_name} (Verify Mode) encountered {len(tax_value_verifier.errors)} errors:"
+                    )
                     for error in tax_value_verifier.errors:
-                        print(f"  Error: {error}")
+                        prefix = "Known" if is_known_issue(error, statement.institution) else "Error"
+                        print(f"  {prefix}: {error}")
                 else:
                     print(f"{verifier_name} (Verify Mode) found no errors.")
             elif tax_calculation_level != TaxCalculationLevel.NONE:
@@ -471,12 +490,13 @@ def main(
             if calculator.errors:
                 print(f"Encountered {len(calculator.errors)} fields during calculation")
                 for error in calculator.errors:
-                    print(f"Error: {error}")
+                    prefix = "Known" if is_known_issue(error, statement.institution) else "Error"
+                    print(f"{prefix}: {error}")
             else:
                 print("No errors calculation")
             
             # Fill in missing fields to make rendering possible
-            calulator = TotalCalculator(mode=CalculationMode.FILL)
+            calculator = TotalCalculator(mode=CalculationMode.FILL)
             statement = calculator.calculate(statement)
             print(f"Calculation successful.")
             dump_debug_model(current_phase.value, statement)
@@ -494,8 +514,28 @@ def main(
                     raise ValueError(f"Invalid --org-nr '{org_nr}': Must be a 5-digit string.")
             
             # Use the render_tax_statement function to generate the PDF
-            rendered_path = render_tax_statement(statement, output_file, override_org_nr=org_nr)
+            rendered_path = render_tax_statement(
+                statement,
+                output_file,
+                override_org_nr=org_nr,
+                minimal_frontpage_placeholder=(
+                    (tax_calculation_level == TaxCalculationLevel.MINIMAL)
+                    and (
+                        general_config_settings.minimal_uses_placeholder_frontpage
+                        if general_config_settings
+                        else True
+                    )
+                ),
+            )
             print(f"Rendering successful to {rendered_path}")
+
+        if final_xml_path:
+            try:
+                statement.to_xml_file(str(final_xml_path))
+                print(f"Final XML written to {final_xml_path}")
+            except Exception as e:
+                print(f"Failed to write final XML to {final_xml_path}: {e}")
+                raise typer.Exit(code=1)
 
         print("Processing finished successfully.")
 

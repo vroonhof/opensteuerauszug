@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from opensteuerauszug.model.kursliste import (
     Security, Share, Bond, Fund, Derivative, CoinBullion, CurrencyNote, LiborSwap,
-    SecurityTypeESTV
+    SecurityTypeESTV, Sign, Da1Rate, Da1RateType, SecurityGroupESTV
 )
 
 class KurslisteDBReader:
@@ -73,32 +73,43 @@ class KurslisteDBReader:
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row  # Access columns by name
 
-    def _deserialize_security(self, blob_data: bytes, type_identifier: str) -> Optional[Security]:
+    def _deserialize_object(self, blob_data: bytes, model_class: Type, object_type_name: str) -> Optional[object]:
         """
-        Deserializes a security object from BLOB data using its type identifier.
+        Generic deserializer for objects stored as JSON BLOBs.
         """
-        if not blob_data or not type_identifier:
+        if not blob_data:
             return None
-        
-        model_class = self._SECURITY_TYPE_MAP.get(type_identifier)
         if not model_class:
-            print(f"Warning: Unknown security type identifier '{type_identifier}'. Cannot deserialize.")
+            print(f"Warning: No model class provided for deserialization of '{object_type_name}'.")
             return None
             
         try:
             json_string = blob_data.decode('utf-8')
-            # Pydantic models should be created using model_validate_json for JSON strings
             instance = model_class.model_validate_json(json_string)
             return instance
         except json.JSONDecodeError:
-            print(f"Warning: Failed to decode JSON for type '{type_identifier}'. Data: {blob_data[:100]}...") # Log snippet
+            print(f"Warning: Failed to decode JSON for type '{object_type_name}'. Data: {blob_data[:100]}...")
             return None
         except ValidationError as e:
-            print(f"Warning: Pydantic validation error for type '{type_identifier}': {e}")
+            print(f"Warning: Pydantic validation error for type '{object_type_name}': {e}")
             return None
-        except Exception as e: # Catch any other unexpected error
-            print(f"Warning: Unexpected error deserializing security type '{type_identifier}': {e}")
+        except Exception as e:
+            print(f"Warning: Unexpected error deserializing object type '{object_type_name}': {e}")
             return None
+
+    def _deserialize_security(self, blob_data: bytes, type_identifier: str) -> Optional[Security]:
+        """
+        Deserializes a security object from BLOB data using its type identifier.
+        """
+        if not type_identifier: # blob_data check is done in _deserialize_object
+             print(f"Warning: No type_identifier provided for security deserialization.")
+             return None
+
+        model_class = self._SECURITY_TYPE_MAP.get(type_identifier)
+        if not model_class:
+            print(f"Warning: Unknown security type identifier '{type_identifier}'. Cannot deserialize.")
+            return None
+        return self._deserialize_object(blob_data, model_class, f"Security (Type: {type_identifier})")
 
     def _execute_query_fetchone(self, query: str, params: tuple = ()) -> Optional[sqlite3.Row]:
         """Helper to execute a query and fetch one result."""
@@ -209,54 +220,77 @@ class KurslisteDBReader:
         """
         rate_value = None
 
+        query_year_end = """
+            SELECT rate FROM exchange_rates_year_end
+            WHERE currency_code = ? AND year = ? AND tax_year = ?
+            ORDER BY id DESC LIMIT 1
+        """
+
+        # Prefer year-end rate on December 31st
+        if reference_date.month == 12 and reference_date.day == 31:
+            row_year_end = self._execute_query_fetchone(
+                query_year_end, (currency_code, reference_date.year, reference_date.year)
+            )
+            if row_year_end and row_year_end["rate"] is not None:
+                try:
+                    return Decimal(str(row_year_end["rate"]))
+                except InvalidOperation:
+                    print(
+                        f"Warning: Could not convert year_end rate '{row_year_end['rate']}' to Decimal."
+                    )
+
         # 1. Try daily rates
         date_iso = reference_date.isoformat()
         query_daily = """
             SELECT rate FROM exchange_rates_daily
             WHERE currency_code = ? AND date = ? AND tax_year = ?
-            ORDER BY id DESC LIMIT 1 
-        """ 
+            ORDER BY id DESC LIMIT 1
+        """
         # Assuming tax_year in exchange_rates_daily refers to the year of the Kursliste publication
         # For daily rates, matching the reference_date's year seems most logical.
-        row_daily = self._execute_query_fetchone(query_daily, (currency_code, date_iso, reference_date.year))
+        row_daily = self._execute_query_fetchone(
+            query_daily, (currency_code, date_iso, reference_date.year)
+        )
         if row_daily and row_daily["rate"] is not None:
             try:
                 return Decimal(str(row_daily["rate"]))
             except InvalidOperation:
-                print(f"Warning: Could not convert daily rate '{row_daily['rate']}' to Decimal.")
-
+                print(
+                    f"Warning: Could not convert daily rate '{row_daily['rate']}' to Decimal."
+                )
 
         # 2. Try monthly rates if daily not found or rate is None
-        month_str = reference_date.strftime("%m") # Format month as "01", "02", etc.
+        month_str = reference_date.strftime("%m")  # Format month as "01", "02", etc.
         query_monthly = """
             SELECT rate FROM exchange_rates_monthly
             WHERE currency_code = ? AND year = ? AND month = ? AND tax_year = ?
             ORDER BY id DESC LIMIT 1
         """
         # tax_year in exchange_rates_monthly should also match the reference_date's year
-        row_monthly = self._execute_query_fetchone(query_monthly, (currency_code, reference_date.year, month_str, reference_date.year))
+        row_monthly = self._execute_query_fetchone(
+            query_monthly, (currency_code, reference_date.year, month_str, reference_date.year)
+        )
         if row_monthly and row_monthly["rate"] is not None:
             try:
                 return Decimal(str(row_monthly["rate"]))
             except InvalidOperation:
-                 print(f"Warning: Could not convert monthly rate '{row_monthly['rate']}' to Decimal.")
-
+                print(
+                    f"Warning: Could not convert monthly rate '{row_monthly['rate']}' to Decimal."
+                )
 
         # 3. Try year-end rates if monthly not found or rate is None
-        query_year_end = """
-            SELECT rate FROM exchange_rates_year_end
-            WHERE currency_code = ? AND year = ? AND tax_year = ?
-            ORDER BY id DESC LIMIT 1
-        """
-        # tax_year in exchange_rates_year_end should match the reference_date's year
-        row_year_end = self._execute_query_fetchone(query_year_end, (currency_code, reference_date.year, reference_date.year))
+        row_year_end = self._execute_query_fetchone(
+            query_year_end, (currency_code, reference_date.year, reference_date.year)
+        )
         if row_year_end and row_year_end["rate"] is not None:
             try:
                 return Decimal(str(row_year_end["rate"]))
             except InvalidOperation:
-                print(f"Warning: Could not convert year_end rate '{row_year_end['rate']}' to Decimal.")
+                print(
+                    f"Warning: Could not convert year_end rate '{row_year_end['rate']}' to Decimal."
+                )
 
-        return None # If no rate found or convertible rate is None
+        return None  # If no rate found or convertible rate is None
 
     def close(self):
         """Closes the database connection."""
@@ -269,6 +303,86 @@ class KurslisteDBReader:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    def get_sign_by_value(self, sign_value: str, tax_year: int) -> Optional[Sign]:
+        """
+        Retrieves a Sign object by its sign_value and tax_year.
+        Deserializes the Sign object from BLOB.
+        """
+        query = """
+            SELECT sign_object_blob
+            FROM signs
+            WHERE sign_value = ? AND tax_year = ?
+            LIMIT 1
+        """
+        row = self._execute_query_fetchone(query, (sign_value, tax_year))
+        if row and row["sign_object_blob"]:
+            # Type casting for clarity, _deserialize_object returns Optional[object]
+            return self._deserialize_object(row["sign_object_blob"], Sign, "Sign") # type: ignore
+        return None
+
+    def get_da1_rate(self, country: str, security_group: SecurityGroupESTV, tax_year: int,
+                     security_type: Optional[SecurityTypeESTV] = None,
+                     da1_rate_type: Optional[Da1RateType] = None,
+                     reference_date: Optional[date] = None) -> Optional[List[Da1Rate]]:
+        """
+        Retrieves a Da1Rate object based on criteria.
+        Deserializes the Da1Rate object from BLOB.
+        The reference_date is used to filter by validFrom and validTo if provided.
+        Note: This currently fetches the first matching record. More complex selection logic
+              (e.g. "most specific" or "latest valid") might be needed depending on business rules.
+        """
+        params = [country, security_group.value, tax_year]
+        conditions = ["country = ?", "security_group = ?", "tax_year = ?"]
+
+        # For now, let's fetch all DA1 rates for the main criteria and filter by date/type in Python
+        query = f"""
+            SELECT da1_rate_object_blob
+            FROM da1_rates
+            WHERE {" AND ".join(conditions)}
+        """
+
+        rows = self._execute_query_fetchall(query, tuple(params))
+
+        candidates: List[Da1Rate] = []
+        for row in rows:
+            if row["da1_rate_object_blob"]:
+                deserialized_obj = self._deserialize_object(row["da1_rate_object_blob"], Da1Rate, "Da1Rate")
+                if deserialized_obj:
+                    candidates.append(deserialized_obj) # type: ignore
+
+        if not candidates:
+            return None
+
+        # Python-side filtering
+        filtered_candidates = candidates
+        if security_type:
+            filtered_candidates = [
+                r for r in filtered_candidates if r.securityType == security_type
+            ]
+
+        if da1_rate_type:
+            filtered_candidates = [
+                r for r in filtered_candidates if r.da1RateType == da1_rate_type
+            ]
+
+        if reference_date:
+            final_candidates = []
+            for rate in filtered_candidates:
+                is_valid = True
+                if rate.validFrom and rate.validFrom > reference_date:
+                    is_valid = False
+                if rate.validTo and rate.validTo < reference_date:
+                    is_valid = False
+                if is_valid:
+                    final_candidates.append(rate)
+            filtered_candidates = final_candidates
+
+        if not filtered_candidates:
+            return None
+
+        return filtered_candidates
+
 
 if __name__ == '__main__':
     # Example Usage (requires a dummy database to be set up)

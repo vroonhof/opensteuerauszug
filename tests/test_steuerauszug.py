@@ -150,3 +150,17 @@ def test_main_debug_dump(dummy_input_file: Path, debug_dump_dir: Path):
     assert dump_validate_file.exists()
     # Check content (minimal check for the placeholder JSON dump)
     # assert '"Portfolio"' in dump_import_file.read_text() # Check if it looks like our JSON dump
+
+
+def test_main_final_xml_output(dummy_input_file: Path, tmp_path: Path):
+    """Test writing the final XML with --xml-output."""
+    xml_path = tmp_path / "final.xml"
+    result = runner.invoke(app, [
+        str(dummy_input_file),
+        "--phases", "import",
+        "--phases", "validate",
+        "--xml-output", str(xml_path)
+    ])
+    assert result.exit_code == 0
+    assert "Processing finished successfully." in result.stdout
+    assert xml_path.exists()

@@ -1,5 +1,5 @@
 from typing import Dict, Any, Union, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class GeneralSettings(BaseModel):
     '''General settings applicable globally.'''
@@ -7,9 +7,15 @@ class GeneralSettings(BaseModel):
     full_name: str = Field(description="Your full name for tax documents.")
     language: str = Field(default="de", description="Default language for documents (e.g., 'de', 'fr', 'it').")
     processing_flags: Dict[str, bool] = Field(default_factory=dict, description="Default processing flags.")
+    minimal_uses_placeholder_frontpage: bool = Field(
+        default=True,
+        description=(
+            "If True, a minimal tax statement replaces the summary on the first "
+            "page with a placeholder notice and different info texts."
+        ),
+    )
 
-    class Config:
-        extra = "allow" # Allow other general settings not explicitly defined
+    model_config = ConfigDict(extra="allow")
 
 class BrokerSettings(GeneralSettings):
     '''Settings specific to a financial institution (broker), inheriting from GeneralSettings.'''
@@ -56,6 +62,10 @@ class IbkrAccountSettings(AccountSettingsBase):
 # Add other broker-specific account settings here if needed, e.g.:
 # class UBSAccountSettings(AccountSettingsBase):
 #     ubs_specific_feature_enabled: bool = False
+
+class CalculateSettings(BaseModel):
+    """Settings for the calculation process."""
+    keep_existing_payments: bool = Field(default=False, description="If True, keep existing payments when calculating tax values.")
 
 # A type union for all possible specific account settings models
 SpecificAccountSettingsUnion = Union[SchwabAccountSettings, IbkrAccountSettings] # Add other types like UBSAccountSettings here

@@ -13,7 +13,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Dict, List, Optional, Union # Union will be removed from self.kurslisten type
 
-from opensteuerauszug.model.kursliste import Kursliste, Security # Added Security for type hint
+from opensteuerauszug.model.kursliste import Kursliste, Security, Payment  # Added Payment for type hint
 from .kursliste_db_reader import KurslisteDBReader
 from .kursliste_accessor import KurslisteAccessor # Added import
 
@@ -272,3 +272,16 @@ class KurslisteManager:
                         return Decimal(str(ye_price_info.taxValue))
         
         return None # No suitable price found in the security model
+
+    def get_security_payments(self, tax_year: int, isin: str) -> List["Payment"]:
+        """Retrieve payment records for a security from the Kursliste."""
+        accessor = self.get_kurslisten_for_year(tax_year)
+        if not accessor:
+            return []
+
+        security_model = accessor.get_security_by_isin(isin)
+        if not security_model:
+            return []
+
+        payments = security_model.payment
+        return [p for p in payments if not p.deleted]

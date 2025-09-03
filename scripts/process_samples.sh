@@ -42,7 +42,7 @@ else
   echo "Running in CALCULATE and RENDER mode"
 fi
 
-EXTRA_ARGS="--tax-year 2024 --debug-dump $OUTPUT_DIR/debug"
+EXTRA_ARGS="--tax-year 2024 --tax-calculation-level=kursliste --debug-dump $OUTPUT_DIR/debug"
 
 # Ensure output directory exists
 mkdir -p "$OUTPUT_DIR"
@@ -63,8 +63,9 @@ for xml_file in "$ROOT_DIR/tests/samples/"*.xml; do
   if [[ -f "$xml_file" ]]; then
     filename=$(basename "$xml_file")
     pdf_name="${filename%.xml}.pdf"
+    xml_name="${filename%.xml}.xml"
     echo "Processing $filename..."
-    python -m opensteuerauszug.steuerauszug "$xml_file" --raw-import $PHASES -o "$OUTPUT_DIR/$pdf_name" ${EXTRA_ARGS:-}
+    python -m opensteuerauszug.steuerauszug "$xml_file" --raw-import $PHASES -o "$OUTPUT_DIR/$pdf_name" --xml-output "$OUTPUT_DIR/$xml_name" ${EXTRA_ARGS:-}
   fi
 done
 
@@ -82,8 +83,9 @@ for xml_file in "$SAMPLE_DIR"/*.xml; do
   if [[ -f "$xml_file" ]]; then
     filename=$(basename "$xml_file")
     pdf_name="${filename%.xml}.pdf"
+    xml_name="${filename%.xml}.xml"
     echo "Processing $filename..."
-    python -m opensteuerauszug.steuerauszug "$xml_file" --raw-import $PHASES -o "$OUTPUT_DIR/$pdf_name" ${EXTRA_ARGS:-}
+    python -m opensteuerauszug.steuerauszug "$xml_file" --raw-import $PHASES -o "$OUTPUT_DIR/$pdf_name"  --xml-output "$OUTPUT_DIR/$xml_name" ${EXTRA_ARGS:-}
   fi
 done
 

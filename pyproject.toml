@@ -27,6 +27,7 @@ dependencies = [
     "pypdf>=4.0.0", # Use pypdf for PDF reading and analysis
     "ibflex @ git+https://github.com/vroonhof/ibflex.git",
     "pdf417gen @ git+https://github.com/vroonhof/pdf417-py.git",
+    "markdown",
     "requests", # actually an undeclared dependecy of ibflex [not as optional as it says on the tin]
     # TODO make these formal dependencies 
     # pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
@@ -48,6 +49,8 @@ dev = [
     "isort>=5.0.0",
     "mypy>=1.0.0",
     "flake8>=6.0.0",
+    "flake8",
+    "Flake8-pyproject",
     "freezegun>=1.5.0",  # Added for time-freezing in tests
     # TODO make these formal dependencies 
     # pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
@@ -67,8 +70,9 @@ multi_line_output = 3
 line_length = 100
 
 [tool.flake8]
-max-line-length = 100
-ignore = "E,F,W"
+max-line-length = 127
+extend-ignore = "E1,E2,E3,E4,E5,E7,F4,F5,F8,W29,W39"
+extend-exclude = ".venv"
 
 # For now we just rely on pyright / pylance
 #[tool.mypy]
@@ -82,7 +86,7 @@ ignore = "E,F,W"
 testpaths = ["tests"]
 pythonpath = ["."]
 python_files = ["test_*.py"]
-addopts = "-v --cov=opensteuerauszug --cov-report=term-missing" 
+#addopts = "-v --cov=opensteuerauszug --cov-report=term-missing" 
 markers = [
     "integration: marks tests as integration tests",
 ]

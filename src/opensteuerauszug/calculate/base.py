@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Type, TypeVar, Union, cast
 from decimal import Decimal
 
-from ..model.ech0196 import TaxStatement, BaseXmlModel
+from ..model.ech0196 import TaxStatement, BaseXmlModel, Security
 
 # Type variable for generic calculation handlers
 T = TypeVar('T', bound=BaseXmlModel)
@@ -80,7 +80,10 @@ class BaseCalculator:
             if isinstance(field_value, list):
                 for i, item in enumerate(field_value):
                     if isinstance(item, BaseXmlModel):
-                        item_path = f"{field_path}[{i}]"
+                        readable_index = f"{i}"
+                        if isinstance(item, Security):
+                            readable_index =  item.isin or item.valorNumber or f"{i}"
+                        item_path = f"{field_path}[{readable_index}]"
                         self._process_model(item, item_path)
             
             # Process nested models
