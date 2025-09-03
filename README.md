@@ -42,6 +42,11 @@ Additionally we can recalculate and verify any existing steuerauszug (this is mo
 
 ## Installation
 
+Requires **Python 3.10** or newer.
+
+This needs newer version of pdf417gen and (for testing) pdf417decoder than
+available on PyPY for now there are my vendored branches
+
 In the current development phase it is best to install direct from git. e.g.
 
 ```console
