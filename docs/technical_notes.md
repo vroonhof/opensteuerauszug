@@ -10,7 +10,7 @@ Note: This were created post-hoc from memory so are likely incomplete.
 
 The E-Steuerauszug contains enough data to fill out the DA-1 form and this in fact happens both in the electronic version and for old "paper" Steuerauszug. The software could cross check Kursliste withholding values against the withholding in the statements, but would the federal bureau processing DA-1's accept that?
 
-###$ Some calculation is always required
+#### Some calculation is always required
 
 There is no real clean way for the software to really just provide the minimal data (position changes, balances, interest). Though some parts make provisions for potentially missing tax data, totals etc are mandatory. Moreover these totals are valuations in CHF, making at least some currency conversion and end of year valuations mandatory.
 
