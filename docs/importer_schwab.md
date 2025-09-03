@@ -3,14 +3,14 @@
 This guide explains how to prepare your data from Charles Schwab for use with OpenSteuerAuszug. 
 
 
-Unfortunately Schwab has put its real export data behind a developer only API where it is only available online via Oauth and even the documentation requires agreeing to scary legalese. Manual export has some silly limitations like. Therefor we make do with what we can have, you may need to download multiple files in different formats.
+Unfortunately Schwab has put its real export data behind a developer only API where it is only available online via Oauth and even the documentation requires agreeing to scary legalese. Manual export has some silly limitations like not being able to specify a target date for some dumps. Therefor we make do with what we can have, you may need to download multiple files in different formats.
 
 ## Overview
 
-All data files are downloaded in a single directory. The software will detect the file types automatically. You provide the directory on the commandline.
+All data files should be downloaded in a single directory. The software will detect the file types automatically. You provide the directory on the commandline.
 
 In general we are trying to obtain
-   * At least one position statements (typically today)
+   * At least one position statement (typically today), but more is better.
    * transaction data that overlaps the tax year and the dates of the position statements.
 
 The importer will infer the beginning and end of year positions from these.
@@ -26,9 +26,9 @@ You will need to download data for your Brokerage accounts and any Equity Awards
 *   **How to obtain**:
     1.  Log in to your Charles Schwab account.
     2.  Navigate to your brokerage account view.
-    3.  Look for an option to download or export your positions. This is typically sadly only available for the current date.
+    3.  Look for an option to download or export your positions. This is typically &mdash; sadly &mdash; only available for the current date.
     4.  Choose **CSV format** for the download.
-*   **Format Details**:
+*   **Format Details for Developers**:
     *   The CSV file has a few header lines before the actual data. The importer is designed to handle this.
     *   Key columns used: `Symbol`, `Description`, `Qty (Quantity)`, `Cost Basis`.
     *   Example structure (simplified):
@@ -51,7 +51,7 @@ You will need to download data for your Brokerage accounts and any Equity Awards
     5.  Ensure you select the correct date range covering 
         * the entire tax year (e.g., January 1st to December 31st).
         * at least one, but ideally all of the dates you have position data for.
-*   **Format Details**:
+*   **Format Details for Developers**:
     *   The filename usually contains the last 3 digits of your account number (e.g., `Individual_XXX123_Transactions_YYYYMMDD-HHMMSS.json`). The importer uses these digits to associate the file with the correct account configured in `config.toml`.
     *   Key fields used: `Date`, `Action`, `Symbol`, `Description`, `Quantity`, `Amount`.
     *   Example structure (simplified):
@@ -92,7 +92,7 @@ This needs to be repeated for each equity in the equity awards account. These ar
     2.  Go to the transaction history for your equity awards.
     3.  Export the transactions, selecting **JSON format**.
     4.  Ensure the date range covers the entire tax year.
-*   **Format Details**:
+*   **Format Details for Developers**:
     *   The JSON structure is slightly different from the brokerage account, containing a `Transactions` array (note the pluralization difference).
     *   Key fields used: `Date`, `Action`, `Symbol`, `Description`, `Quantity`, `TransactionDetails` (which can include `VestFairMarketValue`).
     *   Example structure (simplified):
@@ -141,7 +141,7 @@ If you cannot obtain accurate position files, or if you need to provide initial 
 
 ### 4. Recommended: Human readable statements
 
-For verification and to respond to tax office inquiries it is good to also keep the official schwab statements as PDFs. The software will ignore them so they can be kept together in the same files.
+For verification and to respond to tax office inquiries it is good to also keep the official schwab statements as PDFs. The software will ignore them so they can be kept together in the same folder.
 
 ## Configuration 
 
@@ -158,7 +158,7 @@ In your `config.toml`, configure your Schwab accounts. There is a subsection for
   # default_currency = "USD" # If applicable
 
   [brokers.schwab.accounts.brokerage_main]
-  account_number = "1234-5678" # Last 3-4 digits will be used to matched the anonymized account number.
+  account_number = "1234-5678" # Last 3-4 digits will be used to match the anonymized account number.
   # This account_number must match the digits identified from the transaction JSON filename.
 
   [brokers.schwab.accounts.equity_awards]
@@ -194,6 +194,10 @@ python -m opensteuerauszug.steuerauszug --importer schwab <path to data director
     *   Positions file (if used) is for the correct date.
     *   All relevant files for all your accounts are provided.
 *   **Date Formatting**: For manual CSV, ensure dates are strictly `YYYY-MM-DD`.
+
+## Possible future work
+
+* There is slowly emerging ecosystems of wrapper libraries that handles oauth and calls the Schwab API. Though we prefer processing offline downloaded files this may lead to an alternative implementation. Example libraries: [schwab-py](https://github.com/alexgolec/schwab-py) and [schwabdev](https://github.com/tylerebowers/Schwabdev).
 
 ---
 Return to [User Guide](user_guide.md)
