@@ -70,25 +70,31 @@ class KurslisteAccessor:
                     if hasattr(kursliste_instance, 'exchangeRatesYearEnd'):
                         for rate in kursliste_instance.exchangeRatesYearEnd:
                             if rate.currency == currency and rate.year == xml_tax_year:
+                                # denomination = Decimal(str(rate.denomination) if rate.denomination else 1)
+                                denomination = Decimal(1)
                                 if rate.value is not None:
-                                    return Decimal(str(rate.value))
+                                    return Decimal(str(rate.value)) / denomination
                                 elif rate.valueMiddle is not None: # Fallback for certain year-end rates
-                                    return Decimal(str(rate.valueMiddle))
+                                    return Decimal(str(rate.valueMiddle)) / denomination
                 
                 # Monthly Average Logic
                 if hasattr(kursliste_instance, 'exchangeRatesMonthly'):
                     month_str = f"{reference_date.month:02d}"
                     for rate in kursliste_instance.exchangeRatesMonthly:
                         if rate.currency == currency and rate.year == xml_tax_year and rate.month == month_str:
+                            #denomination = Decimal(str(rate.denomination) if rate.denomination else 1)
+                            denomination = Decimal(1)
                             if rate.value is not None:
-                                return Decimal(str(rate.value))
+                                return Decimal(str(rate.value)) / denomination
 
                 # Daily Rate Logic
                 if hasattr(kursliste_instance, 'exchangeRates'):
                     for rate in kursliste_instance.exchangeRates:
                         if rate.currency == currency and rate.date == reference_date: # Direct date match
+                            #denomination = Decimal(str(rate.denomination) if rate.denomination else 1)
+                            denomination = Decimal(1)
                             if rate.value is not None:
-                                return Decimal(str(rate.value))
+                                return Decimal(str(rate.value)) / denomination
             return None # No rate found in any Kursliste XML object in the list
         
         return None # Should not be reached if data_source is correctly typed and handled above

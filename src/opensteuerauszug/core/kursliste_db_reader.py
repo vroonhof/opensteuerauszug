@@ -221,7 +221,7 @@ class KurslisteDBReader:
         rate_value = None
 
         query_year_end = """
-            SELECT rate FROM exchange_rates_year_end
+            SELECT rate, denomination FROM exchange_rates_year_end
             WHERE currency_code = ? AND year = ? AND tax_year = ?
             ORDER BY id DESC LIMIT 1
         """
@@ -233,7 +233,10 @@ class KurslisteDBReader:
             )
             if row_year_end and row_year_end["rate"] is not None:
                 try:
-                    return Decimal(str(row_year_end["rate"]))
+                    denomination = Decimal(1)
+                    if row_year_end["denomination"]:
+                        denomination = Decimal(str(row_year_end["denomination"]))
+                    return Decimal(str(row_year_end["rate"])) / denomination
                 except InvalidOperation:
                     print(
                         f"Warning: Could not convert year_end rate '{row_year_end['rate']}' to Decimal."
@@ -242,7 +245,7 @@ class KurslisteDBReader:
         # 1. Try daily rates
         date_iso = reference_date.isoformat()
         query_daily = """
-            SELECT rate FROM exchange_rates_daily
+            SELECT rate, denomination FROM exchange_rates_daily
             WHERE currency_code = ? AND date = ? AND tax_year = ?
             ORDER BY id DESC LIMIT 1
         """
@@ -253,7 +256,10 @@ class KurslisteDBReader:
         )
         if row_daily and row_daily["rate"] is not None:
             try:
-                return Decimal(str(row_daily["rate"]))
+                denomination = Decimal(1)
+                if row_daily["denomination"]:
+                    denomination = Decimal(str(row_daily["denomination"]))
+                return Decimal(str(row_daily["rate"])) / denomination
             except InvalidOperation:
                 print(
                     f"Warning: Could not convert daily rate '{row_daily['rate']}' to Decimal."
@@ -262,7 +268,7 @@ class KurslisteDBReader:
         # 2. Try monthly rates if daily not found or rate is None
         month_str = reference_date.strftime("%m")  # Format month as "01", "02", etc.
         query_monthly = """
-            SELECT rate FROM exchange_rates_monthly
+            SELECT rate, denomination FROM exchange_rates_monthly
             WHERE currency_code = ? AND year = ? AND month = ? AND tax_year = ?
             ORDER BY id DESC LIMIT 1
         """
@@ -272,7 +278,10 @@ class KurslisteDBReader:
         )
         if row_monthly and row_monthly["rate"] is not None:
             try:
-                return Decimal(str(row_monthly["rate"]))
+                denomination = Decimal(1)
+                if row_monthly["denomination"]:
+                    denomination = Decimal(str(row_monthly["denomination"]))
+                return Decimal(str(row_monthly["rate"])) / denomination
             except InvalidOperation:
                 print(
                     f"Warning: Could not convert monthly rate '{row_monthly['rate']}' to Decimal."
@@ -284,7 +293,10 @@ class KurslisteDBReader:
         )
         if row_year_end and row_year_end["rate"] is not None:
             try:
-                return Decimal(str(row_year_end["rate"]))
+                denomination = Decimal(1)
+                if row_year_end["denomination"]:
+                    denomination = Decimal(str(row_year_end["denomination"]))
+                return Decimal(str(row_year_end["rate"])) / denomination
             except InvalidOperation:
                 print(
                     f"Warning: Could not convert year_end rate '{row_year_end['rate']}' to Decimal."
