@@ -64,7 +64,7 @@ SAMPLE_XML_CONTENT = f"""<?xml version="1.0" encoding="UTF-8"?>
     <exchangeRateMonthly currency="EUR" year="{TAX_YEAR}" month="10" denomination="1" value="0.9600" />
     <exchangeRateMonthly currency="GBP" year="{TAX_YEAR}" month="11" denomination="1" value="1.1200" />
     <exchangeRateMonthly currency="USD" year="{TAX_YEAR}" month="12" denomination="1" value="0.8700" />
-    <exchangeRateYearEnd currency="JPY" year="{TAX_YEAR}" denomination="100" value="0.0065" />
+    <exchangeRateYearEnd currency="JPY" year="{TAX_YEAR}" denomination="100" value="0.65" />
     <exchangeRateYearEnd currency="USD" year="{TAX_YEAR}" denomination="1" value="0.8800" valueMiddle="0.8850" />
 </kursliste>
 """
