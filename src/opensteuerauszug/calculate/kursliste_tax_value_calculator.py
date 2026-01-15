@@ -150,7 +150,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             quantity = pos.quantity
 
-            logger.debug("quantity %s found for date %s", quantity, reconciliation_date) 
+            logger.debug("quantity %s found for date %s", quantity, reconciliation_date)
             if quantity == 0:
                 # Skip payment generation if the quantity of outstanding securities is zero
                 continue
@@ -193,6 +193,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     f"Kursliste payment on {pay.paymentDate} for {security.isin or security.securityName} missing paymentValueCHF"
                 )
 
+            if pay.paymentValueCHF == Decimal("0"):
+                logger.info("Skipping zero-value payment for %s on %s", security.isin or security.securityName, pay.paymentDate)
+                #continue
+
             amount_per_unit = pay.paymentValue if pay.paymentValue is not None else pay.paymentValueCHF
             chf_per_unit = pay.paymentValueCHF
 
@@ -204,6 +208,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 if pay.currency == "CHF":
                     rate = Decimal("1")
                 else:
+                    logger.error("Invalid Kursliste payment: %s", pay)
                     raise ValueError(
                         f"Kursliste payment on {pay.paymentDate} for {security.isin or security.securityName} missing exchangeRate"
                     )
