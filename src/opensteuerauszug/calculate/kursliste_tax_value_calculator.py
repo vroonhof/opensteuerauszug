@@ -193,10 +193,6 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     f"Kursliste payment on {pay.paymentDate} for {security.isin or security.securityName} missing paymentValueCHF"
                 )
 
-            if pay.paymentValueCHF == Decimal("0"):
-                logger.info("Skipping zero-value payment for %s on %s", security.isin or security.securityName, pay.paymentDate)
-                #continue
-
             amount_per_unit = pay.paymentValue if pay.paymentValue is not None else pay.paymentValueCHF
             chf_per_unit = pay.paymentValueCHF
 
@@ -204,7 +200,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             chf_amount = chf_per_unit * quantity
 
             rate = pay.exchangeRate
-            if rate is None:
+            if rate is None and pay.paymentValueCHF != 0:
                 if pay.currency == "CHF":
                     rate = Decimal("1")
                 else:
