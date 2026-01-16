@@ -682,13 +682,14 @@ def test_import_files_with_client_information(client_data, sample_ibkr_settings)
             os.remove(xml_file_path)
 
 
-def test_import_files_with_firstname_and_name(monkeypatch, sample_ibkr_settings):
+def test_import_files_with_firstname_and_name(monkeypatch):
     period_from = date(2023, 1, 1)
     period_to = date(2023, 12, 31)
+    account_id = "U1111111"
 
     class DummyAccountInfo:
         def __init__(self) -> None:
-            self.accountId = "U1111111"
+            self.accountId = account_id
             self.name = "Bob Builder"
             self.firstName = "Bob"
             self.lastName = None
@@ -696,7 +697,7 @@ def test_import_files_with_firstname_and_name(monkeypatch, sample_ibkr_settings)
 
     class DummyFlexStatement:
         def __init__(self) -> None:
-            self.accountId = "U1111111"
+            self.accountId = account_id
             self.fromDate = period_from
             self.toDate = period_to
             self.AccountInformation = DummyAccountInfo()
@@ -713,10 +714,20 @@ def test_import_files_with_firstname_and_name(monkeypatch, sample_ibkr_settings)
     def fake_parse(_filename):
         return DummyResponse()
 
+    settings = [
+        IbkrAccountSettings(
+            account_number=account_id,
+            broker_name="Interactive Brokers",
+            account_name_alias="Test Account",
+            canton="ZH",
+            full_name="Bob Builder",
+        )
+    ]
+
     importer = IbkrImporter(
         period_from=period_from,
         period_to=period_to,
-        account_settings_list=sample_ibkr_settings,
+        account_settings_list=settings,
     )
 
     monkeypatch.setattr(ibflex_parser, "parse", fake_parse)
@@ -805,22 +816,33 @@ def test_base_summary_currency_filtered_out(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
-def test_bank_account_names_always_set(sample_ibkr_settings):
+def test_bank_account_names_always_set():
     """Test that bank account names are always set for all currencies with closing balances."""
     period_from = date(2023, 1, 1)
     period_to = date(2023, 12, 31)
+    account_id = "U7890123"
     
+    settings = [
+        IbkrAccountSettings(
+            account_number=account_id,
+            broker_name="Interactive Brokers",
+            account_name_alias="Test Account",
+            canton="ZH",
+            full_name="Test User",
+        )
+    ]
+
     importer = IbkrImporter(
         period_from=period_from,
         period_to=period_to,
-        account_settings_list=sample_ibkr_settings,
+        account_settings_list=settings,
     )
 
     # Create XML with multiple currencies including 0 balance ones
     xml_content = f"""
 <FlexQueryResponse queryName="BankAccountNamesTestQuery" type="AF">
   <FlexStatements count="1">
-    <FlexStatement accountId="U7890123" fromDate="{period_from}" toDate="{period_to}" period="Year" whenGenerated="2024-01-15T10:00:00">
+    <FlexStatement accountId="{account_id}" fromDate="{period_from}" toDate="{period_to}" period="Year" whenGenerated="2024-01-15T10:00:00">
       <CashReport>
         <CashReportCurrency accountId="U7890123" currency="USD" endingCash="1500.00" />
         <CashReportCurrency accountId="U7890123" currency="EUR" endingCash="0" />
