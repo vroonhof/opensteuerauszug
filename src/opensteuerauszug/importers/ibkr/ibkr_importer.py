@@ -184,6 +184,13 @@ class IbkrImporter:
 
         all_flex_statements = []
 
+        # Extract configured account numbers to allow filtering
+        configured_account_ids = set()
+        if self.account_settings_list:
+            for settings in self.account_settings_list:
+                if settings.account_number:
+                    configured_account_ids.add(settings.account_number)
+
         for filename in filenames:
             if not os.path.exists(filename):
                 raise FileNotFoundError(
@@ -200,15 +207,18 @@ class IbkrImporter:
                 # Each FlexStatement corresponds to an account
                 if response and response.FlexStatements:
                     for stmt in response.FlexStatements:
-                        # TODO: Potentially filter by accountId if multiple
-                        # accounts are in one file and account_settings_list
-                        # specifies which one to process.
-                        # For now, accumulate all statements found.
+                        if configured_account_ids and stmt.accountId not in configured_account_ids:
+                            logger.info(
+                                f"Skipping statement for account {stmt.accountId} "
+                                f"as it is not in the configured settings."
+                            )
+                            continue
+
                         logger.info(
-                        f"Successfully parsed statement for account: "
-                        f"{stmt.accountId}, Period: {stmt.fromDate} "
-                        f"to {stmt.toDate}"
-                    )
+                            f"Successfully parsed statement for account: "
+                            f"{stmt.accountId}, Period: {stmt.fromDate} "
+                            f"to {stmt.toDate}"
+                        )
                         all_flex_statements.append(stmt)
                 else:
                     logger.warning(
