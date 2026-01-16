@@ -1,11 +1,14 @@
 import os
 import logging
+import inspect
 from typing import Final, List, Any, Dict, Literal
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
+
+from pydantic import BaseModel
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
@@ -34,6 +37,39 @@ except ImportError:
         @staticmethod
         def parse(filename: str):
             raise ImportError("ibflex library is not installed")
+
+
+def _patch_ibflex_pydantic_models(module: Any) -> int:
+    patched = 0
+    visited: set[int] = set()
+
+    def _walk(mod: Any) -> None:
+        nonlocal patched
+        if id(mod) in visited:
+            return
+        visited.add(id(mod))
+        for _, obj in inspect.getmembers(mod):
+            if inspect.isclass(obj) and issubclass(obj, BaseModel) and obj is not BaseModel:
+                if hasattr(obj, "model_config"):
+                    obj.model_config["extra"] = "ignore"
+                    obj.model_rebuild(force=True)
+                elif hasattr(obj, "Config"):
+                    obj.Config.extra = "ignore"
+                patched += 1
+            elif inspect.ismodule(obj) and getattr(obj, "__name__", "").startswith("ibflex"):
+                _walk(obj)
+
+    _walk(module)
+    return patched
+
+
+if IBFLEX_AVAILABLE:
+    patched_count = _patch_ibflex_pydantic_models(ibflex)
+    if patched_count:
+        logger.info(
+            "Patched ibflex models to ignore extra fields for %s models.",
+            patched_count,
+        )
 
 class IbkrImporter:
     """
