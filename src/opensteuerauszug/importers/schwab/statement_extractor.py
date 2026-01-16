@@ -15,6 +15,22 @@ CLOSING_PRICE_PATTERN = r"Closing Price on (\d{2}/\d{2}/\d{4}) *: (\$[\d,.]+)"
 ACCOUNT_SUMMARY_PATTERN = r"Account Summary: \w+"
 PERIOD_PATTERN =  r"For Period: (\d{2}/\d{2}/\d{4}) - (\d{2}/\d{2}/\d{4})"
 STOCK_HEADER_PATTERN = r'Opening\s*Closing\s*Closing\s+Share Price\s*Closing\s+Value\s+'
+STOCK_SUMMARY_PATTERN = re.compile(
+    r'Stock Summary:[^0-9]*?'
+    r'Opening\s*Closing\s*\s*Share Price\s*\s+Value\s*'
+    r'([\d,.]+)\s+'       # Group 1: Opening Shares
+    r'([\d,.]+)\s+'       # Group 2: Closing Shares
+    r'(\$[\d,.]+)\s+'     # Group 3: Closing Share Price
+    r'(\$[\d,.]+)\s',      # Group 4: Closing Value
+    re.DOTALL | re.IGNORECASE
+)
+CASH_SUMMARY_PATTERN = re.compile(
+    r'Cash Summary:\s*'
+    r'(\$[\d,.]+)\s+'       # Group 1: Opening Cash
+    r'(\$[\d,.]+)\s+'       # Group 2: Closing Cash
+    r'(\$[\d,.]+)\s',      # Group 3: Closing Value
+    re.DOTALL | re.IGNORECASE
+)
 
 from opensteuerauszug.model.position import SecurityPosition, CashPosition
 from opensteuerauszug.model.ech0196 import SecurityStock, CurrencyId
@@ -180,16 +196,7 @@ class StatementExtractor:
 
 
         # 3. Extract Stock Summary Data (Closing Shares, Price, Value) - (No change here)
-        stock_summary_pattern = re.compile(
-            r'Stock Summary:[^0-9]*?'
-            r'Opening\s*Closing\s*\s*Share Price\s*\s+Value\s*'
-            r'([\d,.]+)\s+'       # Group 1: Opening Shares
-            r'([\d,.]+)\s+'       # Group 2: Closing Shares
-            r'(\$[\d,.]+)\s+'     # Group 3: Closing Share Price
-            r'(\$[\d,.]+)\s',      # Group 4: Closing Value
-            re.DOTALL | re.IGNORECASE
-        )
-        match_summary = stock_summary_pattern.search(self.text_content)
+        match_summary = STOCK_SUMMARY_PATTERN.search(self.text_content)
         if match_summary:
             data['opening_shares'] = self._clean_numeric_string(match_summary.group(1))
             data['closing_shares'] = self._clean_numeric_string(match_summary.group(2))
@@ -203,14 +210,7 @@ class StatementExtractor:
             data['closing_value'] = None
 
         # 3. Extract Cacsh Summary Data (Closing Shares, Price, Value) - (No change here)
-        cash_summary_pattern = re.compile(
-            r'Cash Summary:\s*'
-            r'(\$[\d,.]+)\s+'       # Group 1: Opening Cash
-            r'(\$[\d,.]+)\s+'       # Group 2: Closing Cash
-            r'(\$[\d,.]+)\s',      # Group 3: Closing Value
-            re.DOTALL | re.IGNORECASE
-        )
-        match_cash = cash_summary_pattern.search(self.text_content)
+        match_cash = CASH_SUMMARY_PATTERN.search(self.text_content)
         if match_cash:
             data['opening_cash'] = self._clean_numeric_string(match_cash.group(1))
             data['closing_cash'] = self._clean_numeric_string(match_cash.group(2))
