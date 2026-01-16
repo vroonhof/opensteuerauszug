@@ -1093,13 +1093,16 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
     col_widths = [1.0*w for w in col_widths]
     assert len(col_widths) == len(table_header)
     # Hide columns not used in this table
+    hidden_columns = []
     if security_type != "DA1":
         col_widths[-1] = 0
         col_widths[-2] = 0
+        hidden_columns.extend([len(col_widths) - 1, len(col_widths) - 2])
     else:
         col_widths[-4] = 0 # A
         col_widths[-5] = 0  # Ertrag mit VSt.
         col_widths[-6] = 0  # B
+        hidden_columns.extend([len(col_widths) - 4, len(col_widths) - 5, len(col_widths) - 6])
     assert sum(col_widths) < usable_width
     
     # Collect securities of the specified type
@@ -1275,6 +1278,12 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         ('TOPPADDING', (0, -2), (-1, -2), 3*mm),
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e0e0e0')),
     ]
+    # Set padding to 0 for hidden columns to avoid negative availWidth
+    for col in hidden_columns:
+        table_style.append(('LEFTPADDING', (col, 0), (col, -1), 0))
+        table_style.append(('RIGHTPADDING', (col, 0), (col, -1), 0))
+        table_style.append(('TOPPADDING', (col, 0), (col, -1), 0))
+        table_style.append(('BOTTOMPADDING', (col, 0), (col, -1), 0))
     for idx in intermediate_total_rows:
         table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#f5f5f5')))
     securities_table = Table([table_header] + table_data, colWidths=col_widths, repeatRows=1, splitByRow=1)
