@@ -24,7 +24,9 @@ from pydantic_xml import BaseXmlModel as PydanticXmlModel, attr, element
 logger = logging.getLogger(__name__)
 
 # --- Namespace ---
-KURSLISTE_NS = "http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste"
+KURSLISTE_NS_2_0 = "http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste"
+KURSLISTE_NS_2_2 = "http://xmlns.estv.admin.ch/ictax/2.2.0/kursliste"
+KURSLISTE_NS = KURSLISTE_NS_2_2
 XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
 NSMAP = {'': KURSLISTE_NS, 'xsi': XSI_NS}
 
@@ -137,7 +139,12 @@ Text4000 = Annotated[str, StringConstraints(min_length=1, max_length=4000)]
 InstitutionNameStr = Annotated[str, StringConstraints(min_length=1, max_length=120)]
 SecurityNameStr = Annotated[str, StringConstraints(min_length=1, max_length=120)]
 UidStr = str # Annotated[str, StringConstraints(min_length=12, max_length=12)]
+# Deprecated in 2.2
 TidType = Annotated[int, Field(ge=15000000, le=17999999)]
+# New in 2.2
+PaymentIdSIX = str
+EventIdSIX = str
+Gkey = str
 
 # --- Base Model for Entities with ID ---
 class Entity(PydanticXmlModel, nsmap=NSMAP):
@@ -240,7 +247,7 @@ class YearendCurrencyNote(Yearend, tag="yearend"):
 
 
 class YearendGrossNet(Yearend, tag="yearend"):
-    """kursliste:yearendGrossNet complex type"""
+    """kursliste:yearendGrossNet complex type. Deprecated in v2.2 (fields below)."""
     percentNet: Optional[Percent] = attr(default=None)
     percentNetNet: Optional[Percent] = attr(default=None)
     taxValueCHFNet: Optional[Decimal] = attr(default=None)
@@ -256,7 +263,7 @@ class YearendGrossNet(Yearend, tag="yearend"):
 
 
 class YearendInstitution(Entity, tag="yearend"):
-     """kursliste:yearendInstitution complex type"""
+     """kursliste:yearendInstitution complex type. Deprecated in v2.2."""
      quotationType: QuotationType = attr(use="required")
      percent: Optional[Percent] = attr(default=None)
      totalTaxValue: Optional[Decimal] = attr(default=None)
@@ -524,7 +531,7 @@ class Share(Security, tag="share"):
 
 
 class CapitalContribution(Entity, tag="capitalContribution"):
-    """kursliste:capitalContribution complex type"""
+    """kursliste:capitalContribution complex type. Deprecated in v2.2."""
     referenceDate: datetime.date = attr(use="required")
     currency: Optional[CurrencyCode] = attr(default="CHF")
     openingBalance: Optional[Decimal] = attr(default=None)
@@ -570,6 +577,7 @@ class Institution(Entity, tag="institution"):
     totalLiberalizedCapital: Optional[Decimal] = attr(default=None)
     totalVotingCapital: Optional[Decimal] = attr(default=None)
     totalPartReceiptCapital: Optional[Decimal] = attr(default=None)
+    gkey: Optional[Gkey] = attr(default=None)
 
 
 
@@ -651,6 +659,14 @@ class MediumTermBond(Entity, tag="mediumTermBond"):
     price: Percent = attr(use="required")
 
 
+class CapitalisationRate(Entity, tag="capitalisationRate"):
+    """kursliste:capitalisationRate complex type. Added in v2.2."""
+    currency: CurrencyCode = attr(use="required")
+    value: Optional[Percent] = attr(default=None)
+    customaryInterestRate: Optional[Percent] = attr(default=None)
+    riskFreeRate: Optional[Percent] = attr(default=None)
+    limitRate: Optional[Percent] = attr(default=None)
+
 
 class ExchangeRate(PydanticXmlModel, tag="exchangeRate"): # Not an Entity
     """kursliste:exchangeRate complex type"""
@@ -690,7 +706,7 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
     """
 
     # --- Attributes aligned with XSD ---
-    version: Annotated[str, StringConstraints(pattern=r"2\.0\.0\.\d")] = attr()
+    version: Annotated[str, StringConstraints(pattern=r"2\.[02]\.0\.\d")] = attr()
     creationDate: datetime.datetime = attr()
     referingToDate: Optional[datetime.date] = attr(default=None)
     year: int = attr()
@@ -716,6 +732,7 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
     signs: List[Sign] = element(tag="sign", default_factory=list)
     da1Rates: List[Da1Rate] = element(tag="da1Rate", default_factory=list)
     mediumTermBonds: List[MediumTermBond] = element(tag="mediumTermBond", default_factory=list)
+    capitalisationRates: List[CapitalisationRate] = element(tag="capitalisationRate", default_factory=list)
 
     institutions: List[Institution] = element(tag="institution", default_factory=list)
     bonds: List[Bond] = element(tag="bond", default_factory=list)
@@ -811,6 +828,32 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
             logger.info("Filtered %s elements based on denylist.", len(to_remove))
             
         return root
+
+    @staticmethod
+    def _ensure_namespace(root: ET.Element) -> ET.Element:
+        """
+        Check if the namespace is v2.0 and if so, update it to v2.2 for compatibility.
+        """
+        if root.tag.startswith(f"{{{KURSLISTE_NS_2_0}}}"):
+            logger.info("Detected v2.0 namespace, upgrading to v2.2 for parsing.")
+            # Iterate through all elements and replace namespace
+            # Note: This is a simple replacement. If multiple namespaces are used, care must be taken.
+            # Here we assume the main elements are in the KURSLISTE_NS_2_0.
+
+            # Helper to replace NS
+            def replace_ns(elem):
+                if not isinstance(elem.tag, str):
+                    return
+                if elem.tag.startswith(f"{{{KURSLISTE_NS_2_0}}}"):
+                    elem.tag = elem.tag.replace(f"{{{KURSLISTE_NS_2_0}}}", f"{{{KURSLISTE_NS_2_2}}}")
+
+                # We might need to handle xsi:type if present but pydantic-xml usually handles tag based mapping
+                for child in elem:
+                    replace_ns(child)
+
+            replace_ns(root)
+
+        return root
     
     @classmethod
     def from_xml_file(cls, file_path: Union[str, Path], denylist: Optional[Set[str]] = None) -> "Kursliste":
@@ -841,6 +884,9 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
                 denylist = cls.DEFAULT_DENYLIST
                 
             filtered_root = cls._filter_xml_elements(root, denylist)
+
+            # Ensure namespace compatibility
+            filtered_root = cls._ensure_namespace(filtered_root)
 
             instance = cls.from_xml_tree(filtered_root)
             return instance
