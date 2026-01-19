@@ -19,9 +19,9 @@ def test_load_v2_2_kursliste(samples_dir):
     # Check if a specific element is found (just basic validation)
     assert kursliste.find_security_by_valor(1246192) is not None
 
-def test_load_v2_0_kursliste_compat(samples_dir):
+def test_load_v2_0_kursliste_compat():
     """Test loading the legacy v2.0 Kursliste file (compatibility mode)."""
-    file_path = samples_dir / "kursliste_2_0.xml"
+    file_path = Path(__file__).parent / "test_data" / "kursliste_2_0.xml"
     assert file_path.exists()
 
     # This should trigger the _ensure_namespace logic
