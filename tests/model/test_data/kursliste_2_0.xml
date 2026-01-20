@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.2.0/kursliste" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.2.0.0" creationDate="2025-06-27T20:21:34" year="2024">
+<kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="2.0.0.0" creationDate="2025-06-27T20:21:34" year="2024">
   <currency id="432" currency="CHF">
     <currencyName lang="de" name="Franken"/>
     <currencyName lang="en" name="Franc"/>
