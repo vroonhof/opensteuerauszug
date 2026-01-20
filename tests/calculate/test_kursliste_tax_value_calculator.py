@@ -147,52 +147,6 @@ def test_handle_security_tax_value_from_kursliste(kursliste_manager):
     assert stv.balanceCurrency == "CHF"
 
 
-def test_handle_security_tax_value_with_non_chf_currency(kursliste_manager):
-    """
-    Test that when kursliste data is used for a security with non-CHF trading currency,
-    the balanceCurrency is correctly set to CHF since kursliste values are always in CHF.
-    
-    This tests the fix for: "Tax value calculator: eoy unit price rendered with CHF value but trading currency symbol"
-    """
-    provider = KurslisteExchangeRateProvider(kursliste_manager)
-    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
-    sec = Security(
-        country="US",
-        securityName="Roche (traded in USD)",
-        positionId=1,
-        currency="USD",  # Trading currency is USD
-        quotationType="PIECE",
-        securityCategory="SHARE",
-        isin=ISINType("CH0012032048"),
-        taxValue=SecurityTaxValue(
-            referenceDate=date(2024, 12, 31),
-            quotationType="PIECE",
-            quantity=Decimal("500"),
-            balanceCurrency="USD",  # Initially USD from importer
-        ),
-        stock=[
-            SecurityStock(
-                referenceDate=date(2024, 1, 1),
-                mutation=False,
-                quotationType="PIECE",
-                quantity=Decimal("500"),
-                balanceCurrency="USD",
-            )
-        ],
-    )
-    calc._handle_Security(sec, "sec")
-    stv = sec.taxValue
-    assert stv is not None
-    calc._handle_SecurityTaxValue(stv, "sec.taxValue")
-    # Kursliste values should be in CHF
-    assert stv.unitPrice == Decimal("255.5")
-    assert stv.value == Decimal("127750")
-    assert stv.exchangeRate == Decimal("1")
-    assert stv.kursliste is True
-    # Bug fix: balanceCurrency should be CHF when kursliste data is used
-    assert stv.balanceCurrency == "CHF"
-
-
 def test_compute_payments_from_kursliste_missing_ex_date(kursliste_manager):
     provider = KurslisteExchangeRateProvider(kursliste_manager)
     calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)

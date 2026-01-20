@@ -103,10 +103,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     value = price * sec_tax_value.quantity
                     self._set_field_value(sec_tax_value, "value", value, path_prefix)
                     self._set_field_value(sec_tax_value, "exchangeRate", Decimal("1"), path_prefix)
-                    # Kursliste values are always in CHF, so we must override balanceCurrency
-                    # regardless of the current value or mode
-                    sec_tax_value.balanceCurrency = "CHF"
-                    self.modified_fields.add(f"{path_prefix}.balanceCurrency")
+                    self._set_field_value(sec_tax_value, "balanceCurrency", "CHF", path_prefix)
                     self._set_field_value(sec_tax_value, "kursliste", True, path_prefix)
                     return
 
