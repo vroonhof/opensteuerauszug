@@ -981,7 +981,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
             date_str = ""
         if account.taxValue:
             balance_str = format_currency_2dp(account.taxValue.balance)
-            exchange_rate_str = format_currency_2dp(account.taxValue.exchangeRate)
+            exchange_rate_str = format_exchange_rate(account.taxValue.exchangeRate)
             currency_str = account.taxValue.balanceCurrency or account.bankAccountCurrency or ''
         else:
             balance_str = ''
