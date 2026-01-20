@@ -40,3 +40,55 @@ This example would:
 - Ensure definitions and exchange rates for CHF, and any other currencies related to the selected securities or found in the tax statements, are included.
 - Save the smaller XML to `data/kursliste/filtered_kursliste_test.xml`.
 - Output detailed DEBUG logs.
+
+### Local Action Runner (`scripts/local_action_runner.py`)
+
+This script runs a command locally against a repository ref and publishes the results back to GitHub
+as a check run, with artifacts stored on a dedicated branch. This is useful for private data that
+cannot be uploaded to a GitHub Action runner.
+
+**Requirements:**
+
+* Python 3.7+
+* `git` available in PATH
+* A GitHub token with `repo` and `checks:write` scopes in `GITHUB_TOKEN`
+
+**Command-Line Arguments:**
+
+* `--repo <owner/repo>`: (Required unless `GITHUB_REPOSITORY` is set) Target repository.
+* `--ref <ref>`: (Optional) Branch, tag, or SHA to run. Defaults to repo default branch.
+* `--pr <number>`: (Optional) Pull request number to run (uses the PR head ref).
+* `--command <cmd>`: (Required) Command to run locally.
+* `--result-path <path>`: (Optional, repeatable) Relative paths to include in a zipped artifact.
+* `--show-diff`: (Optional) Show a diff before running the command.
+* `--artifact-branch <branch>`: (Optional) Branch used to store artifacts. Defaults to `local-action-artifacts`.
+* `--artifact-name <name>`: (Optional) Base name for the artifact zip file. Defaults to `local-run`.
+* `--check-name <name>`: (Optional) Name for the GitHub check run. Defaults to `local-action`.
+* `--upload-artifacts`: (Optional) Upload artifacts to the artifact branch (requires `--confirm-upload`).
+* `--confirm-upload`: (Optional) Confirm upload to GitHub (required to create a check run).
+* `--print-check-summary`: (Optional) Print the text uploaded to GitHub (default).
+* `--no-print-check-summary`: (Optional) Disable printing the check summary.
+
+**Usage Example:**
+
+```bash
+export GITHUB_TOKEN="..."
+python scripts/local_action_runner.py \
+  --repo my-org/my-repo \
+  --ref feature/my-branch \
+  --command "python scripts/my_private_job.py --input /secure/data" \
+  --result-path results/output.json \
+  --result-path results/logs \
+  --artifact-name private-run
+```
+
+This will:
+- Clone the target ref to a temporary folder.
+- Run the command locally.
+- Store logs and optional result paths under `local-action-results/<run-id>/`.
+- Only upload artifacts and create a check run when `--upload-artifacts` and `--confirm-upload` are set.
+
+**Safety note:** this repository is public. By default the script does not upload artifacts or
+create a check run. When you opt in to `--confirm-upload` without `--upload-artifacts`, only the
+stderr text is sent to the check run summary. Only opt in after reviewing outputs and confirming
+they are safe to publish.
