@@ -49,7 +49,7 @@ cannot be uploaded to a GitHub Action runner.
 
 **Requirements:**
 
-* Python 3.10+
+* Python 3.7+
 * `git` available in PATH
 * A GitHub token with `repo` and `checks:write` scopes in `GITHUB_TOKEN`
 

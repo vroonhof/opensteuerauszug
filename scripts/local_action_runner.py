@@ -54,10 +54,10 @@ def zip_results(base_dir, paths, output_path):
                 zipper.write(full_path, path)
 
 
-def confirm_or_exit(prompt):
+def confirm_or_exit(prompt, abort_message="Aborted by user."):
     response = input(f"{prompt} [y/N]: ").strip().lower()
     if response != "y":
-        raise SystemExit("Aborted before running the command.")
+        raise SystemExit(abort_message)
 
 
 def main():
@@ -234,7 +234,7 @@ def main():
             f"Exit code: {command_result.returncode}",
         ]
         if details_url:
-            summary_lines[2] = f"Artifacts: {details_url}"
+            summary_lines[1] = f"Artifacts: {details_url}"
         if command_result.stderr:
             summary_lines.append("")
             summary_lines.append("Stderr:")
