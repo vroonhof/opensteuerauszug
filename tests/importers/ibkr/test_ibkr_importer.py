@@ -37,11 +37,11 @@ SAMPLE_IBKR_FLEX_XML_VALID = """
   <FlexStatements count="1">
     <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
       <Trades>
-        <Trade transactionID="1001" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" quantity="10" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="280.00" tradeMoney="2800.00" buySell="BUY" ibCommission="-1.00" ibCommissionCurrency="USD" netCash="-2801.00" />
-        <Trade transactionID="1002" accountId="U1234567" assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" currency="USD" quantity="-5" tradeDate="2023-06-20" settleDateTarget="2023-06-22" tradePrice="180.00" tradeMoney="-900.00" buySell="SELL" ibCommission="-0.50" ibCommissionCurrency="USD" netCash="899.50" />
+        <Trade transactionID="1001" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" issuerCountryCode="US" currency="USD" quantity="10" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="280.00" tradeMoney="2800.00" buySell="BUY" ibCommission="-1.00" ibCommissionCurrency="USD" netCash="-2801.00" />
+        <Trade transactionID="1002" accountId="U1234567" assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" issuerCountryCode="IE" currency="USD" quantity="-5" tradeDate="2023-06-20" settleDateTarget="2023-06-22" tradePrice="180.00" tradeMoney="-900.00" buySell="SELL" ibCommission="-0.50" ibCommissionCurrency="USD" netCash="899.50" />
       </Trades>
       <OpenPositions>
-        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" position="10" markPrice="300.00" positionValue="3000.00" reportDate="2023-12-31" />
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" issuerCountryCode="US" currency="USD" position="10" markPrice="300.00" positionValue="3000.00" reportDate="2023-12-31" />
       </OpenPositions>
       <CashTransactions>
         <CashTransaction accountId="U1234567" type="Deposits/Withdrawals" currency="USD" amount="5000.00" description="Initial Deposit" conid="" symbol="" dateTime="2023-01-10T09:00:00" assetCategory="" />
@@ -197,6 +197,7 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert msft_sec is not None
         assert msft_sec.isin == "US5949181045"
         assert msft_sec.currency == "USD"
+        assert msft_sec.country == "US"
         assert len(msft_sec.stock) == 3
         assert msft_sec.stock[0].mutation is False
         assert msft_sec.stock[0].referenceDate == date(2023, 1, 1)
@@ -218,6 +219,7 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         aapl_sec = next((s for s in depot.security if s.securityName == "APPLE INC (AAPL)"), None)
         assert aapl_sec is not None
         assert aapl_sec.isin == "US0378331005"
+        assert aapl_sec.country == "IE"
         assert len(aapl_sec.stock) == 3
         assert aapl_sec.stock[0].mutation is False
         assert aapl_sec.stock[0].quantity == Decimal("5")
