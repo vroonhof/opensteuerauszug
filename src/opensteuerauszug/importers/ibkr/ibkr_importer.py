@@ -86,6 +86,36 @@ class IbkrImporter:
                 f"'{field_name}' in {object_description}"
             )
 
+    def _normalize_country_code(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        country = str(value).strip().upper()
+        if not country:
+            return None
+        return country[:2]
+
+    def _maybe_update_security_country(
+        self,
+        security_country_map: Dict[SecurityPosition, str],
+        sec_pos: SecurityPosition,
+        country_code: str | None,
+        source_label: str,
+    ) -> None:
+        if not country_code:
+            return
+        existing = security_country_map.get(sec_pos)
+        if existing and existing != country_code:
+            logger.warning(
+                "Conflicting issuer country code for %s from %s: %s (existing: %s)",
+                sec_pos.get_processing_identifier(),
+                source_label,
+                country_code,
+                existing,
+            )
+            return
+        if not existing:
+            security_country_map[sec_pos] = country_code
+
     def __init__(self,
                  period_from: date,
                  period_to: date,
@@ -246,6 +276,7 @@ class IbkrImporter:
             defaultdict(lambda: {'stocks': [], 'payments': []})
         processed_cash_positions: defaultdict[tuple, Dict[str, list]] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
+        security_country_map: Dict[SecurityPosition, str] = {}
 
         for stmt in all_flex_statements:
             account_id = self._get_required_field(
@@ -325,6 +356,15 @@ class IbkrImporter:
                         symbol=conid,
                         description=f"{description} ({symbol})"
                     )
+                    trade_country = self._normalize_country_code(
+                        getattr(trade, 'issuerCountryCode', None)
+                    )
+                    self._maybe_update_security_country(
+                        security_country_map,
+                        sec_pos,
+                        trade_country,
+                        "Trade",
+                    )
 
                     stock_mutation = SecurityStock(
                         referenceDate=trade_date,
@@ -395,6 +435,15 @@ class IbkrImporter:
                         isin=ISINType(isin) if isin else None,
                         symbol=conid,
                         description=f"{description} ({symbol})"
+                    )
+                    position_country = self._normalize_country_code(
+                        getattr(open_pos, 'issuerCountryCode', None)
+                    )
+                    self._maybe_update_security_country(
+                        security_country_map,
+                        sec_pos,
+                        position_country,
+                        "OpenPosition",
                     )
 
                     balance_stock = SecurityStock(
@@ -713,7 +762,7 @@ class IbkrImporter:
                 securityName=sec_pos_obj.description or sec_pos_obj.symbol,
                 isin=ISINType(sec_pos_obj.isin) if sec_pos_obj.isin is not None else None,
                 valorNumber=sec_pos_obj.valor,
-                country="US", # Placeholder, determine actual country
+                country=security_country_map.get(sec_pos_obj, "US"),
                 stock=sorted_stocks,
                 payment=sorted_payments
             )
