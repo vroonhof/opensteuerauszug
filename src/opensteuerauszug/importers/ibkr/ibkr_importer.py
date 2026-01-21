@@ -533,6 +533,53 @@ class IbkrImporter:
                         stock_mutation
                     )
 
+            # --- Process Corporate Actions ---
+            if stmt.CorporateActions:
+                for action in stmt.CorporateActions:
+                    action_date = action.dateTime or action.reportDate
+                    if action_date is None:
+                        raise ValueError("CorporateAction missing dateTime/reportDate")
+                    if hasattr(action_date, "date"):
+                        action_date = action_date.date()
+                    elif isinstance(action_date, str):
+                        date_part = action_date.split(";")[0].split("T")[0]
+                        action_date = date.fromisoformat(date_part)
+
+                    symbol = self._get_required_field(action, "symbol", "CorporateAction")
+                    description = self._get_required_field(action, "description", "CorporateAction")
+                    conid = str(self._get_required_field(action, "conid", "CorporateAction"))
+                    isin = action.isin
+
+                    quantity = self._to_decimal(
+                        self._get_required_field(action, "quantity", "CorporateAction"),
+                        "quantity",
+                        f"CorporateAction {symbol}",
+                    )
+                    currency = self._get_required_field(action, "currency", "CorporateAction")
+
+                    action_description = getattr(action, "actionDescription", None) or description
+
+                    sec_pos = SecurityPosition(
+                        depot=account_id,
+                        valor=None,
+                        isin=ISINType(isin) if isin else None,
+                        symbol=conid,
+                        description=f"{description} ({symbol})",
+                    )
+
+                    stock_mutation = SecurityStock(
+                        referenceDate=action_date,
+                        mutation=True,
+                        quantity=quantity,
+                        name=action_description,
+                        balanceCurrency=currency,
+                        quotationType="PIECE",
+                    )
+
+                    processed_security_positions[sec_pos]["stocks"].append(
+                        stock_mutation
+                    )
+
             # --- Process Cash Transactions ---
             if stmt.CashTransactions:
                 for cash_tx in stmt.CashTransactions:

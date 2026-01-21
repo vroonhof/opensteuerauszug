@@ -137,6 +137,24 @@ SAMPLE_IBKR_FLEX_XML_TRANSFER_WRONG_SIGN = """
 </FlexQueryResponse>
 """
 
+SAMPLE_IBKR_FLEX_XML_STOCK_SPLIT = """
+<FlexQueryResponse queryName="SplitQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="IBKR" description="INTERACTIVE BROKERS GRO-CL A" conid="43645865" isin="US45841N1072" currency="USD" position="8" markPrice="64.31" positionValue="514.48" reportDate="2025-12-31" />
+      </OpenPositions>
+      <CorporateActions>
+        <CorporateAction accountId="U1234567" assetCategory="STK" symbol="IBKR" description="INTERACTIVE BROKERS GRO-CL A" conid="43645865" isin="US45841N1072" currency="USD" reportDate="2025-06-18" dateTime="2025-06-18T00:00:00" actionDescription="IBKR(US45841N1072) SPLIT 4 FOR 1 (IBKR, INTERACTIVE BROKERS GRO-CL A, US45841N1072)" quantity="6" type="FS" />
+      </CorporateActions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
 
 @pytest.fixture
 def sample_ibkr_settings() -> List[IbkrAccountSettings]:
@@ -705,6 +723,7 @@ def test_import_files_with_firstname_and_name(monkeypatch, sample_ibkr_settings)
             self.Trades = []
             self.OpenPositions = []
             self.Transfers = []
+            self.CorporateActions = []
             self.CashTransactions = []
             self.CashReport = []
 
@@ -802,6 +821,47 @@ def test_base_summary_currency_filtered_out(sample_ibkr_settings):
         assert usd_account.bankAccountNumber == "U1234567-USD"
         assert eur_account.bankAccountNumber == "U1234567-EUR"
 
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_corporate_action_stock_split_creates_mutation(sample_ibkr_settings):
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_STOCK_SPLIT)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement.listOfSecurities is not None
+        depot = tax_statement.listOfSecurities.depot[0]
+        ibkr_sec = next(
+            (s for s in depot.security if s.securityName == "INTERACTIVE BROKERS GRO-CL A (IBKR)"),
+            None,
+        )
+        assert ibkr_sec is not None
+
+        split_mutation = next(
+            (s for s in ibkr_sec.stock if s.mutation and s.referenceDate == date(2025, 6, 18)),
+            None,
+        )
+        assert split_mutation is not None
+        assert split_mutation.quantity == Decimal("6")
+        assert "SPLIT 4 FOR 1" in split_mutation.name
+
+        opening_balance = next(
+            (s for s in ibkr_sec.stock if not s.mutation and s.referenceDate == period_from),
+            None,
+        )
+        assert opening_balance is not None
+        assert opening_balance.quantity == Decimal("2")
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
