@@ -27,6 +27,8 @@ from opensteuerauszug.model.ech0196 import (
     Security,  # Added Security import
     SecurityPayment,
     SecurityStock,
+    ListOfExpenses,
+    Expense,
 )
 
 # --- Test Data ---
@@ -591,8 +593,6 @@ def test_expenses_deductible_not_serialized():
     According to eCH-0196 spec (p25), these attributes should not be specified by the issuing party
     (financial institution). The decision about deductibility is made by the assessment authority.
     """
-    from opensteuerauszug.model.ech0196 import ListOfExpenses, Expense
-
     # Create ListOfExpenses with the deductible attributes set
     expenses = ListOfExpenses(
         expense=[
