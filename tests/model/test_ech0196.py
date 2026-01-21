@@ -24,12 +24,13 @@ from opensteuerauszug.model.ech0196 import (
     BaseXmlModel,
     NS_MAP,
     ns_tag,
-    Security, # Added Security import
+    Security,  # Added Security import
     SecurityPayment,
-    SecurityStock
+    SecurityStock,
 )
 
 # --- Test Data ---
+
 
 @pytest.fixture
 def sample_tax_statement_data():
@@ -37,7 +38,7 @@ def sample_tax_statement_data():
     return TaxStatement(
         minorVersion=2,
         id="test-id-123",
-        creationDate=datetime(2023, 10, 26, 10, 30, 00), # Use fixed datetime
+        creationDate=datetime(2023, 10, 26, 10, 30, 00),  # Use fixed datetime
         taxPeriod=2023,
         periodFrom=date(2023, 1, 1),
         periodTo=date(2023, 12, 31),
@@ -45,17 +46,18 @@ def sample_tax_statement_data():
         institution=Institution(name="Test Bank AG"),
         client=[
             Client(
-                clientNumber=ClientNumber("C1"), # Keep explicit cast for static type checker
+                clientNumber=ClientNumber("C1"),  # Keep explicit cast for static type checker
                 firstName="Max",
                 lastName="Muster",
-                salutation="2"
+                salutation="2",
             )
         ],
         totalTaxValue=Decimal("1000.50"),
         totalGrossRevenueA=Decimal("100.00"),
         totalGrossRevenueB=Decimal("50.00"),
-        totalWithHoldingTaxClaim=Decimal("35.00")
+        totalWithHoldingTaxClaim=Decimal("35.00"),
     )
+
 
 # Use the centralized helper function
 def get_sample_tax_xml_files():
@@ -63,6 +65,7 @@ def get_sample_tax_xml_files():
 
 
 # --- Tests ---
+
 
 def test_tax_statement_creation(sample_tax_statement_data):
     """Tests basic instantiation of the TaxStatement model."""
@@ -76,33 +79,35 @@ def test_tax_statement_creation(sample_tax_statement_data):
     assert statement.client[0].lastName == "Muster"
     assert statement.totalTaxValue == Decimal("1000.50")
 
+
 def test_tax_statement_to_xml(sample_tax_statement_data):
     """Tests serialization to XML bytes and checks basic structure."""
     statement = sample_tax_statement_data
     xml_bytes = statement.to_xml_bytes(pretty_print=False)
 
-    assert xml_bytes.startswith(b'<?xml')
+    assert xml_bytes.startswith(b"<?xml")
     # Parse and check key elements/attributes
     try:
         root = ET.fromstring(xml_bytes, parser=None)
         # Check root tag
-        assert root.tag == ns_tag('eCH-0196', 'taxStatement')
+        assert root.tag == ns_tag("eCH-0196", "taxStatement")
         # Check some attributes
-        assert root.get('minorVersion') == "2"
-        assert root.get('id') == "test-id-123"
-        assert root.get('canton') == "ZH"
-        assert root.get('totalTaxValue') == "1000.50"
+        assert root.get("minorVersion") == "2"
+        assert root.get("id") == "test-id-123"
+        assert root.get("canton") == "ZH"
+        assert root.get("totalTaxValue") == "1000.50"
         # Check institution element existence and name attribute
-        institution_el = root.find(ns_tag('eCH-0196', 'institution'), namespaces=NS_MAP)
+        institution_el = root.find(ns_tag("eCH-0196", "institution"), namespaces=NS_MAP)
         assert institution_el is not None
-        assert institution_el.get('name') == "Test Bank AG"
+        assert institution_el.get("name") == "Test Bank AG"
         # Check client element existence and lastName attribute
-        client_el = root.find(ns_tag('eCH-0196', 'client'), namespaces=NS_MAP)
+        client_el = root.find(ns_tag("eCH-0196", "client"), namespaces=NS_MAP)
         assert client_el is not None
-        assert client_el.get('lastName') == "Muster"
+        assert client_el.get("lastName") == "Muster"
 
     except ET.XMLSyntaxError as e:
         pytest.fail(f"Generated XML is not well-formed:\n{xml_bytes.decode()}\\nError: {e}")
+
 
 def test_tax_statement_from_xml(sample_tax_statement_data):
     """Tests deserialization from an XML string by parsing it first."""
@@ -117,21 +122,22 @@ def test_tax_statement_from_xml(sample_tax_statement_data):
 
     try:
         root = ET.fromstring(xml_bytes, parser=None)
-         # Basic check for root element name and namespace before deeper parsing
-        expected_tag = ns_tag('eCH-0196', 'taxStatement')
+        # Basic check for root element name and namespace before deeper parsing
+        expected_tag = ns_tag("eCH-0196", "taxStatement")
         if root.tag != expected_tag:
-             pytest.fail(f"Expected root element '{expected_tag}' but found '{root.tag}'")
+            pytest.fail(f"Expected root element '{expected_tag}' but found '{root.tag}'")
 
         # Use the internal _from_xml_element method for testing deserialization core logic
         loaded_statement = TaxStatement._from_xml_element(root)
 
     except ET.XMLSyntaxError as e:
-         pytest.fail(f"Input XML for deserialization is not well-formed:\n{xml_bytes.decode()}\\nError: {e}")
+        pytest.fail(
+            f"Input XML for deserialization is not well-formed:\n{xml_bytes.decode()}\\nError: {e}"
+        )
     except ValueError as e:
-         pytest.fail(f"ValueError during deserialization: {e}")
+        pytest.fail(f"ValueError during deserialization: {e}")
     except Exception as e:
-         pytest.fail(f"Unexpected error during deserialization: {e}")
-
+        pytest.fail(f"Unexpected error during deserialization: {e}")
 
     # Compare key fields
     assert loaded_statement.minorVersion == statement_orig.minorVersion
@@ -149,6 +155,7 @@ def test_tax_statement_from_xml(sample_tax_statement_data):
     assert loaded_statement.client[0].lastName == statement_orig.client[0].lastName
     assert loaded_statement.client[0].clientNumber == statement_orig.client[0].clientNumber
 
+
 def test_tax_statement_round_trip_file(sample_tax_statement_data, tmp_path: Path):
     """Tests writing to and reading from an XML file."""
     statement_orig = sample_tax_statement_data
@@ -158,16 +165,15 @@ def test_tax_statement_round_trip_file(sample_tax_statement_data, tmp_path: Path
     try:
         statement_orig.to_xml_file(str(output_file), pretty_print=False)
     except Exception as e:
-         pytest.fail(f"Failed to write statement to file {output_file}: {e}")
+        pytest.fail(f"Failed to write statement to file {output_file}: {e}")
     assert output_file.exists()
-    assert output_file.stat().st_size > 0 # Check file is not empty
+    assert output_file.stat().st_size > 0  # Check file is not empty
 
     # Read from file
     try:
         loaded_statement = TaxStatement.from_xml_file(str(output_file))
     except Exception as e:
         pytest.fail(f"Failed to load statement from file {output_file}: {e}")
-
 
     # Compare key fields (similar to test_tax_statement_from_xml)
     assert loaded_statement.minorVersion == statement_orig.minorVersion
@@ -181,10 +187,11 @@ def test_tax_statement_round_trip_file(sample_tax_statement_data, tmp_path: Path
     assert loaded_statement.client[0].lastName == statement_orig.client[0].lastName
     assert loaded_statement.client[0].clientNumber == statement_orig.client[0].clientNumber
 
+
 def test_bank_account_round_trip():
     """Tests deserializing and serializing a BankAccountType element."""
     # Simplified XML snippet for a bankAccount element in human-readable format
-    xml_input = '''
+    xml_input = """
     <bankAccount xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
                  iban="CH1234567890123456789"
                  bankAccountNumber="ACC987"
@@ -192,7 +199,7 @@ def test_bank_account_round_trip():
       <taxValue referenceDate="2024-12-31" balanceCurrency="CHF" balance="10000" exchangeRate="1" value="10000"/>
       <payment paymentDate="2024-03-31" name="Habenzins mit Verrechnungssteuer" amountCurrency="CHF" amount="1.20" exchangeRate="1" grossRevenueA="1.20" grossRevenueB="0" withHoldingTaxClaim=".3"/>
     </bankAccount>
-    '''
+    """
     parser = ET.XMLParser(remove_blank_text=True)
     element = ET.fromstring(xml_input, parser=parser)
 
@@ -218,43 +225,44 @@ def test_bank_account_round_trip():
     assert bank_account.taxValue.exchangeRate == 1
     assert bank_account.taxValue.value == 10000
     assert bank_account.taxValue.referenceDate == date(2024, 12, 31)
- 
+
     # Serialize back to XML
     # Create a temporary parent element to build the XML correctly
-    temp_parent = ET.Element("temp", attrib={}, nsmap={None: 'http://www.ech.ch/xmlns/eCH-0196/2'})
+    temp_parent = ET.Element("temp", attrib={}, nsmap={None: "http://www.ech.ch/xmlns/eCH-0196/2"})
     bank_account._build_xml_element(temp_parent)
     # Get the first child, which should be the serialized bankAccount
     serialized_element = temp_parent[0]
 
     # Compare key attributes (more robust comparisons might be needed)
-    assert serialized_element.tag == ns_tag('eCH-0196', 'bankAccount')
-    assert serialized_element.get('iban') == bank_account.iban
-    assert serialized_element.get('bankAccountNumber') == bank_account.bankAccountNumber
-    assert serialized_element.get('bankAccountName') == bank_account.bankAccountName
-    serialized_tax_value =  serialized_element.find(ns_tag('eCH-0196', 'taxValue'))
+    assert serialized_element.tag == ns_tag("eCH-0196", "bankAccount")
+    assert serialized_element.get("iban") == bank_account.iban
+    assert serialized_element.get("bankAccountNumber") == bank_account.bankAccountNumber
+    assert serialized_element.get("bankAccountName") == bank_account.bankAccountName
+    serialized_tax_value = serialized_element.find(ns_tag("eCH-0196", "taxValue"))
     assert serialized_tax_value is not None
     print("serialized_tax_value: ", serialized_tax_value.items())
-    assert serialized_tax_value.get('balanceCurrency') == "CHF"
-    assert serialized_tax_value.get('balance') == '10000'
-    assert serialized_tax_value.get('exchangeRate') == '1'
-    assert serialized_tax_value.get('value') == '10000'
-    assert serialized_tax_value.get('referenceDate') == '2024-12-31'
+    assert serialized_tax_value.get("balanceCurrency") == "CHF"
+    assert serialized_tax_value.get("balance") == "10000"
+    assert serialized_tax_value.get("exchangeRate") == "1"
+    assert serialized_tax_value.get("value") == "10000"
+    assert serialized_tax_value.get("referenceDate") == "2024-12-31"
     # Get serialized XML as string
     serialized_xml = ET.tostring(serialized_element)
-    
+
     # Create expected XML by removing whitespace and comments from input
     expected_xml = normalize_xml(xml_input.encode())
     actual_xml = normalize_xml(serialized_xml)
-    
+
     assert actual_xml == expected_xml
+
 
 def test_institution_round_trip():
     """Tests deserializing and serializing an InstitutionType element.
-    
-        This has sub elements that are in a different namespace.
+
+    This has sub elements that are in a different namespace.
     """
     # Simplified XML snippet for a bankAccount element in human-readable format
-    xml_input = '''
+    xml_input = """
       <institution 
         xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
         xmlns:eCH-0097="http://www.ech.ch/xmlns/eCH-0097/4"
@@ -264,7 +272,7 @@ def test_institution_round_trip():
           <eCH-0097:uidOrganisationId>123456789</eCH-0097:uidOrganisationId>
         </uid>
       </institution>
-    '''
+    """
     parser = ET.XMLParser(remove_blank_text=True)
     element = ET.fromstring(xml_input, parser=parser)
 
@@ -287,25 +295,27 @@ def test_institution_round_trip():
     assert institution.uid.uidSuffix is None
     # Serialize back to XML
     # Create a temporary parent element to build the XML correctly
-    local_ns_map = {None: 'http://www.ech.ch/xmlns/eCH-0196/2',
-                    'eCH-0097': 'http://www.ech.ch/xmlns/eCH-0097/4'}
+    local_ns_map = {
+        None: "http://www.ech.ch/xmlns/eCH-0196/2",
+        "eCH-0097": "http://www.ech.ch/xmlns/eCH-0097/4",
+    }
     temp_parent = ET.Element("temp", attrib={}, nsmap=local_ns_map)
     institution._build_xml_element(temp_parent)
     # Get the first child, which should be the serialized bankAccount
     serialized_element = temp_parent[0]
 
     # Compare key attributes (more robust comparisons might be needed)
-    assert serialized_element.tag == ns_tag('eCH-0196', 'institution')
-    assert serialized_element.get('lei') == institution.lei
-    assert serialized_element.get('name') == institution.name
-    assert serialized_element.find(ns_tag('eCH-0196','uid')) is not None
+    assert serialized_element.tag == ns_tag("eCH-0196", "institution")
+    assert serialized_element.get("lei") == institution.lei
+    assert serialized_element.get("name") == institution.name
+    assert serialized_element.find(ns_tag("eCH-0196", "uid")) is not None
     # Get serialized XML as string
     serialized_xml = ET.tostring(serialized_element)
-    
+
     # Create expected XML by removing whitespace and comments from input
     expected_xml = normalize_xml(xml_input.encode())
     actual_xml = normalize_xml(serialized_xml)
-    
+
     assert actual_xml == expected_xml
 
 
@@ -322,119 +332,114 @@ def test_xml_round_trip_files(xml_file: str, tmp_path: Path):
 
     output_xml = statement.to_xml_bytes()
 
-    with open(xml_file, 'rb') as f:
+    with open(xml_file, "rb") as f:
         original_xml = normalize_xml(f.read(), remove_xmlns=True)
     output_xml = normalize_xml(output_xml, remove_xmlns=True)
 
     assert output_xml == original_xml
 
+
 def test_strict_mode_unknown_attribute():
     """Test that strict mode raises an exception for unknown attributes."""
     # XML with an unknown attribute
-    xml_input = '''
+    xml_input = """
     <bankAccount xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
                  iban="CH1234567890123456789"
                  unknownAttr="value">
     </bankAccount>
-    '''
+    """
     parser = ET.XMLParser(remove_blank_text=True)
     element = ET.fromstring(xml_input, parser=parser)
 
     # Create a strict version of BankAccount for testing
     class StrictBankAccount(BankAccount):
-        model_config = {
-            "arbitrary_types_allowed": True,
-            "strict_parsing": True
-        }
+        model_config = {"arbitrary_types_allowed": True, "strict_parsing": True}
 
     # Should raise an exception in strict mode
     with pytest.raises(ValueError, match="Unknown attribute: .*unknownAttr.*"):
         StrictBankAccount._from_xml_element(element)
-    
+
     # Should not raise an exception in normal mode
     bank_account = BankAccount._from_xml_element(element)
-    assert 'unknownAttr' in bank_account.unknown_attrs
-    assert bank_account.unknown_attrs['unknownAttr'] == 'value'
+    assert "unknownAttr" in bank_account.unknown_attrs
+    assert bank_account.unknown_attrs["unknownAttr"] == "value"
+
 
 def test_strict_mode_unknown_element():
     """Test that strict mode raises an exception for unknown elements."""
     # XML with an unknown element
-    xml_input = '''
+    xml_input = """
     <bankAccount xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
                  iban="CH1234567890123456789">
         <unknownElement>Some content</unknownElement>
     </bankAccount>
-    '''
+    """
     parser = ET.XMLParser(remove_blank_text=True)
     element = ET.fromstring(xml_input, parser=parser)
 
     # Create a strict version of BankAccount for testing
     class StrictBankAccount(BankAccount):
-        model_config = {
-            "arbitrary_types_allowed": True,
-            "strict_parsing": True
-        }
+        model_config = {"arbitrary_types_allowed": True, "strict_parsing": True}
 
     # Should raise an exception in strict mode
     with pytest.raises(ValueError, match="Unknown element.*unknownElement.*"):
         StrictBankAccount._from_xml_element(element)
-    
+
     # Should not raise an exception in normal mode
     bank_account = BankAccount._from_xml_element(element)
     assert len(bank_account.unknown_elements) == 1
-    assert bank_account.unknown_elements[0].tag.endswith('unknownElement')
+    assert bank_account.unknown_elements[0].tag.endswith("unknownElement")
+
 
 def test_strict_mode_parsing_error():
     """Test that strict mode raises an exception when attribute parsing fails."""
     # XML with an attribute that will fail to parse
-    xml_input = '''
+    xml_input = """
     <bankAccount xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
                  iban="CH1234567890123456789"
                  balanceCurrency="123">
     </bankAccount>
-    '''
+    """
     parser = ET.XMLParser(remove_blank_text=True)
     element = ET.fromstring(xml_input, parser=parser)
 
     # Create a modified version of BankAccount for testing
     class StrictBankAccount(BankAccount):
-        model_config = {
-            "arbitrary_types_allowed": True,
-            "strict_parsing": True
-        }
-        
-        balanceCurrency: date = Field(..., json_schema_extra={'is_attribute': True})  # Invalid type on purpose
+        model_config = {"arbitrary_types_allowed": True, "strict_parsing": True}
+
+        balanceCurrency: date = Field(
+            ..., json_schema_extra={"is_attribute": True}
+        )  # Invalid type on purpose
 
     # Should raise an exception in strict mode
     with pytest.raises(ValueError, match="Could not parse attribute.*balanceCurrency.*"):
         StrictBankAccount._from_xml_element(element)
 
+
 def test_use_strict_parameter():
     """Test that the strict parameter overrides the Config setting."""
-    xml_input = '''
+    xml_input = """
     <bankAccount xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
                  iban="CH1234567890123456789"
                  unknownAttr="value">
     </bankAccount>
-    '''
+    """
     parser = ET.XMLParser(remove_blank_text=True)
     element = ET.fromstring(xml_input, parser=parser)
 
     # Non-strict class, but use strict parameter
     with pytest.raises(ValueError, match="Unknown attribute: .*unknownAttr.*"):
         BankAccount._from_xml_element(element, strict=True)
-    
+
     # Create a strict class, but override with strict=False
     class StrictBankAccount(BankAccount):
-        model_config = {
-            "arbitrary_types_allowed": True,
-            "strict_parsing": True
-        }
-    
+        model_config = {"arbitrary_types_allowed": True, "strict_parsing": True}
+
     # This should not raise, despite the class being strict
     bank_account = StrictBankAccount._from_xml_element(element, strict=False)
-    assert 'unknownAttr' in bank_account.unknown_attrs
-    assert bank_account.unknown_attrs['unknownAttr'] == 'value'
+    assert "unknownAttr" in bank_account.unknown_attrs
+    assert bank_account.unknown_attrs["unknownAttr"] == "value"
+
 
 def test_security_symbol_not_serialized_to_xml():
     """Tests that the 'symbol' field in Security model is not serialized to XML."""
@@ -446,7 +451,7 @@ def test_security_symbol_not_serialized_to_xml():
         quotationType="PIECE",
         securityCategory="SHARE",
         securityName="Test Security Name",
-        symbol="TESTSYM"  # This field should be excluded from XML
+        symbol="TESTSYM",  # This field should be excluded from XML
     )
 
     # Serialize to an lxml element
@@ -459,7 +464,7 @@ def test_security_symbol_not_serialized_to_xml():
     # Based on BaseXmlModel, _build_xml_element(None) should work if tag_name is in model_config or class name is used.
     # Security model has 'tag_name': 'security' in its model_config.
 
-    xml_element = sec._build_xml_element(parent_element=None) # Builds the <security> element
+    xml_element = sec._build_xml_element(parent_element=None)  # Builds the <security> element
 
     # Convert the element to an XML string
     xml_string = ET.tostring(xml_element, pretty_print=True)
@@ -479,38 +484,48 @@ def test_security_symbol_not_serialized_to_xml():
     # Check for child elements named 'symbol'
     # ns_tag('eCH-0196', 'symbol') would be for namespaced elements.
     # Since 'symbol' is exclude=True, it shouldn't be a namespaced or non-namespaced element.
-    found_symbol_element = parsed_element.find("symbol") # Non-namespaced check
+    found_symbol_element = parsed_element.find("symbol")  # Non-namespaced check
     assert found_symbol_element is None, "Parsed XML should not have a child element named 'symbol'"
 
-    found_namespaced_symbol_element = parsed_element.find(ns_tag('eCH-0196', 'symbol')) # Namespaced check
-    assert found_namespaced_symbol_element is None, "Parsed XML should not have a namespaced child element named 'symbol'"
+    found_namespaced_symbol_element = parsed_element.find(
+        ns_tag("eCH-0196", "symbol")
+    )  # Namespaced check
+    assert (
+        found_namespaced_symbol_element is None
+    ), "Parsed XML should not have a namespaced child element named 'symbol'"
+
 
 def test_decimal_serialization_avoids_scientific_notation():
     """Test that Decimal values are serialized as plain strings, not scientific notation."""
     # A very small decimal value that might be serialized to scientific notation
-    small_decimal = Decimal('0.0000000001') # 1e-10
-    
+    small_decimal = Decimal("0.0000000001")  # 1e-10
+
     # Create a simple model instance with this decimal value
     # We can use BankAccount and set one of its Decimal attributes
     bank_account = BankAccount(
         iban="CH1234567890123456789",
         bankAccountNumber=BankAccountNumber("ACC123"),
         bankAccountName=BankAccountName("Test Account"),
-        totalTaxValue=small_decimal
+        totalTaxValue=small_decimal,
     )
-    
+
     # Serialize to an lxml element
     # The _build_xml_element method needs a parent if it's not the root
-    temp_parent = ET.Element("temp", nsmap={None: 'http://www.ech.ch/xmlns/eCH-0196/2'})
+    temp_parent = ET.Element("temp", nsmap={None: "http://www.ech.ch/xmlns/eCH-0196/2"})
     xml_element = bank_account._build_xml_element(temp_parent)
-    
+
     # Get the serialized value of the 'totalTaxValue' attribute
     serialized_value = xml_element.get("totalTaxValue")
-    
+
     # Assert that the serialized value is a plain string, not in scientific notation
     assert serialized_value is not None, "totalTaxValue attribute should be serialized"
-    assert "E" not in serialized_value.upper(), f"Scientific notation found in serialized decimal: {serialized_value}"
-    assert serialized_value == "0.0000000001", f"Serialized decimal has incorrect format: {serialized_value}"
+    assert (
+        "E" not in serialized_value.upper()
+    ), f"Scientific notation found in serialized decimal: {serialized_value}"
+    assert (
+        serialized_value == "0.0000000001"
+    ), f"Serialized decimal has incorrect format: {serialized_value}"
+
 
 def test_optional_boolean_serialization():
     """
@@ -524,7 +539,7 @@ def test_optional_boolean_serialization():
         quotationType="PIECE",
         quantity=1,
         amountCurrency="CHF",
-        gratis=True
+        gratis=True,
     )
     xml_element_true = payment_true._build_xml_element(parent_element=None)
     assert xml_element_true.get("gratis") == "1"
@@ -535,10 +550,11 @@ def test_optional_boolean_serialization():
         quotationType="PIECE",
         quantity=1,
         amountCurrency="CHF",
-        gratis=False
+        gratis=False,
     )
     xml_element_false = payment_false._build_xml_element(parent_element=None)
     assert "gratis" not in xml_element_false.attrib
+
 
 def test_required_boolean_serialization():
     """
@@ -552,7 +568,7 @@ def test_required_boolean_serialization():
         mutation=True,
         quotationType="PIECE",
         quantity=1,
-        balanceCurrency="CHF"
+        balanceCurrency="CHF",
     )
     xml_element_true = stock_true._build_xml_element(parent_element=None)
     assert xml_element_true.get("mutation") == "1"
@@ -563,19 +579,20 @@ def test_required_boolean_serialization():
         mutation=False,
         quotationType="PIECE",
         quantity=1,
-        balanceCurrency="CHF"
+        balanceCurrency="CHF",
     )
     xml_element_false = stock_false._build_xml_element(parent_element=None)
     assert xml_element_false.get("mutation") == "0"
 
+
 def test_expenses_deductible_not_serialized():
     """Test that totalExpensesDeductible and totalExpensesDeductibleCanton are NOT serialized.
-    
+
     According to eCH-0196 spec (p25), these attributes should not be specified by the issuing party
     (financial institution). The decision about deductibility is made by the assessment authority.
     """
     from opensteuerauszug.model.ech0196 import ListOfExpenses, Expense
-    
+
     # Create ListOfExpenses with the deductible attributes set
     expenses = ListOfExpenses(
         expense=[
@@ -583,24 +600,26 @@ def test_expenses_deductible_not_serialized():
                 name="Test Expense",
                 amountCurrency="CHF",
                 expenses=Decimal("100.00"),
-                expenseType="22"
+                expenseType="22",
             )
         ],
         totalExpenses=Decimal("100.00"),
         totalExpensesDeductible=Decimal("100.00"),  # Should NOT be serialized
-        totalExpensesDeductibleCanton=Decimal("100.00")  # Should NOT be serialized
+        totalExpensesDeductibleCanton=Decimal("100.00"),  # Should NOT be serialized
     )
-    
+
     # Build XML element
     xml_element = expenses._build_xml_element(parent_element=None)
-    
+
     # Verify totalExpenses is present
     assert xml_element.get("totalExpenses") == "100.00"
-    
+
     # Verify totalExpensesDeductible is NOT present in serialized XML
-    assert xml_element.get("totalExpensesDeductible") is None, \
-        "totalExpensesDeductible should not be serialized per spec (p25)"
-    
+    assert (
+        xml_element.get("totalExpensesDeductible") is None
+    ), "totalExpensesDeductible should not be serialized per spec (p25)"
+
     # Verify totalExpensesDeductibleCanton is NOT present in serialized XML
-    assert xml_element.get("totalExpensesDeductibleCanton") is None, \
-        "totalExpensesDeductibleCanton should not be serialized per spec (p25)"
+    assert (
+        xml_element.get("totalExpensesDeductibleCanton") is None
+    ), "totalExpensesDeductibleCanton should not be serialized per spec (p25)"
