@@ -23,6 +23,7 @@ from decimal import Decimal
 import lxml.etree as ET
 from inspect import isclass  # Add import for isclass function
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -1376,7 +1377,16 @@ class TaxStatement(TaxStatementBase):
     def to_xml_bytes(self, pretty_print=True) -> bytes:
         """Serializes the model to XML bytes."""
         root = self._build_xml_element(None)
-        return ET.tostring(root, pretty_print=pretty_print, xml_declaration=True, encoding='UTF-8') # type: ignore
+        xml_bytes = ET.tostring(root, pretty_print=pretty_print, xml_declaration=True, encoding='UTF-8') # type: ignore
+        # Replace single quotes with double quotes in XML declaration to match verifier expectations
+        # Use regex to handle variations in whitespace and ensure robustness
+        xml_bytes = re.sub(
+            rb"<\?xml\s+version='([^']+)'\s+encoding='([^']+)'\?>",
+            rb'<?xml version="\1" encoding="\2"?>',
+            xml_bytes,
+            count=1
+        )
+        return xml_bytes
 
     def to_xml_file(self, file_path: str, pretty_print=True):
         """Dumps the model to an eCH-0196 XML file."""
