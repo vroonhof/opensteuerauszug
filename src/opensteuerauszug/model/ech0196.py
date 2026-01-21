@@ -23,6 +23,7 @@ from decimal import Decimal
 import lxml.etree as ET
 from inspect import isclass  # Add import for isclass function
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -1378,9 +1379,13 @@ class TaxStatement(TaxStatementBase):
         root = self._build_xml_element(None)
         xml_bytes = ET.tostring(root, pretty_print=pretty_print, xml_declaration=True, encoding='UTF-8') # type: ignore
         # Replace single quotes with double quotes in XML declaration to match verifier expectations
-        if xml_bytes.startswith(b"<?xml version='"):
-            xml_bytes = xml_bytes.replace(b"<?xml version='1.0' encoding='UTF-8'?>", 
-                                          b'<?xml version="1.0" encoding="UTF-8"?>', 1)
+        # Use regex to handle variations in whitespace and ensure robustness
+        xml_bytes = re.sub(
+            rb"<\?xml\s+version='([^']+)'\s+encoding='([^']+)'\?>",
+            rb'<?xml version="\1" encoding="\2"?>',
+            xml_bytes,
+            count=1
+        )
         return xml_bytes
 
     def to_xml_file(self, file_path: str, pretty_print=True):
