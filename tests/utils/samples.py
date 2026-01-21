@@ -15,6 +15,12 @@ def get_sample_files(pattern: str, base_dir: str = "tests/samples/") -> List[str
     # Get samples from the repository
     sample_files = glob.glob(os.path.join(base_dir, pattern))
     
+    # Get samples from private directory if it exists
+    private_dir = "private/samples/"
+    if os.path.isdir(private_dir):
+        private_pattern = os.path.join(private_dir, pattern)
+        sample_files.extend(glob.glob(private_pattern))
+    
     # Get samples from external directory if specified
     extra_sample_dir = os.getenv("EXTRA_SAMPLE_DIR")
     if extra_sample_dir:
@@ -45,6 +51,12 @@ def get_sample_dirs(subdir: str, extensions: List[str] = ['.pdf', '.json']) -> L
             files = [f for f in os.listdir(extra_dir) if any(f.lower().endswith(ext) for ext in extensions)]
             if files:
                 dirs.append(extra_dir)
+    # Private samples directory
+    private_dir = os.path.join("private/samples", subdir)
+    if os.path.isdir(private_dir):
+        files = [f for f in os.listdir(private_dir) if any(f.lower().endswith(ext) for ext in extensions)]
+        if files:
+            dirs.append(private_dir)
     # Default repo directory
     repo_dir = os.path.join("tests/samples", subdir)
     if os.path.isdir(repo_dir):
