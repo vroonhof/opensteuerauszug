@@ -567,3 +567,24 @@ def test_required_boolean_serialization():
     )
     xml_element_false = stock_false._build_xml_element(parent_element=None)
     assert xml_element_false.get("mutation") == "0"
+
+def test_xml_declaration_uses_double_quotes(sample_tax_statement_data):
+    """Test that the XML declaration uses double quotes for encoding attribute.
+    
+    The official verifier (v 2.2.4.1) expects the encoding to be enclosed in double quotes.
+    """
+    statement = sample_tax_statement_data
+    xml_bytes = statement.to_xml_bytes(pretty_print=False)
+    
+    # Extract the XML declaration (everything before the first >)
+    declaration = xml_bytes.split(b'>')[0] + b'>'
+    
+    # Assert that the declaration uses double quotes
+    assert b'<?xml version="1.0" encoding="UTF-8"?>' == declaration, \
+        f"XML declaration should use double quotes, got: {declaration.decode()}"
+    
+    # Also test with pretty_print=True
+    xml_bytes_pretty = statement.to_xml_bytes(pretty_print=True)
+    declaration_pretty = xml_bytes_pretty.split(b'>')[0] + b'>'
+    assert b'<?xml version="1.0" encoding="UTF-8"?>' == declaration_pretty, \
+        f"XML declaration should use double quotes (pretty print), got: {declaration_pretty.decode()}"

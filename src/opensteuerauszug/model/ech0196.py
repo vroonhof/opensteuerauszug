@@ -1376,7 +1376,12 @@ class TaxStatement(TaxStatementBase):
     def to_xml_bytes(self, pretty_print=True) -> bytes:
         """Serializes the model to XML bytes."""
         root = self._build_xml_element(None)
-        return ET.tostring(root, pretty_print=pretty_print, xml_declaration=True, encoding='UTF-8') # type: ignore
+        xml_bytes = ET.tostring(root, pretty_print=pretty_print, xml_declaration=True, encoding='UTF-8') # type: ignore
+        # Replace single quotes with double quotes in XML declaration to match verifier expectations
+        if xml_bytes.startswith(b"<?xml version='"):
+            xml_bytes = xml_bytes.replace(b"<?xml version='1.0' encoding='UTF-8'?>", 
+                                          b'<?xml version="1.0" encoding="UTF-8"?>', 1)
+        return xml_bytes
 
     def to_xml_file(self, file_path: str, pretty_print=True):
         """Dumps the model to an eCH-0196 XML file."""
