@@ -721,6 +721,7 @@ def test_import_files_with_firstname_and_name(monkeypatch, sample_ibkr_settings)
             self.Trades = []
             self.OpenPositions = []
             self.Transfers = []
+            self.CorporateActions = []
             self.CashTransactions = []
             self.CashReport = []
 
