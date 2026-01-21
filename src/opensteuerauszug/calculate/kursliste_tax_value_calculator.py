@@ -103,6 +103,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     value = price * sec_tax_value.quantity
                     self._set_field_value(sec_tax_value, "value", value, path_prefix)
                     self._set_field_value(sec_tax_value, "exchangeRate", Decimal("1"), path_prefix)
+                    self._set_field_value(sec_tax_value, "balanceCurrency", "CHF", path_prefix)
                     self._set_field_value(sec_tax_value, "kursliste", True, path_prefix)
                     return
 

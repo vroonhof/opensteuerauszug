@@ -144,6 +144,7 @@ def test_handle_security_tax_value_from_kursliste(kursliste_manager):
     assert stv.value == Decimal("127750")
     assert stv.exchangeRate == Decimal("1")
     assert stv.kursliste is True
+    assert stv.balanceCurrency == "CHF"
 
 
 def test_compute_payments_from_kursliste_missing_ex_date(kursliste_manager):
