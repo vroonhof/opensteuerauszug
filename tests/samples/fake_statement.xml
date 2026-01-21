@@ -34,7 +34,7 @@
       <payment paymentDate="2024-12-31" name="Mortgage Interest Paid" amountCurrency="CHF" amount="3000.00" grossRevenueB="3000.00"/>
     </liabilityAccount>
   </listOfLiabilities>
-  <listOfExpenses totalExpenses="150.00" totalExpensesDeductible="150.00">
+  <listOfExpenses totalExpenses="150.00">
     <expense name="Depot Fees 2024" amountCurrency="CHF" expenses="150.00" expenseType="22" depotNumber="DEPOT-001"/>
   </listOfExpenses>
   <listOfSecurities totalTaxValue="127750.00" totalGrossRevenueA="4800.00" totalGrossRevenueB="0.00" totalWithHoldingTaxClaim="1680.00" totalLumpSumTaxCredit="0.00" totalNonRecoverableTax="0.00" totalAdditionalWithHoldingTaxUSA="0.00" totalGrossRevenueIUP="0.00" totalGrossRevenueConversion="0.00">

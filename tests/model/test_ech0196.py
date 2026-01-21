@@ -567,3 +567,40 @@ def test_required_boolean_serialization():
     )
     xml_element_false = stock_false._build_xml_element(parent_element=None)
     assert xml_element_false.get("mutation") == "0"
+
+def test_expenses_deductible_not_serialized():
+    """Test that totalExpensesDeductible and totalExpensesDeductibleCanton are NOT serialized.
+    
+    According to eCH-0196 spec (p25), these attributes should not be specified by the issuing party
+    (financial institution). The decision about deductibility is made by the assessment authority.
+    """
+    from opensteuerauszug.model.ech0196 import ListOfExpenses, Expense
+    
+    # Create ListOfExpenses with the deductible attributes set
+    expenses = ListOfExpenses(
+        expense=[
+            Expense(
+                name="Test Expense",
+                amountCurrency="CHF",
+                expenses=Decimal("100.00"),
+                expenseType="22"
+            )
+        ],
+        totalExpenses=Decimal("100.00"),
+        totalExpensesDeductible=Decimal("100.00"),  # Should NOT be serialized
+        totalExpensesDeductibleCanton=Decimal("100.00")  # Should NOT be serialized
+    )
+    
+    # Build XML element
+    xml_element = expenses._build_xml_element(parent_element=None)
+    
+    # Verify totalExpenses is present
+    assert xml_element.get("totalExpenses") == "100.00"
+    
+    # Verify totalExpensesDeductible is NOT present in serialized XML
+    assert xml_element.get("totalExpensesDeductible") is None, \
+        "totalExpensesDeductible should not be serialized per spec (p25)"
+    
+    # Verify totalExpensesDeductibleCanton is NOT present in serialized XML
+    assert xml_element.get("totalExpensesDeductibleCanton") is None, \
+        "totalExpensesDeductibleCanton should not be serialized per spec (p25)"

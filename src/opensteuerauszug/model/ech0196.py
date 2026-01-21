@@ -395,6 +395,9 @@ class BaseXmlModel(BaseModel):
     def _build_attributes(self, element: ET._Element):
         for name, field_info in self.__class__.model_fields.items():
             if field_info.json_schema_extra and field_info.json_schema_extra.get("is_attribute"):
+                # Skip fields marked for exclusion
+                if field_info.exclude:
+                    continue
                 value = getattr(self, name, None)
                 # print(f"Building attribute {name} with value {value}")
                 if value is not None:
@@ -1048,8 +1051,10 @@ class ListOfExpenses(BaseXmlModel):
     expense: List[Expense] = Field(default_factory=list, alias="expense", json_schema_extra={'tag_namespace': NS_MAP['eCH-0196']})
     # attributes
     totalExpenses: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal, required
-    totalExpensesDeductible: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal
-    totalExpensesDeductibleCanton: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal
+    # Note: per spec p25, totalExpensesDeductible and totalExpensesDeductibleCanton should not be specified by the issuing party
+    # These fields are excluded from serialization but kept in model for backwards compatibility when parsing existing files
+    totalExpensesDeductible: Optional[PositiveDecimal] = Field(default=None, exclude=True, json_schema_extra={'is_attribute': True}) # positive-decimal
+    totalExpensesDeductibleCanton: Optional[PositiveDecimal] = Field(default=None, exclude=True, json_schema_extra={'is_attribute': True}) # positive-decimal
 
     model_config = {
         "arbitrary_types_allowed": True,
