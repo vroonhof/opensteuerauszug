@@ -155,6 +155,39 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 # Skip payment generation if the quantity of outstanding securities is zero
                 continue
 
+            if pay.taxEvent:
+                legends = getattr(pay, "legend", [])
+                split_legend = next(
+                    (
+                        legend
+                        for legend in legends
+                        if legend.exchangeRatioPresent is not None
+                        and legend.exchangeRatioNew is not None
+                    ),
+                    None,
+                )
+                if split_legend:
+                    ratio_present = split_legend.exchangeRatioPresent
+                    ratio_new = split_legend.exchangeRatioNew
+                    if ratio_present:
+                        expected_delta = quantity * (ratio_new / ratio_present - Decimal("1"))
+                        mutations_on_date = [
+                            stock
+                            for stock in security.stock
+                            if stock.mutation and stock.referenceDate == reconciliation_date
+                        ]
+                        if not mutations_on_date:
+                            raise ValueError(
+                                f"Missing stock split mutation for {security.isin or security.securityName} on {reconciliation_date}"
+                            )
+                        if expected_delta not in {m.quantity for m in mutations_on_date}:
+                            raise ValueError(
+                                f"Stock split ratio mismatch for {security.isin or security.securityName} on {reconciliation_date}"
+                            )
+
+                    if pay.paymentValueCHF in (None, Decimal("0")) and pay.paymentValue in (None, Decimal("0")):
+                        continue
+
             payment_name = f"KL:{security.securityName}"
             if pay.paymentType is None or pay.paymentType == PaymentTypeESTV.STANDARD:
                 if kl_sec.securityGroup == "SHARE":
@@ -281,4 +314,3 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             result.append(sec_payment)
 
         self.setKurslistePayments(security, result, path_prefix)
-
