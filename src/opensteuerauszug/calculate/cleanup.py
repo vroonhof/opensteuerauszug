@@ -10,6 +10,7 @@ from opensteuerauszug.util.sorting import find_index_of_date, sort_security_stoc
 from opensteuerauszug.config.models import GeneralSettings
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
+from opensteuerauszug.core.organisation import compute_org_nr
 # from opensteuerauszug.core.identifier_loader import SecurityIdentifierMapLoader # Removed loader import
 
 logger = logging.getLogger(__name__)
@@ -57,12 +58,12 @@ class CleanupCalculator:
     def _generate_tax_statement_id(self, statement: TaxStatement) -> str:
         """
         Generates a new ID for the tax statement based on its content.
-        Format: CCOOOOOOOOOOOCCCCCCCCCCCCCCYYYYMMDDSS (Page number PP omitted)
-        CC: Country Code (2 Chars)
-        OOOOOOOOOOOO: Organization ID ("OPNAUS" + 6 chars from importer name) (12 Chars)
-        CCCCCCCCCCCCCC: Customer ID (sanitized clientNumber or TIN) (14 Chars)
-        YYYYMMDD: Statement Period To Date (8 Chars)
-        SS: Sequential Number (fixed "01") (2 Chars)
+        Format per eCH-0196 v2.1 (31 chars): CCCCCCCCCCCCCCCCCCCCCCCYYYYMMDDSS
+        CC: Country Code (2 chars, always CH)
+        CCCCC: Clearing Number (5 digits, numeric, with leading zeros)
+        CCCCCCCCCCCCCC: Customer ID (14 chars, alphanumeric, padded with X)
+        YYYYMMDD: Statement Period To Date (8 chars)
+        SS: Sequential Number (2 digits, fixed "01")
         """
         # 1. Country Code (2 chars)
         country_code = statement.country
@@ -74,37 +75,15 @@ class CleanupCalculator:
         country_code = country_code.upper()
         country_code = country_code[:2] # Ensure 2 chars
 
-        # 2. Organization ID (12 chars): "OPNAUS" + 6 chars from importer name
-        # Use importer_name passed during calculator initialization
-        raw_importer_name = self.importer_name
-        # logger.info(f"Info: Using raw_importer_name='{raw_importer_name}' from self.importer_name for Org ID generation.")
+        # 2. Clearing Number (5 digits, numeric)
+        # Use the existing compute_org_nr function which generates fake clearing numbers
+        clearing_number = compute_org_nr(statement, override_org_nr=None)
+        # clearing_number is already a 5-digit string
 
-        if not raw_importer_name or not raw_importer_name.strip():
-            importer_name_part = "XXXXXX"
-            logger.warning("Importer name is None or empty, using 'XXXXXX' for Org ID part.")
-        else:
-            upper_importer_name = raw_importer_name.upper()
-            sanitized_importer_name = re.sub(r'[^a-zA-Z0-9]', '', upper_importer_name)
-            if not sanitized_importer_name:
-                importer_name_part = "XXXXXX"
-                logger.warning(f"Sanitized importer name '{upper_importer_name}' is empty, using 'XXXXXX' for Org ID part.")
-            elif len(sanitized_importer_name) >= 6:
-                importer_name_part = sanitized_importer_name[:6]
-            else: # len < 6
-                importer_name_part = sanitized_importer_name.rjust(6, 'X') # Left-pad with X
-
-        org_id = f"OPNAUS{importer_name_part}"
-        # End of new OrgID generation strategy
-
-        # Page number (e.g., "01") was part of the original eCH-0196 spec for the ID,
-        # but is omitted here as it's reportedly not used in practice,
-        # and simplifies the ID structure.
-        # page_no = "01" # Removed
-
-        # 4. Customer ID (14 chars, alphanumeric)
+        # 3. Customer ID (14 chars, alphanumeric): prefix normalized importer name then account id
         customer_id_raw = ""
         customer_id_source = "None"
-        if statement.client: # Check if the list is not empty
+        if statement.client:  # Check if the list is not empty
             first_client = statement.client[0]
             # Check if clientNumber exists and is not just whitespace
             if first_client.clientNumber and first_client.clientNumber.strip():
@@ -115,35 +94,41 @@ class CleanupCalculator:
                 customer_id_raw = first_client.tin.strip()
                 customer_id_source = "tin"
             else:
-                customer_id_raw = "NOIDENTIFIER" # Placeholder before padding
+                customer_id_raw = "NOIDENTIFIER"  # Placeholder before padding
                 customer_id_source = "placeholder_no_client_id"
                 logger.warning("No clientNumber or TIN found for the first client. Using placeholder for customer ID part.")
         else:
-            customer_id_raw = "NOCLIENTDATA" # Placeholder before padding
+            customer_id_raw = "NOCLIENTDATA"  # Placeholder before padding
             customer_id_source = "placeholder_no_clients"
             logger.warning("statement.client list is empty. Using placeholder for customer ID part.")
 
-        # Remove spaces and special characters (sanitize)
-        sanitized_customer_id = re.sub(r'[^a-zA-Z0-9]', '', customer_id_raw)
+        # Normalize importer name (uppercase alphanumeric) and customer/account id (alphanumeric)
+        importer_prefix = re.sub(r'[^a-zA-Z0-9]', '', (self.importer_name or '').upper())
+        account_id_norm = re.sub(r'[^a-zA-Z0-9]', '', customer_id_raw)
 
-        # Format to exactly 14 characters
-        if len(sanitized_customer_id) > 14:
-            customer_id = sanitized_customer_id[:14]  # Truncate to 14 chars if longer
+        combined_customer = f"{importer_prefix}{account_id_norm}"
+        # Format to exactly 14 characters: truncate or pad with 'X'
+        if len(combined_customer) > 14:
+            customer_id = combined_customer[:14]
         else:
-            customer_id = sanitized_customer_id.ljust(14, 'X')  # Pad with 'X' to 14 chars if shorter
+            customer_id = combined_customer.ljust(14, 'X')
 
-        # 5. Date (8 chars)
+        # 4. Date (8 chars)
         # statement.periodTo is mandatory, so direct access should be safe.
         assert statement.periodTo is not None
         date_str = statement.periodTo.strftime("%Y%m%d")
 
-        # 6. Sequential Number (2 chars)
+        # 5. Sequential Number (2 chars)
         seq_no = "01"
 
         # Concatenate all parts
-        final_id = f"{country_code}{org_id}{customer_id}{date_str}{seq_no}"
+        final_id = f"{country_code}{clearing_number}{customer_id}{date_str}{seq_no}"
 
-        logger.debug(f"Generated ID components: Country='{country_code}', Org='{org_id}' (ImporterRaw: '{raw_importer_name}'), CustRaw='{customer_id_raw}' (Source: {customer_id_source}), CustSanitized='{customer_id}', Date='{date_str}', Seq='{seq_no}'")
+        logger.debug(
+            f"Generated ID components: Country='{country_code}', Clearing='{clearing_number}', "
+            f"ImporterPrefix='{importer_prefix}', CustRaw='{customer_id_raw}' (Source: {customer_id_source}), "
+            f"CustCombined='{customer_id}', Date='{date_str}', Seq='{seq_no}'"
+        )
         
         return final_id
 

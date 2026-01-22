@@ -2,7 +2,7 @@
 <taxStatement xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
               xmlns:eCH-0096="http://www.ech.ch/xmlns/eCH-0196/2"
               xmlns:eCH-0097="http://www.ech.ch/xmlns/eCH-0097/4"
-              id="TAXSTMT-2024-12345"
+              id="CH19399SAMPLE1234567X2024123101"
               creationDate="2025-04-04T22:40:18"
               taxPeriod="2024"
               periodFrom="2024-01-01"
@@ -34,7 +34,7 @@
       <payment paymentDate="2024-12-31" name="Mortgage Interest Paid" amountCurrency="CHF" amount="3000.00" grossRevenueB="3000.00"/>
     </liabilityAccount>
   </listOfLiabilities>
-  <listOfExpenses totalExpenses="150.00" totalExpensesDeductible="150.00">
+  <listOfExpenses totalExpenses="150.00">
     <expense name="Depot Fees 2024" amountCurrency="CHF" expenses="150.00" expenseType="22" depotNumber="DEPOT-001"/>
   </listOfExpenses>
   <listOfSecurities totalTaxValue="127750.00" totalGrossRevenueA="4800.00" totalGrossRevenueB="0.00" totalWithHoldingTaxClaim="1680.00" totalLumpSumTaxCredit="0.00" totalNonRecoverableTax="0.00" totalAdditionalWithHoldingTaxUSA="0.00" totalGrossRevenueIUP="0.00" totalGrossRevenueConversion="0.00">

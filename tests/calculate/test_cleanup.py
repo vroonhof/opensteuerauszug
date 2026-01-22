@@ -975,8 +975,9 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 class TestCleanupCalculatorIDGeneration:
     """Tests for TaxStatement ID generation logic in CleanupCalculator."""
 
-    def _construct_expected_id(self, country: str, org: str, customer: str, date_str: str, seq: str = "01") -> str: # Removed page parameter
-        return f"{country}{org}{customer}{date_str}{seq}" # Removed page from f-string
+    def _construct_expected_id(self, country: str, clearing: str, customer: str, date_str: str, seq: str = "01") -> str:
+        """Helper to construct expected ID in 31-char format: CC + CCCCC + CCCCCCCCCCCCCC + YYYYMMDD + SS"""
+        return f"{country}{clearing}{customer}{date_str}{seq}"
 
     def _default_statement_args(self, period_to_date: date, country:str = "CH", institution: Optional[Institution]=None, client: Optional[List[Client]]=None) -> dict: # Removed importer_name from signature
         # Provide default valid institution and client if not given, to ensure ID generation has some data
@@ -1008,7 +1009,7 @@ class TestCleanupCalculatorIDGeneration:
 
         assert statement.id is not None
         assert isinstance(statement.id, str)
-        assert len(statement.id) == 38 # Adjusted length from 40 to 38
+        assert len(statement.id) == 31 # Updated from 38 to 31
         assert "TaxStatement.id (generated)" in calculator.modified_fields
 
 
@@ -1025,272 +1026,233 @@ class TestCleanupCalculatorIDGeneration:
 
     def test_id_generation_all_fields_present(self):
         period_to_date = date(2023, 12, 31)
+        # Create an institution with a specific name to get a predictable clearing number
+        institution = Institution(name="SCHWAB")
         statement_args = self._default_statement_args(
             period_to_date,
+            institution=institution,
             client=[Client(clientNumber=ClientNumber("CUST123"))]
-            # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
 
+        # compute_org_nr will hash "SCHWAB" and produce a clearing number
+        # For "SCHWAB", hash_organization_name produces "258", so clearing is "19258"
         expected_id = self._construct_expected_id(
             country="CH",
-            org="OPNAUSSCHWAB", 
-            customer="CUST123XXXXXXX",
+            clearing="19258", 
+            customer="SCHWABCUST123X",
             date_str="20231231"
         )
 
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="SCHWAB", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="SCHWAB", enable_filtering=False)
         calculator.calculate(statement)
         assert statement.id == expected_id
 
     def test_id_generation_uses_tin_if_client_number_missing(self):
         period_to_date = date(2023, 12, 31)
+        institution = Institution(name="POSTFINANCE")
         statement_args = self._default_statement_args(
             period_to_date,
             country="CH",
+            institution=institution,
             client=[Client(tin=TINType("TIN456"))]
-            # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
 
+        # For "POSTFINANCE", hash produces "030", so clearing is "19030"
         expected_id = self._construct_expected_id(
             country="CH",
-            org="OPNAUSPOSTFI", 
-            customer="TIN456XXXXXXXX",
+            clearing="19030", 
+            customer="POSTFINANCETIN",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="POSTFINANCE", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="POSTFINANCE", enable_filtering=False)
         calculator.calculate(statement)
         assert statement.id == expected_id
 
-    def test_id_generation_org_id_importer_name_none(self): # Renamed from test_id_generation_placeholder_org_id_lei_none
+    def test_id_generation_no_institution(self):
         period_to_date = date(2023, 12, 31)
-        statement_args = self._default_statement_args(
-            period_to_date,
-            country="CH",
-            client=[Client(clientNumber=ClientNumber("CLI789"))]
-            # importer_name removed from statement_args
-        )
-        statement = TaxStatement(id=None, **statement_args)
+        # Don't provide institution, so compute_org_nr returns default "19999"
+        args_for_statement = {
+            "creationDate": datetime(period_to_date.year, 1, 1),
+            "taxPeriod": period_to_date.year,
+            "periodFrom": date(period_to_date.year, 1, 1),
+            "periodTo": period_to_date,
+            "country": "CH",
+            "canton": "ZH",
+            "minorVersion": 0,
+            "client": [Client(clientNumber=ClientNumber("CLI789"))]
+        }
+        statement = TaxStatement(id=None, **args_for_statement)
         
         expected_id = self._construct_expected_id(
             country="CH",
-            org="OPNAUSXXXXXX", 
+            clearing="19999",  # Default when no institution
             customer="CLI789XXXXXXXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name=None, enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name=None, enable_filtering=False)
         calculator.calculate(statement)
         assert statement.id == expected_id
 
-    def test_id_generation_org_id_importer_name_empty(self): # Renamed from test_id_generation_placeholder_org_id_no_institution
+    def test_id_generation_empty_institution_name(self):
         period_to_date = date(2023, 12, 31)
-        # Construct args carefully to pass institution=None to TaxStatement
+        # Provide institution with empty name, should get default "19999"
+        institution = Institution(name="")
         args_for_statement = {
             "creationDate": datetime(period_to_date.year, 1, 1), 
             "taxPeriod": period_to_date.year,                  
             "periodFrom": date(period_to_date.year, 1, 1),     
             "periodTo": period_to_date,
-            "country": "US",
+            "country": "CH",
             "canton": "ZH",
             "minorVersion": 0,
+            "institution": institution,
             "client": [Client(clientNumber=ClientNumber("CLI789"))]
-            # importer_name removed from args_for_statement
         }
         statement = TaxStatement(id=None, **args_for_statement)
 
-
         expected_id = self._construct_expected_id(
             country="CH",
-            org="OPNAUSXXXXXX", 
+            clearing="19999",  # Default when institution name is empty
             customer="CLI789XXXXXXXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="", enable_filtering=False)
         calculator.calculate(statement)
         assert statement.id == expected_id
 
-    def test_id_generation_org_id_importer_name_short(self):
+    def test_id_generation_institution_with_specific_name(self):
+        """Test that different institution names produce different clearing numbers"""
         period_to_date = date(2023, 12, 31)
+        institution = Institution(name="UBS")
         statement_args = self._default_statement_args(
             period_to_date,
             country="CH",
-            client=[Client(clientNumber=ClientNumber("CUSTSHORT"))]
-            # importer_name removed from statement_args
-        )
-        statement = TaxStatement(id=None, **statement_args)
-        expected_id = self._construct_expected_id(
-            country="CH",
-            org="OPNAUSXXXAPI", 
-            customer="CUSTSHORTXXXXX",
-            date_str="20231231"
-        )
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="API", enable_filtering=False) # Pass importer_name here
-        calculator.calculate(statement)
-        assert statement.id == expected_id
-
-    def test_id_generation_org_id_importer_name_long(self):
-        period_to_date = date(2023, 12, 31)
-        statement_args = self._default_statement_args(
-            period_to_date,
-            country="CH",
+            institution=institution,
             client=[Client(clientNumber=ClientNumber("CUSTLONG"))]
-            # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
+        
+        # For "UBS", hash produces "545", so clearing is "19545"
         expected_id = self._construct_expected_id(
             country="CH",
-            org="OPNAUSVERYLO", 
-            customer="CUSTLONGXXXXXX",
+            clearing="19545", 
+            customer="UBSCUSTLONGXXX",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="VERYLONGIMPORTERNAME", enable_filtering=False) # Pass importer_name
-        calculator.calculate(statement)
-        assert statement.id == expected_id
-
-    def test_id_generation_org_id_importer_name_needs_sanitization(self):
-        period_to_date = date(2023, 12, 31)
-        statement_args = self._default_statement_args(
-            period_to_date,
-            country="CH",
-            client=[Client(clientNumber=ClientNumber("CUSTSANITIZE"))]
-            # importer_name removed from statement_args
-        )
-        statement = TaxStatement(id=None, **statement_args)
-        expected_id = self._construct_expected_id(
-            country="CH",
-            org="OPNAUSMYIMPO", 
-            customer="CUSTSANITIZEXX",
-            date_str="20231231"
-        )
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="MyImporter@123!", enable_filtering=False) # Pass importer_name
-        calculator.calculate(statement)
-        assert statement.id == expected_id
-
-    def test_id_generation_org_id_importer_name_sanitizes_to_empty(self):
-        period_to_date = date(2023, 12, 31)
-        statement_args = self._default_statement_args(
-            period_to_date,
-            country="CH",
-            client=[Client(clientNumber=ClientNumber("CUSTEMPTY"))]
-            # importer_name removed from statement_args
-        )
-        statement = TaxStatement(id=None, **statement_args)
-        expected_id = self._construct_expected_id(
-            country="CH",
-            org="OPNAUSXXXXXX", 
-            customer="CUSTEMPTYXXXXX",
-            date_str="20231231"
-        )
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="!@#$%", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="UBS", enable_filtering=False)
         calculator.calculate(statement)
         assert statement.id == expected_id
 
     def test_id_generation_placeholder_customer_id_no_id_for_client(self):
         period_to_date = date(2023, 12, 31)
+        institution = Institution(name="TESTIMP")
         statement_args = self._default_statement_args(
             period_to_date,
             country="CH",
+            institution=institution,
             client=[Client(clientNumber=None, tin=None)]
-            # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
 
+        # For "TESTIMP", hash produces "022", so clearing is "19022"
         expected_id = self._construct_expected_id(
             country="CH",
-            org="OPNAUSTESTIM",
-            customer="NOIDENTIFIERXX",
+            clearing="19022",
+            customer="TESTIMPNOIDENT",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="TESTIMP", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="TESTIMP", enable_filtering=False)
         calculator.calculate(statement)
         assert statement.id == expected_id
 
 
     def test_id_generation_placeholder_customer_id_no_client_object(self):
         period_to_date = date(2023, 12, 31)
+        institution = Institution(name="ANYBANK")
         statement_args = self._default_statement_args(
             period_to_date,
             country="CH",
-            client=[] # Empty client list
-            # importer_name removed from statement_args
+            institution=institution,
+            client=[]
         )
         statement = TaxStatement(id=None, **statement_args)
 
+        # For "ANYBANK", hash produces "272", so clearing is "19272"
         expected_id = self._construct_expected_id(
             country="CH",
-            org="OPNAUSANYBAN",
-            customer="NOCLIENTDATAXX",
+            clearing="19272",
+            customer="ANYBANKNOCLIEN",
             date_str="20231231"
         )
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="ANYBANK", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="ANYBANK", enable_filtering=False)
         calculator.calculate(statement)
         assert statement.id == expected_id
        
-    @pytest.mark.parametrize("raw_client_id, expected_customer_part", [
-        ("Cust With Spaces", "CustWithSpaces"),
-        ("Short",            "ShortXXXXXXXXX"),
-        ("Exactly14Chars",   "Exactly14Chars"),
-        ("MuchLongerThan14CharsAndInvalidChars!@#", "MuchLongerThan"),
-        ("Test-Number-123",  "TestNumber123X"),
-        ("",                 "XXXXXXXXXXXXXX"),
-        ("  ",               "XXXXXXXXXXXXXX"), 
+    @pytest.mark.parametrize("raw_client_id", [
+        "Cust With Spaces",
+        "Short",
+        "Exactly14Chars",
+        "MuchLongerThan14CharsAndInvalidChars!@#",
+        "Test-Number-123",
+        "",
+        "  ",
     ])
-    def test_customer_id_sanitization_padding_truncation(self, raw_client_id, expected_customer_part):
+    def test_customer_id_sanitization_padding_truncation(self, raw_client_id):
         period_to_date = date(2023, 12, 31)
+        institution = Institution(name="UBS")
         statement_args = self._default_statement_args(
             period_to_date,
             country="CH",
+            institution=institution,
             client=[Client(clientNumber=ClientNumber(raw_client_id) if raw_client_id.strip() else ClientNumber("EMPTY"))]
-            # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
         
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="UBS", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="UBS", enable_filtering=False)
         calculator.calculate(statement)
         
         assert statement.id is not None
-        actual_customer_part = statement.id[14:14+14] # Adjusted index: CC(2) + ORG(12) = 14
-        # Handle the special case where we used "EMPTY" for empty strings
-        if raw_client_id.strip() == "":
-            assert actual_customer_part in ["EMPTYXXXXXXXXX", "XXXXXXXXXXXXXX"]
-        else:
-            assert actual_customer_part == expected_customer_part
+        actual_customer_part = statement.id[7:7+14]  # CC(2) + Clearing(5) = 7
+        # Build expected using importer prefix 'UBS' + sanitized client id (or 'EMPTY'), padded/truncated to 14
+        import re
+        importer_prefix = "UBS"
+        base = raw_client_id if raw_client_id.strip() else "EMPTY"
+        sanitized = re.sub(r"[^a-zA-Z0-9]", "", base)
+        expected = (importer_prefix + sanitized)[:14].ljust(14, "X")
+        assert actual_customer_part == expected
 
     def test_period_to_formatting(self):
         period_to_date = date(2024, 3, 15)
+        institution = Institution(name="CSNEXT")
         statement_args = self._default_statement_args(
             period_to_date,
             country="CH",
+            institution=institution,
             client=[Client(clientNumber=ClientNumber("ANYCLIENT"))]
-            # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
 
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=period_to_date, importer_name="CSNEXT", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=period_to_date, importer_name="CSNEXT", enable_filtering=False)
         calculator.calculate(statement)
         
         assert statement.id is not None
-        actual_date_part = statement.id[28:28+8] # Adjusted index: CC(2) + ORG(12) + CUST(14) = 28
+        actual_date_part = statement.id[21:21+8]  # CC(2) + Clearing(5) + Customer(14) = 21
         assert actual_date_part == "20240315"
 
     def test_no_not_implemented_error_raised(self):
         period_to_date = date(2023, 12, 31)
+        institution = Institution(name="Test Bank")
         statement_args = self._default_statement_args(
             period_to_date,
-            country="CH", 
-            institution=Institution(name="Test Bank"), 
-            client=[Client(firstName="Test", lastName="User")]
-            # importer_name removed from statement_args
+            country="CH",
+            institution=institution,
+            client=[Client(clientNumber=ClientNumber("VALIDCUST123"))]
         )
-        # Ensure default args provide valid clientNumber for this test
-        if not statement_args["client"] or statement_args["client"][0].clientNumber is None:
-            statement_args["client"] = [Client(clientNumber=ClientNumber("VALIDCUST123"))]
-
-
         statement = TaxStatement(id=None, **statement_args)
         
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="VALIDIMP", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="VALIDIMP", enable_filtering=False)
         
         try:
             calculator.calculate(statement)
@@ -1303,26 +1265,25 @@ class TestCleanupCalculatorIDGeneration:
         assert isinstance(statement.id, str)
         assert "TaxStatement.id (generated)" in calculator.modified_fields
 
-    # Removed test_id_generation_lei_shorter_than_12 as LEI is no longer used for org_id
-    # Removed test_id_generation_lei_empty_string as LEI is no longer used for org_id
-
-    def test_id_generation_country_code_stripping_and_case(self): # This test remains relevant
+    def test_id_generation_country_code_stripping_and_case(self):
         period_to_date = date(2023, 12, 31)
+        institution = Institution(name="STRIPCASE")
         statement_args = self._default_statement_args(
             period_to_date,
             country="CH",
+            institution=institution,
             client=[Client(clientNumber=ClientNumber("CUST123"))]
-            # importer_name removed from statement_args
         )
         statement = TaxStatement(id=None, **statement_args)
 
+        # For "STRIPCASE", hash produces "159", so clearing is "19159"
         expected_id = self._construct_expected_id(
             country="CH",
-            org="OPNAUSSTRIPC", 
-            customer="CUST123XXXXXXX",
+            clearing="19159", 
+            customer="STRIPCASECUST1",
             date_str="20231231"
         )
 
-        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="STRIPCASE", enable_filtering=False) # Pass importer_name here
+        calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="STRIPCASE", enable_filtering=False)
         calculator.calculate(statement)
         assert statement.id == expected_id
