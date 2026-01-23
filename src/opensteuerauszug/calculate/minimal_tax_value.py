@@ -27,6 +27,7 @@ class MinimalTaxValueCalculator(BaseCalculator):
     _CHF_CURRENCY = "CHF"
     _current_account_is_type_A: Optional[bool]
     _current_security_is_type_A: Optional[bool]
+    _current_security_country: Optional[str]
 
     def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, keep_existing_payments: bool = False):
         super().__init__(mode)
@@ -34,6 +35,7 @@ class MinimalTaxValueCalculator(BaseCalculator):
         self.keep_existing_payments = keep_existing_payments
         self._current_account_is_type_A = None
         self._current_security_is_type_A = None
+        self._current_security_country = None
         self.logger = logging.getLogger(__name__)
         self.logger.info(
             "MinimalTaxValueCalculator initialized with mode: %s and provider: %s",
@@ -70,6 +72,7 @@ class MinimalTaxValueCalculator(BaseCalculator):
         """
         self._current_account_is_type_A = None  # Reset state at the beginning of a calculation run
         self._current_security_is_type_A = None  # Reset state
+        self._current_security_country = None  # Reset state
         super().calculate(tax_statement)
         self.logger.info(
             "MinimalTaxValueCalculator: Finished processing. Errors: %s, Modified fields: %s",
@@ -185,6 +188,7 @@ class MinimalTaxValueCalculator(BaseCalculator):
     def _handle_Security(self, security: Security, path_prefix: str) -> None:
         """Sets the type A/B context based on the security's country of taxation."""
         country_code = security.country
+        self._current_security_country = country_code
 
         if country_code:
             if country_code == "CH":

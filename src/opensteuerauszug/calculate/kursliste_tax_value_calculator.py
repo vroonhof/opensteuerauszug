@@ -50,6 +50,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         self._current_kursliste_security = None
 
         if not self.kursliste_manager:
+            super()._handle_Security(security, path_prefix)
             return
 
         lookup_year = None
@@ -57,10 +58,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             lookup_year = security.taxValue.referenceDate.year
 
         if lookup_year is None:
+            super()._handle_Security(security, path_prefix)
             return
 
         accessor = self.kursliste_manager.get_kurslisten_for_year(lookup_year)
         if not accessor:
+            super()._handle_Security(security, path_prefix)
             return
 
         kl_sec = None
@@ -112,7 +115,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
     def computePayments(self, security: Security, path_prefix: str) -> None:
         """Compute payments for a security using the Kursliste."""
         if not self.kursliste_manager:
-            raise RuntimeError("kursliste_manager is required for Kursliste payments")
+            super().computePayments(security, path_prefix)
+            return
 
         kl_sec = self._current_kursliste_security
         if kl_sec is None:

@@ -32,7 +32,13 @@ class FillInTaxValueCalculator(KurslisteTaxValueCalculator):
         # if we have a security assume the kurstliste computation has been done
         if self._current_kursliste_security or sec_payment.kursliste:
             return
-        
+
+        if self._current_security_country == "US":
+            if sec_payment.additionalWithHoldingTaxUSA is None:
+                self._set_field_value(
+                    sec_payment, "additionalWithHoldingTaxUSA", Decimal("0"), path_prefix
+                )
+
         if sec_payment.amountCurrency and sec_payment.paymentDate:
             payment_date = sec_payment.paymentDate
             amount = sec_payment.amount
