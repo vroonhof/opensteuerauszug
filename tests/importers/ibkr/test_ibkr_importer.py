@@ -1102,3 +1102,139 @@ def test_ibkr_import_canton_extraction_no_account_info(sample_ibkr_settings):
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+
+def test_ibkr_canton_extraction_integration_with_cleanup(sample_ibkr_settings):
+    """Test that canton extracted from IBKR is preserved through cleanup phase."""
+    import tempfile
+    from datetime import date
+    from opensteuerauszug.calculate.cleanup import CleanupCalculator
+    from opensteuerauszug.config.models import GeneralSettings
+    
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+    
+    # Create XML with AccountInformation containing stateResidentialAddress with ZH
+    xml_with_zh_canton = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <AccountInformation accountId="U1234567" name="John Doe" stateResidentialAddress="CH-ZH" />
+      <Trades />
+      <OpenPositions />
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+    
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+    
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_with_zh_canton)
+        xml_file_path = tmp_file.name
+    
+    try:
+        # Import from IBKR - should extract canton ZH
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        assert tax_statement.canton == "ZH"
+        
+        # Now run cleanup with config that has a DIFFERENT canton (BE)
+        # The cleanup should NOT override the IBKR-extracted canton
+        config_with_different_canton = GeneralSettings(
+            canton="BE",  # Different from IBKR's ZH
+            full_name="Test User"
+        )
+        
+        cleanup_calculator = CleanupCalculator(
+            period_from=period_from,
+            period_to=period_to,
+            importer_name="ibkr",
+            enable_filtering=False,
+            config_settings=config_with_different_canton
+        )
+        
+        # Run cleanup
+        tax_statement = cleanup_calculator.calculate(tax_statement)
+        
+        # Canton should STILL be ZH (from IBKR), not BE (from config)
+        assert tax_statement.canton == "ZH", f"Expected canton ZH from IBKR, but got {tax_statement.canton}"
+        
+        # Verify that canton was NOT in modified fields (since it wasn't changed by cleanup)
+        assert "TaxStatement.canton (from config)" not in cleanup_calculator.modified_fields
+        
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_no_canton_uses_config_fallback(sample_ibkr_settings):
+    """Test that when IBKR doesn't provide canton, config is used as fallback."""
+    import tempfile
+    from datetime import date
+    from opensteuerauszug.calculate.cleanup import CleanupCalculator
+    from opensteuerauszug.config.models import GeneralSettings
+    
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+    
+    # Create XML WITHOUT AccountInformation (no canton from IBKR)
+    xml_without_canton = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <Trades />
+      <OpenPositions />
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+    
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+    
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_without_canton)
+        xml_file_path = tmp_file.name
+    
+    try:
+        # Import from IBKR - should NOT have canton
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        assert tax_statement.canton is None
+        
+        # Now run cleanup with config that has canton VD
+        config_with_canton = GeneralSettings(
+            canton="VD",
+            full_name="Test User"
+        )
+        
+        cleanup_calculator = CleanupCalculator(
+            period_from=period_from,
+            period_to=period_to,
+            importer_name="ibkr",
+            enable_filtering=False,
+            config_settings=config_with_canton
+        )
+        
+        # Run cleanup
+        tax_statement = cleanup_calculator.calculate(tax_statement)
+        
+        # Canton should now be VD (from config)
+        assert tax_statement.canton == "VD", f"Expected canton VD from config, but got {tax_statement.canton}"
+        
+        # Verify that canton WAS in modified fields (since it was set by cleanup)
+        assert "TaxStatement.canton (from config)" in cleanup_calculator.modified_fields
+        
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
