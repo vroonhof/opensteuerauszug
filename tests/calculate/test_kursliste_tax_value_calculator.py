@@ -701,3 +701,71 @@ def test_compute_payments_capital_gain_scenario(kursliste_manager):
 
     # Assertions
     assert len(sec.payment) == 0
+
+
+def test_compute_payments_sets_additional_withholding_tax_usa(kursliste_manager):
+    """
+    Test that for a US security in the Kursliste, the generated SecurityPayment objects
+    have additionalWithHoldingTaxUSA explicitly set to Decimal("0").
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    # Mock a US Kursliste security
+    kl_sec = Share(
+        id=1,
+        securityGroup=SecurityGroupESTV.SHARE,
+        country="US",
+        currency="USD",
+        institutionId=123,
+        institutionName="Test US Bank",
+        payment=[
+            PaymentShare(
+                id=101,
+                paymentDate=date(2024, 5, 10),
+                currency="USD",
+                paymentValue=Decimal("2.50"),
+                paymentValueCHF=Decimal("2.20"),
+                exchangeRate=Decimal("0.88"),
+                withHoldingTax=False,
+            )
+        ]
+    )
+
+    sec = Security(
+        country="US",
+        securityName="Test US Security",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("US0000000001"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="USD",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="USD",
+            )
+        ],
+    )
+
+    # Manually set the Kursliste security for the calculator
+    calc._current_kursliste_security = kl_sec
+
+    # Run the payment computation
+    calc.computePayments(sec, "sec")
+
+    # Assertions
+    assert len(sec.payment) == 1
+    payment = sec.payment[0]
+
+    # Assert additionalWithHoldingTaxUSA is set to 0
+    assert payment.additionalWithHoldingTaxUSA == Decimal("0")
