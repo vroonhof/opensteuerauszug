@@ -1,6 +1,6 @@
 # 1. General Settings
 [general]
-canton = "ZG" # Example: Zug canton
+# canton = "ZG" # Optional: Override canton if not provided by importer (e.g., IBKR flex report)
 full_name = "Test User Name"
 language = "de" # Default language
 
