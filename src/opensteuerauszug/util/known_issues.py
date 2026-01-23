@@ -83,7 +83,10 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
                     # allow small tolerance for roundind differnces. unclear who is correct
                     if abs(error.expected - error.actual) < Decimal("0.01"):
                         return True
-                
+                if error.field_path.endswith("additionalWithHoldingTaxUSA"):
+                    if error.expected == Decimal("0") and error.actual is None:
+                        return True
+
             if error.field_path.endswith("unitPrice"):
             # Reported rounded to three places (though the spec says not to round)
                 if abs(error.expected - error.actual) < Decimal("0.0005"):
