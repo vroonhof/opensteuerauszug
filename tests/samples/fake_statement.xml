@@ -1,7 +1,8 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version="1.0" encoding="UTF-8"?>
 <taxStatement xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
-              xmlns:eCH-0096="http://www.ech.ch/xmlns/eCH-0196/2"
               xmlns:eCH-0097="http://www.ech.ch/xmlns/eCH-0097/4"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://www.ech.ch/xmlns/eCH-0196/2 http://www.ech.ch/xmlns/eCH-0196/2.2/eCH-0196-2-2.xsd http://www.ech.ch/xmlns/eCH-0097/4 http://www.ech.ch/xmlns/eCH-0097/4/eCH-0097-4-0.xsd"
               id="CH19399SAMPLE1234567X2024123101"
               creationDate="2025-04-04T22:40:18"
               taxPeriod="2024"
@@ -15,7 +16,7 @@
               totalWithHoldingTaxClaim="1680.00"
               minorVersion="22">
   <institution name="Sample Foreign Bank ltd">
-    <uid xmlns="http://www.ech.ch/xmlns/eCH-0196/2">
+    <uid>
       <eCH-0097:uidOrganisationIdCategorie>CHE</eCH-0097:uidOrganisationIdCategorie>
       <eCH-0097:uidOrganisationId>111222333</eCH-0097:uidOrganisationId>
     </uid>
