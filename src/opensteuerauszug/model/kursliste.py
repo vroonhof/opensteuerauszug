@@ -193,6 +193,7 @@ class Legend(Entity, tag="legend"):
     currencyNew: Optional[CurrencyCode] = attr(default=None)
     nominalValueOld: Optional[Decimal] = attr(default=None)
     nominalValueNew: Optional[Decimal] = attr(default=None)
+    eventIdSIX: Optional[EventIdSIX] = attr(default=None)
 
 
 
@@ -289,6 +290,7 @@ class Payment(Entity, tag="payment"): # Abstract base in XSD
     paymentType: Optional[PaymentTypeESTV] = attr(default=PaymentTypeESTV.STANDARD)
     taxEvent: Optional[bool] = attr(default=False)
     variant: Optional[Annotated[int, Field(ge=1, le=99999)]] = attr(default=None)
+    paymentIdSIX: Optional[PaymentIdSIX] = attr(default=None)
 
 
 
