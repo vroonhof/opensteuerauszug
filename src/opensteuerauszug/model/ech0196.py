@@ -35,7 +35,8 @@ NS_MAP = {
     'eCH-0008': "http://www.ech.ch/xmlns/eCH-0008/3",
     'eCH-0010': "http://www.ech.ch/xmlns/eCH-0010/7",
     'eCH-0097': "http://www.ech.ch/xmlns/eCH-0097/4",
-    'eCH-0196': "http://www.ech.ch/xmlns/eCH-0196/2"
+    'eCH-0196': "http://www.ech.ch/xmlns/eCH-0196/2",
+    'xsi': "http://www.w3.org/2001/XMLSchema-instance"
 }
 
 # Helper to get namespaced tag name
@@ -1337,6 +1338,34 @@ class TaxStatement(TaxStatementBase):
         "json_schema_extra": {'tag_name': 'taxStatement', 'tag_namespace': NS_MAP['eCH-0196']}
     }
         
+    def _build_xml_element(self,
+                    parent_element: Optional[ET._Element] = None,
+                    name: Optional[str] = None) -> ET._Element:
+        """Override to add xsi attributes and namespaces to the root element."""
+        if parent_element is not None:
+             return super()._build_xml_element(parent_element, name)
+
+        # Logic for root element customization
+        tag_name = "taxStatement"
+        ns = NS_MAP['eCH-0196']
+
+        nsmap = {
+            None: ns,
+            'eCH-0097': NS_MAP['eCH-0097'],
+            'xsi': NS_MAP['xsi']
+        }
+
+        element = ET.Element(f"{{{ns}}}{tag_name}", attrib={}, nsmap=nsmap)
+
+        # Add schemaLocation
+        element.set(f"{{{nsmap['xsi']}}}schemaLocation",
+                    "http://www.ech.ch/xmlns/eCH-0196/2 http://www.ech.ch/xmlns/eCH-0196/2.2/eCH-0196-2-2.xsd http://www.ech.ch/xmlns/eCH-0097/4 http://www.ech.ch/xmlns/eCH-0097/4/eCH-0097-4-0.xsd")
+
+        self._build_attributes(element)
+        self._build_children(element)
+
+        return element
+
     @classmethod
     def from_xml_file(cls, file_path: str, strict: Optional[bool] = None) -> "TaxStatement":
         """Read a TaxStatement from an XML file.
