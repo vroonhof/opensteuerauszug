@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional
 import logging
 
-from opensteuerauszug.model.ech0196 import SecurityPayment
+from opensteuerauszug.model.ech0196 import SecurityPayment, Security
 from .kursliste_tax_value_calculator import KurslisteTaxValueCalculator
 from .base import CalculationMode
 from ..core.exchange_rate_provider import ExchangeRateProvider
@@ -26,13 +26,22 @@ class FillInTaxValueCalculator(KurslisteTaxValueCalculator):
             type(exchange_rate_provider).__name__,
         )
 
+    def computePayments(self, security: Security, path_prefix: str) -> None:
+        if self.kursliste_manager:
+            super().computePayments(security, path_prefix)
+        else:
+            # Fallback to Minimal behavior (no op)
+            # Use the grandparent implementation directly or a similar logic
+            self.setKurslistePayments(security, [], path_prefix)
+
     def _handle_SecurityPayment(self, sec_payment: SecurityPayment, path_prefix: str) -> None:
         """Handles SecurityPayment objects for currency conversion and revenue categorization."""
+        super()._handle_SecurityPayment(sec_payment, path_prefix)
 
         # if we have a security assume the kurstliste computation has been done
         if self._current_kursliste_security or sec_payment.kursliste:
             return
-        
+
         if sec_payment.amountCurrency and sec_payment.paymentDate:
             payment_date = sec_payment.paymentDate
             amount = sec_payment.amount

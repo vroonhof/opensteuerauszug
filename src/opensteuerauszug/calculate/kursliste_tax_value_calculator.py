@@ -50,6 +50,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         self._current_kursliste_security = None
 
         if not self.kursliste_manager:
+            super()._handle_Security(security, path_prefix)
             return
 
         lookup_year = None
@@ -57,10 +58,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             lookup_year = security.taxValue.referenceDate.year
 
         if lookup_year is None:
+            super()._handle_Security(security, path_prefix)
             return
 
         accessor = self.kursliste_manager.get_kurslisten_for_year(lookup_year)
         if not accessor:
+            super()._handle_Security(security, path_prefix)
             return
 
         kl_sec = None
@@ -255,6 +258,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 exchangeRate=rate,
                 kursliste=True,
             )
+
+            if kl_sec.country == "US":
+                sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
 
             # Not all payment subtypes have these fields
             # TODO: Should the typing be smarter?
