@@ -115,8 +115,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
     def computePayments(self, security: Security, path_prefix: str) -> None:
         """Compute payments for a security using the Kursliste."""
         if not self.kursliste_manager:
-            super().computePayments(security, path_prefix)
-            return
+            raise RuntimeError("kursliste_manager is required for Kursliste payments")
 
         kl_sec = self._current_kursliste_security
         if kl_sec is None:
@@ -259,6 +258,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 exchangeRate=rate,
                 kursliste=True,
             )
+
+            if kl_sec.country == "US":
+                sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
 
             # Not all payment subtypes have these fields
             # TODO: Should the typing be smarter?

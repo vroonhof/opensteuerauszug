@@ -241,7 +241,14 @@ class MinimalTaxValueCalculator(BaseCalculator):
         """Handles SecurityPayment objects for currency conversion and revenue categorization."""
         # In the base implementation all payments will have been cleared (outside of debugging and verify mode)
         # Avoid doing computation here to handle broken inputs on verify + minimal mode.
-        pass
+        if self._current_security_country == "US":
+            if sec_payment.additionalWithHoldingTaxUSA is None:
+                self._set_field_value(
+                    sec_payment,
+                    "additionalWithHoldingTaxUSA",
+                    Decimal("0"),
+                    path_prefix,
+                )
 
     def computePayments(self, security: Security, path_prefix: str) -> None:
         """Compute and set payments for a security.
