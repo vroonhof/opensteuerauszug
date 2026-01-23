@@ -399,7 +399,7 @@ def create_summary_table(data, styles, usable_width):
          Paragraph(format_currency_rounded(summary_data.get('brutto_mit_vst')), val_right),
          '',
          Paragraph(format_currency_rounded(summary_data.get('brutto_ohne_vst')), val_right),
-         Paragraph(format_currency_rounded(summary_data.get('vst_anspruch')), val_right),
+         Paragraph(format_currency_2dp(summary_data.get('vst_anspruch')), val_right),
          '',
          Paragraph(footnote_text, val_left)],
         # Row 2: Spacer row (6 columns)
