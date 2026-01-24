@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Dict, Optional
 
@@ -8,8 +8,13 @@ from opensteuerauszug.calculate.base import CalculationMode
 from opensteuerauszug.calculate.kursliste_tax_value_calculator import KurslisteTaxValueCalculator
 from opensteuerauszug.core.flag_override_provider import FlagOverrideProvider
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
+from opensteuerauszug.core.kursliste_manager import KurslisteManager
+from opensteuerauszug.core.kursliste_accessor import KurslisteAccessor
 from opensteuerauszug.model.ech0196 import (
     ISINType,
+    Depot,
+    DepotNumber,
+    ListOfSecurities,
     Security,
     SecurityTaxValue,
     SecurityStock,
@@ -17,6 +22,8 @@ from opensteuerauszug.model.ech0196 import (
 )
 from opensteuerauszug.model.kursliste import (
     Fund,
+    Kursliste,
+    Legend,
     PaymentFund,
     PaymentShare,
     PaymentTypeESTV,
@@ -189,6 +196,182 @@ def test_compute_payments_from_kursliste_missing_ex_date(kursliste_manager):
     assert payment.grossRevenueA == Decimal("0")
     assert payment.grossRevenueB == Decimal("138.400")
     assert payment.withHoldingTaxClaim == Decimal("0")
+
+
+def test_compute_payments_skips_stock_split_payment():
+    split_date = date(2025, 6, 18)
+    payment = PaymentShare(
+        id=1,
+        paymentDate=split_date,
+        currency="USD",
+        paymentValue=Decimal("0"),
+        paymentValueCHF=Decimal("0"),
+        paymentType=PaymentTypeESTV.OTHER_BENEFIT,
+        taxEvent=True,
+        exDate=split_date,
+        legend=[
+            Legend(
+                id=1,
+                effectiveDate=split_date,
+                exchangeRatioPresent=Decimal("1"),
+                exchangeRatioNew=Decimal("4"),
+            )
+        ],
+    )
+    share = Share(
+        id=1,
+        isin="US45841N1072",
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="Interactive Brokers Group, Inc.",
+        institutionId=1,
+        institutionName="Interactive Brokers Group, Inc.",
+        country="US",
+        currency="USD",
+        nominalValue=Decimal("0.01"),
+        payment=[payment],
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2025, 1, 1),
+        year=2025,
+        shares=[share],
+    )
+    kursliste_manager = KurslisteManager()
+    kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
+
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider)
+
+    security = Security(
+        country="US",
+        securityName="Interactive Brokers Group, Inc.",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("US45841N1072"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("8"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2025, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("2"),
+                balanceCurrency="CHF",
+            ),
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("6"),
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2025,
+        periodFrom=date(2025, 1, 1),
+        periodTo=date(2025, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[Depot(depotNumber=DepotNumber("U1234567"), security=[security])]
+        ),
+    )
+
+    # Expect no exception because the split is represented as a stock mutation.
+    calc.calculate(statement)
+
+    assert security.payment == []
+    assert calc.errors == []
+
+
+def test_compute_payments_stock_split_requires_mutation():
+    split_date = date(2025, 6, 18)
+    payment = PaymentShare(
+        id=1,
+        paymentDate=split_date,
+        currency="USD",
+        paymentValue=Decimal("0"),
+        paymentValueCHF=Decimal("0"),
+        paymentType=PaymentTypeESTV.OTHER_BENEFIT,
+        taxEvent=True,
+        exDate=split_date,
+        legend=[
+            Legend(
+                id=1,
+                effectiveDate=split_date,
+                exchangeRatioPresent=Decimal("1"),
+                exchangeRatioNew=Decimal("4"),
+            )
+        ],
+    )
+    share = Share(
+        id=1,
+        isin="US45841N1072",
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="Interactive Brokers Group, Inc.",
+        institutionId=1,
+        institutionName="Interactive Brokers Group, Inc.",
+        country="US",
+        currency="USD",
+        nominalValue=Decimal("0.01"),
+        payment=[payment],
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2025, 1, 1),
+        year=2025,
+        shares=[share],
+    )
+    kursliste_manager = KurslisteManager()
+    kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
+
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider)
+
+    security = Security(
+        country="US",
+        securityName="Interactive Brokers Group, Inc.",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("US45841N1072"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("8"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2025, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("2"),
+                balanceCurrency="CHF",
+            )
+        ],
+    )
+
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2025,
+        periodFrom=date(2025, 1, 1),
+        periodTo=date(2025, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[Depot(depotNumber=DepotNumber("U1234567"), security=[security])]
+        ),
+    )
+
+    with pytest.raises(ValueError, match="Missing stock split mutation"):
+        calc.calculate(statement)
 
 
 def test_compute_payments_from_kursliste(kursliste_manager):
