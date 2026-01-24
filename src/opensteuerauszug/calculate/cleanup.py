@@ -148,8 +148,8 @@ class CleanupCalculator:
         if not statement.creationDate:
             statement.creationDate = datetime.now()
 
-        # Set canton from configuration if not already set
-        if not statement.canton and self.config_settings and self.config_settings.canton:
+        # Set canton from configuration (config takes precedence over importer data)
+        if self.config_settings and self.config_settings.canton:
             canton_value = self.config_settings.canton
             # Validate canton against allowed values
             valid_cantons = get_args(CantonAbbreviation)

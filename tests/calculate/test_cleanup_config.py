@@ -39,8 +39,8 @@ class TestCleanupCalculatorConfig:
         assert result.canton == "ZH"
         assert "TaxStatement.canton (from config)" in calculator.modified_fields
 
-    def test_do_not_override_existing_canton(self):
-        """Test that existing canton is not overridden by config."""
+    def test_config_overrides_existing_canton(self):
+        """Test that config canton overrides existing canton from importer."""
         # Arrange
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
@@ -53,7 +53,7 @@ class TestCleanupCalculatorConfig:
             periodFrom=period_from,
             periodTo=period_to,
             country="CH",
-            canton="BE",  # Canton already set
+            canton="BE",  # Canton set by importer
             minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],
             institution=Institution(lei=LEIType("TESTLEI1234500000000"))
@@ -67,8 +67,8 @@ class TestCleanupCalculatorConfig:
         result = calculator.calculate(statement)
         
         # Assert
-        assert result.canton == "BE"  # Original canton preserved
-        assert "TaxStatement.canton (from config)" not in calculator.modified_fields
+        assert result.canton == "ZH"  # Config overrides importer data
+        assert "TaxStatement.canton (from config)" in calculator.modified_fields
 
     def test_create_client_from_config_when_none_exist(self):
         """Test that a client is created from config when none exist."""
