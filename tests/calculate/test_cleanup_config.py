@@ -234,7 +234,7 @@ class TestCleanupCalculatorConfig:
         assert result.client[0].lastName == "Van Damme"
 
     def test_no_config_provided(self):
-        """Test that no changes are made when no config is provided."""
+        """Test that canton from importer is preserved when no config is provided."""
         # Arrange
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
@@ -246,7 +246,7 @@ class TestCleanupCalculatorConfig:
             periodFrom=period_from,
             periodTo=period_to,
             country="CH",
-            canton=None,
+            canton="ZH",  # Canton from importer
             minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],
             institution=Institution(lei=LEIType("TESTLEI1234500000000"))
@@ -259,14 +259,14 @@ class TestCleanupCalculatorConfig:
         result = calculator.calculate(statement)
         
         # Assert
-        assert result.canton is None
+        assert result.canton == "ZH"  # Canton from importer preserved
         assert result.client[0].firstName is None
         assert result.client[0].lastName is None
         assert "TaxStatement.canton (from config)" not in calculator.modified_fields
         assert "TaxStatement.client[0] (name from config)" not in calculator.modified_fields
 
     def test_empty_config_provided(self):
-        """Test that no changes are made when empty config is provided."""
+        """Test that canton from importer is preserved when empty config is provided."""
         # Arrange
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
@@ -279,7 +279,7 @@ class TestCleanupCalculatorConfig:
             periodFrom=period_from,
             periodTo=period_to,
             country="CH",
-            canton=None,
+            canton="BE",  # Canton from importer
             minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],
             institution=Institution(lei=LEIType("TESTLEI1234500000000"))
@@ -293,8 +293,41 @@ class TestCleanupCalculatorConfig:
         result = calculator.calculate(statement)
         
         # Assert
-        assert result.canton is None
+        assert result.canton == "BE"  # Canton from importer preserved
         assert result.client[0].firstName is None
         assert result.client[0].lastName is None
         assert "TaxStatement.canton (from config)" not in calculator.modified_fields
         assert "TaxStatement.client[0] (name from config)" not in calculator.modified_fields 
+
+    def test_missing_canton_raises_error(self):
+        """Test that ValueError is raised when neither config nor importer provides canton."""
+        # Arrange
+        period_from = date(2024, 1, 1)
+        period_to = date(2024, 12, 31)
+        config_settings = None  # No config
+        
+        statement = TaxStatement(
+            id="test-id",
+            creationDate=datetime(2024, 1, 1),
+            taxPeriod=2024,
+            periodFrom=period_from,
+            periodTo=period_to,
+            country="CH",
+            canton=None,  # No canton from importer
+            minorVersion=22,
+            client=[Client(clientNumber=ClientNumber("TestClient"))],
+            institution=Institution(lei=LEIType("TESTLEI1234500000000"))
+        )
+        
+        # Act & Assert
+        calculator = CleanupCalculator(
+            period_from, period_to, "TestImporter", 
+            config_settings=config_settings
+        )
+        
+        with pytest.raises(ValueError) as exc_info:
+            calculator.calculate(statement)
+        
+        assert "Canton is not set" in str(exc_info.value)
+        assert "config.toml" in str(exc_info.value)
+        assert "importer data" in str(exc_info.value)
