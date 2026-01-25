@@ -1,6 +1,6 @@
 # 1. General Settings
 [general]
-# canton = "ZG" # Optional: Override canton if not provided by importer (e.g., IBKR flex report)
+canton = "ZG" # Required if importer doesn't provide canton. Comment out to use importer data (e.g., IBKR flex report).
 full_name = "Test User Name"
 language = "de" # Default language
 
