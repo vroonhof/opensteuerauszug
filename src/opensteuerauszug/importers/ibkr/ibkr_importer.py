@@ -35,6 +35,15 @@ except ImportError:
         def parse(filename: str):
             raise ImportError("ibflex library is not installed")
 
+IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Dict[str, SecurityCategory] = {
+    "BOND": "BOND",
+    "OPT": "OPTION",
+    "FUT": "OTHER",
+    "ETF": "FUND",
+    "FUND": "FUND",
+    "STK": "SHARE",
+}
+
 class IbkrImporter:
     """
     Imports Interactive Brokers account data for a given tax period
@@ -272,8 +281,8 @@ class IbkrImporter:
             )
 
         # Key: SecurityPosition or tuple for cash. Value: dict with 'stocks', 'payments'
-        processed_security_positions: defaultdict[SecurityPosition, Dict[str, list]] = \
-            defaultdict(lambda: {'stocks': [], 'payments': []})
+        processed_security_positions: defaultdict[SecurityPosition, Dict[str, Any]] = \
+            defaultdict(lambda: {'stocks': [], 'payments': [], 'asset_category': None})
         processed_cash_positions: defaultdict[tuple, Dict[str, list]] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
         security_country_map: Dict[SecurityPosition, str] = {}
@@ -354,8 +363,10 @@ class IbkrImporter:
                         valor=valor,
                         isin=ISINType(isin) if isin else None,
                         symbol=conid,
-                        description=f"{description} ({symbol})"
+                        description=f"{description} ({symbol})",
+                        securityType=asset_category
                     )
+                    processed_security_positions[sec_pos]['asset_category'] = asset_category
                     trade_country = self._normalize_country_code(
                         getattr(trade, 'issuerCountryCode', None)
                     )
@@ -434,8 +445,10 @@ class IbkrImporter:
                         valor=valor,
                         isin=ISINType(isin) if isin else None,
                         symbol=conid,
-                        description=f"{description} ({symbol})"
+                        description=f"{description} ({symbol})",
+                        securityType=asset_category
                     )
+                    processed_security_positions[sec_pos]['asset_category'] = asset_category
                     position_country = self._normalize_country_code(
                         getattr(open_pos, 'issuerCountryCode', None)
                     )
@@ -518,7 +531,9 @@ class IbkrImporter:
                         isin=ISINType(isin) if isin else None,
                         symbol=conid,
                         description=f"{description} ({symbol})",
+                        securityType=asset_cat_val
                     )
+                    processed_security_positions[sec_pos]['asset_category'] = asset_cat_val
 
                     stock_mutation = SecurityStock(
                         referenceDate=tx_date,
@@ -561,13 +576,25 @@ class IbkrImporter:
 
                     action_description = getattr(action, "actionDescription", None) or description
 
+                    asset_category = getattr(action, 'assetCategory', None)
+                    asset_cat_val = None
+                    if asset_category:
+                        asset_cat_val = (
+                            asset_category.value if hasattr(asset_category, 'value') else str(asset_category)
+                        )
+                    if not asset_cat_val:
+                        asset_cat_val = None
+
                     sec_pos = SecurityPosition(
                         depot=account_id,
                         valor=None,
                         isin=ISINType(isin) if isin else None,
                         symbol=conid,
                         description=f"{description} ({symbol})",
+                        securityType=asset_cat_val
                     )
+                    if asset_cat_val:
+                        processed_security_positions[sec_pos]['asset_category'] = asset_cat_val
 
                     stock_mutation = SecurityStock(
                         referenceDate=action_date,
@@ -616,6 +643,15 @@ class IbkrImporter:
                         tx_type_str = tx_type.value
                         assert 'interest' not in str(tx_type_str).lower()
 
+                        asset_category = getattr(cash_tx, 'assetCategory', None)
+                        asset_cat_val = None
+                        if asset_category:
+                            asset_cat_val = (
+                                asset_category.value if hasattr(asset_category, 'value') else str(asset_category)
+                            )
+                        if not asset_cat_val:
+                            asset_cat_val = None
+
                         sec_pos_key = None
                         for pos in processed_security_positions.keys():
                             if pos.depot == account_id and pos.symbol == str(security_id):
@@ -633,7 +669,11 @@ class IbkrImporter:
                                 description=(
                                     f"{description} ({sym_attr})" if sym_attr else description
                                 ),
+                                securityType=asset_cat_val
                             )
+
+                        if asset_cat_val:
+                            processed_security_positions[sec_pos_key]['asset_category'] = asset_cat_val
 
                         sec_payment = SecurityPayment(
                             paymentDate=tx_date,
@@ -715,34 +755,25 @@ class IbkrImporter:
                         f"No stocks or payments with currency info."
                     )
 
-            # TODO: Map assetCategory to eCH-0196 SecurityCategory
-            # Attempt to get assetCategory, default to "STK"
-            asset_cat_source = None
-            if sorted_stocks and hasattr(sorted_stocks[0], 'assetCategory'):
-                asset_cat_source = sorted_stocks[0]
-            # Payments don't usually have assetCategory
-            elif sorted_payments and hasattr(sorted_payments[0], 'assetCategory'):
-                asset_cat_source = sorted_payments[0]
+            # Map assetCategory to eCH-0196 SecurityCategory
+            asset_cat = data.get('asset_category')
+            if not asset_cat:
+                asset_cat = sec_pos_obj.security_type
 
-            asset_cat = (
-                asset_cat_source.assetCategory if asset_cat_source else 'STK'
-            )
+            # Default to 'STK' if unknown or missing
+            if not asset_cat:
+                asset_cat = 'STK'
 
-            sec_category_str: SecurityCategory = "SHARE"
-            if (asset_cat == "BOND"):
-                sec_category_str = "BOND"
-            elif (asset_cat == "OPT"):
-                sec_category_str = "OPTION"
-            elif (asset_cat == "FUT"):
-                sec_category_str = "OTHER"
-            elif (asset_cat == "ETF"):
-                sec_category_str = "FUND"
-            elif (asset_cat == "FUND"):
-                sec_category_str = "FUND"
-            elif (asset_cat == "STK"):
-                sec_category_str = "SHARE"
-            else:
-                raise ValueError(f"Unknown asset category: {asset_cat}")
+            asset_cat_val = asset_cat
+            if hasattr(asset_cat, 'value'):
+                asset_cat_val = asset_cat.value
+
+            asset_cat_str = str(asset_cat_val)
+
+            if asset_cat_str not in IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY:
+                raise ValueError(f"Unknown asset category: {asset_cat_str}")
+
+            sec_category_str: SecurityCategory = IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY[asset_cat_str]
 
             # --- Ensure balance at period start and period end + 1 using PositionReconciler ---
             reconciler = PositionReconciler(list(sorted_stocks), identifier=f"{sec_pos_obj.symbol}-reconcile")

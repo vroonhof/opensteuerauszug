@@ -934,3 +934,49 @@ def test_bank_account_names_always_set(sample_ibkr_settings):
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+SAMPLE_IBKR_FLEX_XML_BOND = """
+<FlexQueryResponse queryName="BondQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <Trades>
+        <Trade transactionID="1001" accountId="U1234567" assetCategory="BOND" symbol="US-T" description="US TREASURY" conid="123456" isin="US912828Z948" issuerCountryCode="US" currency="USD" quantity="1000" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="98.00" tradeMoney="980.00" buySell="BUY" ibCommission="-1.00" netCash="-981.00" />
+      </Trades>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="BOND" symbol="US-T" description="US TREASURY" conid="123456" isin="US912828Z948" issuerCountryCode="US" currency="USD" position="1000" markPrice="99.00" positionValue="990.00" reportDate="2023-12-31" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+def test_ibkr_bond_mapping(sample_ibkr_settings):
+    """Test that assetCategory='BOND' is correctly mapped to securityCategory='BOND'."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_BOND)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement.listOfSecurities is not None
+        depot = tax_statement.listOfSecurities.depot[0]
+
+        bond_sec = next(
+            (s for s in depot.security if s.isin == "US912828Z948"), None
+        )
+        assert bond_sec is not None
+        assert bond_sec.securityCategory == "BOND"
+
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
