@@ -212,6 +212,28 @@ class KurslisteManager:
             List of available tax years, sorted
         """
         return sorted(self.kurslisten.keys())
+    
+    def ensure_year_available(self, required_year: int, kursliste_dir: Optional[Path] = None) -> None:
+        """
+        Validate that Kursliste data is available for the required year.
+        Raises a clear error if the year is not available.
+        
+        Args:
+            required_year: The tax year that must be available
+            kursliste_dir: Optional directory path to include in error message
+            
+        Raises:
+            ValueError: If the required year is not available with helpful error message
+        """
+        available_years = self.get_available_years()
+        if required_year not in available_years:
+            available_years_str = ", ".join(str(y) for y in available_years) if available_years else "none"
+            dir_info = f" in {kursliste_dir}" if kursliste_dir else ""
+            raise ValueError(
+                f"Kursliste data for tax year {required_year} not found. "
+                f"Available years: {available_years_str}. "
+                f"Please ensure kursliste_{required_year}.sqlite or kursliste_{required_year}.xml exists{dir_info}"
+            )
         
     def get_security_price(self, tax_year: int, isin: str, price_date: Optional[datetime.date] = None) -> Optional[Decimal]:
         """

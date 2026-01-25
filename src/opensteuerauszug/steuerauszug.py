@@ -395,6 +395,11 @@ def main(
                     print(f"Warning: Kursliste directory {kursliste_dir} does not exist")
                 kursliste_manager = KurslisteManager()
                 kursliste_manager.load_directory(kursliste_dir)
+                
+                # Verify that Kursliste data exists for the required tax year
+                required_tax_year = parsed_period_to.year
+                kursliste_manager.ensure_year_available(required_tax_year, kursliste_dir)
+                
                 exchange_rate_provider = KurslisteExchangeRateProvider(kursliste_manager)
             except Exception as e:
                 raise ValueError(f"Failed to initialize KurslisteExchangeRateProvider with directory {kursliste_dir}: {e}")
@@ -450,6 +455,11 @@ def main(
                     kursliste_dir.mkdir(parents=True, exist_ok=True)
                 kursliste_manager_verify = KurslisteManager()
                 kursliste_manager_verify.load_directory(kursliste_dir)
+                
+                # Verify that Kursliste data exists for the required tax year
+                required_tax_year_verify = statement.taxPeriod if statement.taxPeriod else parsed_period_to.year
+                kursliste_manager_verify.ensure_year_available(required_tax_year_verify, kursliste_dir)
+                
                 exchange_rate_provider_verify = KurslisteExchangeRateProvider(kursliste_manager_verify)
             except Exception as e:
                 raise ValueError(f"Failed to initialize KurslisteExchangeRateProvider for verification with directory {kursliste_dir}: {e}")
