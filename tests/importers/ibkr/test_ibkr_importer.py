@@ -145,7 +145,7 @@ SAMPLE_IBKR_FLEX_XML_STOCK_SPLIT = """
         <OpenPosition accountId="U1234567" assetCategory="STK" symbol="IBKR" description="INTERACTIVE BROKERS GRO-CL A" conid="43645865" isin="US45841N1072" currency="USD" position="8" markPrice="64.31" positionValue="514.48" reportDate="2025-12-31" />
       </OpenPositions>
       <CorporateActions>
-        <CorporateAction accountId="U1234567" assetCategory="STK" symbol="IBKR" description="INTERACTIVE BROKERS GRO-CL A" conid="43645865" isin="US45841N1072" currency="USD" reportDate="2025-06-18" dateTime="2025-06-18T00:00:00" actionDescription="IBKR(US45841N1072) SPLIT 4 FOR 1 (IBKR, INTERACTIVE BROKERS GRO-CL A, US45841N1072)" quantity="6" type="FS" />
+        <CorporateAction accountId="U1234567" assetCategory="STK" symbol="IBKR" description="INTERACTIVE BROKERS GRO-CL A" conid="43645865" isin="US45841N1072" currency="USD" reportDate="20250618" dateTime="20250617;202500" actionDescription="IBKR(US45841N1072) SPLIT 4 FOR 1 (IBKR, INTERACTIVE BROKERS GRO-CL A, US45841N1072)" quantity="6" type="FS" />
       </CorporateActions>
       <CashReport>
         <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2025-01-01" toDate="2025-12-31" />
