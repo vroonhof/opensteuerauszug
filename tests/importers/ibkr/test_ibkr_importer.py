@@ -1065,6 +1065,45 @@ def test_ibkr_import_canton_extraction_invalid_format(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
+def test_ibkr_import_canton_extraction_invalid_swiss_canton(sample_ibkr_settings):
+    """Test that invalid Swiss canton codes are handled gracefully."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+    
+    # Test with invalid Swiss canton code
+    xml_with_invalid_canton = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <AccountInformation accountId="U1234567" name="John Doe" stateResidentialAddress="CH-XX" />
+      <Trades />
+      <OpenPositions />
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+    
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+    
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_with_invalid_canton)
+        xml_file_path = tmp_file.name
+    
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        # Canton should not be set for invalid canton code
+        assert tax_statement.canton is None
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
 def test_ibkr_import_canton_extraction_no_account_info(sample_ibkr_settings):
     """Test that missing AccountInformation doesn't cause errors."""
     period_from = date(2023, 1, 1)

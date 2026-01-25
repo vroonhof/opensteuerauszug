@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Final, List, Any, Dict, Literal
+from typing import Final, List, Any, Dict, Literal, get_args, cast
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
@@ -12,7 +12,7 @@ from opensteuerauszug.model.ech0196 import (
     BankAccountName, ClientNumber, Institution, OrganisationName, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
     Security, SecurityStock, SecurityPayment,
     BankAccount, BankAccountPayment, BankAccountTaxValue,
-    CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client
+    CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client, CantonAbbreviation
 )
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
@@ -979,12 +979,9 @@ class IbkrImporter:
                         parts = state_addr.split('-')
                         if len(parts) == 2 and parts[0].upper() == 'CH':
                             canton = parts[1].strip().upper()
-                            # Import at function level to avoid circular imports
-                            from typing import get_args
-                            from opensteuerauszug.model.ech0196 import CantonAbbreviation
                             valid_cantons = get_args(CantonAbbreviation)
                             if canton in valid_cantons:
-                                tax_statement.canton = canton  # type: ignore
+                                tax_statement.canton = cast(CantonAbbreviation, canton)
                                 logger.info(f"Set canton from IBKR stateResidentialAddress: {canton}")
                             else:
                                 logger.warning(f"Invalid canton extracted from stateResidentialAddress: '{canton}'. Valid cantons are: {', '.join(valid_cantons)}")
