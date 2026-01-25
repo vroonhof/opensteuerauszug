@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Final, List, Any, Dict, Literal
+from typing import Final, List, Any, Dict, Literal, get_args, cast
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
@@ -12,7 +12,7 @@ from opensteuerauszug.model.ech0196 import (
     BankAccountName, ClientNumber, Institution, OrganisationName, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
     Security, SecurityStock, SecurityPayment,
     BankAccount, BankAccountPayment, BankAccountTaxValue,
-    CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client
+    CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client, CantonAbbreviation
 )
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
@@ -966,12 +966,31 @@ class IbkrImporter:
                 first_name = getattr(acc_info, 'firstName', None)
                 last_name = getattr(acc_info, 'lastName', None)
                 account_holder_name = getattr(acc_info, 'accountHolderName', None)
+                state_residential_address = getattr(acc_info, 'stateResidentialAddress', None)
                 # address1 = getattr(acc_info, 'address1', None)
                 # address2 = getattr(acc_info, 'address2', None)
                 # city = getattr(acc_info, 'city', None)
                 # state = getattr(acc_info, 'state', None)
                 # country = getattr(acc_info, 'country', None)
                 # postalCode = getattr(acc_info, 'postalCode', None)
+                
+                # Extract canton from stateResidentialAddress (format: "CH-ZH")
+                if state_residential_address and isinstance(state_residential_address, str):
+                    state_addr = state_residential_address.strip()
+                    if '-' in state_addr:
+                        parts = state_addr.split('-')
+                        if len(parts) == 2 and parts[0].upper() == 'CH':
+                            canton = parts[1].strip().upper()
+                            valid_cantons = get_args(CantonAbbreviation)
+                            if canton in valid_cantons:
+                                tax_statement.canton = cast(CantonAbbreviation, canton)
+                                logger.info(f"Set canton from IBKR stateResidentialAddress: {canton}")
+                            else:
+                                logger.warning(f"Invalid canton extracted from stateResidentialAddress: '{canton}'. Valid cantons are: {', '.join(valid_cantons)}")
+                        else:
+                            logger.debug(f"stateResidentialAddress '{state_addr}' does not match expected format 'CH-XX'")
+                    else:
+                        logger.debug(f"stateResidentialAddress '{state_addr}' does not contain a dash separator")
 
                 client_first_name = None
                 client_last_name = None

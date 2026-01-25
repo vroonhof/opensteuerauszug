@@ -934,3 +934,212 @@ def test_bank_account_names_always_set(sample_ibkr_settings):
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+
+def test_ibkr_import_canton_extraction(sample_ibkr_settings):
+    """Test that canton is extracted from IBKR stateResidentialAddress."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+    
+    # Create XML with AccountInformation containing stateResidentialAddress
+    xml_with_canton = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <AccountInformation accountId="U1234567" name="John Doe" stateResidentialAddress="CH-ZH" />
+      <Trades>
+        <Trade transactionID="1001" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" issuerCountryCode="US" currency="USD" quantity="10" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="280.00" tradeMoney="2800.00" buySell="BUY" ibCommission="-1.00" ibCommissionCurrency="USD" netCash="-2801.00" />
+      </Trades>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" issuerCountryCode="US" currency="USD" position="10" markPrice="300.00" positionValue="3000.00" reportDate="2023-12-31" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" startingCash="0" endingCash="1000.00" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+    
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+    
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_with_canton)
+        xml_file_path = tmp_file.name
+    
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        
+        # Verify canton was extracted and set
+        assert tax_statement.canton == "ZH"
+        
+        # Verify client was created (from name field)
+        assert tax_statement.client is not None
+        assert len(tax_statement.client) == 1
+        assert tax_statement.client[0].lastName == "Doe"
+        
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_import_canton_extraction_different_cantons(sample_ibkr_settings):
+    """Test canton extraction works with different Swiss cantons."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+    
+    test_cantons = ["ZH", "BE", "GE", "VD", "ZG", "TI"]
+    
+    for canton in test_cantons:
+        xml_content = f"""
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <AccountInformation accountId="U1234567" name="Jane Smith" stateResidentialAddress="CH-{canton}" />
+      <Trades />
+      <OpenPositions />
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+        
+        importer = IbkrImporter(
+            period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+        )
+        
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+            tmp_file.write(xml_content)
+            xml_file_path = tmp_file.name
+        
+        try:
+            tax_statement = importer.import_files([xml_file_path])
+            assert tax_statement is not None
+            assert tax_statement.canton == canton, f"Expected canton {canton}, got {tax_statement.canton}"
+        finally:
+            if os.path.exists(xml_file_path):
+                os.remove(xml_file_path)
+
+
+def test_ibkr_import_canton_extraction_invalid_format(sample_ibkr_settings):
+    """Test that invalid canton formats are handled gracefully."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+    
+    # Test with non-CH country code
+    xml_with_invalid_country = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <AccountInformation accountId="U1234567" name="John Doe" stateResidentialAddress="US-NY" />
+      <Trades />
+      <OpenPositions />
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+    
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+    
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_with_invalid_country)
+        xml_file_path = tmp_file.name
+    
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        # Canton should not be set for non-CH address
+        assert tax_statement.canton is None
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_import_canton_extraction_invalid_swiss_canton(sample_ibkr_settings):
+    """Test that invalid Swiss canton codes are handled gracefully."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+    
+    # Test with invalid Swiss canton code
+    xml_with_invalid_canton = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <AccountInformation accountId="U1234567" name="John Doe" stateResidentialAddress="CH-XX" />
+      <Trades />
+      <OpenPositions />
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+    
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+    
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_with_invalid_canton)
+        xml_file_path = tmp_file.name
+    
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        # Canton should not be set for invalid canton code
+        assert tax_statement.canton is None
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_import_canton_extraction_no_account_info(sample_ibkr_settings):
+    """Test that missing AccountInformation doesn't cause errors."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+    
+    xml_without_account_info = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <Trades />
+      <OpenPositions />
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+    
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+    
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_without_account_info)
+        xml_file_path = tmp_file.name
+    
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        # Canton should not be set without AccountInformation
+        assert tax_statement.canton is None
+        # Client should also not be created
+        assert len(tax_statement.client) == 0
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+

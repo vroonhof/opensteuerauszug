@@ -88,6 +88,7 @@ class TestCleanupCalculatorSorting:
         # Added default fields for TaxStatement for ID generation
         default_period_to = date(2023,12,31)
         statement = TaxStatement(
+            canton="ZH",
             id=None, creationDate=datetime(default_period_to.year,1,1), taxPeriod=default_period_to.year, 
             periodFrom=date(default_period_to.year,1,1), periodTo=default_period_to, 
             country="CH", minorVersion=0, 
@@ -194,6 +195,7 @@ class TestCleanupCalculatorFiltering:
         payments = [create_bank_account_payment(sample_period_from - timedelta(days=1))]
         bank_account = BankAccount(bankAccountNumber=BankAccountNumber("BA1"), payment=list(payments))
         statement = TaxStatement(
+            canton="ZH",
             id=None, creationDate=datetime(sample_period_to.year,1,1), taxPeriod=sample_period_to.year, 
             periodFrom=sample_period_from, periodTo=sample_period_to, 
             country="CH", minorVersion=0,

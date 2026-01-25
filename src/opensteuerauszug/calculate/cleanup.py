@@ -148,8 +148,8 @@ class CleanupCalculator:
         if not statement.creationDate:
             statement.creationDate = datetime.now()
 
-        # Set canton from configuration if not already set
-        if not statement.canton and self.config_settings and self.config_settings.canton:
+        # Set canton from configuration (config takes precedence over importer data)
+        if self.config_settings and self.config_settings.canton:
             canton_value = self.config_settings.canton
             # Validate canton against allowed values
             valid_cantons = get_args(CantonAbbreviation)
@@ -159,6 +159,16 @@ class CleanupCalculator:
                 logger.info(f"Set canton from configuration: {statement.canton}")
             else:
                 logger.warning(f"Invalid canton '{canton_value}'. Valid cantons are: {', '.join(valid_cantons)}")
+        
+        # Validate that canton is set by either config or importer
+        if not statement.canton:
+            error_msg = (
+                "Canton is not set. Please either:\n"
+                "  1. Set 'canton' in your config.toml [general] section, or\n"
+                "  2. Ensure your importer data includes canton information (e.g., IBKR flex report with stateResidentialAddress)"
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         # Set client name from configuration if client exists but lacks name
         if self.config_settings and self.config_settings.full_name:
