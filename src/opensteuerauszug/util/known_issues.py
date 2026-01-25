@@ -1,3 +1,4 @@
+# pyright: reportOperatorIssue=false
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
@@ -104,4 +105,12 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
             if error.field_path.endswith("value"):
                 if abs(error.expected - error.actual) / error.expected < Decimal("0.005"):
                     return True
+    else:
+        # Ignore common implementation issues for unknown institutions
+        if "Revenue" in error.field_path:
+            if type(error.expected) is Decimal and type(error.actual) is Decimal:
+                if abs(error.expected - error.actual) < Decimal("0.01"):
+                    return True
+            if error.expected == Decimal("0") and error.actual is None:
+                return True
     return False
