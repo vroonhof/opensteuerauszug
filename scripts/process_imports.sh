@@ -24,7 +24,7 @@ fi
 
 PHASES="-p import -p calculate -p render"
 
-EXTRA_ARGS="--tax-year 2024 --tax-calculation-level $TAX_CALCULATION_LEVEL"
+DEFAULT_TAX_YEAR="2024"
 
 # Ensure output directory exists
 mkdir -p "$OUTPUT_DIR"
@@ -56,16 +56,27 @@ for input in "${IMPORT_INPUTS[@]}"; do
     if [[ -d "$input_leaf" ]]; then
         pdf_name="${input}${PDF_POSTFIX}"
         xml_name="${input}${XML_POSTFIX}"
+        tax_year="$DEFAULT_TAX_YEAR"
     else
         if [[ -f "$input_leaf" ]]; then
             filename=$(basename "$input_leaf")
             pdf_name="${filename%.xml}${PDF_POSTFIX}"
             xml_name="${filename%.xml}${XML_POSTFIX}"
-            echo "Processing $filename..."
+            
+            # Extract year from filename (e.g., ibkr_flex_2025.xml -> 2025)
+            if [[ "$filename" =~ (20[0-9]{2}) ]]; then
+                tax_year="${BASH_REMATCH[1]}"
+                echo "Processing $filename... (detected tax year: $tax_year)"
+            else
+                tax_year="$DEFAULT_TAX_YEAR"
+                echo "Processing $filename... (using default tax year: $tax_year)"
+            fi
         else
             continue
         fi
     fi
+    
+    EXTRA_ARGS="--tax-year $tax_year --tax-calculation-level $TAX_CALCULATION_LEVEL"
     importer=$(echo "$input" | cut -d'/' -f1)
     python -m opensteuerauszug.steuerauszug "$input_leaf" --importer "$importer" $PHASES -o "$OUTPUT_DIR/$pdf_name"  --xml-output "$OUTPUT_DIR/$xml_name" --debug-dump $OUTPUT_DIR/debug_$importer ${EXTRA_ARGS:-}
   done

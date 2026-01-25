@@ -42,7 +42,7 @@ else
   echo "Running in CALCULATE and RENDER mode"
 fi
 
-EXTRA_ARGS="--tax-year 2024 --tax-calculation-level=kursliste --debug-dump $OUTPUT_DIR/debug"
+DEFAULT_TAX_YEAR="2024"
 
 # Ensure output directory exists
 mkdir -p "$OUTPUT_DIR"
@@ -64,7 +64,17 @@ for xml_file in "$ROOT_DIR/tests/samples/"*.xml; do
     filename=$(basename "$xml_file")
     pdf_name="${filename%.xml}.pdf"
     xml_name="${filename%.xml}.xml"
-    echo "Processing $filename..."
+    
+    # Extract year from filename (e.g., sample_2025.xml -> 2025)
+    if [[ "$filename" =~ (20[0-9]{2}) ]]; then
+        tax_year="${BASH_REMATCH[1]}"
+        echo "Processing $filename... (detected tax year: $tax_year)"
+    else
+        tax_year="$DEFAULT_TAX_YEAR"
+        echo "Processing $filename... (using default tax year: $tax_year)"
+    fi
+    
+    EXTRA_ARGS="--tax-year $tax_year --tax-calculation-level=kursliste --debug-dump $OUTPUT_DIR/debug"
     python -m opensteuerauszug.steuerauszug "$xml_file" --raw-import $PHASES -o "$OUTPUT_DIR/$pdf_name" --xml-output "$OUTPUT_DIR/$xml_name" ${EXTRA_ARGS:-}
   fi
 done
@@ -84,7 +94,17 @@ for xml_file in "$SAMPLE_DIR"/*.xml; do
     filename=$(basename "$xml_file")
     pdf_name="${filename%.xml}.pdf"
     xml_name="${filename%.xml}.xml"
-    echo "Processing $filename..."
+    
+    # Extract year from filename (e.g., sample_2025.xml -> 2025)
+    if [[ "$filename" =~ (20[0-9]{2}) ]]; then
+        tax_year="${BASH_REMATCH[1]}"
+        echo "Processing $filename... (detected tax year: $tax_year)"
+    else
+        tax_year="$DEFAULT_TAX_YEAR"
+        echo "Processing $filename... (using default tax year: $tax_year)"
+    fi
+    
+    EXTRA_ARGS="--tax-year $tax_year --tax-calculation-level=kursliste --debug-dump $OUTPUT_DIR/debug"
     python -m opensteuerauszug.steuerauszug "$xml_file" --raw-import $PHASES -o "$OUTPUT_DIR/$pdf_name"  --xml-output "$OUTPUT_DIR/$xml_name" ${EXTRA_ARGS:-}
   fi
 done

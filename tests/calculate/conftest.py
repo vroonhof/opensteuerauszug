@@ -7,14 +7,83 @@ kursliste instances, and exchange rate providers.
 """
 
 import pytest
+import re
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from opensteuerauszug.core.kursliste_manager import KurslisteManager
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from opensteuerauszug.core.kursliste_accessor import KurslisteAccessor
 from opensteuerauszug.model.kursliste import Kursliste
+from opensteuerauszug.model.ech0196 import TaxStatement
 from tests.utils.samples import get_sample_dirs
+
+
+def extract_year_from_filename(filename: str) -> Optional[int]:
+    """
+    Extract a 4-digit year (20XX) from a filename.
+    
+    Args:
+        filename: The filename to extract year from
+        
+    Returns:
+        The extracted year as an integer, or None if no year found
+    """
+    match = re.search(r'(20[0-9]{2})', filename)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def get_tax_year_for_sample(sample_file: str, default_year: int = 2024) -> int:
+    """
+    Determine the tax year for a sample file.
+    
+    First tries to extract year from filename, then loads the file to check
+    taxPeriod field, and falls back to default if neither is available.
+    
+    Args:
+        sample_file: Path to the sample XML file
+        default_year: Default year to use if none can be determined
+        
+    Returns:
+        The tax year as an integer
+    """
+    # First try filename
+    filename = Path(sample_file).name
+    year = extract_year_from_filename(filename)
+    if year:
+        return year
+    
+    # Try loading the file and checking taxPeriod
+    try:
+        statement = TaxStatement.from_xml_file(sample_file)
+        if statement.taxPeriod:
+            return statement.taxPeriod
+    except Exception:
+        pass
+    
+    return default_year
+
+
+def ensure_kursliste_year_available(kursliste_manager: KurslisteManager, required_year: int, sample_file: str) -> None:
+    """
+    Verify that kursliste data for the required year is available.
+    
+    Skips the test if the required year is not available in the kursliste manager.
+    
+    Args:
+        kursliste_manager: The KurslisteManager instance
+        required_year: The required tax year
+        sample_file: The sample file being tested (for error message)
+    """
+    available_years = kursliste_manager.get_available_years()
+    if required_year not in available_years:
+        pytest.skip(
+            f"Kursliste for year {required_year} not available for {sample_file}. "
+            f"Available years: {sorted(available_years)}. "
+            f"Please ensure kursliste_{required_year}.xml or kursliste_{required_year}.sqlite exists."
+        )
 
 
 @pytest.fixture(scope="session")

@@ -16,6 +16,7 @@ from datetime import date, datetime
 from typing import Optional
 from tests.utils.samples import get_sample_files
 from .known_issues import _known_issue
+from .conftest import get_tax_year_for_sample, ensure_kursliste_year_available
 
 @pytest.fixture
 def minimal_tax_value_calculator_overwrite() -> MinimalTaxValueCalculator:
@@ -85,12 +86,16 @@ def test_minimal_tax_value_calculator_calculate_empty_statement_verify(
 
 class TestMinimalTaxValueCalculatorIntegration:
     @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
-    def test_run_in_verify_mode_no_errors(self, sample_file: str, exchange_rate_provider: KurslisteExchangeRateProvider):
+    def test_run_in_verify_mode_no_errors(self, sample_file: str, exchange_rate_provider: KurslisteExchangeRateProvider, kursliste_manager):
         """
         Tests that MinimalTaxValueCalculator runs in VERIFY mode
         without producing errors when processing real-world sample TaxStatement XML files.
         Uses the real exchange rate provider from kursliste.
         """
+        # Ensure the required kursliste year is available
+        required_year = get_tax_year_for_sample(sample_file)
+        ensure_kursliste_year_available(kursliste_manager, required_year, sample_file)
+        
         calculator = MinimalTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider)
         
         # Load TaxStatement from the sample XML file
