@@ -536,12 +536,11 @@ class IbkrImporter:
             # --- Process Corporate Actions ---
             if stmt.CorporateActions:
                 for action in stmt.CorporateActions:
-                    # CorperateActions have dates with time stamps, which can be at end of business etc
-                    # to void this we assume that the reportDate is always the effective data we see
-                    # a difference in the amount of securties.
+                    # CorporateActions have dates with time stamps, which can be at end of business etc
+                    # to avoid this we assume that the reportDate is always the effective date when we see
+                    # a difference in the amount of securities.
                     action_date = self._get_required_field(action, "reportDate", "CorporateAction")
-                    if action_date is None:
-                        raise ValueError("CorporateAction missing dateTime/reportDate")
+
                     if hasattr(action_date, "date"):
                         action_date = action_date.date()
                     elif isinstance(action_date, str):
