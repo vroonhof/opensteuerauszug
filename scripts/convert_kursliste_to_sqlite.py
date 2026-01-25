@@ -102,6 +102,10 @@ def get_text(elem, tag, namespace=None):
         child = elem.find(tag)
     return child.text if child is not None else None
 
+def get_attr(elem, attr):
+    """Helper to get attribute from an XML element."""
+    return elem.get(attr)
+
 def process_security_element(cursor, elem, tax_year, source_file_name, namespace):
     """Process a single security element (share, bond, fund, etc.) and insert into DB."""
     kl_id = get_text(elem, 'id', namespace)
@@ -163,6 +167,8 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
         
         counts = {tag: 0 for tag in security_tags}
         counts['exchangeRate'] = 0
+        counts['exchangeRateMonthly'] = 0
+        counts['exchangeRateYearEnd'] = 0
         counts['sign'] = 0
         counts['da1Rate'] = 0
         
@@ -170,26 +176,31 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
         batch_size = 1000
         batch_count = 0
         
+        # First pass to get tax year from the root element attribute
+        for event, elem in ET.iterparse(xml_file_path, events=('start',)):
+            tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+            if tag == 'kursliste':
+                # Year is an attribute of kursliste element
+                tax_year_str = elem.get('year')
+                if tax_year_str:
+                    tax_year = int(tax_year_str)
+                    print(f"Processing kursliste for tax year: {tax_year}")
+                break  # Only process the first kursliste element
+        
+        # Reset file parsing for main processing
         # Process XML in streaming fashion
         for event, elem in ET.iterparse(xml_file_path, events=('end',)):
             tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
             
-            # Extract tax year from root element
-            if tag == 'kursliste' and tax_year is None:
-                year_elem = elem.find(f'{ns_prefix}year')
-                if year_elem is not None:
-                    tax_year = int(year_elem.text)
-                    print(f"Processing kursliste for tax year: {tax_year}")
-            
             # Process security elements
             if tag in security_tags:
-                kl_id = get_text(elem, 'id', namespace)
-                valor_number = get_text(elem, 'valorNumber', namespace)
-                isin = get_text(elem, 'isin', namespace)
-                security_type = get_text(elem, 'securityType', namespace)
+                kl_id = get_attr(elem, 'id')
+                valor_number = get_attr(elem, 'valorNumber')
+                isin = get_attr(elem, 'isin')
+                security_type = get_attr(elem, 'securityType')
                 
-                # Convert element to dict for blob
-                elem_dict = {child.tag.split('}')[-1]: child.text for child in elem}
+                # Convert all attributes to dict for blob
+                elem_dict = dict(elem.attrib)
                 blob_data = json.dumps(elem_dict).encode('utf-8')
                 
                 cursor.execute("""
@@ -207,10 +218,10 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
                 
             # Process exchange rates
             elif tag == 'exchangeRate':
-                currency = get_text(elem, 'currency', namespace)
-                date = get_text(elem, 'date', namespace)
-                rate = get_text(elem, 'value', namespace)
-                denomination = get_text(elem, 'denomination', namespace)
+                currency = get_attr(elem, 'currency')
+                date = get_attr(elem, 'date')
+                rate = get_attr(elem, 'value')
+                denomination = get_attr(elem, 'denomination')
                 
                 cursor.execute("""
                     INSERT INTO exchange_rates_daily (
@@ -222,12 +233,48 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
                 batch_count += 1
                 elem.clear()
                 
+            # Process monthly exchange rates
+            elif tag == 'exchangeRateMonthly':
+                currency = get_attr(elem, 'currency')
+                year = get_attr(elem, 'year')
+                month = get_attr(elem, 'month')
+                rate = get_attr(elem, 'value')
+                denomination = get_attr(elem, 'denomination')
+                
+                cursor.execute("""
+                    INSERT INTO exchange_rates_monthly (
+                        currency_code, year, month, rate, denomination, tax_year, source_file
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (currency, year, month, rate, denomination, tax_year, source_file_name))
+                
+                counts['exchangeRateMonthly'] += 1
+                batch_count += 1
+                elem.clear()
+                
+            # Process year-end exchange rates
+            elif tag == 'exchangeRateYearEnd':
+                currency = get_attr(elem, 'currency')
+                year = get_attr(elem, 'year')
+                rate = get_attr(elem, 'value')
+                rate_middle = get_attr(elem, 'valueMiddle')
+                denomination = get_attr(elem, 'denomination')
+                
+                cursor.execute("""
+                    INSERT INTO exchange_rates_year_end (
+                        currency_code, year, rate, rate_middle, denomination, tax_year, source_file
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (currency, year, rate, rate_middle, denomination, tax_year, source_file_name))
+                
+                counts['exchangeRateYearEnd'] += 1
+                batch_count += 1
+                elem.clear()
+                
             # Process signs
             elif tag == 'sign':
-                kl_id = get_text(elem, 'id', namespace)
-                sign_value = get_text(elem, 'sign', namespace)
+                kl_id = get_attr(elem, 'id')
+                sign_value = get_attr(elem, 'sign')
                 
-                elem_dict = {child.tag.split('}')[-1]: child.text for child in elem}
+                elem_dict = dict(elem.attrib)
                 blob_data = json.dumps(elem_dict).encode('utf-8')
                 
                 cursor.execute("""
@@ -242,11 +289,11 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
                 
             # Process DA1 rates
             elif tag == 'da1Rate':
-                kl_id = get_text(elem, 'id', namespace)
-                country = get_text(elem, 'country', namespace)
-                security_group = get_text(elem, 'securityGroup', namespace)
+                kl_id = get_attr(elem, 'id')
+                country = get_attr(elem, 'country')
+                security_group = get_attr(elem, 'securityGroup')
                 
-                elem_dict = {child.tag.split('}')[-1]: child.text for child in elem}
+                elem_dict = dict(elem.attrib)
                 blob_data = json.dumps(elem_dict).encode('utf-8')
                 
                 cursor.execute("""
@@ -277,7 +324,9 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
         print(f"  Coin/Bullions: {counts['coinBullion']}")
         print(f"  Currency Notes: {counts['currencyNote']}")
         print(f"  LIBOR Swaps: {counts['liborSwap']}")
-        print(f"  Exchange Rates: {counts['exchangeRate']}")
+        print(f"  Exchange Rates (daily): {counts['exchangeRate']}")
+        print(f"  Exchange Rates (monthly): {counts['exchangeRateMonthly']}")
+        print(f"  Exchange Rates (year-end): {counts['exchangeRateYearEnd']}")
         print(f"  Signs: {counts['sign']}")
         print(f"  DA1 Rates: {counts['da1Rate']}")
         print(f"\nSuccessfully converted {xml_file_path} to {db_file_path}")
