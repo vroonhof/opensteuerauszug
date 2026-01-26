@@ -1,5 +1,6 @@
 from decimal import Decimal
 from typing import Optional, List
+from datetime import timedelta
 import logging
 
 from ..core.exchange_rate_provider import ExchangeRateProvider
@@ -93,13 +94,14 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             is_rights = getattr(security, "_is_rights_issue", False)
             closing_balance = Decimal("0")
 
-            # Find the closing balance (latest stock entry without mutation)
-            # We iterate in reverse assuming the list is roughly chronological, but specifically looking for non-mutation
-            if security.stock:
-                for stock in reversed(security.stock):
-                    if not stock.mutation:
-                        closing_balance = stock.quantity
-                        break
+            if security.stock and security.taxValue and security.taxValue.referenceDate:
+                # Use existing reconciled logic to find EOY balance.
+                # We want the balance at the END of the reference date, so we query for the START of the next day.
+                target_date = security.taxValue.referenceDate + timedelta(days=1)
+                reconciler = PositionReconciler(list(security.stock), identifier=f"{ident}-rights-check")
+                pos = reconciler.synthesize_position_at_date(target_date)
+                if pos:
+                    closing_balance = pos.quantity
 
             if is_rights and closing_balance == 0:
                 logger.debug("Suppressing missing Kursliste warning for rights issue %s with zero balance.", ident)
