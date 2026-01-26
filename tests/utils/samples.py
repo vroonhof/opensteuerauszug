@@ -3,6 +3,15 @@ import glob
 from typing import List, Optional, Pattern, Union
 from pathlib import Path
 
+def _find_repo_root(start: Path) -> Path:
+    for parent in [start, *start.parents]:
+        if (parent / "pyproject.toml").exists() or (parent / ".git").exists():
+            return parent
+    return start
+
+
+REPO_ROOT = _find_repo_root(Path(__file__).resolve())
+
 def get_sample_files(pattern: str, base_dir: str = "tests/samples/") -> List[str]:
     """Get sample files matching the given pattern from both the repository and external directories.
     Args:
@@ -13,21 +22,22 @@ def get_sample_files(pattern: str, base_dir: str = "tests/samples/") -> List[str
     """
     # If pattern does not contain '**', add it for recursive search
     # Get samples from the repository
-    sample_files = glob.glob(os.path.join(base_dir, pattern))
+    base_path = Path(base_dir)
+    if not base_path.is_absolute():
+        base_path = REPO_ROOT / base_path
+    sample_files = glob.glob(str(base_path / pattern))
     
     # Get samples from private directory if it exists
-    private_dir = "private/samples/"
-    if os.path.isdir(private_dir):
-        private_pattern = os.path.join(private_dir, pattern)
-        sample_files.extend(glob.glob(private_pattern))
+    private_dir = REPO_ROOT / "private/samples"
+    if private_dir.is_dir():
+        private_pattern = private_dir / pattern
+        sample_files.extend(glob.glob(str(private_pattern)))
     
     # Get samples from external directory if specified
     extra_sample_dir = os.getenv("EXTRA_SAMPLE_DIR")
     if extra_sample_dir:
-        extra_pattern = os.path.join(
-            os.path.expanduser(
-                os.path.expandvars(extra_sample_dir)), pattern)
-        sample_files.extend(glob.glob(extra_pattern))
+        extra_pattern = Path(os.path.expanduser(os.path.expandvars(extra_sample_dir))) / pattern
+        sample_files.extend(glob.glob(str(extra_pattern)))
     
     return sample_files
 
@@ -46,27 +56,27 @@ def get_sample_dirs(subdir: str, extensions: List[str] = ['.pdf', '.json']) -> L
     # External sample directory
     extra_sample_dir = os.getenv("EXTRA_SAMPLE_DIR")
     if extra_sample_dir:
-        extra_dir = os.path.join(os.path.expanduser(os.path.expandvars(extra_sample_dir)), subdir)
-        if os.path.isdir(extra_dir):
+        extra_dir = Path(os.path.expanduser(os.path.expandvars(extra_sample_dir))) / subdir
+        if extra_dir.is_dir():
             files = [f for f in os.listdir(extra_dir) if any(f.lower().endswith(ext) for ext in extensions)]
             if files:
-                dirs.append(extra_dir)
+                dirs.append(str(extra_dir))
     # Private samples directory
-    private_dir = os.path.join("private/samples", subdir)
-    if os.path.isdir(private_dir):
+    private_dir = REPO_ROOT / "private/samples" / subdir
+    if private_dir.is_dir():
         files = [f for f in os.listdir(private_dir) if any(f.lower().endswith(ext) for ext in extensions)]
         if files:
-            dirs.append(private_dir)
+            dirs.append(str(private_dir))
     # Default repo directory
-    repo_dir = os.path.join("tests/samples", subdir)
-    if os.path.isdir(repo_dir):
+    repo_dir = REPO_ROOT / "tests/samples" / subdir
+    if repo_dir.is_dir():
         files = [f for f in os.listdir(repo_dir) if any(f.lower().endswith(ext) for ext in extensions)]
         if files:
-            dirs.append(repo_dir)
+            dirs.append(str(repo_dir))
     # Add data/{subdir} as directory of last resort
-    data_dir = os.path.join("data", subdir)
-    if os.path.isdir(data_dir):
+    data_dir = REPO_ROOT / "data" / subdir
+    if data_dir.is_dir():
         files = [f for f in os.listdir(data_dir) if any(f.lower().endswith(ext) for ext in extensions)]
         if files:
-            dirs.append(data_dir)
+            dirs.append(str(data_dir))
     return dirs
