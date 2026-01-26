@@ -92,10 +92,14 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             # Check if this is a rights issue that we should ignore if not found
             is_rights = getattr(security, "_is_rights_issue", False)
             closing_balance = Decimal("0")
+
+            # Find the closing balance (latest stock entry without mutation)
+            # We iterate in reverse assuming the list is roughly chronological, but specifically looking for non-mutation
             if security.stock:
-                last_stock = security.stock[-1]
-                if not last_stock.mutation:
-                    closing_balance = last_stock.quantity
+                for stock in reversed(security.stock):
+                    if not stock.mutation:
+                        closing_balance = stock.quantity
+                        break
 
             if is_rights and closing_balance == 0:
                 logger.debug("Suppressing missing Kursliste warning for rights issue %s with zero balance.", ident)
