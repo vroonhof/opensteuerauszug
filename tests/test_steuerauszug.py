@@ -9,6 +9,7 @@ from pathlib import Path
 from opensteuerauszug.steuerauszug import app # Updated import
 
 runner = CliRunner()
+KURSLISTE_SAMPLE_DIR = Path(__file__).resolve().parent / "samples" / "kursliste"
 
 @pytest.fixture
 def dummy_input_file(tmp_path: Path) -> Path:
@@ -58,7 +59,16 @@ def test_main_missing_input(tmp_path: Path):
 
 def test_main_basic_run(dummy_input_file: Path):
     """Test a basic run with default phases (will hit placeholders)."""
-    result = runner.invoke(app, [str(dummy_input_file), "--tax-year", "2024"])
+    result = runner.invoke(
+        app,
+        [
+            str(dummy_input_file),
+            "--tax-year",
+            "2024",
+            "--kursliste-dir",
+            str(KURSLISTE_SAMPLE_DIR),
+        ],
+    )
     # It should fail because the output file is missing for the render phase by default
     assert result.exit_code == 1
     assert f"Input file: {dummy_input_file}" in result.stdout
@@ -117,15 +127,25 @@ def test_main_raw_import(dummy_xml_file: Path):
 def test_main_raw_import_with_phases(dummy_xml_file: Path, tmp_path: Path):
     """Test raw import followed by other phases."""
     output_path = tmp_path / "output.pdf"
-    result = runner.invoke(app, [
-        str(dummy_xml_file),
-        "--raw-import",
-        "--tax-year", "2024",
-        "--phases", "validate",
-        "--phases", "calculate",
-        "--phases", "render",
-        "--output", str(output_path)
-    ])
+    result = runner.invoke(
+        app,
+        [
+            str(dummy_xml_file),
+            "--raw-import",
+            "--tax-year",
+            "2024",
+            "--phases",
+            "validate",
+            "--phases",
+            "calculate",
+            "--phases",
+            "render",
+            "--output",
+            str(output_path),
+            "--kursliste-dir",
+            str(KURSLISTE_SAMPLE_DIR),
+        ],
+    )
     # The test will likely fail in render phase due to missing data
     # but we can check that the earlier phases worked
     assert "Raw importing model from" in result.stdout
