@@ -371,7 +371,7 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
             # Commit in batches to improve performance
             if batch_count >= batch_size:
                 conn.commit()
-                print(f"Processed {sum(counts.values())} records...", flush=True)
+                print(f"\rProcessed {sum(counts.values())} records...", end='', flush=True)
                 batch_count = 0
         
         # Final commit
