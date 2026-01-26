@@ -42,7 +42,10 @@ class IbkrAccountSettings(AccountSettingsBase):
     """
     Settings for a single Interactive Brokers account.
     """
-    pass
+    ignore_rights_issues: bool = Field(
+        default=False,
+        description="If True, omit rights issues from the statement when both start and end position balances are zero."
+    )
     # name: Optional[str] = Field(default=None, description="A user-defined name for this account (e.g., 'My IBKR Trading Account').")
     # account_id: Optional[str] = Field(default=None, description="The Interactive Brokers account ID (e.g., U1234567). Optional, as this is usually in the Flex statement, but can be used for validation or selection if a statement contains multiple accounts.")
     # Add any other IBKR-specific settings here if needed in the future,
