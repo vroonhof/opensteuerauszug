@@ -4,6 +4,10 @@ import json
 import os
 import xml.etree.ElementTree as ET
 from decimal import Decimal
+from opensteuerauszug.model.kursliste import (
+    Share, Bond, Fund, Derivative, CoinBullion, CurrencyNote, LiborSwap,
+    Sign, Da1Rate
+)
 
 def create_schema(conn):
     """Creates the database schema."""
@@ -106,6 +110,44 @@ def get_attr(elem, attr):
     """Helper to get attribute from an XML element."""
     return elem.get(attr)
 
+def serialize_element_to_pydantic_json(elem, model_class):
+    """
+    Convert an XML element to a Pydantic model and serialize to JSON.
+    
+    Args:
+        elem: The XML element
+        model_class: The Pydantic model class to use
+    
+    Returns:
+        JSON string of the model, or None if parsing fails
+    """
+    try:
+        # Convert element subtree to XML string
+        xml_str = ET.tostring(elem, encoding='unicode')
+        
+        # Try parsing with the original namespace first
+        try:
+            model_instance = model_class.from_xml(xml_str)
+            return model_instance.model_dump_json(by_alias=True)
+        except Exception as e1:
+            # If that fails, try replacing the namespace with the expected one
+            # This handles older kursliste versions with different namespaces
+            xml_str_fixed = xml_str.replace(
+                'http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste',
+                'http://xmlns.estv.admin.ch/ictax/2.2.0/kursliste'
+            )
+            try:
+                model_instance = model_class.from_xml(xml_str_fixed)
+                return model_instance.model_dump_json(by_alias=True)
+            except Exception as e2:
+                # If both attempts fail, print warning and return None
+                print(f"Warning: Failed to parse element to {model_class.__name__}: {e1}")
+                return None
+        
+    except Exception as e:
+        print(f"Warning: Failed to serialize element to {model_class.__name__}: {e}")
+        return None
+
 def process_security_element(cursor, elem, tax_year, source_file_name, namespace):
     """Process a single security element (share, bond, fund, etc.) and insert into DB."""
     kl_id = get_text(elem, 'id', namespace)
@@ -164,6 +206,15 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
         
         # Security types to process
         security_tags = ['share', 'bond', 'fund', 'derivative', 'coinBullion', 'currencyNote', 'liborSwap']
+        security_model_map = {
+            'share': Share,
+            'bond': Bond,
+            'fund': Fund,
+            'derivative': Derivative,
+            'coinBullion': CoinBullion,
+            'currencyNote': CurrencyNote,
+            'liborSwap': LiborSwap
+        }
         
         counts = {tag: 0 for tag in security_tags}
         counts['exchangeRate'] = 0
@@ -199,16 +250,19 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
                 isin = get_attr(elem, 'isin')
                 security_type = get_attr(elem, 'securityType')
                 
-                # Convert all attributes to dict for blob
-                elem_dict = dict(elem.attrib)
-                blob_data = json.dumps(elem_dict).encode('utf-8')
+                # Convert element to Pydantic model and serialize to JSON
+                model_class = security_model_map[tag]
+                json_str = serialize_element_to_pydantic_json(elem, model_class)
                 
-                cursor.execute("""
-                    INSERT INTO securities (
-                        kl_id, valor_number, isin, tax_year, 
-                        security_type_identifier, security_object_blob
-                    ) VALUES (?, ?, ?, ?, ?, ?)
-                """, (kl_id, valor_number, isin, tax_year, security_type, blob_data))
+                if json_str:  # Only insert if parsing succeeded
+                    blob_data = json_str.encode('utf-8')
+                    
+                    cursor.execute("""
+                        INSERT INTO securities (
+                            kl_id, valor_number, isin, tax_year, 
+                            security_type_identifier, security_object_blob
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                    """, (kl_id, valor_number, isin, tax_year, security_type, blob_data))
                 
                 counts[tag] += 1
                 batch_count += 1
@@ -274,17 +328,21 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
                 kl_id = get_attr(elem, 'id')
                 sign_value = get_attr(elem, 'sign')
                 
-                elem_dict = dict(elem.attrib)
-                blob_data = json.dumps(elem_dict).encode('utf-8')
+                # Convert element to Pydantic model and serialize to JSON
+                json_str = serialize_element_to_pydantic_json(elem, Sign)
                 
-                cursor.execute("""
-                    INSERT INTO signs (
-                        kl_id, sign_value, tax_year, source_file, sign_object_blob
-                    ) VALUES (?, ?, ?, ?, ?)
-                """, (kl_id, sign_value, tax_year, source_file_name, blob_data))
+                if json_str:  # Only insert if parsing succeeded
+                    blob_data = json_str.encode('utf-8')
+                    
+                    cursor.execute("""
+                        INSERT INTO signs (
+                            kl_id, sign_value, tax_year, source_file, sign_object_blob
+                        ) VALUES (?, ?, ?, ?, ?)
+                    """, (kl_id, sign_value, tax_year, source_file_name, blob_data))
+                    
+                    counts['sign'] += 1
+                    batch_count += 1
                 
-                counts['sign'] += 1
-                batch_count += 1
                 elem.clear()
                 
             # Process DA1 rates
@@ -293,17 +351,21 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
                 country = get_attr(elem, 'country')
                 security_group = get_attr(elem, 'securityGroup')
                 
-                elem_dict = dict(elem.attrib)
-                blob_data = json.dumps(elem_dict).encode('utf-8')
+                # Convert element to Pydantic model and serialize to JSON
+                json_str = serialize_element_to_pydantic_json(elem, Da1Rate)
                 
-                cursor.execute("""
-                    INSERT INTO da1_rates (
-                        kl_id, country, security_group, tax_year, source_file, da1_rate_object_blob
-                    ) VALUES (?, ?, ?, ?, ?, ?)
-                """, (kl_id, country, security_group, tax_year, source_file_name, blob_data))
+                if json_str:  # Only insert if parsing succeeded
+                    blob_data = json_str.encode('utf-8')
+                    
+                    cursor.execute("""
+                        INSERT INTO da1_rates (
+                            kl_id, country, security_group, tax_year, source_file, da1_rate_object_blob
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                    """, (kl_id, country, security_group, tax_year, source_file_name, blob_data))
+                    
+                    counts['da1Rate'] += 1
+                    batch_count += 1
                 
-                counts['da1Rate'] += 1
-                batch_count += 1
                 elem.clear()
             
             # Commit in batches to improve performance
