@@ -158,7 +158,7 @@ def test_ibkr_rights_issues_flag_set(ibkr_settings_factory):
 
         drpf1_sec = next((s for s in depot.security if "CH1379144913" in (s.isin or "")), None)
         assert drpf1_sec is not None
-        assert getattr(drpf1_sec, "_is_rights_issue", False) is True, "Security should have _is_rights_issue=True"
+        assert drpf1_sec.is_rights_issue is True, "Security should have is_rights_issue=True"
 
     finally:
         if os.path.exists(xml_file_path):

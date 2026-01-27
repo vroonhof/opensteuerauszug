@@ -839,7 +839,7 @@ class IbkrImporter:
             )
 
             if is_rights_issue:
-                sec._is_rights_issue = True
+                sec.is_rights_issue = True
 
             depot_securities_map[sec_pos_obj.depot].append(sec)
 

@@ -1210,6 +1210,7 @@ class Security(BaseXmlModel):
     totalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, exclude=True)
     totalNonRecoverableTax: Optional[Decimal] = Field(default=None, exclude=True)
     totalAdditionalWithHoldingTaxUSA: Optional[Decimal] = Field(default=None, exclude=True)
+    is_rights_issue: bool = Field(default=False, exclude=True)
     model_config = {
         "json_schema_extra": {'tag_name': 'security', 'tag_namespace': NS_MAP['eCH-0196']}
     }
