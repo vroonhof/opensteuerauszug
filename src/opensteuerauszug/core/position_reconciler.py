@@ -1,3 +1,4 @@
+import bisect
 import logging
 from dataclasses import dataclass
 from datetime import date
@@ -156,14 +157,19 @@ class PositionReconciler:
 
         # Find the latest balance (mutation=False) that is effective at or before the START of target_date.
         # A balance on target_date itself is the state at the START of target_date.
-        for i, stock in enumerate(self.sorted_stocks):
-            if not stock.mutation and stock.referenceDate <= target_date:
+
+        # Use bisect to find the point where dates go strictly > target_date
+        # All stocks[:idx] have referenceDate <= target_date
+        # All stocks[idx:] have referenceDate > target_date
+        idx = bisect.bisect_right(self.sorted_stocks, target_date, key=lambda s: s.referenceDate)
+
+        # Search backwards from idx-1 for the first balance event
+        for i in range(idx - 1, -1, -1):
+            stock = self.sorted_stocks[i]
+            if not stock.mutation:
                 last_balance_event = stock
                 last_balance_idx = i
-            elif stock.referenceDate > target_date and not stock.mutation: 
-                # Found a balance statement after target_date, so the one chosen (if any) is the latest relevant.
                 break
-            # If stock.referenceDate > target_date and stock.mutation, keep searching for earlier balances.
         
         if last_balance_event is not None:
             # --- Forward Synthesis Path --- 
@@ -196,9 +202,10 @@ class PositionReconciler:
             first_future_balance_idx = -1
 
             # Find the earliest balance (mutation=False) strictly AFTER target_date
-            for i in range(len(self.sorted_stocks)):
+            # We can start searching from idx, since self.sorted_stocks[idx] is the first event > target_date
+            for i in range(idx, len(self.sorted_stocks)):
                 stock = self.sorted_stocks[i]
-                if not stock.mutation and stock.referenceDate > target_date:
+                if not stock.mutation:
                     first_future_balance_event = stock
                     first_future_balance_idx = i
                     break # Found the earliest one
