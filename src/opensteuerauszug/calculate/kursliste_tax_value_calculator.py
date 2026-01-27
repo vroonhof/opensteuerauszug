@@ -88,7 +88,18 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 if security.valorNumber
                 else security.securityName
             )
-            self._missing_kursliste_entries.append(ident)
+
+            # Check if this is a rights issue that we should ignore if not found
+            is_rights = security.is_rights_issue
+            closing_balance = Decimal("0")
+
+            if security.taxValue:
+                closing_balance = security.taxValue.quantity
+
+            if is_rights and closing_balance == 0:
+                logger.debug("Suppressing missing Kursliste warning for rights issue %s with zero balance.", ident)
+            else:
+                self._missing_kursliste_entries.append(ident)
 
         super()._handle_Security(security, path_prefix)
 

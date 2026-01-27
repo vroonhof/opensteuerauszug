@@ -277,6 +277,7 @@ class IbkrImporter:
         processed_cash_positions: defaultdict[tuple, Dict[str, list]] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
         security_country_map: Dict[SecurityPosition, str] = {}
+        rights_issue_positions: set[SecurityPosition] = set()
 
         for stmt in all_flex_statements:
             account_id = self._get_required_field(
@@ -569,6 +570,10 @@ class IbkrImporter:
                         description=f"{description} ({symbol})",
                     )
 
+                    sub_category = getattr(action, "subCategory", None)
+                    if sub_category == "RIGHT":
+                        rights_issue_positions.add(sec_pos)
+
                     stock_mutation = SecurityStock(
                         referenceDate=action_date,
                         mutation=True,
@@ -767,6 +772,23 @@ class IbkrImporter:
                     f" (start {opening_balance}, end {closing_balance})"
                 )
 
+            # Check if this is a rights issue and if we should skip it
+            is_rights_issue = sec_pos_obj in rights_issue_positions
+
+            # Find settings for this account
+            account_settings = next(
+                (s for s in self.account_settings_list if s.account_number == sec_pos_obj.depot),
+                None
+            )
+            ignore_rights_issues = getattr(account_settings, "ignore_rights_issues", False) if account_settings else False
+
+            if is_rights_issue and ignore_rights_issues and opening_balance == 0 and closing_balance == 0:
+                logger.info(
+                    "Skipping rights issue %s because balances are zero and ignore_rights_issues is set.",
+                    sec_pos_obj.symbol
+                )
+                continue
+
             start_exists = any(
                 (not s.mutation and s.referenceDate == self.period_from)
                 for s in sorted_stocks
@@ -815,6 +837,10 @@ class IbkrImporter:
                 stock=sorted_stocks,
                 payment=sorted_payments
             )
+
+            if is_rights_issue:
+                sec.is_rights_issue = True
+
             depot_securities_map[sec_pos_obj.depot].append(sec)
 
         final_depots = []
