@@ -19,21 +19,8 @@ from opensteuerauszug.config.models import IbkrAccountSettings
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 # Import ibflex components to avoid RuntimeWarning about module loading order
-try:
-    import ibflex
-    from ibflex.parser import FlexParserError
-    IBFLEX_AVAILABLE = True
-except ImportError:
-    IBFLEX_AVAILABLE = False
-    
-    # Create type-safe placeholders for when ibflex is not available
-    class Trade:  # type: ignore
-        pass
-    
-    class MockParser:  # type: ignore
-        @staticmethod
-        def parse(filename: str):
-            raise ImportError("ibflex library is not installed")
+import ibflex
+from ibflex.parser import FlexParserError
 
 class IbkrImporter:
     """
@@ -132,14 +119,6 @@ class IbkrImporter:
         self.period_to = period_to
         self.account_settings_list = account_settings_list
 
-        if not IBFLEX_AVAILABLE:
-            # This check could also be done in the CLI or app entry point
-            # to provide a cleaner error to the user.
-            logger.critical(
-                "ibflex library is not installed. IbkrImporter will not function."
-            )
-            # Depending on desired behavior, could raise an error here too.
-
         if not self.account_settings_list:
             # Currently no account info is used so we keep stumm.
             logger.debug(
@@ -206,12 +185,6 @@ class IbkrImporter:
         Returns:
             The imported tax statement.
         """
-        if not IBFLEX_AVAILABLE:
-            raise RuntimeError(
-                "ibflex library is not installed. "
-                "Cannot import IBKR Flex statements."
-            )
-
         all_flex_statements = []
 
         for filename in filenames:
@@ -289,7 +262,7 @@ class IbkrImporter:
             # --- Process Trades ---
             if stmt.Trades:
                 for trade in stmt.Trades:
-                    if IBFLEX_AVAILABLE and not isinstance(trade, ibflex.Trade):
+                    if not isinstance(trade, ibflex.Trade):
                         # Skipping summary objects.
                         # It seems tempting to use SymbolSummary but for FX these
                         # are actually for the full report period, so have no fixed date.
@@ -1059,13 +1032,7 @@ class IbkrImporter:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO) # Set a default level for standalone execution
     logger.info("IbkrImporter module loaded.")
-    if not IBFLEX_AVAILABLE:
-        logger.critical(
-            "ibflex library not available. Run 'pip install ibflex' "
-            "to use this importer."
-        )
-    else:
-        logger.info("ibflex library is available.")
+    logger.info("ibflex library is available.")
     # Example usage:
     # from opensteuerauszug.config.models import IbkrAccountSettings # Create
     # settings = IbkrAccountSettings(account_id="U1234567")
@@ -1116,5 +1083,5 @@ if __name__ == '__main__':
     #         os.remove(DUMMY_FILE)
     logger.info(
         "Example usage in __main__ needs IbkrAccountSettings to be defined "
-        "in config.models and 'pip install ibflex devtools'."
+        "in config.models and 'pip install devtools'."
     )
