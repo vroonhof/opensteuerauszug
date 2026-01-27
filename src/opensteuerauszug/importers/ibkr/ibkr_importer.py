@@ -184,6 +184,8 @@ class IbkrImporter:
                         balanceCurrency=stock.balanceCurrency,
                         quotationType=stock.quotationType,
                     )
+                    if hasattr(stock, 'assetCategory'):
+                        pending.assetCategory = stock.assetCategory
             else:
                 if pending:
                     aggregated.append(pending)
@@ -303,8 +305,13 @@ class IbkrImporter:
                     description = self._get_required_field(
                         trade, 'description', 'Trade'
                     )
-                    asset_category = self._get_required_field(
+                    asset_category_raw = self._get_required_field(
                         trade, 'assetCategory', 'Trade'
+                    )
+                    asset_category = (
+                        asset_category_raw.value
+                        if hasattr(asset_category_raw, 'value')
+                        else str(asset_category_raw)
                     )
 
                     conid = str(self._get_required_field(trade, 'conid', 'Trade'))
@@ -375,6 +382,7 @@ class IbkrImporter:
                         balanceCurrency=currency,
                         quotationType="PIECE"
                     )
+                    stock_mutation.assetCategory = asset_category
                     processed_security_positions[sec_pos]['stocks'].append(
                         stock_mutation
                     )
@@ -399,8 +407,13 @@ class IbkrImporter:
                     description = self._get_required_field(
                         open_pos, 'description', 'OpenPosition'
                     )
-                    asset_category = self._get_required_field(
+                    asset_category_raw = self._get_required_field(
                         open_pos, 'assetCategory', 'OpenPosition'
+                    )
+                    asset_category = (
+                        asset_category_raw.value
+                        if hasattr(asset_category_raw, 'value')
+                        else str(asset_category_raw)
                     )
 
                     conid = str(self._get_required_field(
@@ -455,6 +468,7 @@ class IbkrImporter:
                         balanceCurrency=currency,
                         quotationType="PIECE"
                     )
+                    balance_stock.assetCategory = asset_category
                     processed_security_positions[sec_pos]['stocks'].append(
                         balance_stock
                     )
@@ -528,6 +542,7 @@ class IbkrImporter:
                         balanceCurrency=currency,
                         quotationType="PIECE",
                     )
+                    stock_mutation.assetCategory = asset_cat_val
 
                     processed_security_positions[sec_pos]['stocks'].append(
                         stock_mutation
