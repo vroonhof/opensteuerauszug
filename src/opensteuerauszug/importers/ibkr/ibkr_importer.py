@@ -1032,7 +1032,6 @@ class IbkrImporter:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO) # Set a default level for standalone execution
     logger.info("IbkrImporter module loaded.")
-    logger.info("ibflex library is available.")
     # Example usage:
     # from opensteuerauszug.config.models import IbkrAccountSettings # Create
     # settings = IbkrAccountSettings(account_id="U1234567")
@@ -1083,5 +1082,5 @@ if __name__ == '__main__':
     #         os.remove(DUMMY_FILE)
     logger.info(
         "Example usage in __main__ needs IbkrAccountSettings to be defined "
-        "in config.models and 'pip install devtools'."
+        "in config.models and 'pip install ibflex devtools'."
     )
