@@ -35,6 +35,15 @@ except ImportError:
         def parse(filename: str):
             raise ImportError("ibflex library is not installed")
 
+IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Dict[str, SecurityCategory] = {
+    "BOND": "BOND",
+    "OPT": "OPTION",
+    "FUT": "OTHER",
+    "ETF": "FUND",
+    "FUND": "FUND",
+    "STK": "SHARE",
+}
+
 class IbkrImporter:
     """
     Imports Interactive Brokers account data for a given tax period
@@ -354,7 +363,8 @@ class IbkrImporter:
                         valor=valor,
                         isin=ISINType(isin) if isin else None,
                         symbol=conid,
-                        description=f"{description} ({symbol})"
+                        description=f"{description} ({symbol})",
+                        securityType=asset_category.value if hasattr(asset_category, 'value') else str(asset_category)
                     )
                     trade_country = self._normalize_country_code(
                         getattr(trade, 'issuerCountryCode', None)
@@ -434,7 +444,8 @@ class IbkrImporter:
                         valor=valor,
                         isin=ISINType(isin) if isin else None,
                         symbol=conid,
-                        description=f"{description} ({symbol})"
+                        description=f"{description} ({symbol})",
+                        securityType=asset_category.value if hasattr(asset_category, 'value') else str(asset_category)
                     )
                     position_country = self._normalize_country_code(
                         getattr(open_pos, 'issuerCountryCode', None)
@@ -518,6 +529,7 @@ class IbkrImporter:
                         isin=ISINType(isin) if isin else None,
                         symbol=conid,
                         description=f"{description} ({symbol})",
+                        securityType=asset_category.value if hasattr(asset_category, 'value') else str(asset_category)
                     )
 
                     stock_mutation = SecurityStock(
@@ -715,34 +727,18 @@ class IbkrImporter:
                         f"No stocks or payments with currency info."
                     )
 
-            # TODO: Map assetCategory to eCH-0196 SecurityCategory
-            # Attempt to get assetCategory, default to "STK"
-            asset_cat_source = None
-            if sorted_stocks and hasattr(sorted_stocks[0], 'assetCategory'):
-                asset_cat_source = sorted_stocks[0]
-            # Payments don't usually have assetCategory
-            elif sorted_payments and hasattr(sorted_payments[0], 'assetCategory'):
-                asset_cat_source = sorted_payments[0]
+            # Map assetCategory to eCH-0196 SecurityCategory
+            asset_cat = sec_pos_obj.security_type
 
-            asset_cat = (
-                asset_cat_source.assetCategory if asset_cat_source else 'STK'
-            )
 
             sec_category_str: SecurityCategory = "SHARE"
-            if (asset_cat == "BOND"):
-                sec_category_str = "BOND"
-            elif (asset_cat == "OPT"):
-                sec_category_str = "OPTION"
-            elif (asset_cat == "FUT"):
-                sec_category_str = "OTHER"
-            elif (asset_cat == "ETF"):
-                sec_category_str = "FUND"
-            elif (asset_cat == "FUND"):
-                sec_category_str = "FUND"
-            elif (asset_cat == "STK"):
-                sec_category_str = "SHARE"
+            if asset_cat and asset_cat in IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY:
+                sec_category_str = IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY[asset_cat]
             else:
-                raise ValueError(f"Unknown asset category: {asset_cat}")
+                # Default for None (e.g. from cash tx only) or unknown types
+                sec_category_str = "SHARE"
+                if asset_cat and asset_cat not in IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY:
+                    logger.warning(f"Unknown asset category '{asset_cat}' for security {sec_pos_obj.symbol}, defaulting to SHARE.")
 
             # --- Ensure balance at period start and period end + 1 using PositionReconciler ---
             reconciler = PositionReconciler(list(sorted_stocks), identifier=f"{sec_pos_obj.symbol}-reconcile")
