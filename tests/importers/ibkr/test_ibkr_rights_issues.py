@@ -1,16 +1,16 @@
 import os
 import pytest
 from datetime import date
-from decimal import Decimal
+
 import tempfile
-from typing import List
+
 
 from opensteuerauszug.importers.ibkr.ibkr_importer import IbkrImporter
 from opensteuerauszug.config.models import IbkrAccountSettings
 
 # Check if ibflex is available, skip tests if not
 try:
-    from ibflex import parser as ibflex_parser
+    import ibflex
     IBFLEX_INSTALLED = True
 except ImportError:
     IBFLEX_INSTALLED = False
@@ -78,13 +78,7 @@ def test_ibkr_rights_issues_default_behavior(ibkr_settings_factory):
         # We expect it to be present.
         drpf1_sec = next((s for s in depot.security if "DRPF1" in s.securityName), None)
         assert drpf1_sec is not None, "DRPF1 security should be present by default"
-
-        # Check if _is_rights_issue flag is set (implied requirement for next steps)
-        # Note: This attribute will be added in the implementation step, so this assertion might fail until then if I were running it now.
-        # But since I am writing the test plan now, I can include it and it will pass after implementation.
-        # Wait, if I run this test NOW it will fail on this assertion or pass if the flag is not set (if I don't assert it).
-        # But I should verify the flag is set in the implementation.
-
+        # Rights-issue flag behavior is validated separately in test_ibkr_rights_issues_flag_set.
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
@@ -110,27 +104,12 @@ def test_ibkr_rights_issues_ignored(ibkr_settings_factory):
              pass
         else:
             depot = tax_statement.listOfSecurities.depot[0]
-            # DRPF1 has 1208 + (-1200) + (-8) = 0 balance?
-            # XML shows:
-            # 1. quantity="1208" (RI)
-            # 2. quantity="120" (SR) -> This is DRPF.RTS2
-            # 3. quantity="-1200" (SR) -> This is DRPF1.OLD (CH1379144913)
-            # 4. quantity="-8" (DW) -> This is DRPF1.OLD (CH1379144913)
-            # Note: DRPF1 and DRPF1.OLD seem to share the same ISIN CH1379144913 and conid 737556172.
-            # So they should be aggregated into one security position.
-            # Total quantity for CH1379144913: 1208 - 1200 - 8 = 0.
-
-            # Start balance should be 0 (inferred).
-            # End balance should be 0.
-
-            # So it should be omitted.
+            # DRPF1 (CH1379144913) and related positions net to a zero balance and should be omitted
+            # when rights issues are ignored.
             drpf1_sec = next((s for s in depot.security if "CH1379144913" in (s.isin or "")), None)
             assert drpf1_sec is None, "DRPF1 (CH1379144913) should be omitted when ignore_rights_issues=True and balance is 0"
 
-            # Check DRPF.RTS2 (SUDRP2411081)
-            # 1. quantity="120" (SR)
-            # 2. quantity="-120" (TC)
-            # Total = 0. Should be omitted.
+            # DRPF.RTS2 (SUDRP2411081) also nets to zero and should be omitted.
             drpf_rts2_sec = next((s for s in depot.security if "SUDRP2411081" in (s.isin or "")), None)
             assert drpf_rts2_sec is None, "DRPF.RTS2 should be omitted"
 
