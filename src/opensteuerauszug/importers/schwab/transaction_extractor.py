@@ -291,7 +291,6 @@ class TransactionExtractor:
                     referenceDate=tx_date, mutation=True, quotationType="PIECE", 
                     quantity=schwab_qty, balanceCurrency=currency, # Use currency string
                     unitPrice=schwab_price, name=action,
-                    balance=calculated_cost 
                 )
                 if cash_flow:
                      cash_stock = create_cash_stock(cash_flow, f"Cash out for {action} {pos_object.symbol}")
@@ -393,7 +392,6 @@ class TransactionExtractor:
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
                     quantity=schwab_qty, balanceCurrency=currency, # Use currency string
                     unitPrice=vest_fmv_decimal, name=f"Deposit{award_details_str}",
-                    balance=calculated_balance_deposit
                 )
                 # if cash_flow:
                 #     cash_stock = create_cash_stock(cash_flow, f"Implied cash out for Deposit {pos_object.symbol}")
@@ -436,7 +434,7 @@ class TransactionExtractor:
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
                     quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    name="Journal (Shares)", balance=calculated_value # Add value if known
+                    name="Journal (Shares)"
                 )
                 if cash_flow:
                      cash_stock = create_cash_stock(cash_flow, f"Cash flow for Journal {pos_object.symbol}")

@@ -153,7 +153,7 @@ class TestSchwabTransactionExtractor:
         assert stock.mutation is True
         assert stock.quantity == Decimal("25.0")
         assert stock.unitPrice == Decimal("130.50")
-        assert stock.balance == Decimal("3262.50") 
+        assert stock.balance is None
         assert stock.name is not None
         assert stock.name == "Deposit (Award ID: AWD123, Award Date: 01/15/2023, Vest Date: 03/06/2024, FMV: $130.50)"
 
@@ -432,7 +432,7 @@ class TestSchwabTransactionExtractor:
         assert stock.mutation is True
         assert stock.quantity == Decimal("25.0")
         assert stock.unitPrice == Decimal("130.50")
-        assert stock.balance == Decimal("3262.50") 
+        assert stock.balance is None
         assert stock.name is not None
         assert stock.name == "Deposit (Award ID: AWD123, Award Date: 01/15/2023, Vest Date: 03/06/2024, FMV: $130.50)"
 
