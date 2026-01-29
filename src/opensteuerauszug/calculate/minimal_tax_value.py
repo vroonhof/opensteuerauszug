@@ -242,7 +242,17 @@ class MinimalTaxValueCalculator(BaseCalculator):
         # In the base implementation all payments will have been cleared (outside of debugging and verify mode)
         # Avoid doing computation here to handle broken inputs on verify + minimal mode.
         if self._current_security_country == "US":
-            if sec_payment.additionalWithHoldingTaxUSA is None:
+            has_da1_fields = any(
+                field is not None
+                for field in (
+                    sec_payment.lumpSumTaxCreditAmount,
+                    sec_payment.lumpSumTaxCreditPercent,
+                    sec_payment.nonRecoverableTaxAmount,
+                    sec_payment.nonRecoverableTaxPercent,
+                    sec_payment.additionalWithHoldingTaxUSA,
+                )
+            )
+            if has_da1_fields and sec_payment.additionalWithHoldingTaxUSA is None:
                 self._set_field_value(
                     sec_payment,
                     "additionalWithHoldingTaxUSA",

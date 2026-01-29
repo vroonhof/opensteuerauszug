@@ -270,9 +270,6 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 kursliste=True,
             )
 
-            if kl_sec.country == "US":
-                sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
-
             # Not all payment subtypes have these fields
             # TODO: Should the typing be smarter?
             effective_sign = pay.sign if hasattr(pay, "sign") and pay.sign is not None else None
@@ -314,15 +311,16 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             )
 
             if da1_rate:
-                sec_payment.lumpSumTaxCredit = True
-                sec_payment.lumpSumTaxCreditPercent = da1_rate.value
-                sec_payment.lumpSumTaxCreditAmount = (
-                    chf_amount * da1_rate.value / Decimal(100)
-                )
-                sec_payment.nonRecoverableTaxPercent = da1_rate.nonRecoverable
-                sec_payment.nonRecoverableTaxAmount = (
-                    chf_amount * da1_rate.nonRecoverable / Decimal(100)
-                )
+                lump_sum_amount = chf_amount * da1_rate.value / Decimal(100)
+                non_recoverable_amount = chf_amount * da1_rate.nonRecoverable / Decimal(100)
+                if lump_sum_amount > 0 or non_recoverable_amount > 0:
+                    sec_payment.lumpSumTaxCreditPercent = da1_rate.value
+                    sec_payment.lumpSumTaxCreditAmount = lump_sum_amount
+                    sec_payment.nonRecoverableTaxPercent = da1_rate.nonRecoverable
+                    sec_payment.nonRecoverableTaxAmount = non_recoverable_amount
+                    if kl_sec.country == "US":
+                        sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
+                    sec_payment.lumpSumTaxCredit = True
 
             if effective_sign == "(V)":
                 raise NotImplementedError(
