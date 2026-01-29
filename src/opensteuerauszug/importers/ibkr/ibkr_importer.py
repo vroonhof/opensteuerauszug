@@ -805,7 +805,7 @@ class IbkrImporter:
                 positionId=sec_pos_idx,
                 currency=primary_currency,
                 quotationType=primary_quotation_type,
-                securityCategory=sec_category_str, # TODO: Map to Literal
+                securityCategory=sec_category,
                 securityName=sec_pos_obj.description or sec_pos_obj.symbol,
                 isin=ISINType(sec_pos_obj.isin) if sec_pos_obj.isin is not None else None,
                 valorNumber=sec_pos_obj.valor,
