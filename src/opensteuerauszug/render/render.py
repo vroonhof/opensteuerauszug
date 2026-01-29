@@ -456,7 +456,7 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
                   base_col_width, # Col 5: Brutto ohne VSt / Brutto DA-1 / Total mit VSt << Needs width
                   base_col_width, # Col 6: Verrechnungsst / Pauschale / Total ohne VSt << Needs width
                   base_col_width, # Col 7: Blank / Steuerrueckbehalt / Total Gesamt << Needs width
-                  2*base_col_width, # Col 8: Description / Instrunctions
+                  2*base_col_width, # Col 8: Description / Instructions
                   ] 
 
     row_heights = [15*mm, 6*mm, 2*mm, 15*mm, 6*mm, 2*mm, 20*mm, 6*mm]
