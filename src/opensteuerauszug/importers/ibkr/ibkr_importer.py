@@ -18,6 +18,14 @@ from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
+IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Final[Dict[str, SecurityCategory]] = {
+    "STK": "SHARE",
+    "BOND": "BOND",
+    "OPT": "OPTION",
+    "FUT": "OTHER",
+    "ETF": "FUND",
+    "FUND": "FUND",
+}
 # Import ibflex components to avoid RuntimeWarning about module loading order
 try:
     import ibflex
@@ -726,20 +734,8 @@ class IbkrImporter:
                 asset_cat_source.assetCategory if asset_cat_source else 'STK'
             )
 
-            sec_category_str: SecurityCategory = "SHARE"
-            if (asset_cat == "BOND"):
-                sec_category_str = "BOND"
-            elif (asset_cat == "OPT"):
-                sec_category_str = "OPTION"
-            elif (asset_cat == "FUT"):
-                sec_category_str = "OTHER"
-            elif (asset_cat == "ETF"):
-                sec_category_str = "FUND"
-            elif (asset_cat == "FUND"):
-                sec_category_str = "FUND"
-            elif (asset_cat == "STK"):
-                sec_category_str = "SHARE"
-            else:
+            sec_category = IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY.get(asset_cat)
+            if not sec_category:
                 raise ValueError(f"Unknown asset category: {asset_cat}")
 
             # --- Ensure balance at period start and period end + 1 using PositionReconciler ---
@@ -805,7 +801,7 @@ class IbkrImporter:
                 positionId=sec_pos_idx,
                 currency=primary_currency,
                 quotationType=primary_quotation_type,
-                securityCategory=sec_category_str, # TODO: Map to Literal
+                securityCategory=sec_category,
                 securityName=sec_pos_obj.description or sec_pos_obj.symbol,
                 isin=ISINType(sec_pos_obj.isin) if sec_pos_obj.isin is not None else None,
                 valorNumber=sec_pos_obj.valor,
