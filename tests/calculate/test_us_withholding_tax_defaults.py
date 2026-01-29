@@ -17,7 +17,8 @@ from opensteuerauszug.model.ech0196 import (
 def test_fix_issue_78_us_security_additional_withholding_tax_usa():
     """
     Test that FillInTaxValueCalculator correctly sets additionalWithHoldingTaxUSA to 0
-    for US securities if it is missing, when in FILL mode.
+    for US securities when other DA1 fields are present, if it is missing, when in
+    FILL mode.
     """
     provider = DummyExchangeRateProvider()
     calculator = FillInTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
@@ -37,6 +38,7 @@ def test_fix_issue_78_us_security_additional_withholding_tax_usa():
                 quantity=Decimal("10"),
                 amountCurrency="USD",
                 amount=Decimal("100"),
+                nonRecoverableTaxAmount=Decimal("1.00"),
                 additionalWithHoldingTaxUSA=None  # Explicitly None
             )
         ]
