@@ -109,13 +109,13 @@ def format_currency(value: Optional[Decimal], default=''):
     except Exception:
         return default
 
-# For exchange rates we limit to 4 decimals, don't show if 1
+# For exchange rates we limit to 6 decimals, don't show if 1
 def format_exchange_rate(value: Decimal, default=''):
-    """Format exchange rate with 4 decimals, for detail tables."""
+    """Format exchange rate with 6 decimals, for detail tables."""
     if value is None or value == Decimal(1): return default
     try:
-        decimal_value = Decimal(str(value)).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
-        formatted = '{:,.4f}'.format(decimal_value).replace(',', "'")
+        decimal_value = Decimal(str(value)).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
+        formatted = '{:,.6f}'.format(decimal_value).replace(',', "'")
         return formatted
     except: return default
 
