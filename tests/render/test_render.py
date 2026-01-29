@@ -464,3 +464,26 @@ def test_format_currency_trailing_zero():
     assert render.format_currency(value_two_dec) == "50.00"
     assert render.format_currency(value_three_dec) == "50.005"
 
+
+def test_format_exchange_rate():
+    """Test exchange rate formatting with 6 decimal digits."""
+    # Test normal exchange rate with 6 decimals
+    assert render.format_exchange_rate(Decimal("1.234567")) == "1.234567"
+    
+    # Test exchange rate with fewer decimals - should pad with zeros
+    assert render.format_exchange_rate(Decimal("1.23")) == "1.230000"
+    
+    # Test exchange rate that needs rounding
+    assert render.format_exchange_rate(Decimal("1.2345678")) == "1.234568"
+    
+    # Test exchange rate of 1 should return default (empty string)
+    assert render.format_exchange_rate(Decimal("1")) == ""
+    assert render.format_exchange_rate(Decimal("1.0")) == ""
+    
+    # Test None should return default
+    assert render.format_exchange_rate(None) == ""
+    
+    # Test typical ESTV exchange rates (6 decimals)
+    assert render.format_exchange_rate(Decimal("0.952381")) == "0.952381"
+    assert render.format_exchange_rate(Decimal("1.095890")) == "1.095890"
+
