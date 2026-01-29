@@ -270,7 +270,7 @@ def create_client_info_table(tax_statement: TaxStatement, styles, box_width: flo
 # --- Header/Footer Drawing Functions (for SimpleDocTemplate) ---
 
 def draw_page_header(canvas, doc, is_barcode_page: bool = False):
-    """Draws the header content on each page."""
+    """Draws the header content on each page, including both regular content pages and barcode pages."""
     canvas.saveState()
     page_width = doc.pagesize[0]
     page_height = doc.pagesize[1]
@@ -278,8 +278,8 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
     canvas.setFillColor(colors.black)
     header_x = page_width - doc.rightMargin
     
-    # Draw left header text on non-barcode pages
-    if not is_barcode_page and hasattr(doc, 'tax_statement') and doc.tax_statement:
+    # Draw left header text on all pages
+    if hasattr(doc, 'tax_statement') and doc.tax_statement:
         # Get custom styles for header text
         styles = get_custom_styles()
         
@@ -309,8 +309,8 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
         canvas.drawString(doc.leftMargin, page_height - doc.topMargin + 5*mm, 
                          f"Steuerauszug {tax_year} {canton} {period_end_date}")
     
-    # Draw client information table on non-barcode pages
-    if not is_barcode_page and hasattr(doc, 'tax_statement') and doc.tax_statement:
+    # Draw client information table on all pages
+    if hasattr(doc, 'tax_statement') and doc.tax_statement:
         box_width = getattr(doc, 'summary_table_last_col_width', 60*mm)  # Default fallback
         client_table = create_client_info_table(doc.tax_statement, get_custom_styles(), box_width)
         if client_table:
