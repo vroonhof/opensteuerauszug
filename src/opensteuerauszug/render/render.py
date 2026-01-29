@@ -1483,7 +1483,7 @@ def render_tax_statement(
                 "tax_period": tax_period,
                 "period_end_date": period_end_date
             },
-            "costs": [{'description': expense.name, 'type': get_expense_description(expense.expenseType), 'value_chf': expense.amount} for expense in tax_statement.listOfExpenses.expense]}
+            "costs": [{'description': expense.name, 'type': get_expense_description(expense.expenseType), 'value_chf': expense.expenses} for expense in tax_statement.listOfExpenses.expense]}
 
         costs_table = create_costs_table(costs_data, styles, usable_width)
         if costs_table:
