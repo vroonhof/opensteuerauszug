@@ -270,7 +270,7 @@ def create_client_info_table(tax_statement: TaxStatement, styles, box_width: flo
 # --- Header/Footer Drawing Functions (for SimpleDocTemplate) ---
 
 def draw_page_header(canvas, doc, is_barcode_page: bool = False):
-    """Draws the header content on each page."""
+    """Draws the header content on each page, including both regular content pages and barcode pages."""
     canvas.saveState()
     page_width = doc.pagesize[0]
     page_height = doc.pagesize[1]
