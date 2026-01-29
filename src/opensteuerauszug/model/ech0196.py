@@ -17,6 +17,7 @@ from typing import (
     get_args,
     Literal,
     Annotated,
+    Set,
 )
 from datetime import date, datetime
 from decimal import Decimal
@@ -288,6 +289,8 @@ class BaseXmlModel(BaseModel):
     # Class variable for strict parsing that can be overridden by subclasses
     # Mark as excluded so it doesn't show up in XML
     strict_parsing: bool = Field(default=False, exclude=True, repr=False)
+    # Class-level cache for known attribute names to avoid recomputing the set on each call
+    _known_attrs: ClassVar[Optional[Set[str]]] = None
 
     @staticmethod
     def _iter_element(element: ET._Element) -> List[ET._Element]:
@@ -316,9 +319,13 @@ class BaseXmlModel(BaseModel):
         strict_mode = strict if strict is not None else cls.model_config.get('strict_parsing', False)
         
         data = {}
-        known_attrs = { field_info.alias or name
-                        for name, field_info in cls.model_fields.items()
-                        if field_info.json_schema_extra and field_info.json_schema_extra.get("is_attribute") }
+        if cls._known_attrs is None:
+            cls._known_attrs = {
+                field_info.alias or name
+                for name, field_info in cls.model_fields.items()
+                if field_info.json_schema_extra and field_info.json_schema_extra.get("is_attribute")
+            }
+        known_attrs = cls._known_attrs
         unknown_attrs = {}
         for name, value in element.attrib.items():
             # Find the field corresponding to this attribute name
