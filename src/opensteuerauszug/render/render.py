@@ -9,6 +9,11 @@ from decimal import Decimal, ROUND_HALF_UP
 import zlib
 from PIL import Image as PILImage
 
+ZERO_DECIMAL = Decimal('0')
+TWO_DP = Decimal('0.01')
+THREE_DP = Decimal('0.001')
+FOUR_DP = Decimal('0.0001')
+
 # --- ReportLab Imports ---
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, 
@@ -74,7 +79,8 @@ def format_currency_rounded(value: Decimal, default='0.00'):
     """Format currency with 0 decimals, for summary table only."""
     if value is None or value == '': return default
     try:
-        decimal_value = Decimal(str(value)).quantize(Decimal('0'), rounding=ROUND_HALF_UP)
+        decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
+        decimal_value = decimal_value.quantize(ZERO_DECIMAL, rounding=ROUND_HALF_UP)
         formatted = '{:,.0f}'.format(decimal_value).replace(',', "'")
         return formatted
     except: return default
@@ -83,7 +89,8 @@ def format_currency_2dp(value: Decimal, default='0.00'):
     """Format currency with 2 decimals, for detail tables."""
     if value is None or value == '': return default
     try:
-        decimal_value = Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
+        decimal_value = decimal_value.quantize(TWO_DP, rounding=ROUND_HALF_UP)
         formatted = '{:,.2f}'.format(decimal_value).replace(',', "'")
         return formatted
     except: return default
@@ -91,14 +98,14 @@ def format_currency_2dp(value: Decimal, default='0.00'):
 # For most values we use 2 decimals, or leave blank it None or zero
 def format_currency(value: Optional[Decimal], default=''):
     """Format currency, trimming trailing zeros for better alignment."""
-    if value is None or value == Decimal(0):
+    if value is None or value == ZERO_DECIMAL:
         return default
 
     try:
         decimal_value = round_accounting(value)
 
-        two_dec = decimal_value.quantize(Decimal("0.01"))
-        three_dec = decimal_value.quantize(Decimal("0.001"))
+        two_dec = decimal_value.quantize(TWO_DP)
+        three_dec = decimal_value.quantize(THREE_DP)
 
         if two_dec == three_dec:
             formatted = "{:,.2f}".format(two_dec)
@@ -114,7 +121,8 @@ def format_exchange_rate(value: Decimal, default=''):
     """Format exchange rate with 4 decimals, for detail tables."""
     if value is None or value == Decimal(1): return default
     try:
-        decimal_value = Decimal(str(value)).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+        decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
+        decimal_value = decimal_value.quantize(FOUR_DP, rounding=ROUND_HALF_UP)
         formatted = '{:,.4f}'.format(decimal_value).replace(',', "'")
         return formatted
     except: return default
@@ -123,8 +131,9 @@ def format_exchange_rate(value: Decimal, default=''):
 # then always render a sign in front of the number
 def format_stock_quantity(value: Decimal, mutation: bool = False, template: Decimal = Decimal('0.0000'), default=''):
     """Format stock quantity with 4 decimals, if mutation is true, render a sign in front of the number."""
-    if value is None or value == Decimal(0): return default
-    decimal_value = Decimal(str(value)).quantize(template, rounding=ROUND_HALF_UP)
+    if value is None or value == ZERO_DECIMAL: return default
+    decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
+    decimal_value = decimal_value.quantize(template, rounding=ROUND_HALF_UP)
     if mutation:
         return f"{decimal_value:+,}".replace(',', "'")
     else:
@@ -133,7 +142,7 @@ def format_stock_quantity(value: Decimal, mutation: bool = False, template: Deci
 # Find the minimal number of decimals required to represent the value
 def find_minimal_decimals(value: Optional[Decimal]):
     """Find the minimal number of decimals required to represent the value."""
-    if value is None or value == Decimal(0): return 0
+    if value is None or value == ZERO_DECIMAL: return 0
     exponent = value.normalize().as_tuple().exponent
     if isinstance(exponent, int): return max(0, -exponent)
     return 4
