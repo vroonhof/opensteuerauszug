@@ -24,7 +24,7 @@ from reportlab.lib.pagesizes import A4, landscape
 import logging
 
 # --- Import TaxStatement model ---
-from opensteuerauszug.model.ech0196 import TaxStatement
+from opensteuerauszug.model.ech0196 import TaxStatement, get_expense_description
 
 # --- Import OneDeeBarCode for barcode rendering ---
 from opensteuerauszug.render.onedee import OneDeeBarCode
@@ -389,7 +389,8 @@ def create_summary_table(data, styles, usable_width):
          Paragraph(f'Bruttoertrag {summary_data.get("tax_period", "")} Werte mit VSt.-Abzug', header_style),
          Paragraph('B', val_center), # 'B' in its own column (index 2)
          Paragraph(f'Bruttoertrag {summary_data.get("tax_period", "")} Werte ohne VSt.-Abzug', header_style),
-         Paragraph('Verrechnungs- steueranspruch', header_style), '',
+         Paragraph('Verrechnungs- steueranspruch', header_style),
+         Paragraph('Gebühren', header_style),
          Paragraph(f'''Werte für Formular "Wertschriften- und Guthabenverzeichnis"
 (inkl. Konti, ohne Werte DA-1 und USA)''', val_left)],
         # Row 1: A/B Values (Index 2 is 'B', Index 5 blank)
@@ -400,7 +401,7 @@ def create_summary_table(data, styles, usable_width):
          '',
          Paragraph(format_currency_rounded(summary_data.get('brutto_ohne_vst')), val_right),
          Paragraph(format_currency_2dp(summary_data.get('vst_anspruch')), val_right),
-         '',
+         Paragraph(format_currency_2dp(summary_data.get('total_gebuehren')), val_right),
          Paragraph(footnote_text, val_left)],
         # Row 2: Spacer row (6 columns)
         ['', '', '', '', '', ''],
@@ -455,7 +456,7 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
                   base_col_width, # Col 5: Brutto ohne VSt / Brutto DA-1 / Total mit VSt << Needs width
                   base_col_width, # Col 6: Verrechnungsst / Pauschale / Total ohne VSt << Needs width
                   base_col_width, # Col 7: Blank / Steuerrueckbehalt / Total Gesamt << Needs width
-                  2*base_col_width, # Col 8: Description / Istrunctions
+                  2*base_col_width, # Col 8: Description / Instructions
                   ] 
 
     row_heights = [15*mm, 6*mm, 2*mm, 15*mm, 6*mm, 2*mm, 20*mm, 6*mm]
@@ -492,6 +493,8 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
         ('LINEBELOW', (2, 1), (3, 1), *line_style),
         ('LINEABOVE', (5, 1), (6, 1), *line_style),
         ('LINEBELOW', (5, 1), (6, 1), *line_style),
+        ('LINEABOVE', (7, 1), (7, 1), *line_style),
+        ('LINEBELOW', (7, 1), (7, 1), *line_style),
         # 2nd row of values
         ('LINEABOVE', (0, 4), (0, 4), *line_style),
         ('LINEBELOW', (0, 4), (0, 4), *line_style),
@@ -1424,6 +1427,7 @@ def render_tax_statement(
             "pauschale_da1": tax_statement.listOfSecurities.totalNonRecoverableTax if tax_statement.listOfSecurities else Decimal('0'),
             "rueckbehalt_usa": tax_statement.listOfSecurities.totalAdditionalWithHoldingTaxUSA if tax_statement.listOfSecurities else Decimal('0'),
             "total_steuerwert": tax_statement.totalTaxValue,
+            "total_gebuehren": tax_statement.listOfExpenses.totalExpenses if tax_statement.listOfExpenses else Decimal('0'),
             "total_brutto_mit_vst": tax_statement.totalGrossRevenueA,
             "total_brutto_ohne_vst": tax_statement.totalGrossRevenueB,
             "total_brutto_gesamt": tax_statement.total_brutto_gesamt,
@@ -1472,6 +1476,21 @@ def render_tax_statement(
         story.append(Paragraph("Wertschriften DA-1 und USA-Werte", title_style))
         story.append(securities_table_da1)
         story.append(Spacer(1, 0.5*cm))
+
+    if tax_statement.listOfExpenses:
+        costs_data = {
+            "summary": {
+                "tax_period": tax_period,
+                "period_end_date": period_end_date
+            },
+            "costs": [{'description': expense.name, 'type': get_expense_description(expense.expenseType), 'value_chf': expense.expenses} for expense in tax_statement.listOfExpenses.expense]}
+
+        costs_table = create_costs_table(costs_data, styles, usable_width)
+        if costs_table:
+            story.append(PageBreak())
+            story.append(Paragraph("Gebühren", title_style))
+            story.append(costs_table)
+            story.append(Spacer(1, 0.5*cm))
 
     # Info pages before the barcode
     templates_path = Path(__file__).parent / 'templates'

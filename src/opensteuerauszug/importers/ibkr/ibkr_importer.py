@@ -9,8 +9,9 @@ logger = logging.getLogger(__name__)
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    BankAccountName, ClientNumber, Institution, OrganisationName, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
-    Security, SecurityStock, SecurityPayment,
+    BankAccountName, ClientNumber, Institution, OrganisationName, SecurityCategory, TaxStatement,
+    ListOfSecurities, ListOfBankAccounts, ListOfExpenses,
+    Security, SecurityStock, SecurityPayment, Expense,
     BankAccount, BankAccountPayment, BankAccountTaxValue,
     CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client, CantonAbbreviation
 )
@@ -257,6 +258,8 @@ class IbkrImporter:
             defaultdict(lambda: {'stocks': [], 'payments': []})
         processed_cash_positions: defaultdict[tuple, Dict[str, list]] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
+        processed_expenses: defaultdict[tuple, Dict[str, list]] = \
+            defaultdict(lambda: {'expenses': []})
         security_country_map: Dict[SecurityPosition, str] = {}
         rights_issue_positions: set[SecurityPosition] = set()
 
@@ -645,8 +648,23 @@ class IbkrImporter:
                             logger.warning(f"Fees paid for {description} are ignored for statement.")
                             continue
                         elif tx_type in [ibflex.CashAction.ADVISORFEES]:
-                            # TODO: Optionally create a costs sections.
-                            logger.warning(f"Fees paid for {description} are ignored for statement.")
+                            fee_key = "4"
+                            if "Annual Fee" in description:
+                                fee_key = "22"
+                            if "Percent of Equity" in description:
+                                fee_key =  "15"
+                            expense_pos_key = (fee_key, currency, "EXPENSE")
+                            expense = Expense(
+                                referenceDate=tx_date,
+                                name=description,
+                                amountCurrency=currency,
+                                amount=amount,
+                                expenses=abs(amount),
+                                expenseType=fee_key
+                            )
+                            processed_expenses[expense_pos_key]['expenses'].append(
+                                expense
+                            )
                             continue
                         elif tx_type in [ibflex.CashAction.BROKERINTRCVD]:
                             # Tax relevant event. Fall through to create a bank payment.
@@ -926,16 +944,43 @@ class IbkrImporter:
             )
             final_bank_accounts.append(ba)
 
+        # First, collect all expenses
+        all_expenses: Dict[tuple, Dict[str, Any]] = {}
+
+        final_expenses: List[Expense] = []
+        total_expenses: Decimal = Decimal('0')
+        for (expense_type, currency_code, _), data in processed_expenses.items():
+            key = (expense_type, currency_code)
+            if key in all_expenses:
+                all_expenses[key]['expenses'].extend(data['expenses'])
+            else:
+                all_expenses[key] = {
+                    'expense_type': expense_type,
+                    'currency': currency_code,
+                    'expenses': data['expenses']
+                }
+        for key, data_dict in all_expenses.items():
+            exp_type = data_dict['expense_type']
+            curr = data_dict['currency']
+            expenses = data_dict['expenses']
+            logger.debug("Aggregated expenses for %s: %s", key, data_dict['expenses'])
+
+            for e in expenses:
+                total_expenses += e.expenses
+                final_expenses.append(e)
+
         list_of_bank_accounts = (ListOfBankAccounts(bankAccount=final_bank_accounts)
                                  if final_bank_accounts else None)
-
+        list_of_expenses = (ListOfExpenses(expense=final_expenses, totalExpenses=total_expenses)
+                                 if final_expenses else None)
         tax_statement = TaxStatement(
             minorVersion=1,
             periodFrom=self.period_from,
             periodTo=self.period_to,
             taxPeriod=self.period_from.year,
             listOfSecurities=list_of_securities,
-            listOfBankAccounts=list_of_bank_accounts
+            listOfBankAccounts=list_of_bank_accounts,
+            listOfExpenses=list_of_expenses
         )
         logger.info(
             "Partial TaxStatement created with Trades, OpenPositions, "
