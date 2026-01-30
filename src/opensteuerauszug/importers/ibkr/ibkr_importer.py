@@ -952,7 +952,7 @@ class IbkrImporter:
         all_expenses: Dict[tuple, Dict[str, Any]] = {}
 
         final_expenses: List[Expense] = []
-        total_expenses = 0
+        total_expenses: Decimal = Decimal('0')
         for (expense_type, currency_code, _), data in processed_expenses.items():
             key = (expense_type, currency_code)
             if key in all_expenses:
@@ -967,7 +967,7 @@ class IbkrImporter:
             exp_type = data_dict['expense_type']
             curr = data_dict['currency']
             expenses = data_dict['expenses']
-            print(data_dict['expenses'])
+            logger.debug("Aggregated expenses for %s: %s", key, data_dict['expenses'])
 
             for e in expenses:
                 total_expenses += e.expenses
