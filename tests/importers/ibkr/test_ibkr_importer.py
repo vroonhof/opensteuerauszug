@@ -1,6 +1,6 @@
 import os
 import pytest
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import List
 import tempfile
@@ -131,6 +131,41 @@ SAMPLE_IBKR_FLEX_XML_TRANSFER_WRONG_SIGN = """
       </Transfers>
       <CashReport>
         <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+# Inbound position transfer with no other transactions - just Transfer + OpenPosition
+SAMPLE_IBKR_FLEX_XML_TRANSFER_ONLY_WITH_OPEN_POSITION = """
+<FlexQueryResponse queryName="TransferOnlyQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" acctAlias="" model="" currency="EUR" fxRateToBase="0.93109" assetCategory="STK" subCategory="ETF" symbol="IWDA" description="ISHARES CORE MSCI WORLD" conid="12345678" securityID="IE00B4L5Y983" securityIDType="ISIN" cusip="" isin="IE00B4L5Y983" figi="BBG000P71QK5" listingExchange="AEB" underlyingConid="" underlyingSymbol="IWDA" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="IE" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" reportDate="2025-12-31" position="13" markPrice="111.53" positionValue="1449.89" openPrice="58.33" costBasisPrice="58.33" costBasisMoney="758.19" percentOfNAV="3.49" fifoPnlUnrealized="691.7" side="Long" levelOfDetail="SUMMARY" openDateTime="" holdingPeriodDateTime="" vestingDate="" code="" originatingOrderID="" originatingTransactionID="" accruedInt="" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+      </OpenPositions>
+      <Transfers>
+        <Transfer accountId="U1234567" acctAlias="" model="" currency="EUR" fxRateToBase="0.944" assetCategory="STK" subCategory="ETF" symbol="IWDA" description="ISHARES CORE MSCI WORLD" conid="12345678" securityID="IE00B4L5Y983" securityIDType="ISIN" cusip="" isin="IE00B4L5Y983" figi="BBG000P71QK5" listingExchange="AEB" underlyingConid="" underlyingSymbol="IWDA" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="IE" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" reportDate="2025-08-13" date="2025-08-13" dateTime="2025-08-13" settleDate="2025-08-15" type="FOP" direction="IN" company="--" account="ExternalAccount" accountName="" deliveringBroker="Multiple" quantity="13" transferPrice="0" positionAmount="1354.02" positionAmountInBase="1278.19488" pnlAmount="0" pnlAmountInBase="0" cashTransfer="0" code="" clientReference="" transactionID="TX123456" levelOfDetail="TRANSFER" positionInstructionID="" positionInstructionSetID="" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+      </Transfers>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="EUR" endingCash="0" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+# OpenPosition only with no mutations at all (no trades, transfers, corporate actions)
+SAMPLE_IBKR_FLEX_XML_OPEN_POSITION_ONLY = """
+<FlexQueryResponse queryName="OpenPositionOnlyQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" acctAlias="" model="" currency="EUR" fxRateToBase="0.93109" assetCategory="STK" subCategory="ETF" symbol="IWDA" description="ISHARES CORE MSCI WORLD" conid="12345678" securityID="IE00B4L5Y983" securityIDType="ISIN" cusip="" isin="IE00B4L5Y983" figi="BBG000P71QK5" listingExchange="AEB" underlyingConid="" underlyingSymbol="IWDA" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="IE" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" reportDate="2025-12-31" position="13" markPrice="111.53" positionValue="1449.89" openPrice="58.33" costBasisPrice="58.33" costBasisMoney="758.19" percentOfNAV="3.49" fifoPnlUnrealized="691.7" side="Long" levelOfDetail="SUMMARY" openDateTime="" holdingPeriodDateTime="" vestingDate="" code="" originatingOrderID="" originatingTransactionID="" accruedInt="" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="EUR" endingCash="0" fromDate="2025-01-01" toDate="2025-12-31" />
       </CashReport>
     </FlexStatement>
   </FlexStatements>
@@ -432,6 +467,150 @@ def test_transfer_quantity_sign_mismatch(sample_ibkr_settings):
     try:
         with pytest.raises(ValueError):
             importer.import_files([xml_file_path])
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_transfer_with_open_position_no_trades(sample_ibkr_settings):
+    """
+    Test inbound position transfer with no other transactions.
+    
+    When there is only an inbound transfer (FOP) with an OpenPosition at year-end
+    but no other trades, the position should be correctly tracked with:
+    - Opening balance of 0 at period start
+    - A mutation entry for the transfer
+    - Closing balance matching the OpenPosition at period end + 1
+    """
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_TRANSFER_ONLY_WITH_OPEN_POSITION)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        # Verify securities were created
+        assert tax_statement.listOfSecurities is not None
+        assert len(tax_statement.listOfSecurities.depot) == 1
+        
+        depot = tax_statement.listOfSecurities.depot[0]
+        assert depot.depotNumber == "U1234567"
+        
+        # Find the IWDA security
+        iwda_sec = next(
+            (s for s in depot.security if s.isin == "IE00B4L5Y983"),
+            None,
+        )
+        assert iwda_sec is not None, "IWDA security should be present"
+        assert iwda_sec.currency == "EUR"
+        assert iwda_sec.country == "IE"
+        
+        # Check stock entries: should have opening balance, transfer mutation, and closing balance
+        assert len(iwda_sec.stock) == 3, f"Expected 3 stock entries (opening, transfer, closing), got {len(iwda_sec.stock)}"
+        
+        # Opening balance at period start should be 0 (no holdings before transfer)
+        opening_balance = next(
+            (s for s in iwda_sec.stock if not s.mutation and s.referenceDate == period_from),
+            None,
+        )
+        assert opening_balance is not None, "Opening balance entry should exist"
+        assert opening_balance.quantity == Decimal("0"), f"Opening balance should be 0, got {opening_balance.quantity}"
+        
+        # Transfer mutation should exist
+        transfer_mutations = [s for s in iwda_sec.stock if s.mutation]
+        assert len(transfer_mutations) == 1, "Should have exactly one transfer mutation"
+        transfer = transfer_mutations[0]
+        assert transfer.quantity == Decimal("13"), f"Transfer quantity should be 13, got {transfer.quantity}"
+        assert transfer.referenceDate == date(2025, 8, 13), "Transfer date should be 2025-08-13"
+        assert "FOP" in transfer.name, f"Transfer name should contain 'FOP', got {transfer.name}"
+        
+        # Closing balance at period end + 1 should be 13
+        end_plus_one = period_to + timedelta(days=1)
+        closing_balance = next(
+            (s for s in iwda_sec.stock if not s.mutation and s.referenceDate == end_plus_one),
+            None,
+        )
+        assert closing_balance is not None, "Closing balance entry should exist"
+        assert closing_balance.quantity == Decimal("13"), f"Closing balance should be 13, got {closing_balance.quantity}"
+        
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_open_position_only_no_mutations(sample_ibkr_settings):
+    """
+    Test OpenPosition only with no mutations.
+    
+    When there is only an OpenPosition at year-end but no trades, transfers or
+    corporate actions (e.g., position was transferred in a previous year),
+    the position should be correctly tracked with:
+    - Opening balance matching closing balance at period start
+    - Closing balance matching the OpenPosition at period end + 1
+    """
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_OPEN_POSITION_ONLY)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        # Verify securities were created
+        assert tax_statement.listOfSecurities is not None
+        assert len(tax_statement.listOfSecurities.depot) == 1
+        
+        depot = tax_statement.listOfSecurities.depot[0]
+        
+        # Find the IWDA security
+        iwda_sec = next(
+            (s for s in depot.security if s.isin == "IE00B4L5Y983"),
+            None,
+        )
+        assert iwda_sec is not None, "IWDA security should be present"
+        
+        # Check stock entries: should have opening balance and closing balance only
+        # No mutations since there were no trades/transfers/corporate actions
+        mutations = [s for s in iwda_sec.stock if s.mutation]
+        assert len(mutations) == 0, "Should have no mutations"
+        
+        balances = [s for s in iwda_sec.stock if not s.mutation]
+        assert len(balances) == 2, f"Should have 2 balance entries (opening and closing), got {len(balances)}"
+        
+        # Opening balance at period start should be 13 (same as closing, no changes)
+        opening_balance = next(
+            (s for s in iwda_sec.stock if not s.mutation and s.referenceDate == period_from),
+            None,
+        )
+        assert opening_balance is not None, "Opening balance entry should exist"
+        assert opening_balance.quantity == Decimal("13"), f"Opening balance should be 13, got {opening_balance.quantity}"
+        
+        # Closing balance at period end + 1 should be 13
+        end_plus_one = period_to + timedelta(days=1)
+        closing_balance = next(
+            (s for s in iwda_sec.stock if not s.mutation and s.referenceDate == end_plus_one),
+            None,
+        )
+        assert closing_balance is not None, "Closing balance entry should exist"
+        assert closing_balance.quantity == Decimal("13"), f"Closing balance should be 13, got {closing_balance.quantity}"
+        
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
