@@ -722,43 +722,18 @@ class IbkrImporter:
             reconciler = PositionReconciler(list(sorted_stocks), identifier=f"{sec_pos_obj.symbol}-reconcile")
             end_plus_one = self.period_to + timedelta(days=1)
             end_pos = reconciler.synthesize_position_at_date(end_plus_one)
-            start_pos = reconciler.synthesize_position_at_date(self.period_from)
+            closing_balance = end_pos.quantity if end_pos else Decimal("0")
 
             trades_quantity_total = sum(
                 s.quantity for s in sorted_stocks if s.mutation
             )
 
-            # Determine opening and closing balances based on available data
-            # Issue #107: When only mutations exist (e.g., Transfer with no OpenPosition),
-            # we need to infer balances from the mutations rather than defaulting to 0.
-            if end_pos:
-                # We have a reference point at period end (from OpenPosition)
-                closing_balance = end_pos.quantity
-                if start_pos:
-                    opening_balance = start_pos.quantity
-                else:
-                    # Compute opening balance by working backward from closing
-                    tentative_opening = closing_balance - trades_quantity_total
-                    opening_balance = tentative_opening if tentative_opening >= 0 else Decimal("0")
-            elif start_pos:
-                # We have a reference point at period start but not at end
+            start_pos = reconciler.synthesize_position_at_date(self.period_from)
+            if start_pos:
                 opening_balance = start_pos.quantity
-                closing_balance = opening_balance + trades_quantity_total
             else:
-                # No balance reference points at all (only mutations like Transfers/CorporateActions)
-                # Infer balances from mutations:
-                # - If net positive (buying/transferring in): opening=0, closing=trades_quantity_total
-                # - If net negative (selling): closing=0, opening=-trades_quantity_total (had holdings before)
-                # - If zero: both are 0
-                if trades_quantity_total >= 0:
-                    # Net positive or zero: securities were acquired during the period
-                    opening_balance = Decimal("0")
-                    closing_balance = trades_quantity_total
-                else:
-                    # Net negative: securities were sold, implies holdings at start
-                    # Since no OpenPosition, assume all were sold (closing=0)
-                    closing_balance = Decimal("0")
-                    opening_balance = -trades_quantity_total  # Make it positive
+                tentative_opening = closing_balance - trades_quantity_total
+                opening_balance = tentative_opening if tentative_opening >= 0 else Decimal("0")
 
             if opening_balance < 0 or closing_balance < 0:
                 raise ValueError(

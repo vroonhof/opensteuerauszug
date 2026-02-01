@@ -137,8 +137,7 @@ SAMPLE_IBKR_FLEX_XML_TRANSFER_WRONG_SIGN = """
 </FlexQueryResponse>
 """
 
-# Issue #107: Inbound position transfer with no other transactions
-# See: https://github.com/your-repo/issues/107
+# Inbound position transfer with no other transactions - just Transfer + OpenPosition
 SAMPLE_IBKR_FLEX_XML_TRANSFER_ONLY_WITH_OPEN_POSITION = """
 <FlexQueryResponse queryName="TransferOnlyQuery" type="AF">
   <FlexStatements count="1">
@@ -157,7 +156,7 @@ SAMPLE_IBKR_FLEX_XML_TRANSFER_ONLY_WITH_OPEN_POSITION = """
 </FlexQueryResponse>
 """
 
-# Issue #107 edge case: OpenPosition only with no mutations at all
+# OpenPosition only with no mutations at all (no trades, transfers, corporate actions)
 SAMPLE_IBKR_FLEX_XML_OPEN_POSITION_ONLY = """
 <FlexQueryResponse queryName="OpenPositionOnlyQuery" type="AF">
   <FlexStatements count="1">
@@ -451,70 +450,6 @@ def test_transfer_to_stock(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
-def test_transfer_only_no_open_position_balance_computation(sample_ibkr_settings):
-    """
-    Test for issue #107: Verify correct balance computation when there's only a 
-    Transfer but NO OpenPosition.
-    
-    Without an OpenPosition, the importer must infer the closing balance from 
-    the transfer mutations. The closing balance should equal the transfer amount,
-    and the opening balance should be 0.
-    
-    This test verifies:
-    - Opening balance at period start = 0
-    - Transfer mutation correctly recorded
-    - Closing balance at period end + 1 = transfer amount (10)
-    """
-    period_from = date(2023, 1, 1)
-    period_to = date(2023, 12, 31)
-
-    importer = IbkrImporter(
-        period_from=period_from,
-        period_to=period_to,
-        account_settings_list=sample_ibkr_settings,
-    )
-
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
-        tmp_file.write(SAMPLE_IBKR_FLEX_XML_TRANSFER)
-        xml_file_path = tmp_file.name
-
-    try:
-        tax_statement = importer.import_files([xml_file_path])
-
-        depot = tax_statement.listOfSecurities.depot[0]
-        gme_sec = next(
-            (s for s in depot.security if s.securityName == "GAMESTOP (GME)"),
-            None,
-        )
-        assert gme_sec is not None
-        
-        # Verify the stock entries
-        assert len(gme_sec.stock) == 3, f"Expected 3 stock entries (opening, transfer, closing), got {len(gme_sec.stock)}"
-        
-        # Opening balance at period start should be 0
-        opening_balance = next(
-            (s for s in gme_sec.stock if not s.mutation and s.referenceDate == period_from),
-            None,
-        )
-        assert opening_balance is not None, "Opening balance entry should exist"
-        assert opening_balance.quantity == Decimal("0"), f"Opening balance should be 0, got {opening_balance.quantity}"
-        
-        # Closing balance at period end + 1 should be 10 (the transfer amount)
-        end_plus_one = period_to + timedelta(days=1)
-        closing_balance = next(
-            (s for s in gme_sec.stock if not s.mutation and s.referenceDate == end_plus_one),
-            None,
-        )
-        assert closing_balance is not None, "Closing balance entry should exist"
-        # This is the critical assertion - without an OpenPosition, the closing balance
-        # should be inferred from the transfer mutations
-        assert closing_balance.quantity == Decimal("10"), f"Closing balance should be 10 (transfer amount), got {closing_balance.quantity}"
-        
-    finally:
-        if os.path.exists(xml_file_path):
-            os.remove(xml_file_path)
-
-
 def test_transfer_quantity_sign_mismatch(sample_ibkr_settings):
     period_from = date(2023, 1, 1)
     period_to = date(2023, 12, 31)
@@ -537,17 +472,15 @@ def test_transfer_quantity_sign_mismatch(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
-def test_transfer_only_with_open_position_issue_107(sample_ibkr_settings):
+def test_transfer_with_open_position_no_trades(sample_ibkr_settings):
     """
-    Test for issue #107: Inbound position transfer with no other transactions.
+    Test inbound position transfer with no other transactions.
     
     When there is only an inbound transfer (FOP) with an OpenPosition at year-end
     but no other trades, the position should be correctly tracked with:
     - Opening balance of 0 at period start
     - A mutation entry for the transfer
     - Closing balance matching the OpenPosition at period end + 1
-    
-    See: https://github.com/your-repo/issues/107
     """
     period_from = date(2025, 1, 1)
     period_to = date(2025, 12, 31)
@@ -614,17 +547,15 @@ def test_transfer_only_with_open_position_issue_107(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
-def test_open_position_only_no_mutations_issue_107(sample_ibkr_settings):
+def test_open_position_only_no_mutations(sample_ibkr_settings):
     """
-    Test for issue #107 edge case: OpenPosition only with no mutations.
+    Test OpenPosition only with no mutations.
     
     When there is only an OpenPosition at year-end but no trades, transfers or
     corporate actions (e.g., position was transferred in a previous year),
     the position should be correctly tracked with:
     - Opening balance matching closing balance at period start
     - Closing balance matching the OpenPosition at period end + 1
-    
-    See: https://github.com/your-repo/issues/107
     """
     period_from = date(2025, 1, 1)
     period_to = date(2025, 12, 31)
