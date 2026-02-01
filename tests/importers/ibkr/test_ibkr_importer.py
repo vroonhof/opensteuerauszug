@@ -155,6 +155,22 @@ SAMPLE_IBKR_FLEX_XML_STOCK_SPLIT = """
 </FlexQueryResponse>
 """
 
+SAMPLE_IBKR_FLEX_XML_CORPORATE_ACTION_EXCHANGE = """
+<FlexQueryResponse queryName="CorporateActionExchangeQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <CorporateActions>
+        <CorporateAction accountId="U1234567" assetCategory="STK" symbol="ZT0" description="VIPER ENERGY PARTNERS LP" conid="604732578" isin="US9279591062" currency="USD" reportDate="2023-08-03" dateTime="2023-08-02;202500" actionDescription="ZT0(US9279591062) EXCHANGED TO 1XJ(US64361Q1013)" quantity="-10" type="TC" />
+        <CorporateAction accountId="U1234567" assetCategory="STK" symbol="1XJ" description="VIPER ENERGY INC" conid="623598601" isin="US64361Q1013" currency="USD" reportDate="2023-08-03" dateTime="2023-08-02;202500" actionDescription="1XJ(US64361Q1013) EXCHANGED FROM ZT0(US9279591062)" quantity="10" type="TC" />
+      </CorporateActions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
 
 @pytest.fixture
 def sample_ibkr_settings() -> List[IbkrAccountSettings]:
@@ -867,6 +883,33 @@ def test_corporate_action_stock_split_creates_mutation(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
+def test_corporate_action_exchange_creates_mutations(sample_ibkr_settings):
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_CORPORATE_ACTION_EXCHANGE)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement.listOfSecurities is not None
+        depot = tax_statement.listOfSecurities.depot[0]
+
+        for isin in ("US9279591062", "US64361Q1013"):
+            security = next((s for s in depot.security if s.isin == isin), None)
+            assert security is not None
+            mutation = next((s for s in security.stock if s.mutation), None)
+            assert mutation is not None
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
 def test_bank_account_names_always_set(sample_ibkr_settings):
     """Test that bank account names are always set for all currencies with closing balances."""
     period_from = date(2023, 1, 1)
@@ -1141,5 +1184,4 @@ def test_ibkr_import_canton_extraction_no_account_info(sample_ibkr_settings):
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
-
 
