@@ -146,3 +146,32 @@ def test_insert_implied(temp_kursliste_xml, tmp_path, capsys):
     assert cursor.fetchone()[0] == 1 # Only one entry, the official one
 
     conn.close()
+
+def test_rate_compatibility():
+    """Test specific rate compatibility logic."""
+    manager = ImpliedRateManager()
+
+    # Case 1: Compatible, higher precision wins
+    # 0.85 vs 0.851 (rounds to 0.85) -> Keep 0.851
+    manager.add_payment("2024-01-01", "USD", "0.85")
+    assert manager.implied_rates["USD"][datetime.date(2024, 1, 1)] == "0.85"
+
+    manager.add_payment("2024-01-01", "USD", "0.851")
+    assert manager.implied_rates["USD"][datetime.date(2024, 1, 1)] == "0.851" # Upgraded
+
+    # Case 2: Compatible, lower precision ignored
+    # 0.851 vs 0.85 (rounds to 0.85) -> Keep 0.851
+    manager.add_payment("2024-01-02", "USD", "0.851")
+    manager.add_payment("2024-01-02", "USD", "0.85")
+    assert manager.implied_rates["USD"][datetime.date(2024, 1, 2)] == "0.851" # Kept high precision
+
+    # Case 3: Incompatible
+    # 0.85 vs 0.856 (rounds to 0.86) -> Conflict, keep original
+    manager.add_payment("2024-01-03", "USD", "0.85")
+    manager.add_payment("2024-01-03", "USD", "0.856")
+    assert manager.implied_rates["USD"][datetime.date(2024, 1, 3)] == "0.85" # Rejected 0.856
+
+    # Case 4: Equal
+    manager.add_payment("2024-01-04", "USD", "0.85")
+    manager.add_payment("2024-01-04", "USD", "0.85")
+    assert manager.implied_rates["USD"][datetime.date(2024, 1, 4)] == "0.85"

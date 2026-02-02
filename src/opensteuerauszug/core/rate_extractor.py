@@ -1,6 +1,6 @@
 import datetime
 from collections import defaultdict
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Set, Tuple, Iterator, Optional
 import logging
 
@@ -35,16 +35,59 @@ class ImpliedRateManager:
             # CHF to CHF rate is always 1, not useful to track
             return
 
-        existing_rate = self.implied_rates[currency].get(date_obj)
+        existing_rate_str = self.implied_rates[currency].get(date_obj)
 
-        if existing_rate is not None:
-            if existing_rate != rate_str:
-                logger.warning(
-                    f"Conflicting implied rates for {currency} on {date_str}: "
-                    f"keeping {existing_rate}, ignoring {rate_str}"
-                )
+        if existing_rate_str is not None:
+            if existing_rate_str != rate_str:
+                if self._are_rates_compatible(existing_rate_str, rate_str):
+                     # If compatible, prefer the one with higher precision (more length usually implies more precision for decimals)
+                     # or explicit decimal check.
+                     if len(rate_str) > len(existing_rate_str):
+                         self.implied_rates[currency][date_obj] = rate_str
+                         # logger.debug(f"Upgraded precision for {currency} on {date_str} from {existing_rate_str} to {rate_str}")
+                else:
+                    logger.warning(
+                        f"Conflicting implied rates for {currency} on {date_str}: "
+                        f"keeping {existing_rate_str}, ignoring {rate_str}"
+                    )
         else:
             self.implied_rates[currency][date_obj] = rate_str
+
+    def _are_rates_compatible(self, rate1_str: str, rate2_str: str) -> bool:
+        """
+        Check if two rate strings are compatible (i.e., one is a rounded version of the other).
+        """
+        try:
+            d1 = Decimal(rate1_str)
+            d2 = Decimal(rate2_str)
+        except Exception:
+            return False
+
+        # Determine precision by looking at the exponent
+        # Decimal('0.85').as_tuple().exponent is -2
+        exp1 = d1.as_tuple().exponent
+        exp2 = d2.as_tuple().exponent
+
+        # If exponents are equal and values different, they are incompatible
+        if exp1 == exp2:
+            return d1 == d2
+
+        # Identify which one is more precise (smaller exponent = more negative)
+        if exp1 < exp2:
+            high_prec, low_prec = d1, d2
+            low_prec_exp = exp2
+        else:
+            high_prec, low_prec = d2, d1
+            low_prec_exp = exp1
+
+        # Round the high precision value to the low precision's scale
+        # quantized = high_prec.quantize(Decimal(10) ** low_prec_exp, rounding=ROUND_HALF_UP)
+        # However, exp is negative, so 10**-2 is 0.01.
+        # Decimal.quantize takes another Decimal as the exponent/pattern.
+
+        quantized = high_prec.quantize(Decimal(f"1e{low_prec_exp}"), rounding=ROUND_HALF_UP)
+
+        return quantized == low_prec
 
     def add_official_rate(self, date_str: str, currency: str) -> None:
         """
