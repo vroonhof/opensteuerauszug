@@ -1364,3 +1364,97 @@ def test_ibkr_import_canton_extraction_no_account_info(sample_ibkr_settings):
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
 
+
+def test_ibkr_import_with_initial_investment_and_lite_surcharge_accruals(sample_ibkr_settings):
+    """
+    Test that Trade.initialInvestment and EquitySummaryByReportDateInBase.liteSurchargeAccruals
+    fields are parsed correctly. These fields were causing import failures before the fix.
+    
+    Related to: https://github.com/vroonhof/opensteuerauszug/issues/106
+    
+    - Trade.initialInvestment: Was failing when value was "Yes" (boolean) instead of decimal
+    - EquitySummaryByReportDateInBase.liteSurchargeAccruals: Was missing from the model
+    """
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+    
+    xml_with_new_fields = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <Trades>
+        <!-- Trade with initialInvestment="Yes" as in real-world data -->
+        <Trade accountId="U1234567" acctAlias="" model="" currency="USD" fxRateToBase="0.82941" 
+               assetCategory="STK" subCategory="ETF" symbol="VT" 
+               description="VANGUARD TOT WORLD STK ETF" conid="52197301" securityID="US9220427424" 
+               securityIDType="ISIN" cusip="922042742" isin="US9220427424" figi="BBG000GM5FZ6" 
+               listingExchange="ARCA" underlyingConid="" underlyingSymbol="VT" 
+               underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" 
+               tradeID="1234567" multiplier="1" relatedTradeID="" strike="" reportDate="2025-05-01" 
+               expiry="" dateTime="2025-05-01;155425" putCall="" tradeDate="2025-05-01" 
+               principalAdjustFactor="" settleDateTarget="2025-05-02" transactionType="ExchTrade" 
+               exchange="IBRECINV" quantity="9.2333" tradePrice="117.51" tradeMoney="1084.99498177" 
+               proceeds="-1084.99498177" taxes="0" ibCommission="-0.352528642" 
+               ibCommissionCurrency="USD" netCash="-1085.347510412" closePrice="117.02" 
+               openCloseIndicator="O" notes="RI" cost="1085.347510412" fifoPnlRealized="0" 
+               mtmPnl="-4.5142" origTradePrice="0" origTradeDate="" origTradeID="" 
+               origOrderID="0" origTransactionID="0" buySell="BUY" clearingFirmID="" 
+               ibOrderID="98765" transactionID="11111" ibExecID="22222" 
+               relatedTransactionID="" rtn="" brokerageOrderID="" orderReference="" 
+               volatilityOrderLink="" exchOrderId="N/A" extExecID="33333" 
+               orderTime="2025-05-01;092946" openDateTime="" holdingPeriodDateTime="" 
+               whenRealized="" whenReopened="" levelOfDetail="EXECUTION" changeInPrice="0" 
+               changeInQuantity="0" orderType="" traderID="" isAPIOrder="N" accruedInt="0" 
+               initialInvestment="Yes" positionActionID="" serialNumber="" deliveryType="" 
+               commodityType="" fineness="0.0" weight="0.0" />
+      </Trades>
+      <EquitySummaryInBase>
+        <!-- EquitySummaryByReportDateInBase with liteSurchargeAccruals field -->
+        <EquitySummaryByReportDateInBase accountId="U1234567" reportDate="2025-12-31" 
+                                         cash="10000.00" stock="5000.00" 
+                                         liteSurchargeAccruals="123.45" 
+                                         total="15123.45" />
+      </EquitySummaryInBase>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="VT" 
+                      description="VANGUARD TOT WORLD STK ETF" conid="52197301" 
+                      isin="US9220427424" issuerCountryCode="US" currency="USD" 
+                      position="9.2333" markPrice="117.02" positionValue="1080.59" 
+                      reportDate="2025-12-31" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" startingCash="0" 
+                            endingCash="10000.00" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+    
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+    
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_with_new_fields)
+        xml_file_path = tmp_file.name
+    
+    try:
+        # This should not raise an error about parsing Trade.initialInvestment or
+        # missing EquitySummaryByReportDateInBase.liteSurchargeAccruals
+        # The main goal of this test is to verify parsing succeeds without errors
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        
+        # Verify basic structure was imported correctly
+        assert tax_statement.listOfSecurities is not None
+        assert len(tax_statement.listOfSecurities.depot) > 0
+        
+        # Verify we have bank accounts (from CashReport)
+        assert tax_statement.listOfBankAccounts is not None
+        assert len(tax_statement.listOfBankAccounts.bankAccount) > 0
+        
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
