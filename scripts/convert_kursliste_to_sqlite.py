@@ -282,6 +282,9 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path, extra
                         child_tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
                         if child_tag == 'payment':
                             p_date = child.get('paymentDate')
+                            ex_date = child.get('exDate')
+                            if ex_date:
+                                p_date = ex_date
                             p_currency = child.get('currency')
                             p_rate = child.get('exchangeRate')
 
