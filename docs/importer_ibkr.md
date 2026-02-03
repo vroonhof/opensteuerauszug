@@ -42,12 +42,16 @@ The importer uses the `ibflex` library to parse the XML, this can be quite sensi
     *   Critical fields per transfer: `date` (or `dateTime`), `symbol`, `description`, `conid`, `isin`, `quantity`, `direction` ("IN" or "OUT"), `currency`, `type`, `account`.
     *   *Note: Cash transfers are generally ignored by this section in the importer.*
 
-5.  **Cash Transactions (`CashTransactions`)**:
+5.  **Corporate Actions (`CorporateActions`)**:
+    *   Records corporate actions like stock splits, rights issues, and mergers.
+    *   Critical fields per action: `reportDate`, `symbol`, `description`, `conid`, `isin`, `quantity`, `currency`.
+
+6.  **Cash Transactions (`CashTransactions`)**:
     *   Details all cash movements including dividends, interest, fees.
     *   Critical fields per transaction: `dateTime` (or `tradeDate`), `description`, `amount`, `currency`, `conid` (if linked to a security), `isin`, `symbol`, `type` (e.g., "Dividends", "Withholding Tax", "Interest", "Fees", "Deposits/Withdrawals").
     *   *Note: "Deposits/Withdrawals" are generally ignored. "Fees" and "BrokerInterestPaid" are logged but not currently used to populate specific cost/liability sections in the Steuerauszug.* "BrokerInterestReceived" is processed as income.
 
-6.  **Cash Report (`CashReport`)**:
+7.  **Cash Report (`CashReport`)**:
     *   Summarizes cash balances for each currency held.
     *   Critical fields per currency entry: `currency` (code), `endingCash` (or `balance` if `reportDate` aligns with period end).
     *   *Note: Entries for "BASE_SUMMARY" currency are ignored.*
@@ -72,7 +76,7 @@ python -m opensteuerauszug.steuerauszug --importer ibkr <flex query xml file> ..
 
 ## Importer Specifics & Known Quirks
 
-*   **Corporate Actions**: The author does not currently have examples of corporate actions such as stock splits in his real world data. The documentation in this regard from IBKR is very limited. Please review carefully. If you can send sample snippets of how flex statements represent them that would be very welcome
+*   **Corporate Actions**: We have limited samples of stock splits, rights issues and stock exchanges between two ISINS. More samples and/or real-world testing are still useful, so careful auditing is recommended.
 
 *   **Flex Query Customization**: It's crucial that your Flex Query includes all necessary data fields. Missing fields might lead to incomplete or inaccurate Steuerauszug generation. The code tries to ensure all required fields are present (even if empty when not applicable) but these scenarios have not been extensively tested.
 
