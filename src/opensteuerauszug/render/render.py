@@ -350,7 +350,7 @@ def draw_page_footer(canvas, doc):
     footer_y = doc.bottomMargin - 10*mm # Adjust position
     # Company Name
     if doc.company_name:
-        canvas.drawString(doc.leftMargin, footer_y, f"{doc.company_name} convertiert mit OpenSteuerauszug")
+        canvas.drawString(doc.leftMargin, footer_y, f"{doc.company_name} konvertiert mit OpenSteuerauszug")
     # Doc Info
     # canvas.drawCentredString(page_width / 2.0, footer_y, DOC_INFO)
     # Page Number - Standard onPageEnd handlers typically only get current page number
