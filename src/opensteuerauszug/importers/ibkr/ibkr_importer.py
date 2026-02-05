@@ -824,6 +824,21 @@ class IbkrImporter:
         list_of_securities = (ListOfSecurities(depot=final_depots)
                               if final_depots else None)
 
+        # --- Extract account opening/closing dates from AccountInformation ---
+        # These will be unconditionally set on all bank accounts for this statement.
+        # The cleanup calculator will later clear them if they fall outside the reporting window.
+        account_date_opened: date | None = None
+        account_date_closed: date | None = None
+        for s_stmt in all_flex_statements:
+            if hasattr(s_stmt, 'AccountInformation') and s_stmt.AccountInformation:
+                acc_info = s_stmt.AccountInformation
+                opened = getattr(acc_info, 'dateOpened', None)
+                closed = getattr(acc_info, 'dateClosed', None)
+                if opened and isinstance(opened, date):
+                    account_date_opened = opened
+                if closed and isinstance(closed, date):
+                    account_date_closed = closed
+
         # --- Construct ListOfBankAccounts ---
         final_bank_accounts: List[BankAccount] = []
         
@@ -921,6 +936,8 @@ class IbkrImporter:
                 bankAccountNumber=BankAccountNumber(bank_account_num_str),
                 bankAccountCountry="US",
                 bankAccountCurrency=curr,
+                openingDate=account_date_opened,
+                closingDate=account_date_closed,
                 payment=sorted_payments,
                 taxValue=bank_account_tax_value_obj # Adjusted to single obj
             )

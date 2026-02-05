@@ -230,6 +230,27 @@ class CleanupCalculator:
         if statement.listOfBankAccounts and statement.listOfBankAccounts.bankAccount:
             for idx, bank_account in enumerate(statement.listOfBankAccounts.bankAccount):
                 account_id = bank_account.bankAccountNumber or bank_account.iban or f"BankAccount_{idx+1}"
+
+                # Clear openingDate if it falls outside the reporting window
+                if bank_account.openingDate is not None:
+                    if not (self.period_from <= bank_account.openingDate <= self.period_to):
+                        logger.debug(
+                            "  BankAccount %s: Clearing openingDate %s (outside period %s - %s).",
+                            account_id, bank_account.openingDate, self.period_from, self.period_to,
+                        )
+                        bank_account.openingDate = None
+                        self.modified_fields.append(f"{account_id}.openingDate (cleared)")
+
+                # Clear closingDate if it falls outside the reporting window
+                if bank_account.closingDate is not None:
+                    if not (self.period_from <= bank_account.closingDate <= self.period_to):
+                        logger.debug(
+                            "  BankAccount %s: Clearing closingDate %s (outside period %s - %s).",
+                            account_id, bank_account.closingDate, self.period_from, self.period_to,
+                        )
+                        bank_account.closingDate = None
+                        self.modified_fields.append(f"{account_id}.closingDate (cleared)")
+
                 if bank_account.payment:
                     original_payment_count = len(bank_account.payment)
 
