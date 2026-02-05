@@ -457,6 +457,159 @@ def test_create_bank_accounts_table_multiple_accounts_with_payments():
     assert "Zinszahlung" in all_text
 
 
+def test_create_bank_accounts_table_with_opening_date():
+    """Test that openingDate is rendered as 'Eröffnung DD.MM.YYYY' below the IBAN."""
+    styles = get_custom_styles()
+    tax_statement = TaxStatement(
+        minorVersion=2,
+        periodTo=date(2023, 12, 31),
+        taxPeriod=2023,
+        listOfBankAccounts=ListOfBankAccounts(
+            bankAccount=[
+                BankAccount(
+                    bankAccountName=BankAccountName("Testkonto"),
+                    iban="CH123",
+                    openingDate=date(2023, 5, 29),
+                    taxValue=BankAccountTaxValue(
+                        referenceDate=date(2023, 12, 31),
+                        balanceCurrency="CHF",
+                        balance=Decimal("100.00"),
+                    ),
+                    payment=[],
+                    totalTaxValue=Decimal("100.00"),
+                    totalGrossRevenueA=Decimal("0"),
+                    totalGrossRevenueB=Decimal("0"),
+                )
+            ],
+            totalTaxValue=Decimal("100.00"),
+            totalGrossRevenueA=Decimal("0"),
+            totalGrossRevenueB=Decimal("0"),
+        ),
+    )
+    table = create_bank_accounts_table(tax_statement, styles, 500)
+    assert isinstance(table, Table)
+    # Find the account description cell and check for opening date text
+    all_text = " ".join(
+        cell.text for row in table._cellvalues for cell in row if isinstance(cell, Paragraph)
+    )
+    assert "Eröffnung 29.05.2023" in all_text
+
+
+def test_create_bank_accounts_table_with_closing_date():
+    """Test that closingDate is rendered as 'Saldierung DD.MM.YYYY' below the IBAN."""
+    styles = get_custom_styles()
+    tax_statement = TaxStatement(
+        minorVersion=2,
+        periodTo=date(2023, 12, 31),
+        taxPeriod=2023,
+        listOfBankAccounts=ListOfBankAccounts(
+            bankAccount=[
+                BankAccount(
+                    bankAccountName=BankAccountName("Testkonto"),
+                    iban="CH456",
+                    closingDate=date(2023, 9, 15),
+                    taxValue=BankAccountTaxValue(
+                        referenceDate=date(2023, 12, 31),
+                        balanceCurrency="CHF",
+                        balance=Decimal("0.00"),
+                    ),
+                    payment=[],
+                    totalTaxValue=Decimal("0"),
+                    totalGrossRevenueA=Decimal("0"),
+                    totalGrossRevenueB=Decimal("0"),
+                )
+            ],
+            totalTaxValue=Decimal("0"),
+            totalGrossRevenueA=Decimal("0"),
+            totalGrossRevenueB=Decimal("0"),
+        ),
+    )
+    table = create_bank_accounts_table(tax_statement, styles, 500)
+    assert isinstance(table, Table)
+    all_text = " ".join(
+        cell.text for row in table._cellvalues for cell in row if isinstance(cell, Paragraph)
+    )
+    assert "Saldierung 15.09.2023" in all_text
+
+
+def test_create_bank_accounts_table_with_both_dates():
+    """Test that both openingDate and closingDate are rendered when set."""
+    styles = get_custom_styles()
+    tax_statement = TaxStatement(
+        minorVersion=2,
+        periodTo=date(2023, 12, 31),
+        taxPeriod=2023,
+        listOfBankAccounts=ListOfBankAccounts(
+            bankAccount=[
+                BankAccount(
+                    bankAccountName=BankAccountName("Testkonto"),
+                    iban="CH789",
+                    openingDate=date(2023, 3, 1),
+                    closingDate=date(2023, 11, 30),
+                    taxValue=BankAccountTaxValue(
+                        referenceDate=date(2023, 12, 31),
+                        balanceCurrency="CHF",
+                        balance=Decimal("0.00"),
+                    ),
+                    payment=[],
+                    totalTaxValue=Decimal("0"),
+                    totalGrossRevenueA=Decimal("0"),
+                    totalGrossRevenueB=Decimal("0"),
+                )
+            ],
+            totalTaxValue=Decimal("0"),
+            totalGrossRevenueA=Decimal("0"),
+            totalGrossRevenueB=Decimal("0"),
+        ),
+    )
+    table = create_bank_accounts_table(tax_statement, styles, 500)
+    assert isinstance(table, Table)
+    all_text = " ".join(
+        cell.text for row in table._cellvalues for cell in row if isinstance(cell, Paragraph)
+    )
+    assert "Eröffnung 01.03.2023" in all_text
+    assert "Saldierung 30.11.2023" in all_text
+
+
+def test_create_bank_accounts_table_without_dates():
+    """Test that no date lines appear when openingDate/closingDate are None."""
+    styles = get_custom_styles()
+    tax_statement = TaxStatement(
+        minorVersion=2,
+        periodTo=date(2023, 12, 31),
+        taxPeriod=2023,
+        listOfBankAccounts=ListOfBankAccounts(
+            bankAccount=[
+                BankAccount(
+                    bankAccountName=BankAccountName("Testkonto"),
+                    iban="CH000",
+                    openingDate=None,
+                    closingDate=None,
+                    taxValue=BankAccountTaxValue(
+                        referenceDate=date(2023, 12, 31),
+                        balanceCurrency="CHF",
+                        balance=Decimal("100.00"),
+                    ),
+                    payment=[],
+                    totalTaxValue=Decimal("100.00"),
+                    totalGrossRevenueA=Decimal("0"),
+                    totalGrossRevenueB=Decimal("0"),
+                )
+            ],
+            totalTaxValue=Decimal("100.00"),
+            totalGrossRevenueA=Decimal("0"),
+            totalGrossRevenueB=Decimal("0"),
+        ),
+    )
+    table = create_bank_accounts_table(tax_statement, styles, 500)
+    assert isinstance(table, Table)
+    all_text = " ".join(
+        cell.text for row in table._cellvalues for cell in row if isinstance(cell, Paragraph)
+    )
+    assert "Eröffnung" not in all_text
+    assert "Saldierung" not in all_text
+
+
 def test_format_currency_trailing_zero():
     value_two_dec = Decimal("50.00")
     value_three_dec = Decimal("50.005")
