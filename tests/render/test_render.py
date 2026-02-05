@@ -677,7 +677,7 @@ def test_security_name_with_ampersand_renders_correctly(mock_render_to_barcodes)
     tax_statement = TaxStatement(
         minorVersion=2,
         id="test-id-amp",
-        creationDate=datetime(2023, 10, 26, 10, 30, 00),
+        creationDate=datetime(2023, 10, 26, 10, 30, 0),
         taxPeriod=2023,
         periodFrom=date(2023, 1, 1),
         periodTo=date(2023, 12, 31),
@@ -767,7 +767,7 @@ def test_security_name_with_html_special_chars_renders_correctly(mock_render_to_
     tax_statement = TaxStatement(
         minorVersion=2,
         id="test-id-html",
-        creationDate=datetime(2023, 10, 26, 10, 30, 00),
+        creationDate=datetime(2023, 10, 26, 10, 30, 0),
         taxPeriod=2023,
         periodFrom=date(2023, 1, 1),
         periodTo=date(2023, 12, 31),
