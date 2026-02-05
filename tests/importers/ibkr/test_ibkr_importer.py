@@ -908,6 +908,9 @@ def test_import_files_with_firstname_and_name(monkeypatch, sample_ibkr_settings)
             self.firstName = "Bob"
             self.lastName = None
             self.accountHolderName = None
+            self.dateOpened = None
+            self.dateClosed = None
+            self.stateResidentialAddress = None
 
     class DummyFlexStatement:
         def __init__(self) -> None:
@@ -1321,6 +1324,222 @@ def test_ibkr_import_canton_extraction_invalid_swiss_canton(sample_ibkr_settings
         assert tax_statement is not None
         # Canton should not be set for invalid canton code
         assert tax_statement.canton is None
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_import_account_dates_set_on_bank_accounts(sample_ibkr_settings):
+    """Test that dateOpened and dateClosed from AccountInformation are set on bank accounts."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    xml_with_dates = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <AccountInformation accountId="U1234567" name="John Doe" dateOpened="2023-05-29" dateClosed="" />
+      <Trades>
+        <Trade transactionID="1001" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" issuerCountryCode="US" currency="USD" quantity="10" tradeDate="2023-06-15" settleDateTarget="2023-06-17" tradePrice="280.00" tradeMoney="2800.00" buySell="BUY" ibCommission="-1.00" ibCommissionCurrency="USD" netCash="-2801.00" />
+      </Trades>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" issuerCountryCode="US" currency="USD" position="10" markPrice="300.00" positionValue="3000.00" reportDate="2023-12-31" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" startingCash="0" endingCash="1000.00" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_with_dates)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+
+        # Verify bank accounts have the opening date set
+        assert tax_statement.listOfBankAccounts is not None
+        for ba in tax_statement.listOfBankAccounts.bankAccount:
+            assert ba.openingDate == date(2023, 5, 29), (
+                f"Expected openingDate 2023-05-29 on account {ba.bankAccountNumber}, got {ba.openingDate}"
+            )
+            # dateClosed was empty, so should be None
+            assert ba.closingDate is None, (
+                f"Expected closingDate None on account {ba.bankAccountNumber}, got {ba.closingDate}"
+            )
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_import_account_dates_both_set(sample_ibkr_settings):
+    """Test that both dateOpened and dateClosed are set when provided."""
+    period_from = date(2024, 1, 1)
+    period_to = date(2024, 12, 31)
+
+    xml_with_both_dates = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2024-01-01" toDate="2024-12-31" period="Year" whenGenerated="2025-01-15T10:00:00">
+      <AccountInformation accountId="U1234567" name="John Doe" dateOpened="2024-03-01" dateClosed="2024-09-15" />
+      <Trades />
+      <OpenPositions />
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" startingCash="0" endingCash="0" fromDate="2024-01-01" toDate="2024-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_with_both_dates)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        assert tax_statement.listOfBankAccounts is not None
+        for ba in tax_statement.listOfBankAccounts.bankAccount:
+            assert ba.openingDate == date(2024, 3, 1)
+            assert ba.closingDate == date(2024, 9, 15)
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_import_account_dates_scoped_to_own_statement(sample_ibkr_settings):
+    """Test that dates from one flex statement do not leak to bank accounts of another."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    # Two flex statements in a single response: first account has dates, second does not
+    xml_two_accounts = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="2">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <AccountInformation accountId="U1234567" name="John Doe" dateOpened="2023-05-29" />
+      <Trades />
+      <OpenPositions />
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" startingCash="0" endingCash="500.00" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+    <FlexStatement accountId="U7777777" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <AccountInformation accountId="U7777777" name="Jane Smith" />
+      <Trades />
+      <OpenPositions />
+      <CashReport>
+        <CashReportCurrency accountId="U7777777" currency="EUR" startingCash="0" endingCash="100.00" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    settings = [
+        IbkrAccountSettings(
+            account_number="U1234567",
+            broker_name="Interactive Brokers",
+            account_name_alias="Acct 1",
+            canton="ZH",
+            full_name="John Doe",
+        ),
+        IbkrAccountSettings(
+            account_number="U7777777",
+            broker_name="Interactive Brokers",
+            account_name_alias="Acct 2",
+            canton="ZH",
+            full_name="Jane Smith",
+        ),
+    ]
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=settings
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_two_accounts)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        assert tax_statement.listOfBankAccounts is not None
+        assert len(tax_statement.listOfBankAccounts.bankAccount) == 2
+
+        acct1_ba = next(
+            (ba for ba in tax_statement.listOfBankAccounts.bankAccount if ba.bankAccountCurrency == "USD"),
+            None,
+        )
+        acct2_ba = next(
+            (ba for ba in tax_statement.listOfBankAccounts.bankAccount if ba.bankAccountCurrency == "EUR"),
+            None,
+        )
+        assert acct1_ba is not None
+        assert acct2_ba is not None
+
+        # U1234567 has dateOpened -> should be set on its bank accounts
+        assert acct1_ba.openingDate == date(2023, 5, 29)
+        assert acct1_ba.closingDate is None
+
+        # U7777777 has no dates -> should NOT inherit U1234567's dates
+        assert acct2_ba.openingDate is None, (
+            f"U7777777 bank account should have openingDate=None but got {acct2_ba.openingDate}"
+        )
+        assert acct2_ba.closingDate is None
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_import_account_dates_not_set_when_absent(sample_ibkr_settings):
+    """Test that openingDate/closingDate are None when AccountInformation has no dates."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    xml_no_dates = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <AccountInformation accountId="U1234567" name="John Doe" />
+      <Trades />
+      <OpenPositions />
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" startingCash="0" endingCash="100.00" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_no_dates)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        assert tax_statement.listOfBankAccounts is not None
+        for ba in tax_statement.listOfBankAccounts.bankAccount:
+            assert ba.openingDate is None
+            assert ba.closingDate is None
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)

@@ -381,6 +381,227 @@ class TestCleanupCalculatorFiltering:
         assert "D1/TestSec.payment (filtered)" in calculator.modified_fields
 
 
+class TestCleanupCalculatorBankAccountDates:
+    """Tests for clearing bank account openingDate/closingDate outside reporting window."""
+
+    def test_opening_date_inside_period_is_kept(self, sample_period_from, sample_period_to):
+        """openingDate within the reporting period should be preserved."""
+        opening = date(2023, 5, 29)
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("BA1"),
+            openingDate=opening,
+        )
+        statement = TaxStatement(
+            id="test_opening_kept", creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from, periodTo=sample_period_to,
+            country="CH", canton="ZH", minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("DateClient"))],
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+        )
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "DateTest", enable_filtering=False)
+        calculator.calculate(statement)
+
+        assert bank_account.openingDate == opening
+        assert not any("openingDate" in f for f in calculator.modified_fields)
+
+    def test_opening_date_before_period_is_cleared(self, sample_period_from, sample_period_to):
+        """openingDate before the reporting period should be cleared."""
+        opening = date(2022, 6, 1)  # Before 2023-01-01
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("BA1"),
+            openingDate=opening,
+        )
+        statement = TaxStatement(
+            id="test_opening_before", creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from, periodTo=sample_period_to,
+            country="CH", canton="ZH", minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("DateClient"))],
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+        )
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "DateTest", enable_filtering=False)
+        calculator.calculate(statement)
+
+        assert bank_account.openingDate is None
+        assert "BA1.openingDate (cleared)" in calculator.modified_fields
+
+    def test_opening_date_after_period_is_cleared(self, sample_period_from, sample_period_to):
+        """openingDate after the reporting period should be cleared."""
+        opening = date(2024, 2, 1)  # After 2023-12-31
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("BA1"),
+            openingDate=opening,
+        )
+        statement = TaxStatement(
+            id="test_opening_after", creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from, periodTo=sample_period_to,
+            country="CH", canton="ZH", minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("DateClient"))],
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+        )
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "DateTest", enable_filtering=False)
+        calculator.calculate(statement)
+
+        assert bank_account.openingDate is None
+        assert "BA1.openingDate (cleared)" in calculator.modified_fields
+
+    def test_closing_date_inside_period_is_kept(self, sample_period_from, sample_period_to):
+        """closingDate within the reporting period should be preserved."""
+        closing = date(2023, 9, 15)
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("BA1"),
+            closingDate=closing,
+        )
+        statement = TaxStatement(
+            id="test_closing_kept", creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from, periodTo=sample_period_to,
+            country="CH", canton="ZH", minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("DateClient"))],
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+        )
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "DateTest", enable_filtering=False)
+        calculator.calculate(statement)
+
+        assert bank_account.closingDate == closing
+        assert not any("closingDate" in f for f in calculator.modified_fields)
+
+    def test_closing_date_before_period_is_cleared(self, sample_period_from, sample_period_to):
+        """closingDate before the reporting period should be cleared."""
+        closing = date(2022, 12, 31)  # Before 2023-01-01
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("BA1"),
+            closingDate=closing,
+        )
+        statement = TaxStatement(
+            id="test_closing_before", creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from, periodTo=sample_period_to,
+            country="CH", canton="ZH", minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("DateClient"))],
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+        )
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "DateTest", enable_filtering=False)
+        calculator.calculate(statement)
+
+        assert bank_account.closingDate is None
+        assert "BA1.closingDate (cleared)" in calculator.modified_fields
+
+    def test_closing_date_after_period_is_cleared(self, sample_period_from, sample_period_to):
+        """closingDate after the reporting period should be cleared."""
+        closing = date(2024, 1, 1)  # After 2023-12-31
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("BA1"),
+            closingDate=closing,
+        )
+        statement = TaxStatement(
+            id="test_closing_after", creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from, periodTo=sample_period_to,
+            country="CH", canton="ZH", minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("DateClient"))],
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+        )
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "DateTest", enable_filtering=False)
+        calculator.calculate(statement)
+
+        assert bank_account.closingDate is None
+        assert "BA1.closingDate (cleared)" in calculator.modified_fields
+
+    def test_both_dates_inside_period_are_kept(self, sample_period_from, sample_period_to):
+        """Both openingDate and closingDate within the period should be preserved."""
+        opening = date(2023, 3, 1)
+        closing = date(2023, 9, 15)
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("BA1"),
+            openingDate=opening,
+            closingDate=closing,
+        )
+        statement = TaxStatement(
+            id="test_both_kept", creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from, periodTo=sample_period_to,
+            country="CH", canton="ZH", minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("DateClient"))],
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+        )
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "DateTest", enable_filtering=False)
+        calculator.calculate(statement)
+
+        assert bank_account.openingDate == opening
+        assert bank_account.closingDate == closing
+
+    def test_both_dates_outside_period_are_cleared(self, sample_period_from, sample_period_to):
+        """Both openingDate and closingDate outside the period should be cleared."""
+        opening = date(2022, 1, 1)
+        closing = date(2024, 6, 1)
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("BA1"),
+            openingDate=opening,
+            closingDate=closing,
+        )
+        statement = TaxStatement(
+            id="test_both_cleared", creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from, periodTo=sample_period_to,
+            country="CH", canton="ZH", minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("DateClient"))],
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+        )
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "DateTest", enable_filtering=False)
+        calculator.calculate(statement)
+
+        assert bank_account.openingDate is None
+        assert bank_account.closingDate is None
+        assert "BA1.openingDate (cleared)" in calculator.modified_fields
+        assert "BA1.closingDate (cleared)" in calculator.modified_fields
+
+    def test_dates_on_period_boundaries_are_kept(self, sample_period_from, sample_period_to):
+        """Dates exactly on period boundaries (first and last day) should be kept."""
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("BA1"),
+            openingDate=sample_period_from,  # 2023-01-01
+            closingDate=sample_period_to,    # 2023-12-31
+        )
+        statement = TaxStatement(
+            id="test_boundaries", creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from, periodTo=sample_period_to,
+            country="CH", canton="ZH", minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("DateClient"))],
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+        )
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "DateTest", enable_filtering=False)
+        calculator.calculate(statement)
+
+        assert bank_account.openingDate == sample_period_from
+        assert bank_account.closingDate == sample_period_to
+
+    def test_none_dates_are_not_modified(self, sample_period_from, sample_period_to):
+        """None dates should remain None and not trigger any modification."""
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("BA1"),
+            openingDate=None,
+            closingDate=None,
+        )
+        statement = TaxStatement(
+            id="test_none_dates", creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from, periodTo=sample_period_to,
+            country="CH", canton="ZH", minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("DateClient"))],
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+        )
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "DateTest", enable_filtering=False)
+        calculator.calculate(statement)
+
+        assert bank_account.openingDate is None
+        assert bank_account.closingDate is None
+        assert not any("openingDate" in f or "closingDate" in f for f in calculator.modified_fields)
+
+
 class TestCleanupCalculatorEdgeCases:
 
     def test_empty_statement(self, sample_period_from, sample_period_to):

@@ -824,6 +824,22 @@ class IbkrImporter:
         list_of_securities = (ListOfSecurities(depot=final_depots)
                               if final_depots else None)
 
+        # --- Extract account opening/closing dates from AccountInformation ---
+        # Build a per-account map so dates are only applied to bank accounts
+        # originating from the same flex statement.
+        # The cleanup calculator will later clear them if they fall outside the reporting window.
+        account_dates: Dict[str, Dict[str, date | None]] = {}
+        for s_stmt in all_flex_statements:
+            stmt_account_id = self._get_required_field(
+                s_stmt, 'accountId', 'FlexStatement'
+            )
+            if s_stmt.AccountInformation:
+                acc_info = s_stmt.AccountInformation
+                account_dates[stmt_account_id] = {
+                    'dateOpened': acc_info.dateOpened,
+                    'dateClosed': acc_info.dateClosed,
+                }
+
         # --- Construct ListOfBankAccounts ---
         final_bank_accounts: List[BankAccount] = []
         
@@ -916,11 +932,15 @@ class IbkrImporter:
             bank_account_num_str = f"{acc_id}-{curr}"
             bank_account_name_str = f"{acc_id} {curr} position"
 
+            # Look up dates for this specific account
+            dates_for_account = account_dates.get(acc_id, {})
             ba = BankAccount(
                 bankAccountName=BankAccountName(bank_account_name_str),
                 bankAccountNumber=BankAccountNumber(bank_account_num_str),
                 bankAccountCountry="US",
                 bankAccountCurrency=curr,
+                openingDate=dates_for_account.get('dateOpened'),
+                closingDate=dates_for_account.get('dateClosed'),
                 payment=sorted_payments,
                 taxValue=bank_account_tax_value_obj # Adjusted to single obj
             )

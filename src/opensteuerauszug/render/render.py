@@ -956,9 +956,15 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
     current_row = 1  # Start after header
 
     for account in bank_accounts:
+        # Build the account description with optional opening/closing date lines
+        account_desc = f"<strong>{account.bankAccountName}</strong><br/> {account.iban or account.bankAccountNumber or ''}"
+        if account.openingDate:
+            account_desc += f"<br/>Eröffnung {account.openingDate.strftime('%d.%m.%Y')}"
+        if account.closingDate:
+            account_desc += f"<br/>Saldierung {account.closingDate.strftime('%d.%m.%Y')}"
         table_data.append([
             '',
-            Paragraph(f"<strong>{account.bankAccountName}</strong><br/> {account.iban or account.bankAccountNumber or ''}", val_left),
+            Paragraph(account_desc, val_left),
             '',
             '',
             '',
