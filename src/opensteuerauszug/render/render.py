@@ -1,6 +1,7 @@
 import io
 from math import floor
 import sys
+import hashlib
 import os
 import json
 from pathlib import Path
@@ -770,33 +771,43 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     xml = tax_statement.to_xml_bytes()
     data = zlib.compress(xml)
 
+    file_name = tax_statement.id
+
     # Follow Guidance in "Beilage zu eCH-0196 V2.2.0 – Barcode Generierung – Technische Wegleitung"
     # our library foes not allow setting the row_count, so guess by making the segments roughly
     # right
     # Overhead:
     #    1  start word
-    #    1 + 2 + 1 macro pdf fields with 1 word file ID
+    #    1 + 2 + 4 macro pdf fields with 4 word file ID
     #    4 for segment count
     #    1 for possible last code marker
     #    32 error correction at level 4
     #    1 for specifying byte encoding
-    # gives 43 words of overhead
-    FIXED_OVERHEAD = 43
+    # gives 46 words of overhead
+    FIXED_OVERHEAD = 46
     # Given in the guidance
     NUM_COLUMNS = 13
     NUM_ROWS = 35
-    CAPACTITY = NUM_COLUMNS * NUM_ROWS - FIXED_OVERHEAD
+    # reserve enough space for file name (it is actually less because of compression, but be safe)
+    file_name_lenght = len(file_name)
+    capactity = NUM_COLUMNS * NUM_ROWS - FIXED_OVERHEAD - file_name_lenght
     # Byte encodinge efficency is 6 bytes per 5 codewords
-    SEGMENT_SIZE = floor((CAPACTITY / 5) * 6)
+    segment_size = floor((capactity / 5) * 6)
+    # Official PDF generator uses 4 * 3 digit (<= 255 each) for file ID
+    # Create file ID based on hash of taxstatement id and creation date
+    hash_input = f"{file_name}_{tax_statement.creationDate.timestamp() if tax_statement.creationDate else ''}"
+    digest = hashlib.sha256(hash_input.encode('utf-8')).digest()
+    file_id = [100 + (b % 156) for b in digest[:4]]
 
     # Use encode_macro for proper macro PDF417 generation
     codes = encode_macro(
         data,
-        file_id=[1],
+        file_id=file_id,
+        file_name=file_name,
         columns=NUM_COLUMNS,
         force_rows=NUM_ROWS,
         security_level=4,
-        segment_size=SEGMENT_SIZE,
+        segment_size=segment_size,
         force_binary=True,
     )
     
