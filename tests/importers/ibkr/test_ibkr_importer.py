@@ -1738,3 +1738,181 @@ def test_ibkr_import_canton_extraction_no_account_info(sample_ibkr_settings):
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+
+# ---------------------------------------------------------------------------
+# Unknown-attribute tolerance tests
+#
+# The production driver (steuerauszug.py) calls
+# ibflex.enable_unknown_attribute_tolerance() before importing IBKR data so
+# that new fields added by Interactive Brokers don't break parsing.  Tests
+# keep the default *strict* mode to catch regressions; the tests below
+# explicitly toggle tolerance to verify the feature works.
+# See: https://github.com/vroonhof/opensteuerauszug/issues/48
+# ---------------------------------------------------------------------------
+
+# XML fragment with fabricated unknown attributes on known element types.
+_XML_WITH_UNKNOWN_ATTRS = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <Trades>
+        <Trade transactionID="3001" accountId="U1234567" assetCategory="STK"
+               symbol="MSFT" description="MICROSOFT CORP" conid="272120"
+               isin="US5949181045" currency="USD" quantity="10"
+               tradeDate="2023-03-15" settleDateTarget="2023-03-17"
+               tradePrice="280.00" tradeMoney="2800.00" buySell="BUY"
+               ibCommission="-1.00" ibCommissionCurrency="USD" netCash="-2801.00"
+               futureField="some_value" newMetric="42" />
+      </Trades>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="MSFT"
+                      description="MICROSOFT CORP" conid="272120"
+                      isin="US5949181045" currency="USD" position="10"
+                      markPrice="300.00" positionValue="3000.00"
+                      reportDate="2023-12-31" extraInfo="hello" />
+      </OpenPositions>
+      <CashTransactions>
+        <CashTransaction accountId="U1234567" type="Dividends" currency="USD"
+                         amount="50.00" description="MSFT Dividend"
+                         conid="272120" symbol="MSFT"
+                         dateTime="2023-09-05T00:00:00" assetCategory="STK"
+                         unknownFlag="Y" />
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD"
+                            startingCash="0" endingCash="3148.50"
+                            fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+# XML fragment with an entirely unknown element type inside FlexStatement.
+_XML_WITH_UNKNOWN_ELEMENT = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <Trades>
+        <Trade transactionID="4001" accountId="U1234567" assetCategory="STK"
+               symbol="AAPL" description="APPLE INC" conid="265598"
+               isin="US0378331005" currency="USD" quantity="5"
+               tradeDate="2023-06-20" settleDateTarget="2023-06-22"
+               tradePrice="180.00" tradeMoney="900.00" buySell="BUY"
+               ibCommission="-0.50" ibCommissionCurrency="USD" netCash="-900.50" />
+      </Trades>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="AAPL"
+                      description="APPLE INC" conid="265598"
+                      isin="US0378331005" currency="USD" position="5"
+                      markPrice="190.00" positionValue="950.00"
+                      reportDate="2023-12-31" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD"
+                            startingCash="0" endingCash="0"
+                            fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+      <HypotheticalNewSection>
+        <HypotheticalNewEntry accountId="U1234567" someField="value" anotherField="123" />
+      </HypotheticalNewSection>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+
+@pytest.fixture()
+def _enable_unknown_attribute_tolerance():
+    """Temporarily enable ibflex unknown-attribute tolerance for a single test."""
+    import ibflex
+    ibflex.enable_unknown_attribute_tolerance()
+    yield
+    ibflex.disable_unknown_attribute_tolerance()
+
+
+def test_strict_mode_rejects_unknown_xml_attributes(sample_ibkr_settings):
+    """In strict mode (the default for tests), unknown attributes must raise an error."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(_XML_WITH_UNKNOWN_ATTRS)
+        xml_file_path = tmp_file.name
+
+    try:
+        with pytest.raises((ValueError, RuntimeError)):
+            importer.import_files([xml_file_path])
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+@pytest.mark.usefixtures("_enable_unknown_attribute_tolerance")
+def test_unknown_xml_attributes_are_silently_ignored(sample_ibkr_settings):
+    """With tolerance enabled, unknown attributes must not break parsing.
+
+    The production driver enables this mode before importing IBKR data so
+    that new fields added by Interactive Brokers are silently ignored.
+    """
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(_XML_WITH_UNKNOWN_ATTRS)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        assert tax_statement.listOfSecurities is not None
+        assert len(tax_statement.listOfSecurities.depot) == 1
+        depot = tax_statement.listOfSecurities.depot[0]
+        assert len(depot.security) == 1
+        assert "MICROSOFT" in depot.security[0].securityName
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+@pytest.mark.usefixtures("_enable_unknown_attribute_tolerance")
+def test_unknown_xml_element_types_are_silently_ignored(sample_ibkr_settings):
+    """With tolerance enabled, unknown element types must not break parsing.
+
+    IB may add entirely new XML element types (e.g. a hypothetical
+    <NewReportSection>).  The tolerance mode must skip these gracefully.
+    """
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(_XML_WITH_UNKNOWN_ELEMENT)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        assert tax_statement.listOfSecurities is not None
+        assert len(tax_statement.listOfSecurities.depot) == 1
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
