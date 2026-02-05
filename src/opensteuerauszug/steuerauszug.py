@@ -312,6 +312,15 @@ def main(
                 if not all_ibkr_account_settings_models:
                     print("No specific IBKR account settings found/loaded from config. Using empty list for importer settings.")
 
+                # Enable tolerance for unknown XML attributes so that new
+                # fields added by Interactive Brokers don't break parsing.
+                # This is only available in the forked ibflex
+                # (vroonhof/ibflex).  We enable it here (production path)
+                # rather than at module level so that tests remain strict by
+                # default.  See: https://github.com/vroonhof/opensteuerauszug/issues/48
+                import ibflex
+                ibflex.enable_unknown_attribute_tolerance()
+
                 print(f"Initializing IbkrImporter with {len(all_ibkr_account_settings_models)} IBKR account configuration(s) (if any).")
                 ibkr_importer = IbkrImporter(
                     period_from=parsed_period_from,

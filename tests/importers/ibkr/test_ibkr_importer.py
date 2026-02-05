@@ -1740,21 +1740,19 @@ def test_ibkr_import_canton_extraction_no_account_info(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
-def test_unknown_xml_attributes_are_silently_ignored(sample_ibkr_settings):
-    """Unknown attributes added by IB to their Flex exports must not break parsing.
+# ---------------------------------------------------------------------------
+# Unknown-attribute tolerance tests
+#
+# The production driver (steuerauszug.py) calls
+# ibflex.enable_unknown_attribute_tolerance() before importing IBKR data so
+# that new fields added by Interactive Brokers don't break parsing.  Tests
+# keep the default *strict* mode to catch regressions; the tests below
+# explicitly toggle tolerance to verify the feature works.
+# See: https://github.com/vroonhof/opensteuerauszug/issues/48
+# ---------------------------------------------------------------------------
 
-    The vendored ibflex fork supports an *unknown attribute tolerance* mode that
-    the importer enables at module-load time.  This test verifies that Flex XML
-    containing attributes not (yet) defined in ibflex's Types module can still
-    be imported successfully.
-    """
-    period_from = date(2023, 1, 1)
-    period_to = date(2023, 12, 31)
-
-    # The XML below contains fabricated attributes (futureField, newMetric,
-    # extraInfo, unknownFlag) that do not exist in ibflex's type definitions.
-    # Without unknown-attribute tolerance these would cause FlexParserError.
-    xml_with_unknown_attrs = """
+# XML fragment with fabricated unknown attributes on known element types.
+_XML_WITH_UNKNOWN_ATTRS = """
 <FlexQueryResponse queryName="TestQuery" type="AF">
   <FlexStatements count="1">
     <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
@@ -1791,40 +1789,8 @@ def test_unknown_xml_attributes_are_silently_ignored(sample_ibkr_settings):
 </FlexQueryResponse>
 """
 
-    importer = IbkrImporter(
-        period_from=period_from,
-        period_to=period_to,
-        account_settings_list=sample_ibkr_settings,
-    )
-
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
-        tmp_file.write(xml_with_unknown_attrs)
-        xml_file_path = tmp_file.name
-
-    try:
-        tax_statement = importer.import_files([xml_file_path])
-        assert tax_statement is not None
-        assert tax_statement.listOfSecurities is not None
-        assert len(tax_statement.listOfSecurities.depot) == 1
-        depot = tax_statement.listOfSecurities.depot[0]
-        assert len(depot.security) == 1
-        assert "MICROSOFT" in depot.security[0].securityName
-    finally:
-        if os.path.exists(xml_file_path):
-            os.remove(xml_file_path)
-
-
-def test_unknown_xml_element_types_are_silently_ignored(sample_ibkr_settings):
-    """Unknown element types (new report sections) added by IB must not break parsing.
-
-    In addition to unknown *attributes*, IB may add entirely new XML element
-    types (e.g. a hypothetical <NewReportSection>).  The tolerance mode must
-    skip these gracefully.
-    """
-    period_from = date(2023, 1, 1)
-    period_to = date(2023, 12, 31)
-
-    xml_with_unknown_element = """
+# XML fragment with an entirely unknown element type inside FlexStatement.
+_XML_WITH_UNKNOWN_ELEMENT = """
 <FlexQueryResponse queryName="TestQuery" type="AF">
   <FlexStatements count="1">
     <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
@@ -1856,6 +1822,21 @@ def test_unknown_xml_element_types_are_silently_ignored(sample_ibkr_settings):
 </FlexQueryResponse>
 """
 
+
+@pytest.fixture()
+def _enable_unknown_attribute_tolerance():
+    """Temporarily enable ibflex unknown-attribute tolerance for a single test."""
+    import ibflex
+    ibflex.enable_unknown_attribute_tolerance()
+    yield
+    ibflex.disable_unknown_attribute_tolerance()
+
+
+def test_strict_mode_rejects_unknown_xml_attributes(sample_ibkr_settings):
+    """In strict mode (the default for tests), unknown attributes must raise an error."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
     importer = IbkrImporter(
         period_from=period_from,
         period_to=period_to,
@@ -1863,7 +1844,68 @@ def test_unknown_xml_element_types_are_silently_ignored(sample_ibkr_settings):
     )
 
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
-        tmp_file.write(xml_with_unknown_element)
+        tmp_file.write(_XML_WITH_UNKNOWN_ATTRS)
+        xml_file_path = tmp_file.name
+
+    try:
+        with pytest.raises((ValueError, RuntimeError)):
+            importer.import_files([xml_file_path])
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+@pytest.mark.usefixtures("_enable_unknown_attribute_tolerance")
+def test_unknown_xml_attributes_are_silently_ignored(sample_ibkr_settings):
+    """With tolerance enabled, unknown attributes must not break parsing.
+
+    The production driver enables this mode before importing IBKR data so
+    that new fields added by Interactive Brokers are silently ignored.
+    """
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(_XML_WITH_UNKNOWN_ATTRS)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement is not None
+        assert tax_statement.listOfSecurities is not None
+        assert len(tax_statement.listOfSecurities.depot) == 1
+        depot = tax_statement.listOfSecurities.depot[0]
+        assert len(depot.security) == 1
+        assert "MICROSOFT" in depot.security[0].securityName
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+@pytest.mark.usefixtures("_enable_unknown_attribute_tolerance")
+def test_unknown_xml_element_types_are_silently_ignored(sample_ibkr_settings):
+    """With tolerance enabled, unknown element types must not break parsing.
+
+    IB may add entirely new XML element types (e.g. a hypothetical
+    <NewReportSection>).  The tolerance mode must skip these gracefully.
+    """
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(_XML_WITH_UNKNOWN_ELEMENT)
         xml_file_path = tmp_file.name
 
     try:
