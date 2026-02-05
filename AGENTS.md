@@ -25,6 +25,30 @@ OpenSteuerAuszug is a Python package for generating Swiss tax statements (Steuer
 - **Markers**: `integration` for integration tests.
 - **Integration tests** (`@pytest.mark.integration` or `@pytest.mark.parametrize` with sample files) must **not** be modified unless the underlying requirements have changed. If they fail, fix the implementation, not the test.
 - **External samples**: The `EXTRA_SAMPLE_DIR` environment variable can point to a directory with real-world XML files used in integration tests. These are never committed.
+- **Test naming**: Name tests after the invariant or behaviour they verify, not after the function they call. The test name should read as a specification of what must be true.
+  ```python
+  # Good — states the invariant
+  def test_security_name_is_truncated_to_60_characters():
+  def test_missing_isin_is_enriched_from_identifiers_csv():
+  def test_total_includes_all_accounts_for_broker():
+
+  # Bad — just names the function under test
+  def test_truncate():
+  def test_process():
+  def test_get_total():
+  ```
+- **Pydantic attribute checks**: Do **not** use `getattr`, `hasattr`, or `try/except AttributeError` to test whether an attribute exists on a Pydantic model. Pydantic models always define all their fields and supply defaults (often `None` or `[]`), so `hasattr` will always return `True` and `getattr` will silently return the default instead of catching a real problem. Test the attribute's **value** directly instead.
+  ```python
+  # Bad — always passes because Pydantic defines the field with a default
+  assert hasattr(position, "isin")
+  value = getattr(statement, "securities", None)
+  if value is not None: ...
+
+  # Good — test the actual value
+  assert position.isin == "US0378331005"
+  assert len(statement.securities) == 3
+  assert statement.securities is not None
+  ```
 
 ## Linting
 
