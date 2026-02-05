@@ -242,7 +242,7 @@ def create_client_info_table(tax_statement: TaxStatement, styles, box_width: flo
         table_data.append([Paragraph(f"Kanton: {client_info['canton']}", info_style)])
     
     if 'period' in client_info:
-        table_data.append([Paragraph(f"Periode: {client_info['period']}", info_style)])
+        table_data.append([Paragraph(f"Periode: <b>{client_info['period']}</b>", info_style)])
     
     if 'created' in client_info:
         table_data.append([Paragraph(f"Daten von: {client_info['created']}", info_style)])
@@ -302,13 +302,11 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
         
         # Tax statement title aligned with bottom of client info box - now big and bold
         period_end_date = doc.tax_statement.periodTo.strftime("%d.%m.%Y") if doc.tax_statement.periodTo else "31.12"
-        tax_year = str(doc.tax_statement.taxPeriod) if doc.tax_statement.taxPeriod else ""
-        canton = doc.tax_statement.canton if hasattr(doc.tax_statement, 'canton') and doc.tax_statement.canton else "CH"
-        
+
         title_style = styles['HeaderTitle']
         canvas.setFont(title_style.fontName, title_style.fontSize)
         canvas.drawString(doc.leftMargin, page_height - doc.topMargin + 5*mm, 
-                         f"Steuerauszug {tax_year} {canton} {period_end_date}")
+                         f"Steuerauszug in CHF {period_end_date}")
     
     # Draw client information table on all pages
     if hasattr(doc, 'tax_statement') and doc.tax_statement:
@@ -372,11 +370,12 @@ def create_summary_table(data, styles, usable_width):
     val_left = styles['Val_LEFT']
     val_right = styles['Val_RIGHT']
     val_center = styles['Val_CENTER']
+    bold_right = styles['Bold_RIGHT']
 
     steuerwert_a = format_currency_rounded(summary_data.get('steuerwert_a'))
     steuerwert_b = format_currency_rounded(summary_data.get('steuerwert_b'))
     # Footnote
-    footnote_text = "(1) Davon A {} und B {}".format(
+    footnote_text = "(1) Davon <b>A</b> {} und <b>B</b> {}".format(
         format_currency_rounded(summary_data.get('steuerwert_a', '')),
         format_currency_rounded(summary_data.get('steuerwert_b', ''))
     )
@@ -384,56 +383,56 @@ def create_summary_table(data, styles, usable_width):
     # --- Data structure based on 6 columns, with Totals shifted ---
     table_data = [
         # Row 0: A/B Headers (Indices 2 & 5 blank)
-        [Paragraph(f'Steuerwert der A- und B-Werte am {summary_data.get("period_end_date", "31.12")}', header_style),
-         '',         
-         Paragraph('A', val_center), # 'A' in its own column (index 2)
-         Paragraph(f'Bruttoertrag {summary_data.get("tax_period", "")} Werte mit VSt.-Abzug', header_style),
-         Paragraph('B', val_center), # 'B' in its own column (index 2)
-         Paragraph(f'Bruttoertrag {summary_data.get("tax_period", "")} Werte ohne VSt.-Abzug', header_style),
+        [Paragraph(f'<b>Steuerwert</b> der<br/><b>A</b>- und <b>B</b>-Werte am {summary_data.get("period_end_date", "31.12")}', header_style),
+         '',
+         Paragraph('<b>A</b>', val_center), # 'A' in its own column (index 2)
+         Paragraph(f'<b>Bruttoertrag</b><br/>{summary_data.get("tax_period", "")} Werte <b>mit</b> VSt.-Abzug', header_style),
+         Paragraph('<b>B</b>', val_center), # 'B' in its own column (index 2)
+         Paragraph(f'<b>Bruttoertrag</b><br/>{summary_data.get("tax_period", "")} Werte <b>ohne</b> VSt.-Abzug', header_style),
          Paragraph('Verrechnungs- steueranspruch', header_style), '',
-         Paragraph(f'''Werte für Formular "Wertschriften- und Guthabenverzeichnis"
+         Paragraph(f'''Werte für Formular <b>"Wertschriften- und Guthabenverzeichnis"</b>
 (inkl. Konti, ohne Werte DA-1 und USA)''', val_left)],
         # Row 1: A/B Values (Index 2 is 'B', Index 5 blank)
-        [Paragraph(format_currency_rounded(summary_data.get('steuerwert_ab')), val_right),
-         Paragraph("(1)", val_left),
+        [Paragraph(format_currency_rounded(summary_data.get('steuerwert_ab')), bold_right),
+         Paragraph("<super rise=9 size=6>(1)</super>", val_left),
          '',
-         Paragraph(format_currency_rounded(summary_data.get('brutto_mit_vst')), val_right),
+         Paragraph(format_currency_rounded(summary_data.get('brutto_mit_vst')), bold_right),
          '',
-         Paragraph(format_currency_rounded(summary_data.get('brutto_ohne_vst')), val_right),
+         Paragraph(format_currency_rounded(summary_data.get('brutto_ohne_vst')), bold_right),
          Paragraph(format_currency_2dp(summary_data.get('vst_anspruch')), val_right),
          '',
          Paragraph(footnote_text, val_left)],
         # Row 2: Spacer row (6 columns)
         ['', '', '', '', '', ''],
          # Row 3: DA-1 Headers (Indices 1 & 2 blank)
-        [Paragraph(f'Steuerwert der DA-1 und USA- Werte am {summary_data.get("period_end_date", "31.12")}', header_style),
+        [Paragraph(f'<b>Steuerwert</b> der <b>DA-1</b> und <b>USA</b>- Werte am {summary_data.get("period_end_date", "31.12")}', header_style),
          '', '', '', '',
-         Paragraph(f'Bruttoertrag {summary_data.get("tax_period", "")} DA-1 und USA-Werte', header_style), # Starts in Col 4
-         Paragraph('Pauschale Steueranrechnung (DA-1)', header_style), 
-         Paragraph('Steuerrückbehalt USA', header_style),
-         Paragraph('''Werte für zusätzliches Formular "DA-1 Antrag auf Anrechnung
+         Paragraph(f'<b>Bruttoertrag</b> {summary_data.get("tax_period", "")}<br/><b>DA-1</b> und <b>USA</b>-Werte', header_style), # Starts in Col 4
+         Paragraph('<b>Anrechnung ausländischer Quellensteuer</b>', header_style),
+         Paragraph('<b>Steuerrückbehalt USA</b>', header_style),
+         Paragraph('''Werte für zusätzliches Formular <b>"DA-1 Antrag auf Anrechnung
 ausländischer Quellensteuer und zusätzlichen Steuerrückbehalt
-USA"''', val_left)], #
+USA"</b> (DA-1)''', val_left)], #
          # Row 4: DA-1 Values (Indices 1 & 2 blank)
-        [Paragraph(format_currency_rounded(summary_data.get('steuerwert_da1_usa')), val_right),
+        [Paragraph(format_currency_rounded(summary_data.get('steuerwert_da1_usa')), bold_right),
          '', '', '', '',
-         Paragraph(format_currency_rounded(summary_data.get('brutto_da1_usa')), val_right), # Starts in Col 3
-         Paragraph(format_currency_rounded(summary_data.get('pauschale_da1')), val_right), # Col 4
-         Paragraph(format_currency_rounded(summary_data.get('rueckbehalt_usa')), val_right),
+         Paragraph(format_currency_rounded(summary_data.get('brutto_da1_usa')), bold_right), # Starts in Col 3
+         Paragraph(format_currency_rounded(summary_data.get('pauschale_da1')), bold_right), # Col 4
+         Paragraph(format_currency_rounded(summary_data.get('rueckbehalt_usa')), bold_right),
          '',
 ], # Col 5
         # Row 5: Spacer row (6 columns)
         ['', '', '', '', '', ''],
         # Row 6: Total Headers (** SHIFTED RIGHT **, Indices 1, 2, 5 blank)
-        [Paragraph('Total Steuerwert der A,B,DA-1 und USA-Werte', header_style), # Col 0
+        [Paragraph(f'<b>Total Steuerwert</b> der <b>A, B, DA-1</b> und <b>USA</b>-Werte am {summary_data.get("period_end_date", "31.12")}', header_style), # Col 0
          '',
          '', 
-         Paragraph(f'Total Bruttoertrag {summary_data.get("tax_period", "")} A-Werte mit VSt.-Abzug', header_style), # Col 3 << SHIFTED
+         Paragraph(f'<b>Total Bruttoertrag</b> {summary_data.get("tax_period", "")} <b>A</b>-Werte <b>mit</b><br/>VSt.-Abzug', header_style), # Col 3 << SHIFTED
          '', 
-         Paragraph(f'Total Bruttoertrag {summary_data.get("tax_period", "")} B,DA-1 und USA-Werte ohne VSt.-Abzug', header_style), # Col 4 << SHIFTED
-         Paragraph(f'Total Bruttoertrag {summary_data.get("tax_period", "")} A.B.DA-1 und USA-Werte', header_style),
+         Paragraph(f'<b>Total Bruttoertrag</b> {summary_data.get("tax_period", "")} <b>B, DA-1</b> und <b>USA</b>-Werte <b>ohne</b> VSt.-Abzug', header_style), # Col 4 << SHIFTED
+         Paragraph(f'<b>Total Bruttoertrag</b> {summary_data.get("tax_period", "")} <b>A, B, DA-1</b> und <b>USA</b>-Werte', header_style),
          "",
-                  Paragraph('''Falls keine Anrechnung ausländischer Quellensteuern (DA-1)
+                  Paragraph('''Falls <b>keine</b> Anrechnung ausländischer Quellensteuern (DA-1)
 geltend gemacht wird, sind diese Totalwerte im
 Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
          # Row 7: Total Values (** SHIFTED RIGHT **, Indices 1, 2, 5 blank)
@@ -941,15 +940,15 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
             Paragraph('Datum', header_left),
             Paragraph('Bezeichnung<br/>Bankkonto<br/>Zinsen', header_left),
             Paragraph('Währung', header_style),
-            Paragraph(f'Steuerwert/Ertag<br/>{period_end_date}<br/>in CHF', header_style),
+            Paragraph('Steuerwert<br/>Ertrag', header_style),
             Paragraph('Kurs', header_style),
-            Paragraph('<strong>Steuerwert</strong>', header_style),
+            Paragraph(f'<b>Steuerwert</b><br/>{period_end_date}<br/>in CHF', header_style),
             '',
-            Paragraph('<strong>A</strong>', header_style),
-            Paragraph(f'<strong>Bruttoertrag</strong><br/>{year}<br/>mit VSt.', header_style),
+            Paragraph('<b>A</b>', header_style),
+            Paragraph(f'<b>Bruttoertrag</b><br/>{year} mit VSt.<br/>in CHF', header_style),
             '',
-            Paragraph('<strong>B</strong>', header_style),
-            Paragraph(f'<strong>Bruttoertrag</strong><br/>{year}<br/>ohne VSt.', header_style),
+            Paragraph('<b>B</b>', header_style),
+            Paragraph(f'<b>Bruttoertrag</b><br/>{year} ohne VSt.<br/>in CHF', header_style),
         ]
     ]
 
@@ -999,7 +998,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
             exchange_rate_str = ''
             currency_str = ''
         table_data.append([
-            Paragraph(date_str, val_left),
+            Paragraph(date_str, bold_left),
             Paragraph('Auflösung / Ertrag' if account.closingDate else 'Steuerwert / Ertrag', bold_left),
             Paragraph(currency_str, val_center),
             Paragraph(balance_str, val_right),
@@ -1017,7 +1016,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
     # add a final with totals for the list of bank accounts
     table_data.append([
         "",
-        Paragraph("Total Bankkonten ", val_left),
+        Paragraph("Total Bankkonten", bold_left),
         '',
         '',
         '',
@@ -1088,16 +1087,16 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         Paragraph('Depot-Nr<br/>Bezeichnung<br/>ISIN', header_left),
         Paragraph('Anzahl<br/>Nominal', header_style),
         Paragraph('Währung<br/>Land', header_style),
-        Paragraph('Stückpreis<br/>Ertrag', header_style),
-        Paragraph('ExDatum', header_style),
+        Paragraph('Stückpreis<br/>Nominal<br/>Ertrag', header_style),
+        Paragraph('Ex-<br/>Datum', header_left),
         Paragraph('Kurs', header_style),
-        Paragraph(f'Steuerwert {period_end_date}<br/>in CHF', header_style),
+        Paragraph(f'<b>Steuerwert</b> {period_end_date}<br/>in CHF', header_style),
         Paragraph('A', header_style),
-        Paragraph(f'Bruttoertrag {year}<br/>mit VSt.in CHF', header_style),
+        Paragraph(f'<b>Bruttoertrag</b> {year} mit VSt. in CHF', header_style),
         Paragraph('B', header_style),
-        Paragraph(f'Bruttoertrag {year}<br/>ohne VSt.in CHF', header_style),
-        Paragraph('Anrechenbare ausl. Quellensteuer<br/> in CHF', header_style),
-        Paragraph('Steuerrückbehalt USA<br/> in CHF', header_style),
+        Paragraph(f'<b>Bruttoertrag</b> {year} ohne VSt. in CHF', header_style),
+        Paragraph('<b>Anrechenbare ausl. Quellen- steuer</b> in CHF', header_style),
+        Paragraph('<b>Steuerrückbehalt USA</b><br/>in CHF', header_style),
     ]
     
     col_widths = [18*mm, 50*mm, 20*mm, 18*mm, 18*mm, 14*mm, 18*mm, 22*mm, 8, 22*mm, 8, 22*mm, 25*mm, 25*mm]
@@ -1140,7 +1139,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             cur_country = security.currency
         table_data.append([
             Paragraph(f"{security.valorNumber or ''}", bold_left),
-            Paragraph(f"<strong>{security.securityName or ''}</strong><br/>{security.isin or ''}", val_left),
+            Paragraph(f"<b>{security.securityName or ''}</b><br/>{security.isin or ''}", val_left),
             Paragraph('', val_right),
             Paragraph(cur_country, val_right),
             Paragraph('', val_right),
@@ -1237,8 +1236,8 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             Paragraph(format_currency(security.totalGrossRevenueA), bold_right),
             '',
             Paragraph(format_currency(security.totalGrossRevenueB), bold_right),
-            Paragraph(format_currency(security.totalNonRecoverableTax), val_right),
-            Paragraph(format_currency(security.totalAdditionalWithHoldingTaxUSA), val_right),
+            Paragraph(format_currency(security.totalNonRecoverableTax), bold_right),
+            Paragraph(format_currency(security.totalAdditionalWithHoldingTaxUSA), bold_right),
         ])
         intermediate_total_rows.append(current_row)
         current_row += 1
@@ -1392,7 +1391,7 @@ def render_tax_statement(
     use_minimal_frontpage = minimal_frontpage_placeholder
 
     # 1. Summary Section or placeholder
-    story.append(Paragraph("Steuerauszug | Zusammenfassung", title_style))
+    story.append(Paragraph("Zusammenfassung", title_style))
 
     if use_minimal_frontpage:
         story.append(create_minimal_placeholder(styles))
