@@ -5,7 +5,11 @@ from decimal import Decimal
 from typing import List
 import tempfile
 
-from opensteuerauszug.importers.ibkr.ibkr_importer import IbkrImporter
+from opensteuerauszug.importers.ibkr.ibkr_importer import (
+    IbkrImporter,
+    is_summary_level,
+    should_skip_pseudo_account_entry,
+)
 from opensteuerauszug.config.models import IbkrAccountSettings
 from opensteuerauszug.model.ech0196 import (
     TaxStatement,
@@ -30,6 +34,38 @@ except ImportError:
 pytestmark = pytest.mark.skipif(
     not IBFLEX_INSTALLED, reason="ibflex library is not installed, skipping IBKR importer tests"
 )
+
+
+class DummyIbkrEntry:
+    def __init__(self, account_id=None, level_of_detail=None):
+        self.accountId = account_id
+        self.levelOfDetail = level_of_detail
+
+
+def test_invariant_summary_level_detected_case_insensitively():
+    assert is_summary_level(DummyIbkrEntry(level_of_detail="summary"))
+
+
+def test_invariant_non_summary_level_not_detected():
+    assert not is_summary_level(DummyIbkrEntry(level_of_detail="DETAIL"))
+
+
+def test_invariant_hyphen_account_entry_is_skipped():
+    assert should_skip_pseudo_account_entry(
+        DummyIbkrEntry(account_id="-", level_of_detail="DETAIL")
+    )
+
+
+def test_invariant_missing_account_summary_entry_is_skipped():
+    assert should_skip_pseudo_account_entry(
+        DummyIbkrEntry(account_id=None, level_of_detail="SUMMARY")
+    )
+
+
+def test_invariant_missing_account_detail_entry_is_not_skipped():
+    assert not should_skip_pseudo_account_entry(
+        DummyIbkrEntry(account_id=None, level_of_detail="DETAIL")
+    )
 
 # Define a basic sample IBKR Flex Query XML as a string
 SAMPLE_IBKR_FLEX_XML_VALID = """

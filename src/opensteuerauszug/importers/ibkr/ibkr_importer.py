@@ -30,6 +30,29 @@ IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Final[Dict[str, SecurityCategory]]
 import ibflex
 from ibflex.parser import FlexParserError
 
+
+def is_summary_level(entry: Any) -> bool:
+    level_of_detail = getattr(entry, "levelOfDetail", None)
+    if level_of_detail is None:
+        return False
+    level_value = (
+        level_of_detail.value
+        if hasattr(level_of_detail, "value")
+        else str(level_of_detail)
+    )
+    return str(level_value).upper() == "SUMMARY"
+
+
+def should_skip_pseudo_account_entry(entry: Any) -> bool:
+    """Skip pseudo rows where accountId='-' or mapped-to-None SUMMARY rows."""
+    # ibflex maps accountId="-" to None on some entry types, so
+    # we only treat missing accountId rows as pseudo entries when they
+    # are marked as SUMMARY.
+    entry_account_id = getattr(entry, "accountId", None)
+    return entry_account_id == "-" or (
+        entry_account_id is None and is_summary_level(entry)
+    )
+
 class IbkrImporter:
     """
     Imports Interactive Brokers account data for a given tax period
@@ -274,27 +297,8 @@ class IbkrImporter:
             # account_id_processed = account_id # Keep track for summary
             logger.info(f"Processing statement for account: {account_id}")
 
-            # ibflex maps explicit accountId="-" to None on some entry types, so
-            # we only treat missing accountId rows as pseudo entries when they
-            # are marked as SUMMARY.
-            def is_summary_level(entry: Any) -> bool:
-                level_of_detail = getattr(entry, "levelOfDetail", None)
-                if level_of_detail is None:
-                    return False
-                level_value = (
-                    level_of_detail.value
-                    if hasattr(level_of_detail, "value")
-                    else str(level_of_detail)
-                )
-                return str(level_value).upper() == "SUMMARY"
-
             def should_skip_entry(entry: Any, entry_label: str) -> bool:
-                # ibflex maps accountId="-" to None for some entry types; only skip
-                # missing accountId entries if they are marked as SUMMARY.
-                entry_account_id = getattr(entry, "accountId", None)
-                if entry_account_id == "-" or (
-                    entry_account_id is None and is_summary_level(entry)
-                ):
+                if should_skip_pseudo_account_entry(entry):
                     logger.info(
                         "Skipping %s entry with pseudo accountId in account %s",
                         entry_label,
@@ -881,10 +885,7 @@ class IbkrImporter:
             if s_stmt.CashReport:
                 for cash_report_currency_obj in s_stmt.CashReport:
                     entry_account_id = getattr(cash_report_currency_obj, "accountId", None)
-                    if entry_account_id == "-" or (
-                        entry_account_id is None
-                        and is_summary_level(cash_report_currency_obj)
-                    ):
+                    if should_skip_pseudo_account_entry(cash_report_currency_obj):
                         logger.info(
                             "Skipping CashReport entry with accountId '-' in account %s",
                             account_id,
