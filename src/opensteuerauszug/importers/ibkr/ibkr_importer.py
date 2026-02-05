@@ -211,6 +211,13 @@ class IbkrImporter:
                 # Each FlexStatement corresponds to an account
                 if response and response.FlexStatements:
                     for stmt in response.FlexStatements:
+                        account_id = getattr(stmt, "accountId", None)
+                        if account_id == "-":
+                            logger.info(
+                                "Skipping FlexStatement with pseudo accountId '-' in %s",
+                                filename,
+                            )
+                            continue
                         # TODO: Potentially filter by accountId if multiple
                         # accounts are in one file and account_settings_list
                         # specifies which one to process.
@@ -267,6 +274,35 @@ class IbkrImporter:
             # account_id_processed = account_id # Keep track for summary
             logger.info(f"Processing statement for account: {account_id}")
 
+            # ibflex maps explicit accountId="-" to None on some entry types, so
+            # we only treat missing accountId rows as pseudo entries when they
+            # are marked as SUMMARY.
+            def is_summary_level(entry: Any) -> bool:
+                level_of_detail = getattr(entry, "levelOfDetail", None)
+                if level_of_detail is None:
+                    return False
+                level_value = (
+                    level_of_detail.value
+                    if hasattr(level_of_detail, "value")
+                    else str(level_of_detail)
+                )
+                return str(level_value).upper() == "SUMMARY"
+
+            def should_skip_entry(entry: Any, entry_label: str) -> bool:
+                # ibflex maps accountId="-" to None for some entry types; only skip
+                # missing accountId entries if they are marked as SUMMARY.
+                entry_account_id = getattr(entry, "accountId", None)
+                if entry_account_id == "-" or (
+                    entry_account_id is None and is_summary_level(entry)
+                ):
+                    logger.info(
+                        "Skipping %s entry with pseudo accountId in account %s",
+                        entry_label,
+                        account_id,
+                    )
+                    return True
+                return False
+
             # --- Process Trades ---
             if stmt.Trades:
                 for trade in stmt.Trades:
@@ -274,6 +310,8 @@ class IbkrImporter:
                         # Skipping summary objects.
                         # It seems tempting to use SymbolSummary but for FX these
                         # are actually for the full report period, so have no fixed date.
+                        continue
+                    if should_skip_entry(trade, "Trade"):
                         continue
                     trade_date = self._get_required_field(
                         trade, 'tradeDate', 'Trade'
@@ -367,6 +405,8 @@ class IbkrImporter:
             if stmt.OpenPositions:
                 end_plus_one = self.period_to + timedelta(days=1)
                 for open_pos in stmt.OpenPositions:
+                    if should_skip_entry(open_pos, "OpenPosition"):
+                        continue
                     # Ignore the reportDate from the Flex statement and
                     # use period end + 1 as reference date for the balance
                     # entry. This avoids creating a separate stock entry on
@@ -444,6 +484,8 @@ class IbkrImporter:
             # --- Process Transfers ---
             if stmt.Transfers:
                 for transfer in stmt.Transfers:
+                    if should_skip_entry(transfer, "Transfer"):
+                        continue
                     asset_category = transfer.assetCategory
                     asset_cat_val = (
                         asset_category.value if hasattr(asset_category, 'value') else str(asset_category)
@@ -518,6 +560,8 @@ class IbkrImporter:
             # --- Process Corporate Actions ---
             if stmt.CorporateActions:
                 for action in stmt.CorporateActions:
+                    if should_skip_entry(action, "CorporateAction"):
+                        continue
                     # CorporateActions have dates with time stamps, which can be at end of business etc
                     # to avoid this we assume that the reportDate is always the effective date when we see
                     # a difference in the amount of securities.
@@ -571,6 +615,8 @@ class IbkrImporter:
             # --- Process Cash Transactions ---
             if stmt.CashTransactions:
                 for cash_tx in stmt.CashTransactions:
+                    if should_skip_entry(cash_tx, "CashTransaction"):
+                        continue
                     tx_date_time = self._get_required_field(
                         cash_tx, 'dateTime', 'CashTransaction'
                     )
@@ -834,6 +880,16 @@ class IbkrImporter:
             account_id = s_stmt.accountId
             if s_stmt.CashReport:
                 for cash_report_currency_obj in s_stmt.CashReport:
+                    entry_account_id = getattr(cash_report_currency_obj, "accountId", None)
+                    if entry_account_id == "-" or (
+                        entry_account_id is None
+                        and is_summary_level(cash_report_currency_obj)
+                    ):
+                        logger.info(
+                            "Skipping CashReport entry with accountId '-' in account %s",
+                            account_id,
+                        )
+                        continue
                     curr = cash_report_currency_obj.currency
 
                     # Skip BASE_SUMMARY entries (IBKR internal aggregation, not a real currency)
