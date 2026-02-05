@@ -138,8 +138,27 @@ class CleanupCalculator:
 
         # set some standard values
         statement.minorVersion = 22
-        statement.periodFrom = self.period_from
-        statement.periodTo = self.period_to
+
+        # Ensure periodFrom is within the configured window
+        if not statement.periodFrom:
+            statement.periodFrom = self.period_from
+        elif self.period_from and (statement.periodFrom < self.period_from or statement.periodFrom > self.period_to):
+            logger.warning(
+                f"Statement periodFrom ({statement.periodFrom}) is outside the configured window "
+                f"[{self.period_from}, {self.period_to}]. Resetting to {self.period_from}."
+            )
+            statement.periodFrom = self.period_from
+
+        # Ensure periodTo is within the configured window
+        if not statement.periodTo:
+            statement.periodTo = self.period_to
+        elif self.period_to and (statement.periodTo < self.period_from or statement.periodTo > self.period_to):
+            logger.warning(
+                f"Statement periodTo ({statement.periodTo}) is outside the configured window "
+                f"[{self.period_from}, {self.period_to}]. Resetting to {self.period_to}."
+            )
+            statement.periodTo = self.period_to
+
         # Defensive for simpler testing in isolation
         statement.taxPeriod = self.period_to.year if self.period_to else None
         statement.country = "CH" # We are handling Swiss taxes

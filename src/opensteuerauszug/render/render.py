@@ -1,6 +1,7 @@
 import io
 from math import floor
 import sys
+from datetime import date
 import hashlib
 import os
 import json
@@ -302,13 +303,23 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
         
         # Tax statement title aligned with bottom of client info box - now big and bold
         period_end_date = doc.tax_statement.periodTo.strftime("%d.%m.%Y") if doc.tax_statement.periodTo else "31.12"
+
+        period_from = doc.tax_statement.periodFrom
+        # Check if periodFrom is NOT Jan 1st of the tax year
+        period_text = period_end_date
+        if period_from and doc.tax_statement.taxPeriod:
+            jan_1st = date(doc.tax_statement.taxPeriod, 1, 1)
+            if period_from != jan_1st:
+                period_start_date = period_from.strftime("%d.%m.%Y")
+                period_text = f"{period_start_date} - {period_end_date}"
+
         tax_year = str(doc.tax_statement.taxPeriod) if doc.tax_statement.taxPeriod else ""
         canton = doc.tax_statement.canton if hasattr(doc.tax_statement, 'canton') and doc.tax_statement.canton else "CH"
         
         title_style = styles['HeaderTitle']
         canvas.setFont(title_style.fontName, title_style.fontSize)
         canvas.drawString(doc.leftMargin, page_height - doc.topMargin + 5*mm, 
-                         f"Steuerauszug {tax_year} {canton} {period_end_date}")
+                         f"Steuerauszug {tax_year} {canton} {period_text}")
     
     # Draw client information table on all pages
     if hasattr(doc, 'tax_statement') and doc.tax_statement:

@@ -252,6 +252,9 @@ class IbkrImporter:
                 listOfBankAccounts=None
             )
 
+        effective_period_from = min(stmt.fromDate for stmt in all_flex_statements)
+        effective_period_to = max(stmt.toDate for stmt in all_flex_statements)
+
         # Key: SecurityPosition or tuple for cash. Value: dict with 'stocks', 'payments'
         processed_security_positions: defaultdict[SecurityPosition, Dict[str, list]] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
@@ -365,7 +368,7 @@ class IbkrImporter:
 
             # --- Process Open Positions (End of Period Snapshot) ---
             if stmt.OpenPositions:
-                end_plus_one = self.period_to + timedelta(days=1)
+                end_plus_one = stmt.toDate + timedelta(days=1)
                 for open_pos in stmt.OpenPositions:
                     # Ignore the reportDate from the Flex statement and
                     # use period end + 1 as reference date for the balance
@@ -720,7 +723,7 @@ class IbkrImporter:
 
             # --- Ensure balance at period start and period end + 1 using PositionReconciler ---
             reconciler = PositionReconciler(list(sorted_stocks), identifier=f"{sec_pos_obj.symbol}-reconcile")
-            end_plus_one = self.period_to + timedelta(days=1)
+            end_plus_one = effective_period_to + timedelta(days=1)
             end_pos = reconciler.synthesize_position_at_date(end_plus_one)
             closing_balance = end_pos.quantity if end_pos else Decimal("0")
 
@@ -728,7 +731,7 @@ class IbkrImporter:
                 s.quantity for s in sorted_stocks if s.mutation
             )
 
-            start_pos = reconciler.synthesize_position_at_date(self.period_from)
+            start_pos = reconciler.synthesize_position_at_date(effective_period_from)
             if start_pos:
                 opening_balance = start_pos.quantity
             else:
@@ -759,13 +762,13 @@ class IbkrImporter:
                 continue
 
             start_exists = any(
-                (not s.mutation and s.referenceDate == self.period_from)
+                (not s.mutation and s.referenceDate == effective_period_from)
                 for s in sorted_stocks
             )
             if not start_exists:
                 sorted_stocks.append(
                     SecurityStock(
-                        referenceDate=self.period_from,
+                        referenceDate=effective_period_from,
                         mutation=False,
                         quotationType=primary_quotation_type,
                         quantity=opening_balance,
@@ -867,6 +870,23 @@ class IbkrImporter:
                             'closing_balance': closing_balance_value,
                             'payments': []
                         }
+                    elif (
+                        cash_report_currency_obj.balance is not None
+                        and cash_report_currency_obj.reportDate == effective_period_to
+                    ):
+                        closing_balance_value = self._to_decimal(
+                            cash_report_currency_obj.balance,
+                            'balance',
+                            f"CashReport {account_id} {curr}"
+                        )
+
+                        if closing_balance_value is not None:
+                            all_currencies_with_balances[key] = {
+                                'account_id': account_id,
+                                'currency': curr,
+                                'closing_balance': closing_balance_value,
+                                'payments': []
+                            }
 
         # Now add payments from cash transactions to the relevant currencies
         for (stmt_account_id, currency_code, _), data in processed_cash_positions.items():
@@ -896,7 +916,7 @@ class IbkrImporter:
             bank_account_tax_value_obj = None
             if closing_balance_value is not None:
                 bank_account_tax_value_obj = BankAccountTaxValue(
-                    referenceDate=self.period_to,
+                    referenceDate=effective_period_to,
                     name="Closing Balance",
                     balanceCurrency=curr,
                     balance=closing_balance_value
@@ -905,12 +925,12 @@ class IbkrImporter:
                 logger.warning(
                     f"No closing cash balance found in CashReport "
                     f"for account {acc_id}, currency {curr} for date "
-                    f"{self.period_to}."
+                    f"{effective_period_to}."
                 )
                 raise ValueError(
                     f"No closing cash balance found in CashReport "
                     f"for account {acc_id}, currency {curr} for date "
-                    f"{self.period_to}."
+                    f"{effective_period_to}."
                 )
 
             bank_account_num_str = f"{acc_id}-{curr}"
@@ -931,8 +951,8 @@ class IbkrImporter:
 
         tax_statement = TaxStatement(
             minorVersion=1,
-            periodFrom=self.period_from,
-            periodTo=self.period_to,
+            periodFrom=effective_period_from,
+            periodTo=effective_period_to,
             taxPeriod=self.period_from.year,
             listOfSecurities=list_of_securities,
             listOfBankAccounts=list_of_bank_accounts
