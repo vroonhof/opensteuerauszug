@@ -1200,6 +1200,9 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             elif entry_type == 'stock':
                 if entry.quotationType != 'PIECE':
                     raise NotImplementedError("Cannot render stock type")
+                # Skip rendering initial holdings (Bestand) when quantity is zero
+                if not entry.mutation and entry.quantity == 0:
+                    continue
                 if entry.mutation:
                     name = entry.name
                 else:
