@@ -32,6 +32,7 @@ from ibflex.parser import FlexParserError
 
 
 def is_summary_level(entry: Any) -> bool:
+    """Return True when an entry is marked with levelOfDetail SUMMARY."""
     level_of_detail = getattr(entry, "levelOfDetail", None)
     if level_of_detail is None:
         return False
@@ -887,7 +888,7 @@ class IbkrImporter:
                     entry_account_id = getattr(cash_report_currency_obj, "accountId", None)
                     if should_skip_pseudo_account_entry(cash_report_currency_obj):
                         logger.info(
-                            "Skipping CashReport entry with accountId '-' in account %s",
+                            "Skipping CashReport entry with pseudo accountId in account %s",
                             account_id,
                         )
                         continue
