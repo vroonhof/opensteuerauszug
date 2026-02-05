@@ -5,7 +5,11 @@ from decimal import Decimal
 from typing import List
 import tempfile
 
-from opensteuerauszug.importers.ibkr.ibkr_importer import IbkrImporter
+from opensteuerauszug.importers.ibkr.ibkr_importer import (
+    IbkrImporter,
+    is_summary_level,
+    should_skip_pseudo_account_entry,
+)
 from opensteuerauszug.config.models import IbkrAccountSettings
 from opensteuerauszug.model.ech0196 import (
     TaxStatement,
@@ -30,6 +34,38 @@ except ImportError:
 pytestmark = pytest.mark.skipif(
     not IBFLEX_INSTALLED, reason="ibflex library is not installed, skipping IBKR importer tests"
 )
+
+
+class DummyIbkrEntry:
+    def __init__(self, account_id=None, level_of_detail=None):
+        self.accountId = account_id
+        self.levelOfDetail = level_of_detail
+
+
+def test_invariant_summary_level_detected_case_insensitively():
+    assert is_summary_level(DummyIbkrEntry(level_of_detail="summary"))
+
+
+def test_invariant_non_summary_level_not_detected():
+    assert not is_summary_level(DummyIbkrEntry(level_of_detail="DETAIL"))
+
+
+def test_invariant_hyphen_account_entry_is_skipped():
+    assert should_skip_pseudo_account_entry(
+        DummyIbkrEntry(account_id="-", level_of_detail="DETAIL")
+    )
+
+
+def test_invariant_missing_account_summary_entry_is_skipped():
+    assert should_skip_pseudo_account_entry(
+        DummyIbkrEntry(account_id=None, level_of_detail="SUMMARY")
+    )
+
+
+def test_invariant_missing_account_detail_entry_is_not_skipped():
+    assert not should_skip_pseudo_account_entry(
+        DummyIbkrEntry(account_id=None, level_of_detail="DETAIL")
+    )
 
 # Define a basic sample IBKR Flex Query XML as a string
 SAMPLE_IBKR_FLEX_XML_VALID = """
@@ -111,8 +147,8 @@ SAMPLE_IBKR_FLEX_XML_TRANSFER = """
   <FlexStatements count="1">
     <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
       <Transfers>
-        <Transfer type="INTERNAL" direction="IN" assetCategory="STK" symbol="GME" description="GAMESTOP" conid="123456" isin="US36467W1099" currency="USD" quantity="10" date="2023-07-01" account="Other Account" />
-        <Transfer type="INTERNAL" direction="IN" assetCategory="CASH" currency="USD" cashTransfer="100" date="2023-07-01" account="Other Account" />
+        <Transfer accountId="U1234567" type="INTERNAL" direction="IN" assetCategory="STK" symbol="GME" description="GAMESTOP" conid="123456" isin="US36467W1099" currency="USD" quantity="10" date="2023-07-01" account="Other Account" />
+        <Transfer accountId="U1234567" type="INTERNAL" direction="IN" assetCategory="CASH" currency="USD" cashTransfer="100" date="2023-07-01" account="Other Account" />
       </Transfers>
       <CashReport>
         <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
@@ -127,7 +163,7 @@ SAMPLE_IBKR_FLEX_XML_TRANSFER_WRONG_SIGN = """
   <FlexStatements count="1">
     <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
       <Transfers>
-        <Transfer type="INTERNAL" direction="OUT" assetCategory="STK" symbol="GME" description="GAMESTOP" conid="123456" isin="US36467W1099" currency="USD" quantity="10" date="2023-07-01" account="Other Account" />
+        <Transfer accountId="U1234567" type="INTERNAL" direction="OUT" assetCategory="STK" symbol="GME" description="GAMESTOP" conid="123456" isin="US36467W1099" currency="USD" quantity="10" date="2023-07-01" account="Other Account" />
       </Transfers>
       <CashReport>
         <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
@@ -199,6 +235,54 @@ SAMPLE_IBKR_FLEX_XML_CORPORATE_ACTION_EXCHANGE = """
         <CorporateAction accountId="U1234567" assetCategory="STK" symbol="1XJ" description="VIPER ENERGY INC" conid="623598601" isin="US64361Q1013" currency="USD" reportDate="2023-08-03" dateTime="2023-08-02;202500" actionDescription="1XJ(US64361Q1013) EXCHANGED FROM ZT0(US9279591062)" quantity="10" type="TC" />
       </CorporateActions>
       <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+SAMPLE_IBKR_FLEX_XML_WITH_MISSING_ACCOUNT_ENTRIES = """
+<FlexQueryResponse queryName="MissingAccountEntryQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <CorporateActions>
+        <CorporateAction assetCategory="STK" symbol="DUP" description="DUPLICATE CO" conid="111111" isin="US1111111111" currency="USD" reportDate="2023-08-03" dateTime="2023-08-02;202500" actionDescription="DUP(US1111111111) EXAMPLE" quantity="5" type="TC" levelOfDetail="DETAIL" />
+        <CorporateAction accountId="U1234567" assetCategory="STK" symbol="REAL" description="REAL CO" conid="222222" isin="US2222222222" currency="USD" reportDate="2023-08-03" dateTime="2023-08-02;202500" actionDescription="REAL(US2222222222) EXAMPLE" quantity="5" type="TC" />
+      </CorporateActions>
+      <CashTransactions>
+        <CashTransaction type="Broker Interest Received" currency="USD" amount="99.99" description="Pseudo Interest" conid="" symbol="" dateTime="2023-08-15T00:00:00" assetCategory="" levelOfDetail="DETAIL" />
+        <CashTransaction accountId="U1234567" type="Broker Interest Received" currency="USD" amount="25.50" description="Interest on Cash" conid="" symbol="" dateTime="2023-08-15T00:00:00" assetCategory="" />
+      </CashTransactions>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="REAL" description="REAL CO" conid="222222" isin="US2222222222" currency="USD" position="5" markPrice="10.00" positionValue="50.00" reportDate="2023-12-31" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency currency="USD" endingCash="123.45" fromDate="2023-01-01" toDate="2023-12-31" levelOfDetail="DETAIL" />
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+SAMPLE_IBKR_FLEX_XML_WITH_HYPHEN_ACCOUNT_ENTRIES = """
+<FlexQueryResponse queryName="HyphenAccountEntryQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <CorporateActions>
+        <CorporateAction accountId="-" assetCategory="STK" symbol="DUP" description="DUPLICATE CO" conid="111111" isin="US1111111111" currency="USD" reportDate="2023-08-03" dateTime="2023-08-02;202500" actionDescription="DUP(US1111111111) EXAMPLE" quantity="5" type="TC" levelOfDetail="SUMMARY" />
+        <CorporateAction accountId="U1234567" assetCategory="STK" symbol="REAL" description="REAL CO" conid="222222" isin="US2222222222" currency="USD" reportDate="2023-08-03" dateTime="2023-08-02;202500" actionDescription="REAL(US2222222222) EXAMPLE" quantity="5" type="TC" />
+      </CorporateActions>
+      <CashTransactions>
+        <CashTransaction accountId="-" type="Broker Interest Received" currency="USD" amount="99.99" description="Pseudo Interest" conid="" symbol="" dateTime="2023-08-15T00:00:00" assetCategory="" levelOfDetail="SUMMARY" />
+        <CashTransaction accountId="U1234567" type="Broker Interest Received" currency="USD" amount="25.50" description="Interest on Cash" conid="" symbol="" dateTime="2023-08-15T00:00:00" assetCategory="" />
+      </CashTransactions>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="REAL" description="REAL CO" conid="222222" isin="US2222222222" currency="USD" position="5" markPrice="10.00" positionValue="50.00" reportDate="2023-12-31" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="-" currency="USD" endingCash="123.45" fromDate="2023-01-01" toDate="2023-12-31" levelOfDetail="SUMMARY" />
         <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
       </CashReport>
     </FlexStatement>
@@ -345,6 +429,78 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert eur_account.taxValue.balance == Decimal("0")
         assert eur_account.taxValue.referenceDate == date(2023, 12, 31)
 
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_import_keeps_entries_with_missing_account_id(sample_ibkr_settings):
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_WITH_MISSING_ACCOUNT_ENTRIES)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement.listOfSecurities is not None
+        assert len(tax_statement.listOfSecurities.depot) == 1
+
+        depot = tax_statement.listOfSecurities.depot[0]
+        assert depot.depotNumber == "U1234567"
+        assert len(depot.security) == 2
+        security_names = {security.securityName for security in depot.security}
+        assert security_names == {"DUPLICATE CO (DUP)", "REAL CO (REAL)"}
+
+        assert tax_statement.listOfBankAccounts is not None
+        assert len(tax_statement.listOfBankAccounts.bankAccount) == 1
+        bank_account = tax_statement.listOfBankAccounts.bankAccount[0]
+        assert bank_account.bankAccountNumber == "U1234567-USD"
+        assert bank_account.taxValue is not None
+        assert bank_account.taxValue.balance == Decimal("0")
+        assert len(bank_account.payment) == 2
+        payment_amounts = {payment.amount for payment in bank_account.payment}
+        assert payment_amounts == {Decimal("99.99"), Decimal("25.50")}
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_import_skips_hyphen_account_entries(sample_ibkr_settings):
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_WITH_HYPHEN_ACCOUNT_ENTRIES)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement.listOfSecurities is not None
+        assert len(tax_statement.listOfSecurities.depot) == 1
+
+        depot = tax_statement.listOfSecurities.depot[0]
+        assert depot.depotNumber == "U1234567"
+        assert len(depot.security) == 1
+        assert depot.security[0].securityName == "REAL CO (REAL)"
+
+        assert tax_statement.listOfBankAccounts is not None
+        assert len(tax_statement.listOfBankAccounts.bankAccount) == 1
+        bank_account = tax_statement.listOfBankAccounts.bankAccount[0]
+        assert bank_account.bankAccountNumber == "U1234567-USD"
+        assert bank_account.taxValue is not None
+        assert bank_account.taxValue.balance == Decimal("0")
+        assert len(bank_account.payment) == 1
+        assert bank_account.payment[0].amount == Decimal("25.50")
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
@@ -1582,4 +1738,3 @@ def test_ibkr_import_canton_extraction_no_account_info(sample_ibkr_settings):
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
-
