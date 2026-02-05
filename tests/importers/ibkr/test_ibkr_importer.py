@@ -230,6 +230,30 @@ SAMPLE_IBKR_FLEX_XML_WITH_MISSING_ACCOUNT_ENTRIES = """
 </FlexQueryResponse>
 """
 
+SAMPLE_IBKR_FLEX_XML_WITH_HYPHEN_ACCOUNT_ENTRIES = """
+<FlexQueryResponse queryName="HyphenAccountEntryQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <CorporateActions>
+        <CorporateAction accountId="-" assetCategory="STK" symbol="DUP" description="DUPLICATE CO" conid="111111" isin="US1111111111" currency="USD" reportDate="2023-08-03" dateTime="2023-08-02;202500" actionDescription="DUP(US1111111111) EXAMPLE" quantity="5" type="TC" />
+        <CorporateAction accountId="U1234567" assetCategory="STK" symbol="REAL" description="REAL CO" conid="222222" isin="US2222222222" currency="USD" reportDate="2023-08-03" dateTime="2023-08-02;202500" actionDescription="REAL(US2222222222) EXAMPLE" quantity="5" type="TC" />
+      </CorporateActions>
+      <CashTransactions>
+        <CashTransaction accountId="-" type="Broker Interest Received" currency="USD" amount="99.99" description="Pseudo Interest" conid="" symbol="" dateTime="2023-08-15T00:00:00" assetCategory="" />
+        <CashTransaction accountId="U1234567" type="Broker Interest Received" currency="USD" amount="25.50" description="Interest on Cash" conid="" symbol="" dateTime="2023-08-15T00:00:00" assetCategory="" />
+      </CashTransactions>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="REAL" description="REAL CO" conid="222222" isin="US2222222222" currency="USD" position="5" markPrice="10.00" positionValue="50.00" reportDate="2023-12-31" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="-" currency="USD" endingCash="123.45" fromDate="2023-01-01" toDate="2023-12-31" />
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
 
 @pytest.fixture
 def sample_ibkr_settings() -> List[IbkrAccountSettings]:
@@ -406,6 +430,41 @@ def test_ibkr_import_keeps_entries_with_missing_account_id(sample_ibkr_settings)
         assert len(bank_account.payment) == 2
         payment_amounts = {payment.amount for payment in bank_account.payment}
         assert payment_amounts == {Decimal("99.99"), Decimal("25.50")}
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_ibkr_import_skips_hyphen_account_entries(sample_ibkr_settings):
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_WITH_HYPHEN_ACCOUNT_ENTRIES)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+        assert tax_statement.listOfSecurities is not None
+        assert len(tax_statement.listOfSecurities.depot) == 1
+
+        depot = tax_statement.listOfSecurities.depot[0]
+        assert depot.depotNumber == "U1234567"
+        assert len(depot.security) == 1
+        assert depot.security[0].securityName == "REAL CO (REAL)"
+
+        assert tax_statement.listOfBankAccounts is not None
+        assert len(tax_statement.listOfBankAccounts.bankAccount) == 1
+        bank_account = tax_statement.listOfBankAccounts.bankAccount[0]
+        assert bank_account.bankAccountNumber == "U1234567-USD"
+        assert bank_account.taxValue is not None
+        assert bank_account.taxValue.balance == Decimal("0")
+        assert len(bank_account.payment) == 1
+        assert bank_account.payment[0].amount == Decimal("25.50")
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)

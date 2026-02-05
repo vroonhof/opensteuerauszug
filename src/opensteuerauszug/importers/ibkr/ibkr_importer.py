@@ -1,5 +1,6 @@
 import os
 import logging
+import xml.etree.ElementTree as ElementTree
 from typing import Final, List, Any, Dict, Literal, get_args, cast
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
@@ -183,6 +184,53 @@ class IbkrImporter:
         return aggregated
 
 
+    def _collect_hyphen_account_indices(
+        self, filename: str
+    ) -> tuple[set[int], dict[int, dict[str, set[int]]]]:
+        hyphen_statement_indices: set[int] = set()
+        hyphen_entry_indices: dict[int, dict[str, set[int]]] = {}
+
+        try:
+            tree = ElementTree.parse(filename)
+        except ElementTree.ParseError:
+            logger.warning(
+                "Unable to parse %s for hyphen account detection. Proceeding without skips.",
+                filename,
+            )
+            return hyphen_statement_indices, hyphen_entry_indices
+
+        root = tree.getroot()
+        statements = root.findall(".//FlexStatement")
+        section_tags = {
+            "Trades": "Trade",
+            "OpenPositions": "OpenPosition",
+            "Transfers": "Transfer",
+            "CorporateActions": "CorporateAction",
+            "CashTransactions": "CashTransaction",
+            "CashReport": "CashReportCurrency",
+        }
+
+        for stmt_index, stmt_elem in enumerate(statements):
+            if stmt_elem.get("accountId") == "-":
+                hyphen_statement_indices.add(stmt_index)
+
+            for section_tag, entry_tag in section_tags.items():
+                section_elem = stmt_elem.find(section_tag)
+                if section_elem is None:
+                    continue
+                entry_indices = set()
+                entry_elements = section_elem.findall(entry_tag)
+                for entry_index, entry_elem in enumerate(entry_elements):
+                    if entry_elem.get("accountId") == "-":
+                        entry_indices.add(entry_index)
+                if entry_indices:
+                    hyphen_entry_indices.setdefault(stmt_index, {})[
+                        entry_tag
+                    ] = entry_indices
+
+        return hyphen_statement_indices, hyphen_entry_indices
+
+
     def import_files(self, filenames: List[str]) -> TaxStatement:
         """
         Import data from IBKR Flex Query XMLs and return a TaxStatement.
@@ -193,7 +241,8 @@ class IbkrImporter:
         Returns:
             The imported tax statement.
         """
-        all_flex_statements = []
+        all_flex_statements: List[tuple[Any, str, int]] = []
+        hyphen_entry_indices_by_file: Dict[str, Dict[int, Dict[str, set[int]]]] = {}
 
         for filename in filenames:
             if not os.path.exists(filename):
@@ -206,11 +255,21 @@ class IbkrImporter:
 
             try:
                 logger.info(f"Parsing IBKR Flex statement: {filename}")
+                hyphen_statement_indices, hyphen_entry_indices = (
+                    self._collect_hyphen_account_indices(filename)
+                )
+                hyphen_entry_indices_by_file[filename] = hyphen_entry_indices
                 response = ibflex.parser.parse(filename)
                 # response.FlexStatements is a list of FlexStatement objects
                 # Each FlexStatement corresponds to an account
                 if response and response.FlexStatements:
-                    for stmt in response.FlexStatements:
+                    for stmt_index, stmt in enumerate(response.FlexStatements):
+                        if stmt_index in hyphen_statement_indices:
+                            logger.info(
+                                "Skipping FlexStatement with accountId '-' in %s",
+                                filename,
+                            )
+                            continue
                         account_id = getattr(stmt, "accountId", None)
                         if account_id == "-":
                             logger.info(
@@ -227,7 +286,7 @@ class IbkrImporter:
                         f"{stmt.accountId}, Period: {stmt.fromDate} "
                         f"to {stmt.toDate}"
                     )
-                        all_flex_statements.append(stmt)
+                        all_flex_statements.append((stmt, filename, stmt_index))
                 else:
                     logger.warning(
                         f"No FlexStatements found in {filename} "
@@ -267,16 +326,24 @@ class IbkrImporter:
         security_country_map: Dict[SecurityPosition, str] = {}
         rights_issue_positions: set[SecurityPosition] = set()
 
-        for stmt in all_flex_statements:
+        for stmt, stmt_filename, stmt_index in all_flex_statements:
             account_id = self._get_required_field(
                 stmt, 'accountId', 'FlexStatement'
             )
             # account_id_processed = account_id # Keep track for summary
             logger.info(f"Processing statement for account: {account_id}")
 
-            def should_skip_entry(entry: Any, entry_label: str) -> bool:
+            hyphen_entry_indices = hyphen_entry_indices_by_file.get(
+                stmt_filename, {}
+            ).get(stmt_index, {})
+
+            def should_skip_entry(
+                entry: Any, entry_label: str, entry_index: int
+            ) -> bool:
                 entry_account_id = getattr(entry, "accountId", None)
-                if entry_account_id == "-":
+                if entry_account_id == "-" or entry_index in hyphen_entry_indices.get(
+                    entry_label, set()
+                ):
                     logger.info(
                         "Skipping %s entry with pseudo accountId in account %s",
                         entry_label,
@@ -287,13 +354,15 @@ class IbkrImporter:
 
             # --- Process Trades ---
             if stmt.Trades:
+                trade_index = 0
                 for trade in stmt.Trades:
                     if not isinstance(trade, ibflex.Trade):
                         # Skipping summary objects.
                         # It seems tempting to use SymbolSummary but for FX these
                         # are actually for the full report period, so have no fixed date.
                         continue
-                    if should_skip_entry(trade, "Trade"):
+                    if should_skip_entry(trade, "Trade", trade_index):
+                        trade_index += 1
                         continue
                     trade_date = self._get_required_field(
                         trade, 'tradeDate', 'Trade'
@@ -382,12 +451,17 @@ class IbkrImporter:
                     )
 
                     # Cash movements resulting from trades are tracked via the cash transaction section. Only the stock mutation is stored here.
+                    trade_index += 1
 
             # --- Process Open Positions (End of Period Snapshot) ---
             if stmt.OpenPositions:
                 end_plus_one = self.period_to + timedelta(days=1)
+                open_position_index = 0
                 for open_pos in stmt.OpenPositions:
-                    if should_skip_entry(open_pos, "OpenPosition"):
+                    if should_skip_entry(
+                        open_pos, "OpenPosition", open_position_index
+                    ):
+                        open_position_index += 1
                         continue
                     # Ignore the reportDate from the Flex statement and
                     # use period end + 1 as reference date for the balance
@@ -462,17 +536,21 @@ class IbkrImporter:
                     processed_security_positions[sec_pos]['stocks'].append(
                         balance_stock
                     )
+                    open_position_index += 1
 
             # --- Process Transfers ---
             if stmt.Transfers:
+                transfer_index = 0
                 for transfer in stmt.Transfers:
-                    if should_skip_entry(transfer, "Transfer"):
+                    if should_skip_entry(transfer, "Transfer", transfer_index):
+                        transfer_index += 1
                         continue
                     asset_category = transfer.assetCategory
                     asset_cat_val = (
                         asset_category.value if hasattr(asset_category, 'value') else str(asset_category)
                     )
                     if str(asset_cat_val).upper() == 'CASH':
+                        transfer_index += 1
                         continue
 
                     tx_date = transfer.date
@@ -538,11 +616,16 @@ class IbkrImporter:
                     processed_security_positions[sec_pos]['stocks'].append(
                         stock_mutation
                     )
+                    transfer_index += 1
 
             # --- Process Corporate Actions ---
             if stmt.CorporateActions:
+                corporate_action_index = 0
                 for action in stmt.CorporateActions:
-                    if should_skip_entry(action, "CorporateAction"):
+                    if should_skip_entry(
+                        action, "CorporateAction", corporate_action_index
+                    ):
+                        corporate_action_index += 1
                         continue
                     # CorporateActions have dates with time stamps, which can be at end of business etc
                     # to avoid this we assume that the reportDate is always the effective date when we see
@@ -593,11 +676,16 @@ class IbkrImporter:
                     processed_security_positions[sec_pos]["stocks"].append(
                         stock_mutation
                     )
+                    corporate_action_index += 1
 
             # --- Process Cash Transactions ---
             if stmt.CashTransactions:
+                cash_transaction_index = 0
                 for cash_tx in stmt.CashTransactions:
-                    if should_skip_entry(cash_tx, "CashTransaction"):
+                    if should_skip_entry(
+                        cash_tx, "CashTransaction", cash_transaction_index
+                    ):
+                        cash_transaction_index += 1
                         continue
                     tx_date_time = self._get_required_field(
                         cash_tx, 'dateTime', 'CashTransaction'
@@ -692,6 +780,7 @@ class IbkrImporter:
                         processed_cash_positions[cash_pos_key]['payments'].append(
                             bank_payment
                         )
+                    cash_transaction_index += 1
 
         # --- Construct ListOfSecurities ---
         # account_id -> list of Security objects
@@ -858,12 +947,19 @@ class IbkrImporter:
         # First, collect all currencies from CashReport that have closing balances
         all_currencies_with_balances: Dict[tuple, Dict[str, Any]] = {}
         
-        for s_stmt in all_flex_statements:
+        for s_stmt, stmt_filename, stmt_index in all_flex_statements:
             account_id = s_stmt.accountId
+            hyphen_entry_indices = hyphen_entry_indices_by_file.get(
+                stmt_filename, {}
+            ).get(stmt_index, {})
             if s_stmt.CashReport:
-                for cash_report_currency_obj in s_stmt.CashReport:
+                for cash_index, cash_report_currency_obj in enumerate(
+                    s_stmt.CashReport
+                ):
                     entry_account_id = getattr(cash_report_currency_obj, "accountId", None)
-                    if entry_account_id == "-":
+                    if entry_account_id == "-" or cash_index in hyphen_entry_indices.get(
+                        "CashReportCurrency", set()
+                    ):
                         logger.info(
                             "Skipping CashReport entry with accountId '-' in account %s",
                             account_id,
@@ -988,7 +1084,7 @@ class IbkrImporter:
         # TOOD: Handle joint accounts
         client_obj = None
         if all_flex_statements:
-            first_statement = all_flex_statements[0]
+            first_statement, _, _ = all_flex_statements[0]
             if hasattr(first_statement, 'AccountInformation') and first_statement.AccountInformation:
                 acc_info = first_statement.AccountInformation
                 account_id = getattr(acc_info, 'accountId', None)
