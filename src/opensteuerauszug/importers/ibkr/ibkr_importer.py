@@ -30,6 +30,11 @@ IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Final[Dict[str, SecurityCategory]]
 import ibflex
 from ibflex.parser import FlexParserError
 
+# Enable tolerance for unknown XML attributes so that new fields added by
+# Interactive Brokers don't break parsing.  This is only available in the
+# forked version of ibflex (vroonhof/ibflex).
+ibflex.enable_unknown_attribute_tolerance()
+
 
 def is_summary_level(entry: Any) -> bool:
     """Return True when an entry is marked with levelOfDetail SUMMARY."""
