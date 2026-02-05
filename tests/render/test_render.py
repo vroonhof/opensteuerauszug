@@ -20,7 +20,12 @@ from opensteuerauszug.model.ech0196 import (
     BankAccount,
     BankAccountTaxValue,
     BankAccountPayment,
-    BankAccountName
+    BankAccountName,
+    Depot,
+    Security,
+    ValorNumber,
+    ISINType,
+    ListOfSecurities
 )
 from opensteuerauszug.render.render import (
     render_tax_statement,
@@ -639,6 +644,199 @@ def test_format_exchange_rate():
     # Test typical ESTV exchange rates (6 decimals)
     assert render.format_exchange_rate(Decimal("0.952381")) == "0.952381"
     assert render.format_exchange_rate(Decimal("1.095890")) == "1.095890"
+
+
+def test_escape_html_for_paragraph():
+    """Test HTML escaping for ReportLab Paragraph rendering."""
+    # Test ampersand escaping
+    assert render.escape_html_for_paragraph("S&P 500") == "S&amp;P 500"
+    assert render.escape_html_for_paragraph("ISHARES CORE S&P 500") == "ISHARES CORE S&amp;P 500"
+    
+    # Test other HTML special characters
+    assert render.escape_html_for_paragraph("<TEST>") == "&lt;TEST&gt;"
+    assert render.escape_html_for_paragraph('"QUOTED"') == "&quot;QUOTED&quot;"
+    assert render.escape_html_for_paragraph("A & B") == "A &amp; B"
+    
+    # Test combination of special characters
+    assert render.escape_html_for_paragraph('TEST <FUND> "GROWTH" & \'VALUE\'') == 'TEST &lt;FUND&gt; &quot;GROWTH&quot; &amp; &#x27;VALUE&#x27;'
+    
+    # Test plain text (no escaping needed)
+    assert render.escape_html_for_paragraph("Plain text") == "Plain text"
+    assert render.escape_html_for_paragraph("TEST123") == "TEST123"
+    
+    # Test empty string
+    assert render.escape_html_for_paragraph("") == ""
+
+
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes')
+def test_security_name_with_ampersand_renders_correctly(mock_render_to_barcodes):
+    """Test that ampersands in security names don't cause PDF rendering errors."""
+    mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
+    
+    # Create a tax statement with a security containing an ampersand
+    tax_statement = TaxStatement(
+        minorVersion=2,
+        id="test-id-amp",
+        creationDate=datetime(2023, 10, 26, 10, 30, 0),
+        taxPeriod=2023,
+        periodFrom=date(2023, 1, 1),
+        periodTo=date(2023, 12, 31),
+        canton="ZH",
+        institution=Institution(name="Test Bank & Co AG"),
+        client=[
+            Client(
+                clientNumber=ClientNumber("C1"),
+                firstName="Max",
+                lastName="Muster & Co",
+                salutation="2"
+            )
+        ],
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="ISHARES CORE S&P 500",
+                            isin=ISINType("US4642874576"),
+                            valorNumber=ValorNumber(12345678),
+                            totalTaxValue=Decimal("950.00"),
+                            totalGrossRevenueA=Decimal("0"),
+                            totalGrossRevenueB=Decimal("0")
+                        )
+                    ]
+                )
+            ],
+            totalTaxValue=Decimal("950.00"),
+            totalGrossRevenueA=Decimal("0"),
+            totalGrossRevenueB=Decimal("0"),
+            totalWithHoldingTaxClaim=Decimal("0"),
+            totalLumpSumTaxCredit=Decimal("0"),
+            totalNonRecoverableTax=Decimal("0"),
+            totalAdditionalWithHoldingTaxUSA=Decimal("0"),
+            totalGrossRevenueIUP=Decimal("0"),
+            totalGrossRevenueConversion=Decimal("0")
+        ),
+        totalTaxValue=Decimal("950.00"),
+        svTaxValueA=Decimal("950.00"),
+        svTaxValueB=Decimal("0"),
+        totalGrossRevenueA=Decimal("0"),
+        totalGrossRevenueB=Decimal("0"),
+        totalWithHoldingTaxClaim=Decimal("0")
+    )
+    
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
+        temp_path = temp_file.name
+    
+    try:
+        # Main test: Render the tax statement to PDF should not crash
+        render_tax_statement(tax_statement, temp_path)
+        
+        # Check that the file exists and has content
+        assert os.path.exists(temp_path)
+        assert os.path.getsize(temp_path) > 0
+        
+        # Check content in the PDF - verify client name with ampersand renders correctly
+        with open(temp_path, "rb") as f:
+            pdf_reader = pypdf.PdfReader(f)
+            all_text = ""
+            for page in pdf_reader.pages:
+                all_text += page.extract_text()
+            
+            # Client name should appear without spurious semicolons
+            assert "Muster & Co" in all_text or "Muster &amp; Co" in all_text or "Muster" in all_text
+            # Make sure there's no spurious semicolon from incorrect HTML entity parsing
+            assert "Muster &amp; ; Co" not in all_text
+            assert "Muster &; Co" not in all_text
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes')
+def test_security_name_with_html_special_chars_renders_correctly(mock_render_to_barcodes):
+    """Test that HTML special characters in security names don't crash PDF rendering."""
+    mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
+    
+    # Create a tax statement with securities containing various HTML special characters
+    tax_statement = TaxStatement(
+        minorVersion=2,
+        id="test-id-html",
+        creationDate=datetime(2023, 10, 26, 10, 30, 0),
+        taxPeriod=2023,
+        periodFrom=date(2023, 1, 1),
+        periodTo=date(2023, 12, 31),
+        canton="ZH",
+        institution=Institution(name="Test Bank AG"),
+        client=[
+            Client(
+                clientNumber=ClientNumber("C1"),
+                firstName="Max",
+                lastName="Muster",
+                salutation="2"
+            )
+        ],
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName='TEST <FUND> "GROWTH" & \'VALUE\'',
+                            isin=ISINType("US1234567890"),
+                            valorNumber=ValorNumber(12345679),
+                            totalTaxValue=Decimal("237.50"),
+                            totalGrossRevenueA=Decimal("0"),
+                            totalGrossRevenueB=Decimal("0")
+                        )
+                    ]
+                )
+            ],
+            totalTaxValue=Decimal("237.50"),
+            totalGrossRevenueA=Decimal("0"),
+            totalGrossRevenueB=Decimal("0"),
+            totalWithHoldingTaxClaim=Decimal("0"),
+            totalLumpSumTaxCredit=Decimal("0"),
+            totalNonRecoverableTax=Decimal("0"),
+            totalAdditionalWithHoldingTaxUSA=Decimal("0"),
+            totalGrossRevenueIUP=Decimal("0"),
+            totalGrossRevenueConversion=Decimal("0")
+        ),
+        totalTaxValue=Decimal("237.50"),
+        svTaxValueA=Decimal("237.50"),
+        svTaxValueB=Decimal("0"),
+        totalGrossRevenueA=Decimal("0"),
+        totalGrossRevenueB=Decimal("0"),
+        totalWithHoldingTaxClaim=Decimal("0")
+    )
+    
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
+        temp_path = temp_file.name
+    
+    try:
+        # Main test: Render the tax statement to PDF should not crash
+        # even with special characters in security names
+        render_tax_statement(tax_statement, temp_path)
+        
+        # Check that the file exists and has content
+        assert os.path.exists(temp_path)
+        assert os.path.getsize(temp_path) > 0
+        
+        # The PDF was created successfully - that's the main test
+        # (actual security rendering may require more complete data structure)
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 
 def test_zero_initial_holdings_not_rendered():

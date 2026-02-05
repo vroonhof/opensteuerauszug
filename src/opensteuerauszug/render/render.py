@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, Union
 from decimal import Decimal, ROUND_HALF_UP
 import zlib
 from PIL import Image as PILImage
+import html
 
 # --- ReportLab Imports ---
 from reportlab.platypus import (
@@ -52,6 +53,24 @@ __all__ = [
     'make_barcode_pages',
     'BarcodeDocTemplate'
 ]
+
+
+def escape_html_for_paragraph(text: str) -> str:
+    """
+    Escape HTML special characters for use in ReportLab Paragraph.
+    
+    ReportLab's Paragraph class expects text to be valid XML/HTML markup.
+    Any literal ampersands, angle brackets, or quotes in the text must be escaped
+    to prevent them from being interpreted as markup.
+    
+    Args:
+        text: The text to escape
+        
+    Returns:
+        The text with HTML special characters escaped
+    """
+    return html.escape(text)
+
 
 # Custom document template with barcode support
 class BarcodeDocTemplate(BaseDocTemplate):
@@ -233,19 +252,19 @@ def create_client_info_table(tax_statement: TaxStatement, styles, box_width: flo
     # Handle multiple clients - create separate lines for each
     if 'names' in client_info:
         for name in client_info['names']:
-            table_data.append([Paragraph(f"Kunde: {name}", info_style)])
+            table_data.append([Paragraph(f"Kunde: {escape_html_for_paragraph(name)}", info_style)])
     
     if 'portfolio' in client_info:
-        table_data.append([Paragraph(f"Portfolio: {client_info['portfolio']}", info_style)])
+        table_data.append([Paragraph(f"Portfolio: {escape_html_for_paragraph(client_info['portfolio'])}", info_style)])
     
     if 'canton' in client_info:
-        table_data.append([Paragraph(f"Kanton: {client_info['canton']}", info_style)])
+        table_data.append([Paragraph(f"Kanton: {escape_html_for_paragraph(client_info['canton'])}", info_style)])
     
     if 'period' in client_info:
-        table_data.append([Paragraph(f"Periode: <b>{client_info['period']}</b>", info_style)])
+        table_data.append([Paragraph(f"Periode: <b>{escape_html_for_paragraph(client_info['period'])}</b>", info_style)])
     
     if 'created' in client_info:
-        table_data.append([Paragraph(f"Daten von: {client_info['created']}", info_style)])
+        table_data.append([Paragraph(f"Daten von: {escape_html_for_paragraph(client_info['created'])}", info_style)])
     
     if not table_data:
         return None
@@ -733,11 +752,11 @@ def render_statement_info(tax_statement: TaxStatement, story: list, client_info_
     
     # Add client info to the PDF
     if client_name:
-        story.append(Paragraph(f"<b>Kunde:</b> {client_name}", client_info_style))
+        story.append(Paragraph(f"<b>Kunde:</b> {escape_html_for_paragraph(client_name)}", client_info_style))
     if client_address:
-        story.append(Paragraph(f"<b>Adresse:</b> {client_address}", client_info_style))
+        story.append(Paragraph(f"<b>Adresse:</b> {escape_html_for_paragraph(client_address)}", client_info_style))
     if portfolio:
-        story.append(Paragraph(f"<b>Portfolio:</b> {portfolio}", client_info_style))
+        story.append(Paragraph(f"<b>Portfolio:</b> {escape_html_for_paragraph(portfolio)}", client_info_style))
     
     # Period information with safe date handling
     period_from = tax_statement.periodFrom.strftime("%d.%m.%Y") if tax_statement.periodFrom else ""
@@ -957,7 +976,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
 
     for account in bank_accounts:
         # Build the account description with optional opening/closing date lines
-        account_desc = f"<strong>{account.bankAccountName}</strong><br/> {account.iban or account.bankAccountNumber or ''}"
+        account_desc = f"<strong>{escape_html_for_paragraph(account.bankAccountName)}</strong><br/> {escape_html_for_paragraph(account.iban or account.bankAccountNumber or '')}"
         if account.openingDate:
             account_desc += f"<br/>Eröffnung {account.openingDate.strftime('%d.%m.%Y')}"
         if account.closingDate:
@@ -976,7 +995,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
         for payment in account.payment:
             table_data.append([
                 Paragraph(payment.paymentDate.strftime("%d.%m.%Y"), val_left) if payment.paymentDate else Paragraph('', val_left),
-                Paragraph(payment.name or '', val_left),
+                Paragraph(escape_html_for_paragraph(payment.name or ''), val_left),
                 Paragraph(payment.amountCurrency or account.bankAccountCurrency or '', val_center),
                 Paragraph(format_currency_2dp(payment.amount), val_right),
                 Paragraph(format_exchange_rate(payment.exchangeRate), val_right),
@@ -1145,7 +1164,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             cur_country = security.currency
         table_data.append([
             Paragraph(f"{security.valorNumber or ''}", bold_left),
-            Paragraph(f"<b>{security.securityName or ''}</b><br/>{security.isin or ''}", val_left),
+            Paragraph(f"<b>{escape_html_for_paragraph(security.securityName or '')}</b><br/>{escape_html_for_paragraph(security.isin or '')}", val_left),
             Paragraph('', val_right),
             Paragraph(cur_country, val_right),
             Paragraph('', val_right),
