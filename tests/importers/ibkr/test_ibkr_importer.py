@@ -908,6 +908,9 @@ def test_import_files_with_firstname_and_name(monkeypatch, sample_ibkr_settings)
             self.firstName = "Bob"
             self.lastName = None
             self.accountHolderName = None
+            self.dateOpened = None
+            self.dateClosed = None
+            self.stateResidentialAddress = None
 
     class DummyFlexStatement:
         def __init__(self) -> None:
