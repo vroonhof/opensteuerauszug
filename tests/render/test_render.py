@@ -838,3 +838,125 @@ def test_security_name_with_html_special_chars_renders_correctly(mock_render_to_
         if os.path.exists(temp_path):
             os.unlink(temp_path)
 
+
+def test_zero_initial_holdings_not_rendered():
+    """Test that initial holdings with quantity=0 are not rendered in the securities table."""
+    from opensteuerauszug.model.ech0196 import (
+        ListOfSecurities,
+        Depot,
+        Security,
+        SecurityStock,
+        SecurityTaxValue,
+        ValorNumber,
+        ISINType,
+        DepotNumber,
+    )
+    from opensteuerauszug.render.render import create_securities_table
+    
+    # Create a security with zero initial holdings followed by a mutation
+    stock_zero_initial = SecurityStock(
+        referenceDate=date(2025, 4, 10),
+        mutation=False,  # This is an initial holdings entry
+        quantity=Decimal("0"),  # Zero quantity
+        quotationType="PIECE",
+        balanceCurrency="EUR",
+    )
+    
+    stock_mutation = SecurityStock(
+        referenceDate=date(2025, 6, 13),
+        mutation=True,  # This is a mutation (transaction)
+        quantity=Decimal("165"),
+        quotationType="PIECE",
+        balanceCurrency="EUR",
+        name="FOP 9884414117",
+    )
+    
+    # Tax value at year end
+    tax_value = SecurityTaxValue(
+        referenceDate=date(2025, 12, 31),
+        quotationType="PIECE",
+        quantity=Decimal("165"),
+        balanceCurrency="EUR",
+        unitPrice=Decimal("43.79"),
+        value=Decimal("7225.00"),
+    )
+    
+    security = Security(
+        positionId=1,
+        valorNumber=ValorNumber(37986235),
+        isin=ISINType("IE00BF4RFH31"),
+        securityName="ISHARES MSCI WLD SMALL CAP (IUSN)",
+        currency="EUR",
+        country="IE",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        stock=[stock_zero_initial, stock_mutation],
+        taxValue=tax_value,
+        totalGrossRevenueA=Decimal("0"),
+        totalGrossRevenueB=Decimal("0"),
+        totalNonRecoverableTax=Decimal("0"),
+        totalAdditionalWithHoldingTaxUSA=Decimal("0"),
+    )
+    
+    depot = Depot(
+        depotNumber=DepotNumber("TEST"),
+        security=[security],
+    )
+    
+    tax_statement = TaxStatement(
+        minorVersion=2,
+        id="test-zero-holdings",
+        creationDate=datetime(2025, 1, 15, 12, 0, 0),
+        taxPeriod=2025,
+        periodFrom=date(2025, 1, 1),
+        periodTo=date(2025, 12, 31),
+        canton="ZH",
+        institution=Institution(name="Test Bank"),
+        client=[
+            Client(
+                clientNumber=ClientNumber("T1"),
+                firstName="Test",
+                lastName="User",
+                salutation="2",
+            )
+        ],
+        listOfSecurities=ListOfSecurities(depot=[depot]),
+        totalTaxValue=Decimal("7225.00"),
+        svTaxValueA=Decimal("0"),
+        svTaxValueB=Decimal("7225.00"),
+        totalGrossRevenueA=Decimal("0"),
+        totalGrossRevenueB=Decimal("0"),
+        totalWithHoldingTaxClaim=Decimal("0"),
+    )
+    
+    # Get styles for rendering
+    styles = get_custom_styles()
+    usable_width = 800  # Wide enough for the table
+    
+    # Render the table
+    table = create_securities_table(tax_statement, styles, usable_width, "B")
+    
+    # The table should exist (we have a security of type B)
+    assert table is not None
+    
+    # Extract the table data
+    table_data = table._cellvalues
+    
+    # Find rows that contain "Bestand" (initial holdings)
+    bestand_rows = []
+    for i, row in enumerate(table_data):
+        if len(row) > 1 and hasattr(row[1], 'text') and 'Bestand' in row[1].text:
+            bestand_rows.append(i)
+    
+    # There should be exactly one "Bestand" row (the end-of-year summary row)
+    # and NOT the zero initial holdings row from 10.04.2025
+    assert len(bestand_rows) == 1, f"Expected 1 'Bestand' row but found {len(bestand_rows)}"
+    
+    # Verify the mutation row is present (should contain "FOP")
+    mutation_rows = []
+    for i, row in enumerate(table_data):
+        if len(row) > 1 and hasattr(row[1], 'text') and 'FOP' in row[1].text:
+            mutation_rows.append(i)
+    
+    assert len(mutation_rows) == 1, "The FOP mutation should be rendered"
+
