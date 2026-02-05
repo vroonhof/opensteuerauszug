@@ -833,13 +833,11 @@ class IbkrImporter:
             stmt_account_id = self._get_required_field(
                 s_stmt, 'accountId', 'FlexStatement'
             )
-            if hasattr(s_stmt, 'AccountInformation') and s_stmt.AccountInformation:
+            if s_stmt.AccountInformation:
                 acc_info = s_stmt.AccountInformation
-                opened = getattr(acc_info, 'dateOpened', None)
-                closed = getattr(acc_info, 'dateClosed', None)
                 account_dates[stmt_account_id] = {
-                    'dateOpened': opened if isinstance(opened, date) else None,
-                    'dateClosed': closed if isinstance(closed, date) else None,
+                    'dateOpened': acc_info.dateOpened,
+                    'dateClosed': acc_info.dateClosed,
                 }
 
         # --- Construct ListOfBankAccounts ---
