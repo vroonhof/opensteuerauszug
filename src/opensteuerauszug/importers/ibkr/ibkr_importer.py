@@ -825,19 +825,22 @@ class IbkrImporter:
                               if final_depots else None)
 
         # --- Extract account opening/closing dates from AccountInformation ---
-        # These will be unconditionally set on all bank accounts for this statement.
+        # Build a per-account map so dates are only applied to bank accounts
+        # originating from the same flex statement.
         # The cleanup calculator will later clear them if they fall outside the reporting window.
-        account_date_opened: date | None = None
-        account_date_closed: date | None = None
+        account_dates: Dict[str, Dict[str, date | None]] = {}
         for s_stmt in all_flex_statements:
+            stmt_account_id = self._get_required_field(
+                s_stmt, 'accountId', 'FlexStatement'
+            )
             if hasattr(s_stmt, 'AccountInformation') and s_stmt.AccountInformation:
                 acc_info = s_stmt.AccountInformation
                 opened = getattr(acc_info, 'dateOpened', None)
                 closed = getattr(acc_info, 'dateClosed', None)
-                if opened and isinstance(opened, date):
-                    account_date_opened = opened
-                if closed and isinstance(closed, date):
-                    account_date_closed = closed
+                account_dates[stmt_account_id] = {
+                    'dateOpened': opened if isinstance(opened, date) else None,
+                    'dateClosed': closed if isinstance(closed, date) else None,
+                }
 
         # --- Construct ListOfBankAccounts ---
         final_bank_accounts: List[BankAccount] = []
@@ -931,13 +934,15 @@ class IbkrImporter:
             bank_account_num_str = f"{acc_id}-{curr}"
             bank_account_name_str = f"{acc_id} {curr} position"
 
+            # Look up dates for this specific account
+            dates_for_account = account_dates.get(acc_id, {})
             ba = BankAccount(
                 bankAccountName=BankAccountName(bank_account_name_str),
                 bankAccountNumber=BankAccountNumber(bank_account_num_str),
                 bankAccountCountry="US",
                 bankAccountCurrency=curr,
-                openingDate=account_date_opened,
-                closingDate=account_date_closed,
+                openingDate=dates_for_account.get('dateOpened'),
+                closingDate=dates_for_account.get('dateClosed'),
                 payment=sorted_payments,
                 taxValue=bank_account_tax_value_obj # Adjusted to single obj
             )
