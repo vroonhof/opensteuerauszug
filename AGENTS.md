@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-OpenSteuerAuszug is a Python package for generating Swiss tax statements (Steuerauszüge) in the official eCH-0196 XML/PDF format from foreign broker data. For domain background see `docs/technical_notes.md`. For broker-specific details see `docs/importer_schwab.md` and `docs/importer_ibkr.md`.
+OpenSteuerAuszug is a Python package for generating Swiss tax statements (Steuerauszüge) in the official eCH-0196 XML/PDF format from foreign broker data. For domain background and broker details see `docs/domain.md`.
 
 ## Build and Environment
 
