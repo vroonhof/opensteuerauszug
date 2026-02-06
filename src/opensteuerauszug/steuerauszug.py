@@ -27,6 +27,7 @@ from .importers.ibkr.ibkr_importer import IbkrImporter # Added IbkrImporter
 from .core.exchange_rate_provider import ExchangeRateProvider
 from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
+from .core.prior_period_verifier import verify_prior_period_positions
 from .config import ConfigManager, ConcreteAccountSettings
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,7 @@ def main(
     override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
     kursliste_dir: Path = typer.Option(Path("data/kursliste"), "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste'."),
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
+    prior_period_xml: Optional[Path] = typer.Option(None, "--prior-period-xml", exists=True, file_okay=True, dir_okay=False, readable=True, help="Path to the previous period's eCH-0196 tax statement XML file. When provided, a verification phase checks that current opening positions match prior ending positions."),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
     logging.basicConfig(level=log_level.value)
@@ -453,8 +455,45 @@ def main(
             current_phase = Phase.VERIFY
             print(f"Phase: {current_phase.value}")
             if not statement:
-                 raise ValueError("TaxStatement model not loaded. Cannot run calculate phase.")
-            
+                 raise ValueError("TaxStatement model not loaded. Cannot run verify phase.")
+
+            # --- Prior-period position verification ---
+            if prior_period_xml is not None:
+                print(f"Loading prior-period tax statement from: {prior_period_xml}")
+                try:
+                    prior_statement = TaxStatement.from_xml_file(str(prior_period_xml))
+                    print(
+                        f"Prior-period statement loaded: "
+                        f"taxPeriod={prior_statement.taxPeriod}, "
+                        f"periodFrom={prior_statement.periodFrom}, "
+                        f"periodTo={prior_statement.periodTo}"
+                    )
+                    pp_result = verify_prior_period_positions(prior_statement, statement)
+
+                    if pp_result.is_ok:
+                        print(
+                            f"Prior-period position verification passed "
+                            f"({pp_result.matched_count} positions matched)."
+                        )
+                    else:
+                        print(
+                            f"Prior-period position verification found "
+                            f"{pp_result.error_count} issue(s):"
+                        )
+                        for m in pp_result.mismatches:
+                            print(f"  Mismatch: {m}")
+                        for m in pp_result.missing_in_current:
+                            print(
+                                f"  Missing in current period (was in prior): {m}"
+                            )
+                        for m in pp_result.missing_in_prior:
+                            print(
+                                f"  Missing in prior period (new in current): {m}"
+                            )
+
+                except Exception as e:
+                    print(f"Warning: Failed to verify prior-period positions: {e}")
+
             print(f"Verifying with tax calculation level: {tax_calculation_level.value}...")
             exchange_rate_provider_verify: ExchangeRateProvider
             print(f"Using KurslisteExchangeRateProvider with directory: {kursliste_dir} for verification")
