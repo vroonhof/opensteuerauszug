@@ -27,6 +27,7 @@ import logging
 
 # --- Import TaxStatement model ---
 from opensteuerauszug.model.ech0196 import TaxStatement
+from opensteuerauszug.model.critical_warning import CriticalWarning, CriticalWarningCategory
 
 # --- Import OneDeeBarCode for barcode rendering ---
 from opensteuerauszug.render.onedee import OneDeeBarCode
@@ -686,6 +687,128 @@ def create_dual_info_boxes(styles, usable_width, minimal: bool = False):
 def create_single_info_page(markdown_text, styles, section=None):
     """Create simple text content for a dedicated information page."""
     return markdown_to_platypus(markdown_text, section=section)
+
+
+# --- Critical Warnings Rendering ---
+
+# Highlight colour used for the warning banner and per-warning rows.
+_WARNING_BG = colors.HexColor('#FFF3CD')  # soft amber/yellow
+_WARNING_BORDER = colors.HexColor('#FFCC00')  # darker amber for the border
+_WARNING_TEXT_COLOR = colors.HexColor('#664D03')  # dark amber for text
+
+
+def create_critical_warnings_flowables(warnings: list, styles) -> list:
+    """Build a list of ReportLab flowables that render critical warnings.
+
+    Each warning is shown as a bullet item inside a highlighted box so it
+    stands out from the surrounding content.
+
+    Args:
+        warnings: List of ``CriticalWarning`` instances.
+        styles: The custom style dictionary.
+
+    Returns:
+        A list of flowables (possibly empty).
+    """
+    if not warnings:
+        return []
+
+    warning_title_style = ParagraphStyle(
+        name='CriticalWarningTitle',
+        parent=styles['Normal'],
+        fontSize=10,
+        fontName='Helvetica-Bold',
+        textColor=_WARNING_TEXT_COLOR,
+        leading=14,
+        spaceAfter=2 * mm,
+    )
+    warning_item_style = ParagraphStyle(
+        name='CriticalWarningItem',
+        parent=styles['Normal'],
+        fontSize=8,
+        fontName='Helvetica',
+        textColor=_WARNING_TEXT_COLOR,
+        leading=11,
+        leftIndent=6 * mm,
+        bulletIndent=2 * mm,
+        spaceBefore=1 * mm,
+    )
+
+    inner = [
+        Paragraph(
+            "CRITICAL WARNINGS / KRITISCHE WARNUNGEN",
+            warning_title_style,
+        )
+    ]
+
+    for w in warnings:
+        escaped_msg = escape_html_for_paragraph(w.message)
+        inner.append(
+            Paragraph(
+                f"&bull; {escaped_msg}",
+                warning_item_style,
+            )
+        )
+
+    # Wrap in a table to get the coloured background and border
+    table = Table([[inner]], colWidths=[None])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), _WARNING_BG),
+        ('BOX', (0, 0), (-1, -1), 1, _WARNING_BORDER),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4 * mm),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4 * mm),
+        ('TOPPADDING', (0, 0), (-1, -1), 3 * mm),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3 * mm),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+
+    return [Spacer(1, 4 * mm), table, Spacer(1, 4 * mm)]
+
+
+def create_critical_warnings_hint(warnings: list, styles) -> list:
+    """Create a short banner for the summary page hinting that warnings exist.
+
+    Args:
+        warnings: List of ``CriticalWarning`` instances.
+        styles: The custom style dictionary.
+
+    Returns:
+        A list of flowables (possibly empty).
+    """
+    if not warnings:
+        return []
+
+    hint_style = ParagraphStyle(
+        name='CriticalWarningHint',
+        parent=styles['Normal'],
+        fontSize=9,
+        fontName='Helvetica-Bold',
+        textColor=_WARNING_TEXT_COLOR,
+        leading=12,
+    )
+
+    n = len(warnings)
+    plural = "warning" if n == 1 else "warnings"
+    text = (
+        f"This statement has <b>{n}</b> critical {plural}. "
+        "Please review the information pages at the end of this document."
+    )
+
+    table = Table(
+        [[Paragraph(text, hint_style)]],
+        colWidths=[None],
+    )
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), _WARNING_BG),
+        ('BOX', (0, 0), (-1, -1), 1, _WARNING_BORDER),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3 * mm),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3 * mm),
+        ('TOPPADDING', (0, 0), (-1, -1), 2 * mm),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2 * mm),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+
+    return [Spacer(1, 3 * mm), table, Spacer(1, 3 * mm)]
 
 
 
@@ -1421,6 +1544,8 @@ def render_tax_statement(
     # 1. Summary Section or placeholder
     story.append(Paragraph("Zusammenfassung", title_style))
 
+    critical_warnings = tax_statement.critical_warnings or []
+
     if use_minimal_frontpage:
         story.append(create_minimal_placeholder(styles))
         story.append(Spacer(1, 0.5*cm))
@@ -1479,6 +1604,9 @@ def render_tax_statement(
         # Info boxes below the summary table
         story.append(create_dual_info_boxes(styles, usable_width))
 
+    # Show a prominent hint on the summary page when critical warnings exist
+    story.extend(create_critical_warnings_hint(critical_warnings, styles))
+
     # --- Bank Accounts Section ---
     bank_table = create_bank_accounts_table(tax_statement, styles, usable_width)
     if bank_table:
@@ -1528,6 +1656,9 @@ def render_tax_statement(
     story.extend(create_single_info_page(tax_office_markdown, styles, section='long-version'))
     story.append(PageBreak())
     story.extend(create_single_info_page(tax_payer_markdown, styles, section='long-version'))
+
+    # Render critical warnings on the instructions page so users cannot miss them
+    story.extend(create_critical_warnings_flowables(critical_warnings, styles))
 
     # Add the barcode page
     make_barcode_pages(doc, story, tax_statement, title_style)
