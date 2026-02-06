@@ -7,11 +7,14 @@ import pytest
 
 from opensteuerauszug.model.ech0196 import (
     Depot,
+    DepotNumber,
+    ISINType,
     ListOfSecurities,
     Security,
     SecurityStock,
     SecurityTaxValue,
     TaxStatement,
+    ValorNumber,
 )
 from opensteuerauszug.core.prior_period_verifier import (
     MissingSecurity,
@@ -66,8 +69,8 @@ def _make_security(
         quotationType="PIECE",
         securityCategory="SHARE",
         securityName=name,
-        isin=isin,
-        valorNumber=valor,
+        isin=ISINType(isin) if isin else None,
+        valorNumber=ValorNumber(valor) if valor else None,
         taxValue=tax_value,
         stock=stocks,
     )
@@ -75,7 +78,7 @@ def _make_security(
 
 def _make_statement(securities: list, period_year: int = 2024) -> TaxStatement:
     """Wrap a list of securities into a TaxStatement."""
-    depot = Depot(security=securities, depotNumber="D001")
+    depot = Depot(security=securities, depotNumber=DepotNumber("D001"))
     return TaxStatement(
         minorVersion=2,
         taxPeriod=period_year,
