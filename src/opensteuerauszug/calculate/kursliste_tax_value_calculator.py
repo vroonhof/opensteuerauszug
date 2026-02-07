@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional, List, Set
 import logging
 
 from ..core.exchange_rate_provider import ExchangeRateProvider
@@ -15,6 +15,42 @@ from .minimal_tax_value import MinimalTaxValueCalculator
 from ..util.converters import security_tax_value_to_stock
 
 logger = logging.getLogger(__name__)
+
+# Known sign types that we explicitly handle. Any sign not in this set will raise an error.
+# Signs are defined in the ESTV Kursliste and have specific tax treatment meanings.
+# - KEP: Return of capital contributions (Rückzahlung Kapitaleinlagen) - non-taxable, skip payment
+# - (Q): With foreign withholding tax - requires special DA-1 treatment
+# - (V): Distribution in form of shares - not implemented
+# - (KG): Capital gain - non-taxable for private investors, skip payment
+# - (KR): Return of Capital - non-taxable, skip payment
+# - Other signs are informational and don't affect tax calculation
+KNOWN_SIGN_TYPES: Set[str] = {
+    "(B)",   # Bonus
+    "(E)",   # Ex-date related
+    "(G)",   # Withholding tax free capital gains
+    "(H)",   # Investment fund with direct real estate
+    "(I)",   # Taxable earnings not yet determined
+    "(IK)",  # Non-taxable KEP distribution not yet determined
+    "(IM)",  # Reinvestment of retained earnings
+    "KEP",   # Return of capital contributions - SKIP PAYMENT
+    "(KG)",  # Capital gain - SKIP PAYMENT
+    "(KR)",  # Return of Capital - SKIP PAYMENT
+    "(L)",   # No withholding tax deduction
+    "(M)",   # Re-investment fund (Switzerland)
+    "(MV)",  # Distribution notification procedure
+    "(N)",   # Re-investment fund (abroad)
+    "(P)",   # Foreign earnings subject to withholding tax
+    "PRO",   # Provisional
+    "(Q)",   # With foreign withholding tax - SPECIAL HANDLING
+    "(V)",   # Distribution in form of shares - NOT IMPLEMENTED
+}
+
+# Signs that indicate non-taxable payments that should be skipped entirely
+NON_TAXABLE_SIGNS: Set[str] = {
+    "KEP",   # Return of capital contributions
+    "(KG)",  # Capital gain
+    "(KR)",  # Return of Capital
+}
 
 
 class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
@@ -202,6 +238,23 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
                     if pay.paymentValueCHF in (None, Decimal("0")) and pay.paymentValue in (None, Decimal("0")):
                         continue
+
+            # Validate sign type if present
+            current_sign = pay.sign if hasattr(pay, "sign") else None
+            if current_sign is not None and current_sign not in KNOWN_SIGN_TYPES:
+                raise ValueError(
+                    f"Unknown sign type '{current_sign}' for payment on {pay.paymentDate} "
+                    f"for {security.isin or security.securityName}. "
+                    f"Please add handling for this sign type."
+                )
+
+            # Skip non-taxable payments (return of capital, capital gains)
+            if current_sign in NON_TAXABLE_SIGNS:
+                logger.debug(
+                    "Skipping non-taxable payment with sign '%s' on %s for %s",
+                    current_sign, pay.paymentDate, security.isin or security.securityName
+                )
+                continue
 
             payment_name = f"KL:{security.securityName}"
             if pay.paymentType is None or pay.paymentType == PaymentTypeESTV.STANDARD:
