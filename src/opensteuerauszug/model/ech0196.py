@@ -25,6 +25,8 @@ from inspect import isclass  # Add import for isclass function
 import logging
 import re
 
+from opensteuerauszug.model.critical_warning import CriticalWarning
+
 logger = logging.getLogger(__name__)
 
 # Define namespaces used in the XSD
@@ -1334,6 +1336,10 @@ class TaxStatement(TaxStatementBase):
     rueckbehalt_usa: Optional[Decimal] = Field(default=Decimal('0'), exclude=True)
     total_brutto_gesamt: Optional[Decimal] = Field(default=None, exclude=True)
     # importer_name: Optional[str] = Field(default=None, exclude=True) # Field removed as per instruction
+
+    # Critical warnings collected during import and calculation phases.
+    # These are NOT serialized to XML – they are used only for PDF rendering.
+    critical_warnings: List["CriticalWarning"] = Field(default_factory=list, exclude=True)
 
     model_config = {
         "json_schema_extra": {'tag_name': 'taxStatement', 'tag_namespace': NS_MAP['eCH-0196']}
