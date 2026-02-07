@@ -1096,7 +1096,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
 
     intermediate_total_rows = []
     current_row = 1  # Start after header
-
+    bank_accounts.sort(key=lambda a: a.iban or a.bankAccountName or a.bankAccountNumber or '')
     for account in bank_accounts:
         # Build the account description with optional opening/closing date lines
         account_desc = f"<strong>{escape_html_for_paragraph(account.bankAccountName)}</strong><br/> {escape_html_for_paragraph(account.iban or account.bankAccountNumber or '')}"
@@ -1114,7 +1114,8 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
             '', '', '', '', '', '',
         ])
         current_row += 1
-        # Payment rows
+        # Payment rows - sort by paymentDate
+        account.payment.sort(key=lambda p: p.paymentDate or '')
         for payment in account.payment:
             table_data.append([
                 Paragraph(payment.paymentDate.strftime("%d.%m.%Y"), val_left) if payment.paymentDate else Paragraph('', val_left),
@@ -1278,7 +1279,13 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
     intermediate_total_rows = []
     current_row = 1  # Start after header
 
-    
+    filtered_securities.sort(
+        key=lambda pair: (
+            pair[1].valorNumber is not None,
+            pair[1].securityName if pair[1].valorNumber is None else '',
+            int(pair[1].valorNumber) if pair[1].valorNumber is not None else float('inf')
+        )
+    )
     for depot, security in filtered_securities:
         # Description/header row for the security
         if security.country != "CH" and security.country != None:
