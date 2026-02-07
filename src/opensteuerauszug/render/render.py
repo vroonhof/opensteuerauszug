@@ -91,7 +91,7 @@ class BarcodeDocTemplate(BaseDocTemplate):
         self.tax_statement: Optional[TaxStatement] = None
 
 # --- Helper Function for Currency Formatting ---
-def format_currency_rounded(value: Decimal, default='0.00'):
+def format_currency_rounded(value: Decimal, default='0'):
     """Format currency with 0 decimals, for summary table only."""
     if value is None or value == '': return default
     try:
