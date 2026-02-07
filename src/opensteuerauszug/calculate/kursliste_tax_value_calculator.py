@@ -43,6 +43,8 @@ KNOWN_SIGN_TYPES: Set[str] = {
     "PRO",   # Provisional
     "(Q)",   # With foreign withholding tax - SPECIAL HANDLING
     "(V)",   # Distribution in form of shares - NOT IMPLEMENTED
+    "(Y)",   # Purchasing own shares
+    "(Z)",   # Without withholding tax
 }
 
 # Signs that indicate non-taxable payments that should be skipped entirely
