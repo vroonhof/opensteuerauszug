@@ -910,7 +910,7 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     
     # Use the real XML data for proper macro PDF417 generation
     xml = tax_statement.to_xml_bytes()
-    data = zlib.compress(xml)
+    data = zlib.compress(xml, 9)
 
     file_name = tax_statement.id
 
