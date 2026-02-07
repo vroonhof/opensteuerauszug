@@ -465,6 +465,7 @@ def test_propagate_payment_fields(kursliste_manager):
     calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
 
     # Mock a Kursliste security with a special payment
+    # Use sign "(I)" which means "taxable earnings not yet determined" - appropriate for undefined payments
     kl_sec = Share(
         id=1,
         securityGroup=SecurityGroupESTV.SHARE,
@@ -478,7 +479,7 @@ def test_propagate_payment_fields(kursliste_manager):
                 paymentDate=date(2024, 5, 10),
                 currency="CHF",
                 undefined=True,
-                sign="XYZ",
+                sign="(I)",
                 gratis=True,
                 paymentType=PaymentTypeESTV.GRATIS,
             )
@@ -521,7 +522,7 @@ def test_propagate_payment_fields(kursliste_manager):
     payment = sec.payment[0]
 
     assert payment.undefined is True
-    assert payment.sign == "XYZ"
+    assert payment.sign == "(I)"
     assert payment.gratis is True
 
 
@@ -705,6 +706,190 @@ def test_compute_payments_capital_gain_scenario(kursliste_manager):
     calc.computePayments(sec, "sec")
 
     # Assertions
+    assert len(sec.payment) == 0
+
+
+def test_compute_payments_unknown_sign_type_raises_error(kursliste_manager):
+    """
+    Test that payments with unknown sign types raise a ValueError.
+    This ensures we fail fast on sign types we haven't explicitly handled.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    # Mock a Kursliste security with a payment that has an unknown sign type
+    kl_sec = Share(
+        id=1,
+        securityGroup=SecurityGroupESTV.SHARE,
+        country="CH",
+        currency="CHF",
+        institutionId=123,
+        institutionName="Test Bank",
+        payment=[
+            PaymentShare(
+                id=101,
+                paymentDate=date(2024, 5, 10),
+                currency="CHF",
+                paymentValue=Decimal("2.50"),
+                paymentValueCHF=Decimal("2.50"),
+                exchangeRate=Decimal("1.0"),
+                sign="XXX",  # Unknown sign type
+            )
+        ]
+    )
+
+    sec = Security(
+        country="CH",
+        securityName="Test Security",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("CH0000000001"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="CHF",
+            )
+        ],
+    )
+
+    calc._current_kursliste_security = kl_sec
+
+    with pytest.raises(ValueError, match="Unknown sign type 'XXX'"):
+        calc.computePayments(sec, "sec")
+
+
+def test_compute_payments_skips_kep_payments(kursliste_manager):
+    """
+    Test that payments with sign 'KEP' (return of capital contributions) are
+    skipped as they are not taxable for private investors.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    # Mock a Kursliste security with a KEP payment
+    kl_sec = Share(
+        id=1,
+        securityGroup=SecurityGroupESTV.SHARE,
+        country="CH",
+        currency="CHF",
+        institutionId=123,
+        institutionName="Test Bank",
+        payment=[
+            PaymentShare(
+                id=101,
+                paymentDate=date(2024, 5, 10),
+                currency="CHF",
+                paymentValue=Decimal("2.50"),
+                paymentValueCHF=Decimal("2.50"),
+                exchangeRate=Decimal("1.0"),
+                sign="KEP",  # Return of capital - non-taxable
+            )
+        ]
+    )
+
+    sec = Security(
+        country="CH",
+        securityName="Test Security",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("CH0000000001"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="CHF",
+            )
+        ],
+    )
+
+    calc._current_kursliste_security = kl_sec
+
+    calc.computePayments(sec, "sec")
+
+    # KEP payments should be skipped entirely
+    assert len(sec.payment) == 0
+
+
+def test_compute_payments_skips_capital_gain_sign_payments(kursliste_manager):
+    """
+    Test that payments with sign '(KG)' (capital gain) are skipped
+    as they are not taxable for private investors.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    # Mock a Kursliste security with a (KG) payment
+    kl_sec = Share(
+        id=1,
+        securityGroup=SecurityGroupESTV.SHARE,
+        country="CH",
+        currency="CHF",
+        institutionId=123,
+        institutionName="Test Bank",
+        payment=[
+            PaymentShare(
+                id=101,
+                paymentDate=date(2024, 5, 10),
+                currency="CHF",
+                paymentValue=Decimal("2.50"),
+                paymentValueCHF=Decimal("2.50"),
+                exchangeRate=Decimal("1.0"),
+                sign="(KG)",  # Capital gain - non-taxable
+            )
+        ]
+    )
+
+    sec = Security(
+        country="CH",
+        securityName="Test Security",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("CH0000000001"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="CHF",
+            )
+        ],
+    )
+
+    calc._current_kursliste_security = kl_sec
+
+    calc.computePayments(sec, "sec")
+
+    # (KG) payments should be skipped entirely
     assert len(sec.payment) == 0
 
 
