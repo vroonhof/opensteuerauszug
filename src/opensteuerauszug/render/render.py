@@ -407,9 +407,13 @@ def create_summary_table(data, styles, usable_width):
          '',
          Paragraph('<b>A</b>', val_center), # 'A' in its own column (index 2)
          Paragraph(f'<b>Bruttoertrag</b><br/>{summary_data.get("tax_period", "")} Werte <b>mit</b> VSt.-Abzug', header_style),
-         Paragraph('<b>B</b>', val_center), # 'B' in its own column (index 2)
+         '',
+         Paragraph('<b>B</b>', val_center), # 'B' in its own column (index 4)
          Paragraph(f'<b>Bruttoertrag</b><br/>{summary_data.get("tax_period", "")} Werte <b>ohne</b> VSt.-Abzug', header_style),
-         Paragraph('Verrechnungs- steueranspruch', header_style), '',
+         '',
+         Paragraph('Verrechnungs- steueranspruch', header_style),
+         '',
+         '',
          Paragraph(f'''Werte für Formular <b>"Wertschriften- und Guthabenverzeichnis"</b>
 (inkl. Konti, ohne Werte DA-1 und USA)''', val_left)],
         # Row 1: A/B Values (Index 2 is 'B', Index 5 blank)
@@ -418,39 +422,60 @@ def create_summary_table(data, styles, usable_width):
          '',
          Paragraph(format_currency_rounded(summary_data.get('brutto_mit_vst')), bold_right),
          '',
+         '',
          Paragraph(format_currency_rounded(summary_data.get('brutto_ohne_vst')), bold_right),
+         '',
          Paragraph(format_currency_2dp(summary_data.get('vst_anspruch')), val_right),
          '',
+         '',
          Paragraph(footnote_text, val_left)],
-        # Row 2: Spacer row (6 columns)
-        ['', '', '', '', '', ''],
+        # Row 2: Spacer
+        [''],
          # Row 3: DA-1 Headers (Indices 1 & 2 blank)
         [Paragraph(f'<b>Steuerwert</b> der <b>DA-1</b> und <b>USA</b>- Werte am {summary_data.get("period_end_date", "31.12")}', header_style),
-         '', '', '', '',
+         '',
+         '',
+         '',
+         '',
+         '',
          Paragraph(f'<b>Bruttoertrag</b> {summary_data.get("tax_period", "")}<br/><b>DA-1</b> und <b>USA</b>-Werte', header_style), # Starts in Col 4
+         '',
          Paragraph('<b>Anrechnung ausländischer Quellensteuer</b>', header_style),
+         '',
          Paragraph('<b>Steuerrückbehalt USA</b>', header_style),
          Paragraph('''Werte für zusätzliches Formular <b>"DA-1 Antrag auf Anrechnung
 ausländischer Quellensteuer und zusätzlichen Steuerrückbehalt
 USA"</b> (DA-1)''', val_left)], #
          # Row 4: DA-1 Values (Indices 1 & 2 blank)
         [Paragraph(format_currency_rounded(summary_data.get('steuerwert_da1_usa')), bold_right),
-         '', '', '', '',
+         # Paragraph("<super rise=9 size=6>(2)</super>", val_left), # TODO
+         '',
+         '',
+         '',
+         '',
+         '',
          Paragraph(format_currency_rounded(summary_data.get('brutto_da1_usa')), bold_right), # Starts in Col 3
+         # Paragraph("<super rise=9 size=6>(3)</super>", val_left), # TODO
+         '',
          Paragraph(format_currency_rounded(summary_data.get('pauschale_da1')), bold_right), # Col 4
+         '',
          Paragraph(format_currency_rounded(summary_data.get('rueckbehalt_usa')), bold_right),
+         # Paragraph(f'(2) Davon <b>DA-1</b> XXX und <b>USA</b> XXX<br/>(3) Davon <b>DA-1</b> XXX und <b>USA</b> XXX', val_left), TODO
          '',
 ], # Col 5
-        # Row 5: Spacer row (6 columns)
-        ['', '', '', '', '', ''],
+        # Row 5: Spacer
+        [''],
         # Row 6: Total Headers (** SHIFTED RIGHT **, Indices 1, 2, 5 blank)
         [Paragraph(f'<b>Total Steuerwert</b> der <b>A, B, DA-1</b> und <b>USA</b>-Werte am {summary_data.get("period_end_date", "31.12")}', header_style), # Col 0
          '',
-         '', 
+         '',
          Paragraph(f'<b>Total Bruttoertrag</b> {summary_data.get("tax_period", "")} <b>A</b>-Werte <b>mit</b><br/>VSt.-Abzug', header_style), # Col 3 << SHIFTED
-         '', 
+         '',
+         '',
          Paragraph(f'<b>Total Bruttoertrag</b> {summary_data.get("tax_period", "")} <b>B, DA-1</b> und <b>USA</b>-Werte <b>ohne</b> VSt.-Abzug', header_style), # Col 4 << SHIFTED
+         '',
          Paragraph(f'<b>Total Bruttoertrag</b> {summary_data.get("tax_period", "")} <b>A, B, DA-1</b> und <b>USA</b>-Werte', header_style),
+         '',
          "",
                   Paragraph('''Falls <b>keine</b> Anrechnung ausländischer Quellensteuern (DA-1)
 geltend gemacht wird, sind diese Totalwerte im
@@ -458,25 +483,32 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
          # Row 7: Total Values (** SHIFTED RIGHT **, Indices 1, 2, 5 blank)
         [Paragraph(format_currency_rounded(summary_data.get('total_steuerwert')), val_right), # Col 0
          '',
-         '', 
+         '',
          Paragraph(format_currency_rounded(summary_data.get('total_brutto_mit_vst')), val_right), # Col 3 << SHIFTED
-         '', 
+         '',
+         '',
          Paragraph(format_currency_rounded(summary_data.get('total_brutto_ohne_vst')), val_right),# Col 4 << SHIFTED
-         Paragraph(format_currency_rounded(summary_data.get('total_brutto_gesamt')), val_right)],   # Col 5 << SHIFTED
+         '',
+         Paragraph(format_currency_rounded(summary_data.get('total_brutto_gesamt')), val_right),   # Col 5 << SHIFTED
+         '',
+         ],
     ]
 
-    usable_width = usable_width - 2.5*8 - 8 - 16
+    usable_width = usable_width - 4*10 - 2*8
     base_col_width = usable_width / 7
     col_widths = [base_col_width, # Col 0: Steuerwert
-                  2.5*8, # Col 1: Footnotes
+                  10, # Col 1: Footnotes
                   8, # Col 2: 'A' / Blank
                   base_col_width, # Col 3: Brutto mit VSt (Header only) / Blank
-                  16, # Col 4: 'B' / Blank
-                  base_col_width, # Col 5: Brutto ohne VSt / Brutto DA-1 / Total mit VSt << Needs width
-                  base_col_width, # Col 6: Verrechnungsst / Pauschale / Total ohne VSt << Needs width
-                  base_col_width, # Col 7: Blank / Steuerrueckbehalt / Total Gesamt << Needs width
-                  2*base_col_width, # Col 8: Description / Istrunctions
-                  ] 
+                  10, # Col 4: Footnotes
+                  8, # Col 5: 'B' / Blank
+                  base_col_width, # Col 6: Brutto ohne VSt / Brutto DA-1 / Total mit VSt << Needs width
+                  10, # Col 7: Blank
+                  base_col_width, # Col 8: Verrechnungsst / Pauschale / Total ohne VSt << Needs width
+                  10, # Col 9: Blank
+                  base_col_width, # Col 10: Blank / Steuerrueckbehalt / Total Gesamt << Needs width
+                  2*base_col_width, # Col 11: Description / Istrunctions
+                  ]
 
     row_heights = [15*mm, 6*mm, 2*mm, 15*mm, 6*mm, 2*mm, 20*mm, 6*mm]
     summary_table = Table(table_data, colWidths=col_widths, rowHeights=row_heights)
@@ -489,6 +521,7 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
         ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
         # footnote colunn
         ('LEFTPADDING', (1, 0), (1, -1), 1),
+        ('LEFTPADDING', (7, 0), (7, -1), 1),
     ]
     common_valign = ('VALIGN', (0, 0), (-1, -1), 'BOTTOM')
     line_style = (0.7, colors.black)
@@ -512,14 +545,18 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
         ('LINEBELOW', (2, 1), (3, 1), *line_style),
         ('LINEABOVE', (5, 1), (6, 1), *line_style),
         ('LINEBELOW', (5, 1), (6, 1), *line_style),
+        ('LINEABOVE', (8, 1), (8, 1), *line_style),
+        ('LINEBELOW', (8, 1), (8, 1), *line_style),
         # 2nd row of values
         ('LINEABOVE', (0, 4), (0, 4), *line_style),
         ('LINEBELOW', (0, 4), (0, 4), *line_style),
         # No A values for DA-1
         ('LINEABOVE', (5, 4), (6, 4), *line_style),
         ('LINEBELOW', (5, 4), (6, 4), *line_style),
-        ('LINEABOVE', (7, 4), (7, 4), *line_style),
-        ('LINEBELOW', (7, 4), (7, 4), *line_style),
+        ('LINEABOVE', (8, 4), (8, 4), *line_style),
+        ('LINEBELOW', (8, 4), (8, 4), *line_style),
+        ('LINEABOVE', (10, 4), (10, 4), *line_style),
+        ('LINEBELOW', (10, 4), (10, 4), *line_style),
         # Totals
         ('LINEABOVE', (0, 7), (0, 7), *line_style),
         ('LINEBELOW', (0, 7), (0, 7), *line_style),
@@ -527,6 +564,8 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
         ('LINEBELOW', (2, 7), (3, 7), *line_style),
         ('LINEABOVE', (5, 7), (6, 7), *line_style),
         ('LINEBELOW', (5, 7), (6, 7), *line_style),
+        ('LINEABOVE', (8, 7), (8, 7), *line_style),
+        ('LINEBELOW', (8, 7), (8, 7), *line_style),
     ]
 
     # --- Combine all styles ---
