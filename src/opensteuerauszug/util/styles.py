@@ -17,6 +17,7 @@ def get_custom_styles():
     
     # Header text styles for page headers
     styles.add(ParagraphStyle(name='HeaderInstitution', parent=base_style, fontSize=24, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle(name='HeaderCreatedWith', parent=base_style, fontSize=9, fontName='Helvetica'))
     styles.add(ParagraphStyle(name='HeaderTitle', parent=base_style, fontSize=16, fontName='Helvetica-Bold'))
     
     return styles 

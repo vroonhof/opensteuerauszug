@@ -265,7 +265,7 @@ def create_client_info_table(tax_statement: TaxStatement, styles, box_width: flo
                            Paragraph(f"<b>{escape_html_for_paragraph(client_info['period'])}</b>", info_style)])
     
     if 'created' in client_info:
-        table_data.append([Paragraph("Erstellt am", info_style),
+        table_data.append([Paragraph("Daten von", info_style),
                            Paragraph(escape_html_for_paragraph(client_info['created']), info_style)])
 
     if 'canton' in client_info:
@@ -321,6 +321,11 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
             institution_style = styles['HeaderInstitution']
             canvas.setFont(institution_style.fontName, institution_style.fontSize)
             canvas.drawString(doc.leftMargin, page_height - 20*mm, institution_name)
+
+        # "erstellt mit" line
+        created_with_style = styles['HeaderCreatedWith']
+        canvas.setFont(created_with_style.fontName, created_with_style.fontSize)
+        canvas.drawString(doc.leftMargin, page_height - 26*mm, "erstellt mit OpenSteuerauszug")
 
         # Tax statement title aligned with bottom of client info box - now big and bold
         period_end_date = doc.tax_statement.periodTo.strftime("%d.%m.%Y") if doc.tax_statement.periodTo else "31.12"
