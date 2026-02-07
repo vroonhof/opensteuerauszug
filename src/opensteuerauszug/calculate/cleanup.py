@@ -6,6 +6,7 @@ from typing import List, Optional, Dict, Any, cast, get_args # Added get_args im
 from decimal import Decimal
 import logging
 from opensteuerauszug.model.ech0196 import SecurityTaxValue, TaxStatement, SecurityStock, BankAccountPayment, SecurityPayment, Client, ClientNumber, CantonAbbreviation
+from opensteuerauszug.model.critical_warning import CriticalWarning, CriticalWarningCategory
 from opensteuerauszug.util.sorting import find_index_of_date, sort_security_stocks, sort_payments, sort_security_payments
 from opensteuerauszug.config.models import GeneralSettings
 from opensteuerauszug.core.position_reconciler import PositionReconciler
@@ -327,6 +328,24 @@ class CleanupCalculator:
                                     # Update pos_id for subsequent operations in this loop, if needed
                                     pos_id = f"{depot_id}/{security_display_id}"
 
+                        # After enrichment attempt, warn about symbols that still
+                        # lack an ISIN and valor number.  This typically means the
+                        # symbol could not be mapped via the identifiers CSV.
+                        if security.symbol and (not security.isin and (not security.valorNumber or security.valorNumber == 0)):
+                            warning_msg = (
+                                f"Symbol '{security.symbol}' could not be mapped "
+                                "to an ISIN or Valor number. Add it to the "
+                                "security_identifiers.csv file to fix this."
+                            )
+                            logger.warning("  Security %s: %s", pos_id, warning_msg)
+                            statement.critical_warnings.append(
+                                CriticalWarning(
+                                    category=CriticalWarningCategory.UNMAPPED_SYMBOL,
+                                    message=warning_msg,
+                                    source="CleanupCalculator",
+                                    identifier=security.symbol,
+                                )
+                            )
 
                         if security.stock:
                             original_stock_count = len(security.stock)

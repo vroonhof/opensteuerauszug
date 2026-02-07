@@ -8,6 +8,7 @@ from ..core.kursliste_manager import KurslisteManager
 from ..core.flag_override_provider import FlagOverrideProvider
 from ..model.ech0196 import Security, SecurityTaxValue, SecurityPayment
 from ..model.kursliste import PaymentTypeESTV, SecurityGroupESTV
+from ..model.critical_warning import CriticalWarning, CriticalWarningCategory
 from ..core.position_reconciler import PositionReconciler
 from ..core.constants import WITHHOLDING_TAX_RATE
 from .base import CalculationMode
@@ -82,6 +83,18 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             logger.warning("Missing Kursliste entries for securities:")
             for entry in self._missing_kursliste_entries:
                 logger.warning("  - %s", entry)
+                result.critical_warnings.append(
+                    CriticalWarning(
+                        category=CriticalWarningCategory.MISSING_KURSLISTE,
+                        message=(
+                            f"Security {entry} was not found in the Kursliste. "
+                            "Tax values and income for this security may be "
+                            "incorrect or missing."
+                        ),
+                        source="KurslisteTaxValueCalculator",
+                        identifier=entry,
+                    )
+                )
         return result
 
     def _handle_Security(self, security: Security, path_prefix: str) -> None:
