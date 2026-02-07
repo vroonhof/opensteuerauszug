@@ -52,7 +52,7 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
                     return True
         if type(error.expected) is Decimal and type(error.actual) is Decimal:
             if 'payment' in error.field_path:
-                # UBS somes times rounds more sometimes uses more accourate values than kursliste
+                # UBS sometimes rounds more sometimes uses more accurate values than kursliste
                 # add some tolerance for these
                 if abs(error.expected - error.actual) <= Decimal("0.01"):
                     return True
@@ -82,9 +82,9 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
                     if error.expected is not None and error.actual is not None:
                         if abs(error.expected - error.actual) < Decimal("0.005"):
                             return True
-                # TODO(recompte aingst kurstliste site):  
+                # TODO(recompute against kursliste site):  
                 if error.field_path.endswith("grossRevenueA") or error.field_path.endswith("grossRevenueB"):
-                    # allow small tolerance for roundind differnces. unclear who is correct
+                    # allow small tolerance for rounding differences. unclear who is correct
                     if error.expected is not None and error.actual is not None:
                         if abs(error.expected - error.actual) < Decimal("0.01"):
                             return True

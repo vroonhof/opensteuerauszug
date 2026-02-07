@@ -24,7 +24,7 @@ def test_is_known_issue_handles_none_expected():
 def test_is_known_issue_handles_none_actual():
     """Verify that is_known_issue handles None actual value without crashing.
     
-    Note: For TrueWealth, None actual values in payment fields are considered known issues.
+    Note: For True Wealth, None actual values in payment fields are considered known issues.
     """
     error = CalculationError(
         field_path="listOfSecurities[US0378331005].payment[0].amountPerUnit",
@@ -33,15 +33,15 @@ def test_is_known_issue_handles_none_actual():
     )
     institution = Institution(name="True Wealth AG")
     
-    # Should not crash - TrueWealth has specific logic for None actual in payment fields
+    # Should not crash - True Wealth has specific logic for None actual in payment fields
     result = is_known_issue(error, institution)
-    assert result is True  # This is a known issue for TrueWealth
+    assert result is True  # This is a known issue for True Wealth
 
 
 def test_is_known_issue_handles_both_none():
     """Verify that is_known_issue handles both values being None without crashing.
     
-    Note: For TrueWealth, None actual values in payment fields are considered known issues.
+    Note: For True Wealth, None actual values in payment fields are considered known issues.
     """
     error = CalculationError(
         field_path="listOfSecurities[US0378331005].payment[0].amountPerUnit",
@@ -50,9 +50,9 @@ def test_is_known_issue_handles_both_none():
     )
     institution = Institution(name="True Wealth AG")
     
-    # Should not crash - TrueWealth has specific logic for None actual in payment fields
+    # Should not crash - True Wealth has specific logic for None actual in payment fields
     result = is_known_issue(error, institution)
-    assert result is True  # This is a known issue for TrueWealth (actual is None in payment field)
+    assert result is True  # This is a known issue for True Wealth (actual is None in payment field)
 
 
 def test_is_known_issue_ubs_with_none_values():
