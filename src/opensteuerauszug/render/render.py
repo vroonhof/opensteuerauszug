@@ -1281,9 +1281,9 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
 
     filtered_securities.sort(
         key=lambda pair: (
-            pair[1].valorNumber is not None,
-            pair[1].securityName if pair[1].valorNumber is None else '',
-            int(pair[1].valorNumber) if pair[1].valorNumber is not None else float('inf')
+            pair[0].depotNumber if hasattr(pair[0], 'depotNumber') and pair[0].depotNumber is not None else '',
+            int(pair[1].valorNumber) if pair[1].valorNumber is not None else 0,
+            pair[1].securityName if pair[1].securityName is not None else ''
         )
     )
     for depot, security in filtered_securities:
