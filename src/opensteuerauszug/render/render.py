@@ -1459,7 +1459,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             table_data.append([Paragraph('')]*len(table_header))
             current_row += 1
 
-    # TOOD read pre-submmed totals from the model
+    # TODO read pre-summed totals from the model
     if security_type == "A":
         total_tax_value = tax_statement.svTaxValueA
         total_gross_revenueA = tax_statement.svGrossRevenueA
