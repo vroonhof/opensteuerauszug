@@ -16,6 +16,7 @@ class CriticalWarningCategory(str, Enum):
 
     MISSING_KURSLISTE = "missing_kursliste"
     UNMAPPED_SYMBOL = "unmapped_symbol"
+    PREVIOUS_YEAR_EXDATE = "previous_year_exdate"
     OTHER = "other"
 
 

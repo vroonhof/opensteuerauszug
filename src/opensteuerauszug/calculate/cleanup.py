@@ -431,6 +431,36 @@ class CleanupCalculator:
                                 else:
                                     logger.info(f"  Security {pos_id}: Security payment filtering skipped (tax period not fully defined).")
 
+                            # --- Warn about payments with exDate in the previous year ---
+                            for payment_event in security.payment:
+                                if (
+                                    payment_event.exDate
+                                    and self.period_from
+                                    and payment_event.exDate < self.period_from
+                                ):
+                                    warning_msg = (
+                                        f"Payment '{payment_event.name or 'N/A'}' "
+                                        f"(paymentDate: {payment_event.paymentDate}) "
+                                        f"for security '{security_display_id}' has an "
+                                        f"ex-date ({payment_event.exDate}) in the "
+                                        f"previous year. The dividend amount is based "
+                                        f"on the opening position of the period "
+                                        f"({self.period_from}) because mutations from "
+                                        f"the previous year are not processed. Please "
+                                        f"double-check the amount."
+                                    )
+                                    logger.warning(
+                                        "  Security %s: %s", pos_id, warning_msg
+                                    )
+                                    statement.critical_warnings.append(
+                                        CriticalWarning(
+                                            category=CriticalWarningCategory.PREVIOUS_YEAR_EXDATE,
+                                            message=warning_msg,
+                                            source="CleanupCalculator",
+                                            identifier=security_display_id,
+                                        )
+                                    )
+
                             # --- Calculate SecurityPayment.quantity where it's UNINITIALIZED_QUANTITY ---
                             # This block is now only entered if security.stock is guaranteed to be non-empty (due to the check above)
                             # OR if no payments needed update in the first place.
