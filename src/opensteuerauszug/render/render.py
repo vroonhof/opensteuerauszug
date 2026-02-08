@@ -1496,7 +1496,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         table_style.append(('BOTTOMPADDING', (col, 0), (col, -1), 0))
     for idx in intermediate_total_rows:
         table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#f0f0f0')))
-        table_style.append(('SPAN', (1, idx), (6, idx)))
+        # table_style.append(('SPAN', (1, idx), (6, idx)))
     # Final totals
     table_style.append(('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#d3d3d3')))
     securities_table = Table([table_header] + table_data, colWidths=col_widths, repeatRows=1, splitByRow=1)
