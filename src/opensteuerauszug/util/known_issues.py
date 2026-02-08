@@ -91,6 +91,11 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
                     if error.expected is not None and error.actual is not None:
                         if abs(error.expected - error.actual) < Decimal("0.005"):
                             return True
+                
+                if "IE00BD8PH067" in error.field_path and "2025-06-25" in error.field_path:
+                    # Kursliste lists part of dividend as capital return for this security/date
+                    return True
+
                 # TODO(recompute against kursliste site):  
                 if error.field_path.endswith("grossRevenueA") or error.field_path.endswith("grossRevenueB"):
                     # allow small tolerance for rounding differences. unclear who is correct
