@@ -40,7 +40,14 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
         if type(error.expected) is SecurityPayment:
             if error.expected.undefined:
                 return True
-    
+
+    # We currently assume foreign brokers and set additionalWithHoldingTaxUSA to 0.
+    # Swiss brokers might have non-zero values.
+    # TODO: Support Swiss brokers properly with a config setting.
+    if error.field_path.endswith("additionalWithHoldingTaxUSA"):
+        if error.expected == Decimal("0"):
+            return True
+
     if institution.name.startswith("UBS"):
         if error.field_path.endswith("exchangeRate"):
             if error.expected == Decimal("1") and error.actual == Decimal("0"):
@@ -88,9 +95,6 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
                     if error.expected is not None and error.actual is not None:
                         if abs(error.expected - error.actual) < Decimal("0.01"):
                             return True
-                if error.field_path.endswith("additionalWithHoldingTaxUSA"):
-                    if error.expected == Decimal("0") and error.actual is None:
-                        return True
 
             if error.field_path.endswith("unitPrice"):
             # Reported rounded to three places (though the spec says not to round)
