@@ -960,3 +960,64 @@ def test_zero_initial_holdings_not_rendered():
     
     assert len(mutation_rows) == 1, "The FOP mutation should be rendered"
 
+
+def test_depot_headers_in_securities_table():
+    """Test that depot headers appear before securities in each depot."""
+    from opensteuerauszug.model.ech0196 import TaxStatement
+    from pathlib import Path
+    
+    # Load test file with multiple depots
+    test_file = Path(__file__).parent.parent / "test_data" / "multi_depot_statement.xml"
+    tax_statement = TaxStatement.from_xml_file(test_file)
+    
+    # Get custom styles
+    styles = get_custom_styles()
+    
+    # Create a securities table for type A (both securities are type A)
+    from opensteuerauszug.render.render import create_securities_table
+    securities_table = create_securities_table(tax_statement, styles, 800, "A")
+    
+    # Verify that a table was created
+    assert securities_table is not None, "Securities table should be created"
+    
+    # Get table data
+    table_data = securities_table._cellvalues
+    
+    # Find depot header rows (should contain "Depot" in bold in second column)
+    depot_header_rows = []
+    for i, row in enumerate(table_data):
+        if len(row) > 1 and hasattr(row[1], 'text'):
+            text = row[1].text
+            if '<b>Depot' in text:
+                depot_header_rows.append((i, text))
+    
+    # Verify we have exactly 2 depot headers
+    assert len(depot_header_rows) == 2, f"Expected 2 depot headers but found {len(depot_header_rows)}"
+    
+    # Verify the depot numbers are correct
+    depot_texts = [text for _, text in depot_header_rows]
+    assert '<b>Depot DEPOT-001</b>' in depot_texts[0], f"First depot header should contain DEPOT-001, got: {depot_texts[0]}"
+    assert '<b>Depot DEPOT-002</b>' in depot_texts[1], f"Second depot header should contain DEPOT-002, got: {depot_texts[1]}"
+    
+    # Verify depot headers appear before their securities
+    # After header row (0), we should have DEPOT-001 header, then Roche, then DEPOT-002 header, then Novartis
+    roche_rows = []
+    novartis_rows = []
+    for i, row in enumerate(table_data):
+        if len(row) > 1 and hasattr(row[1], 'text'):
+            if 'Roche' in row[1].text:
+                roche_rows.append(i)
+            if 'Novartis' in row[1].text:
+                novartis_rows.append(i)
+    
+    # Verify Roche securities appear after DEPOT-001 header
+    depot_001_row = depot_header_rows[0][0]
+    assert len(roche_rows) > 0, "Should find Roche security"
+    assert depot_001_row < roche_rows[0], f"DEPOT-001 header (row {depot_001_row}) should appear before Roche (row {roche_rows[0]})"
+    
+    # Verify Novartis securities appear after DEPOT-002 header
+    depot_002_row = depot_header_rows[1][0]
+    assert len(novartis_rows) > 0, "Should find Novartis security"
+    assert depot_002_row < novartis_rows[0], f"DEPOT-002 header (row {depot_002_row}) should appear before Novartis (row {novartis_rows[0]})"
+
+
