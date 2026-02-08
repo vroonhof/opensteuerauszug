@@ -1311,140 +1311,155 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         hidden_columns.extend([len(col_widths) - 4, len(col_widths) - 5, len(col_widths) - 6])
     assert sum(col_widths) < usable_width
     
-    # Collect securities of the specified type
-    filtered_securities = []
+    # Collect securities of the specified type, grouped by depot
+    filtered_securities_by_depot = []
     for depot in depots:
+        depot_securities = []
         for security in depot.security:
             if determine_security_type(security) == security_type:
-                filtered_securities.append((depot, security))
+                depot_securities.append(security)
+        if depot_securities:
+            filtered_securities_by_depot.append((depot, depot_securities))
     
     # Return None if no matching securities
-    if not filtered_securities:
+    if not filtered_securities_by_depot:
         return None
 
     table_data = []
     intermediate_total_rows = []
+    depot_header_rows = []
     current_row = 1  # Start after header
 
     
-    for depot, security in filtered_securities:
-        # Description/header row for the security
-        if security.country != "CH" and security.country != None:
-            cur_country = f"{security.currency or ''}<br/>{security.country}"
-        else:
-            cur_country = security.currency
-        table_data.append([
-            Paragraph(f"{security.valorNumber or ''}", bold_left),
-            Paragraph(f"<b>{escape_html_for_paragraph(security.securityName or '')}</b><br/>{escape_html_for_paragraph(security.isin or '')}", val_left),
-            Paragraph('', val_right),
-            Paragraph(cur_country, val_right),
-            Paragraph('', val_right),
-            Paragraph('', val_right),
+    for depot, securities_in_depot in filtered_securities_by_depot:
+        # Add depot header row
+        depot_header_text = f"<b>Depot {depot.depotNumber or ''}</b>"
+        depot_header_row = [
             Paragraph('', val_left),
-            Paragraph('', val_right),
-            Paragraph('', val_right),
-            Paragraph('', val_right),
-            Paragraph('', val_right),
-            Paragraph('', val_right),
-        ])
+            Paragraph(depot_header_text, bold_left),
+        ] + [Paragraph('', val_left)] * (len(table_header) - 2)
+        table_data.append(depot_header_row)
+        depot_header_rows.append(current_row)
         current_row += 1
-        # Collect all payments and stock entries, sort by date
-        entries = []
-        precision = find_minimal_decimals(security.nominalValue)
-        if getattr(security, 'payment', None):
-            for payment in security.payment:
-                entries.append(('payment', payment.paymentDate, payment))
-                precision = max(precision, find_minimal_decimals(payment.quantity))
-        if getattr(security, 'stock', None):
-            for stock in security.stock:
-                entries.append(('stock', stock.referenceDate, stock))
-                precision = max(precision, find_minimal_decimals(stock.quantity))
-        if precision > 0:
-            stock_quantity_template = Decimal('0.' + '0' * precision)
-        else:
-            stock_quantity_template = Decimal('0')
-        entries.sort(key=lambda x: x[1] or '')
         
-        # Render each entry
-        for entry_type, entry_date, entry in entries:
-            if entry_type == 'payment':
-                name = entry.name or ''
-                if entry.sign:
-                    name = f"{name} {entry.sign}"
-                table_data.append([
-                    Paragraph(entry.paymentDate.strftime("%d.%m.%Y") if entry.paymentDate else '', val_left),
-                    Paragraph(name, val_left),
-                    Paragraph(format_stock_quantity(entry.quantity, False, stock_quantity_template), val_right),
-                    Paragraph(entry.amountCurrency or '', val_right),
-                    Paragraph(format_currency(entry.amount) if getattr(entry, 'amount', None) else '', val_right),
-                    Paragraph(entry.exDate.strftime("%d.%m") if getattr(entry, 'exDate', None) else '', val_right),
-                    Paragraph(format_exchange_rate(entry.exchangeRate) if getattr(entry, 'exchangeRate', None) else '', val_right),
-                    Paragraph('', val_right),
-                    '',
-                    Paragraph(format_currency_2dp(entry.grossRevenueA) if getattr(entry, 'grossRevenueA', None) else '', val_right),
-                    '',
-                    Paragraph(format_currency_2dp(entry.grossRevenueB) if getattr(entry, 'grossRevenueB', None) else '', val_right),
-                    Paragraph(format_currency_2dp(entry.nonRecoverableTaxAmount), val_right),
-                    Paragraph(format_currency(entry.additionalWithHoldingTaxUSA), val_right),
-                ])
-            elif entry_type == 'stock':
-                if entry.quotationType != 'PIECE':
-                    raise NotImplementedError("Cannot render stock type")
-                # Skip rendering initial holdings (Bestand) when quantity is zero
-                if not entry.mutation and entry.quantity == 0:
-                    continue
-                if entry.mutation:
-                    name = entry.name
-                else:
-                    name = "Bestand"
-                table_data.append([
-                    Paragraph(entry.referenceDate.strftime("%d.%m.%Y") if entry.referenceDate else '', val_left),
-                    Paragraph(name, val_left),
-                    Paragraph(format_stock_quantity(entry.quantity, entry.mutation, stock_quantity_template), val_right),
-                    Paragraph(entry.balanceCurrency if entry.unitPrice else '', val_right),
-                    # TODO: What should the resolution of unit price be? UK stocks can have fractions of a penny
-                    Paragraph(format_currency(entry.unitPrice) if getattr(entry, 'unitPrice', None) else '', val_right),
-                    Paragraph('', val_left),
-                    Paragraph(format_exchange_rate(entry.exchangeRate) if getattr(entry, 'exchangeRate', None) else '', val_right),
-                    Paragraph(format_currency_2dp(entry.value) if getattr(entry, 'value', None) else '', val_right),
-                    Paragraph('', val_right),
-                    Paragraph('', val_right),
-                    Paragraph('', val_right),
-                    Paragraph('', val_right),
-                    '',
-                    ''
-                ])
+        for security in securities_in_depot:
+            # Description/header row for the security
+            if security.country != "CH" and security.country != None:
+                cur_country = f"{security.currency or ''}<br/>{security.country}"
+            else:
+                cur_country = security.currency
+            table_data.append([
+                Paragraph(f"{security.valorNumber or ''}", bold_left),
+                Paragraph(f"<b>{escape_html_for_paragraph(security.securityName or '')}</b><br/>{escape_html_for_paragraph(security.isin or '')}", val_left),
+                Paragraph('', val_right),
+                Paragraph(cur_country, val_right),
+                Paragraph('', val_right),
+                Paragraph('', val_right),
+                Paragraph('', val_left),
+                Paragraph('', val_right),
+                Paragraph('', val_right),
+                Paragraph('', val_right),
+                Paragraph('', val_right),
+                Paragraph('', val_right),
+            ])
             current_row += 1
+            # Collect all payments and stock entries, sort by date
+            entries = []
+            precision = find_minimal_decimals(security.nominalValue)
+            if getattr(security, 'payment', None):
+                for payment in security.payment:
+                    entries.append(('payment', payment.paymentDate, payment))
+                    precision = max(precision, find_minimal_decimals(payment.quantity))
+            if getattr(security, 'stock', None):
+                for stock in security.stock:
+                    entries.append(('stock', stock.referenceDate, stock))
+                    precision = max(precision, find_minimal_decimals(stock.quantity))
+            if precision > 0:
+                stock_quantity_template = Decimal('0.' + '0' * precision)
+            else:
+                stock_quantity_template = Decimal('0')
+            entries.sort(key=lambda x: x[1] or '')
             
-        # Subtotal row for the security
-        tax_value = security.taxValue
-        if tax_value and tax_value.referenceDate:
-            date_str = tax_value.referenceDate.strftime("%d.%m.%Y")
-        else:
-            date_str = ""
-        table_data.append([
-            Paragraph(date_str, bold_left),
-            Paragraph('Bestand / Steuerwert / Ertrag', bold_left),
-            Paragraph(format_stock_quantity(tax_value.quantity, False, stock_quantity_template) if tax_value else '', val_right),
-            Paragraph(tax_value.balanceCurrency or '' if tax_value else '', val_right),
-            Paragraph(format_currency(tax_value.unitPrice) if tax_value and getattr(tax_value, 'unitPrice', None) else '', val_right),
-            Paragraph('', val_left),
-            Paragraph('', val_right),
-            Paragraph(format_currency_2dp(tax_value.value) if tax_value and getattr(tax_value, 'value', None) else '', bold_right),
-            '',
-            Paragraph(format_currency_2dp(security.totalGrossRevenueA), bold_right),
-            '',
-            Paragraph(format_currency_2dp(security.totalGrossRevenueB), bold_right),
-            Paragraph(format_currency_2dp(security.totalNonRecoverableTax), bold_right),
-            Paragraph(format_currency(security.totalAdditionalWithHoldingTaxUSA), bold_right),
-        ])
-        intermediate_total_rows.append(current_row)
-        current_row += 1
-        # Separator row
-        table_data.append([Paragraph('')]*len(table_header))
-        current_row += 1
+            # Render each entry
+            for entry_type, entry_date, entry in entries:
+                if entry_type == 'payment':
+                    name = entry.name or ''
+                    if entry.sign:
+                        name = f"{name} {entry.sign}"
+                    table_data.append([
+                        Paragraph(entry.paymentDate.strftime("%d.%m.%Y") if entry.paymentDate else '', val_left),
+                        Paragraph(name, val_left),
+                        Paragraph(format_stock_quantity(entry.quantity, False, stock_quantity_template), val_right),
+                        Paragraph(entry.amountCurrency or '', val_right),
+                        Paragraph(format_currency(entry.amount) if getattr(entry, 'amount', None) else '', val_right),
+                        Paragraph(entry.exDate.strftime("%d.%m") if getattr(entry, 'exDate', None) else '', val_right),
+                        Paragraph(format_exchange_rate(entry.exchangeRate) if getattr(entry, 'exchangeRate', None) else '', val_right),
+                        Paragraph('', val_right),
+                        '',
+                        Paragraph(format_currency_2dp(entry.grossRevenueA) if getattr(entry, 'grossRevenueA', None) else '', val_right),
+                        '',
+                        Paragraph(format_currency_2dp(entry.grossRevenueB) if getattr(entry, 'grossRevenueB', None) else '', val_right),
+                        Paragraph(format_currency_2dp(entry.nonRecoverableTaxAmount), val_right),
+                        Paragraph(format_currency(entry.additionalWithHoldingTaxUSA), val_right),
+                    ])
+                elif entry_type == 'stock':
+                    if entry.quotationType != 'PIECE':
+                        raise NotImplementedError("Cannot render stock type")
+                    # Skip rendering initial holdings (Bestand) when quantity is zero
+                    if not entry.mutation and entry.quantity == 0:
+                        continue
+                    if entry.mutation:
+                        name = entry.name
+                    else:
+                        name = "Bestand"
+                    table_data.append([
+                        Paragraph(entry.referenceDate.strftime("%d.%m.%Y") if entry.referenceDate else '', val_left),
+                        Paragraph(name, val_left),
+                        Paragraph(format_stock_quantity(entry.quantity, entry.mutation, stock_quantity_template), val_right),
+                        Paragraph(entry.balanceCurrency if entry.unitPrice else '', val_right),
+                        # TODO: What should the resolution of unit price be? UK stocks can have fractions of a penny
+                        Paragraph(format_currency(entry.unitPrice) if getattr(entry, 'unitPrice', None) else '', val_right),
+                        Paragraph('', val_left),
+                        Paragraph(format_exchange_rate(entry.exchangeRate) if getattr(entry, 'exchangeRate', None) else '', val_right),
+                        Paragraph(format_currency_2dp(entry.value) if getattr(entry, 'value', None) else '', val_right),
+                        Paragraph('', val_right),
+                        Paragraph('', val_right),
+                        Paragraph('', val_right),
+                        Paragraph('', val_right),
+                        '',
+                        ''
+                    ])
+                current_row += 1
+                
+            # Subtotal row for the security
+            tax_value = security.taxValue
+            if tax_value and tax_value.referenceDate:
+                date_str = tax_value.referenceDate.strftime("%d.%m.%Y")
+            else:
+                date_str = ""
+            table_data.append([
+                Paragraph(date_str, bold_left),
+                Paragraph('Bestand / Steuerwert / Ertrag', bold_left),
+                Paragraph(format_stock_quantity(tax_value.quantity, False, stock_quantity_template) if tax_value else '', val_right),
+                Paragraph(tax_value.balanceCurrency or '' if tax_value else '', val_right),
+                Paragraph(format_currency(tax_value.unitPrice) if tax_value and getattr(tax_value, 'unitPrice', None) else '', val_right),
+                Paragraph('', val_left),
+                Paragraph('', val_right),
+                Paragraph(format_currency_2dp(tax_value.value) if tax_value and getattr(tax_value, 'value', None) else '', bold_right),
+                '',
+                Paragraph(format_currency_2dp(security.totalGrossRevenueA), bold_right),
+                '',
+                Paragraph(format_currency_2dp(security.totalGrossRevenueB), bold_right),
+                Paragraph(format_currency_2dp(security.totalNonRecoverableTax), bold_right),
+                Paragraph(format_currency(security.totalAdditionalWithHoldingTaxUSA), bold_right),
+            ])
+            intermediate_total_rows.append(current_row)
+            current_row += 1
+            # Separator row
+            table_data.append([Paragraph('')]*len(table_header))
+            current_row += 1
 
-    # TOOD read pre-submmed totals from the model
+    # TODO read pre-summed totals from the model
     if security_type == "A":
         total_tax_value = tax_statement.svTaxValueA
         total_gross_revenueA = tax_statement.svGrossRevenueA
