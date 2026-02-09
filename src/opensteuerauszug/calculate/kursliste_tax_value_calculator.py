@@ -75,9 +75,11 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         self.flag_override_provider = flag_override_provider
         self._current_kursliste_security = None
         self._missing_kursliste_entries = []
+        self._previous_year_exdate_warnings = []
 
     def calculate(self, tax_statement):
         self._missing_kursliste_entries = []
+        self._previous_year_exdate_warnings = []
         result = super().calculate(tax_statement)
         if self._missing_kursliste_entries:
             logger.warning("Missing Kursliste entries for securities:")
@@ -95,6 +97,15 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                         identifier=entry,
                     )
                 )
+        for warning_info in self._previous_year_exdate_warnings:
+            result.critical_warnings.append(
+                CriticalWarning(
+                    category=CriticalWarningCategory.PREVIOUS_YEAR_EXDATE,
+                    message=warning_info["message"],
+                    source="KurslisteTaxValueCalculator",
+                    identifier=warning_info["identifier"],
+                )
+            )
         return result
 
     def _handle_Security(self, security: Security, path_prefix: str) -> None:
@@ -205,6 +216,32 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 continue
 
             reconciliation_date = pay.exDate or pay.paymentDate
+
+            # Warn if exDate is in the previous year (before the tax period)
+            if (
+                pay.exDate
+                and security.taxValue
+                and security.taxValue.referenceDate
+            ):
+                tax_year = security.taxValue.referenceDate.year
+                if pay.exDate.year < tax_year:
+                    sec_ident = (
+                        security.isin or security.securityName
+                    )
+                    warning_msg = (
+                        f"Payment '{pay.paymentDate}' for security "
+                        f"'{sec_ident}' has an ex-date "
+                        f"({pay.exDate}) in the previous year. "
+                        f"The dividend amount is based on the "
+                        f"opening position of the period because "
+                        f"mutations from the previous year are not "
+                        f"processed. Please double-check the amount."
+                    )
+                    logger.warning(warning_msg)
+                    self._previous_year_exdate_warnings.append({
+                        "message": warning_msg,
+                        "identifier": sec_ident,
+                    })
 
             pos = reconciler.synthesize_position_at_date(reconciliation_date)
             if pos is None:
