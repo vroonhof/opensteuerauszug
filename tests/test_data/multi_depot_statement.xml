@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<taxStatement xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
+              xmlns:eCH-0097="http://www.ech.ch/xmlns/eCH-0097/4"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://www.ech.ch/xmlns/eCH-0196/2 http://www.ech.ch/xmlns/eCH-0196/2.2/eCH-0196-2-2.xsd http://www.ech.ch/xmlns/eCH-0097/4 http://www.ech.ch/xmlns/eCH-0097/4/eCH-0097-4-0.xsd"
+              id="CH19399SAMPLE1234567X2024123102"
+              creationDate="2025-04-04T22:40:18"
+              taxPeriod="2024"
+              periodFrom="2024-01-01"
+              periodTo="2024-12-31"
+              country="CH"
+              canton="ZH"
+              totalTaxValue="227750.00"
+              totalGrossRevenueA="7200.00"
+              totalGrossRevenueB="548.29"
+              totalWithHoldingTaxClaim="2520.00"
+              minorVersion="22">
+  <institution name="Sample Foreign Bank ltd">
+    <uid>
+      <eCH-0097:uidOrganisationIdCategorie>CHE</eCH-0097:uidOrganisationIdCategorie>
+      <eCH-0097:uidOrganisationId>111222333</eCH-0097:uidOrganisationId>
+    </uid>
+  </institution>
+  <client clientNumber="987654" salutation="2" firstName="Max" lastName="Muster"/>
+  <listOfSecurities totalTaxValue="227750.00" totalGrossRevenueA="7200.00" totalGrossRevenueB="0.00" totalWithHoldingTaxClaim="2520.00" totalLumpSumTaxCredit="0.00" totalNonRecoverableTax="0.00" totalAdditionalWithHoldingTaxUSA="0.00" totalGrossRevenueIUP="0.00" totalGrossRevenueConversion="0.00">
+    <depot depotNumber="DEPOT-001">
+      <security positionId="1" country="CH" currency="CHF" quotationType="PIECE" securityCategory="SHARE" securityName="Roche Holding Genussschein" valorNumber="1203204" isin="CH0012032048">
+        <taxValue referenceDate="2024-12-31" quotationType="PIECE" quantity="500" balanceCurrency="CHF" unitPrice="255.50" value="127750.00" kursliste="1"/>
+        <payment paymentDate="2024-03-18" exDate="2024-03-14" name="Dividend" quotationType="PIECE" quantity="500" amountCurrency="CHF" amountPerUnit="9.6" amount="4800.00" exchangeRate="1" grossRevenueA="4800.00" grossRevenueB="0.00" withHoldingTaxClaim="1680.00" kursliste="1"/>
+        <stock referenceDate="2024-01-01" mutation="0" quotationType="PIECE" quantity="500" balanceCurrency="CHF" value="145000.00"/>
+      </security>
+    </depot>
+    <depot depotNumber="DEPOT-002">
+      <security positionId="2" country="CH" currency="CHF" quotationType="PIECE" securityCategory="SHARE" securityName="Novartis AG" valorNumber="1200526" isin="CH0012005267">
+        <taxValue referenceDate="2024-12-31" quotationType="PIECE" quantity="300" balanceCurrency="CHF" unitPrice="333.33" value="100000.00" kursliste="1"/>
+        <payment paymentDate="2024-03-20" exDate="2024-03-16" name="Dividend" quotationType="PIECE" quantity="300" amountCurrency="CHF" amountPerUnit="8.0" amount="2400.00" exchangeRate="1" grossRevenueA="2400.00" grossRevenueB="0.00" withHoldingTaxClaim="840.00" kursliste="1"/>
+        <stock referenceDate="2024-01-01" mutation="0" quotationType="PIECE" quantity="300" balanceCurrency="CHF" value="90000.00"/>
+      </security>
+    </depot>
+  </listOfSecurities>
+</taxStatement>

@@ -8,13 +8,15 @@ from ..model.ech0196 import Institution, SecurityPayment
 
 # With our current structure we cannot auto detect.
 TRUEWEALTH_USES_CHF = [
-    "LU1109942653",
+    "IE0005042456",
+    "IE0009YEDMC6",
     "IE00B3B8PX14",
+    "IE00B4K6B022",
     "IE00B4WPHX27",
     "IE00B7452L46",
-    "IE0005042456",
-    "IE00B4K6B022",
-    "IE0009YEDMC6",
+    "IE00BK6NC407",
+    "IE00BMFJGP26",
+    "LU1109942653",
 ]
 
 
@@ -40,7 +42,14 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
         if type(error.expected) is SecurityPayment:
             if error.expected.undefined:
                 return True
-    
+
+    # We currently assume foreign brokers and set additionalWithHoldingTaxUSA to 0.
+    # Swiss brokers might have non-zero values.
+    # TODO: Support Swiss brokers properly with a config setting.
+    if error.field_path.endswith("additionalWithHoldingTaxUSA"):
+        if error.expected == Decimal("0"):
+            return True
+
     if institution.name.startswith("UBS"):
         if error.field_path.endswith("exchangeRate"):
             if error.expected == Decimal("1") and error.actual == Decimal("0"):
@@ -82,15 +91,17 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
                     if error.expected is not None and error.actual is not None:
                         if abs(error.expected - error.actual) < Decimal("0.005"):
                             return True
+                
+                if "IE00BD8PH067" in error.field_path and "2025-06-25" in error.field_path:
+                    # Kursliste lists part of dividend as capital return for this security/date
+                    return True
+
                 # TODO(recompute against kursliste site):  
                 if error.field_path.endswith("grossRevenueA") or error.field_path.endswith("grossRevenueB"):
                     # allow small tolerance for rounding differences. unclear who is correct
                     if error.expected is not None and error.actual is not None:
                         if abs(error.expected - error.actual) < Decimal("0.01"):
                             return True
-                if error.field_path.endswith("additionalWithHoldingTaxUSA"):
-                    if error.expected == Decimal("0") and error.actual is None:
-                        return True
 
             if error.field_path.endswith("unitPrice"):
             # Reported rounded to three places (though the spec says not to round)
