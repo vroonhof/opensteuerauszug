@@ -1343,6 +1343,12 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         depot_header_rows.append(current_row)
         current_row += 1
 
+        securities_in_depot.sort(
+            key=lambda s: (
+                int(s.valorNumber) if s.valorNumber is not None else 0,
+                s.securityName if s.securityName is not None else ''
+            )
+        )
         for security in securities_in_depot:
             # Description/header row for the security
             if security.country != "CH" and security.country != None:
@@ -1369,7 +1375,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             precision = find_minimal_decimals(security.nominalValue)
             if getattr(security, 'payment', None):
                 for payment in security.payment:
-                    entries.append(('payment', payment.paymentDate, payment))
+                    entries.append(('payment', payment.exDate or payment.paymentDate, payment))
                     precision = max(precision, find_minimal_decimals(payment.quantity))
             if getattr(security, 'stock', None):
                 for stock in security.stock:
