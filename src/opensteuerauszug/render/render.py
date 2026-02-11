@@ -277,7 +277,7 @@ def create_client_info_table(tax_statement: TaxStatement, styles, box_width: flo
 
     # Add an empty row at the end for spacing
     table_data.append([])
-    
+
     # Create table with single column
     client_table = Table(table_data, colWidths=[box_width / 4, box_width / 4 * 3])
     
@@ -1144,7 +1144,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
 
     intermediate_total_rows = []
     current_row = 1  # Start after header
-
+    bank_accounts.sort(key=lambda a: a.iban or a.bankAccountName or a.bankAccountNumber or '')
     for account in bank_accounts:
         # Build the account description with optional opening/closing date lines
         account_desc = f"<strong>{escape_html_for_paragraph(account.bankAccountName)}</strong><br/> {escape_html_for_paragraph(account.iban or account.bankAccountNumber or '')}"
@@ -1162,7 +1162,8 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
             '', '', '', '', '', '',
         ])
         current_row += 1
-        # Payment rows
+        # Payment rows - sort by paymentDate
+        account.payment.sort(key=lambda p: p.paymentDate or '')
         for payment in account.payment:
             table_data.append([
                 Paragraph(payment.paymentDate.strftime("%d.%m.%Y"), val_left) if payment.paymentDate else Paragraph('', val_left),
@@ -1341,7 +1342,13 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         table_data.append(depot_header_row)
         depot_header_rows.append(current_row)
         current_row += 1
-        
+
+        securities_in_depot.sort(
+            key=lambda s: (
+                int(s.valorNumber) if s.valorNumber is not None else 0,
+                s.securityName if s.securityName is not None else ''
+            )
+        )
         for security in securities_in_depot:
             # Description/header row for the security
             if security.country != "CH" and security.country != None:
@@ -1368,7 +1375,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             precision = find_minimal_decimals(security.nominalValue)
             if getattr(security, 'payment', None):
                 for payment in security.payment:
-                    entries.append(('payment', payment.paymentDate, payment))
+                    entries.append(('payment', payment.exDate or payment.paymentDate, payment))
                     precision = max(precision, find_minimal_decimals(payment.quantity))
             if getattr(security, 'stock', None):
                 for stock in security.stock:
@@ -1379,7 +1386,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             else:
                 stock_quantity_template = Decimal('0')
             entries.sort(key=lambda x: x[1] or '')
-            
+
             # Render each entry
             for entry_type, entry_date, entry in entries:
                 if entry_type == 'payment':
@@ -1430,7 +1437,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
                         ''
                     ])
                 current_row += 1
-                
+
             # Subtotal row for the security
             tax_value = security.taxValue
             if tax_value and tax_value.referenceDate:
