@@ -371,8 +371,7 @@ def draw_page_footer(canvas, doc):
     """Draws the footer content and page number on each page."""
     canvas.saveState()
     page_width = doc.pagesize[0]
-    canvas.setFont('Helvetica', 9)
-    canvas.setFillColor(colors.grey)
+    canvas.setFont('Helvetica', 8)
     footer_y = doc.bottomMargin - 10*mm # Adjust position
     # Company Name
     if doc.company_name:
@@ -501,15 +500,15 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
          ],
     ]
 
-    usable_width = usable_width - 4*10 - 2*8
+    usable_width = usable_width - 4*10
     base_col_width = usable_width / 7
     col_widths = [base_col_width, # Col 0: Steuerwert
                   10, # Col 1: Footnotes
                   8, # Col 2: 'A' / Blank
-                  base_col_width, # Col 3: Brutto mit VSt (Header only) / Blank
+                  base_col_width - 8, # Col 3: Brutto mit VSt (Header only) / Blank
                   10, # Col 4: Footnotes
                   8, # Col 5: 'B' / Blank
-                  base_col_width, # Col 6: Brutto ohne VSt / Brutto DA-1 / Total mit VSt << Needs width
+                  base_col_width -8 , # Col 6: Brutto ohne VSt / Brutto DA-1 / Total mit VSt << Needs width
                   10, # Col 7: Blank
                   base_col_width, # Col 8: Verrechnungsst / Pauschale / Total ohne VSt << Needs width
                   10, # Col 9: Blank
@@ -1147,7 +1146,9 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
     bank_accounts.sort(key=lambda a: a.iban or a.bankAccountName or a.bankAccountNumber or '')
     for account in bank_accounts:
         # Build the account description with optional opening/closing date lines
-        account_desc = f"<strong>{escape_html_for_paragraph(account.bankAccountName)}</strong><br/> {escape_html_for_paragraph(account.iban or account.bankAccountNumber or '')}"
+        account_desc = f"<strong>{escape_html_for_paragraph(account.bankAccountName)}</strong>"
+        if (account.iban and account.iban != account.bankAccountName) or account.bankAccountNumber:
+            account_desc += f"<br/>{escape_html_for_paragraph((account.iban if account.iban != account.bankAccountName else account.bankAccountNumber) or '')}"
         if account.openingDate:
             account_desc += f"<br/>Eröffnung {account.openingDate.strftime('%d.%m.%Y')}"
         if account.closingDate:
@@ -1201,8 +1202,8 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
             Paragraph(balance_str, val_right),
             Paragraph(exchange_rate_str, val_right),
             Paragraph(format_currency_2dp(account.totalTaxValue), bold_right),
-            '', '', Paragraph(format_currency(account.totalGrossRevenueA), bold_right),
-            '', '', Paragraph(format_currency(account.totalGrossRevenueB), bold_right),
+            '', '', Paragraph(format_currency_2dp(account.totalGrossRevenueA), bold_right),
+            '', '', Paragraph(format_currency_2dp(account.totalGrossRevenueB), bold_right),
         ])
         intermediate_total_rows.append(current_row)
         current_row += 1
@@ -1223,7 +1224,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
     ])
 
     # Column widths (adjust as needed for layout)
-    col_widths = [25*mm, 80*mm, 18*mm, 28*mm, 18*mm, 28*mm, 5*mm, 8, 23*mm, 5*mm,  8 , 23*mm]
+    col_widths = [24*mm, 80*mm, 18*mm, 28*mm, 18*mm, 28*mm, 5*mm, 8, 23*mm, 5*mm,  8 , 23*mm]
     bank_table = Table(table_data, colWidths=col_widths)
     # --- Table style for header and intermediate totals ---
     table_style = [
@@ -1296,7 +1297,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         Paragraph('<b>Steuerrückbehalt USA</b><br/>in CHF', header_style),
     ]
     
-    col_widths = [22*mm, 53*mm, 20*mm, 18*mm, 18*mm, 14*mm, 18*mm, 22*mm, 8, 22*mm, 8, 22*mm, 25*mm, 25*mm]
+    col_widths = [22*mm, 54*mm, 20*mm, 18*mm, 18*mm, 14*mm, 18*mm, 22*mm, 8, 22*mm, 8, 22*mm, 25*mm, 25*mm]
     col_widths = [1.0*w for w in col_widths]
     assert len(col_widths) == len(table_header)
     # Hide columns not used in this table
@@ -1304,6 +1305,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
     if security_type != "DA1":
         col_widths[-1] = 0
         col_widths[-2] = 0
+        col_widths[1] = 76*mm
         hidden_columns.extend([len(col_widths) - 1, len(col_widths) - 2])
     else:
         col_widths[-4] = 0 # A
@@ -1398,8 +1400,8 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
                         Paragraph(name, val_left),
                         Paragraph(format_stock_quantity(entry.quantity, False, stock_quantity_template), val_right),
                         Paragraph(entry.amountCurrency or '', val_right),
-                        Paragraph(format_currency(entry.amount) if getattr(entry, 'amount', None) else '', val_right),
-                        Paragraph(entry.exDate.strftime("%d.%m") if getattr(entry, 'exDate', None) else '', val_right),
+                        Paragraph(format_currency(entry.amountPerUnit), val_right),
+                        Paragraph(entry.exDate.strftime("%d.%m.") if getattr(entry, 'exDate', None) else '', val_right),
                         Paragraph(format_exchange_rate(entry.exchangeRate) if getattr(entry, 'exchangeRate', None) else '', val_right),
                         Paragraph('', val_right),
                         '',
@@ -1418,7 +1420,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
                     if entry.mutation:
                         name = entry.name
                     else:
-                        name = "Bestand"
+                        name = "Saldo"
                     table_data.append([
                         Paragraph(entry.referenceDate.strftime("%d.%m.%Y") if entry.referenceDate else '', val_left),
                         Paragraph(name, val_left),
@@ -1428,7 +1430,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
                         Paragraph(format_currency(entry.unitPrice) if getattr(entry, 'unitPrice', None) else '', val_right),
                         Paragraph('', val_left),
                         Paragraph(format_exchange_rate(entry.exchangeRate) if getattr(entry, 'exchangeRate', None) else '', val_right),
-                        Paragraph(format_currency_2dp(entry.value) if getattr(entry, 'value', None) else '', val_right),
+                        Paragraph('', val_right),
                         Paragraph('', val_right),
                         Paragraph('', val_right),
                         Paragraph('', val_right),
@@ -1447,7 +1449,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             table_data.append([
                 Paragraph(date_str, bold_left),
                 Paragraph('Bestand / Steuerwert / Ertrag', bold_left),
-                Paragraph(format_stock_quantity(tax_value.quantity, False, stock_quantity_template) if tax_value else '', val_right),
+                Paragraph(format_stock_quantity(tax_value.quantity, False, stock_quantity_template) if tax_value else '0', val_right),
                 Paragraph(tax_value.balanceCurrency or '' if tax_value else '', val_right),
                 Paragraph(format_currency(tax_value.unitPrice) if tax_value and getattr(tax_value, 'unitPrice', None) else '', val_right),
                 Paragraph('', val_left),
@@ -1458,7 +1460,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
                 '',
                 Paragraph(format_currency_2dp(security.totalGrossRevenueB), bold_right),
                 Paragraph(format_currency_2dp(security.totalNonRecoverableTax), bold_right),
-                Paragraph(format_currency(security.totalAdditionalWithHoldingTaxUSA), bold_right),
+                Paragraph(format_currency_2dp(security.totalAdditionalWithHoldingTaxUSA), bold_right),
             ])
             intermediate_total_rows.append(current_row)
             current_row += 1
@@ -1490,9 +1492,9 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         Paragraph('', val_right),
         Paragraph(format_currency_2dp(total_tax_value), bold_right),
         '',
-        Paragraph(format_currency_2dp(total_gross_revenueA), bold_right),
+        Paragraph(format_currency_2dp(total_gross_revenueA), bold_right) if total_gross_revenueA is not None else '',
         '',
-        Paragraph(format_currency_2dp(total_gross_revenueB), bold_right),
+        Paragraph(format_currency_2dp(total_gross_revenueB), bold_right) if total_gross_revenueB is not None else '',
         Paragraph(format_currency_2dp(tax_statement.listOfSecurities.totalNonRecoverableTax), bold_right),
         Paragraph(format_currency_2dp(tax_statement.listOfSecurities.totalAdditionalWithHoldingTaxUSA), bold_right),
     ])
@@ -1693,7 +1695,7 @@ def render_tax_statement(
     securities_table_a = create_securities_table(tax_statement, styles, usable_width, "A")
     if securities_table_a:
         story.append(PageBreak())
-        story.append(Paragraph("Wertschriften A-Werte (mit VSt.-Abzug)", title_style))
+        story.append(Paragraph("A-Werte mit Verrechnungssteuerabzug", title_style))
         story.append(securities_table_a)
         story.append(Spacer(1, 0.5*cm))
     
@@ -1701,7 +1703,7 @@ def render_tax_statement(
     securities_table_b = create_securities_table(tax_statement, styles, usable_width, "B")
     if securities_table_b:
         story.append(PageBreak())
-        story.append(Paragraph("Wertschriften B-Werte (ohne VSt.-Abzug)", title_style))
+        story.append(Paragraph("B-Werte ohne Verrechnungssteuerabzug", title_style))
         story.append(securities_table_b)
         story.append(Spacer(1, 0.5*cm))
     
