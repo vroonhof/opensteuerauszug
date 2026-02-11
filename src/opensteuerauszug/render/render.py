@@ -398,8 +398,6 @@ def create_summary_table(data, styles, usable_width):
     val_center = styles['Val_CENTER']
     bold_right = styles['Bold_RIGHT']
 
-    steuerwert_a = format_currency_rounded(summary_data.get('steuerwert_a'))
-    steuerwert_b = format_currency_rounded(summary_data.get('steuerwert_b'))
     # Footnote
     footnote_text = "(1) Davon <b>A</b> {} und <b>B</b> {}".format(
         format_currency_rounded(summary_data.get('steuerwert_a', '')),
@@ -1167,7 +1165,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
         account.payment.sort(key=lambda p: p.paymentDate or '')
         for payment in account.payment:
             table_data.append([
-                Paragraph(payment.paymentDate.strftime("%d.%m.%Y"), val_left) if payment.paymentDate else Paragraph('', val_left),
+                Paragraph(payment.paymentDate.strftime("%d.%m.%Y") if payment.paymentDate else '', val_left),
                 Paragraph(escape_html_for_paragraph(payment.name or ''), val_left),
                 Paragraph(payment.amountCurrency or account.bankAccountCurrency or '', val_center),
                 Paragraph(format_currency_2dp(payment.amount), val_right),
@@ -1649,12 +1647,16 @@ def render_tax_statement(
         if tax_statement.svGrossRevenueB is None:
             tax_statement.svGrossRevenueB = tax_statement.totalGrossRevenueB or Decimal('0')
 
+        if tax_statement.svTaxValueA is None:
+            tax_statement.svTaxValueA = Decimal('0')
+        if tax_statement.svTaxValueB is None:
+            tax_statement.svTaxValueB = Decimal('0')
+
         # Create summary data dictionary from model fields
         summary_data = {
-            "steuerwert_ab": ((tax_statement.svTaxValueA or Decimal('0'))
-                              + (tax_statement.svTaxValueB or Decimal('0'))),
-            "steuerwert_a": tax_statement.svTaxValueA or Decimal('0'),
-            "steuerwert_b": tax_statement.svTaxValueB or Decimal('0'),
+            "steuerwert_ab": tax_statement.svTaxValueA + tax_statement.svTaxValueB,
+            "steuerwert_a": tax_statement.svTaxValueA,
+            "steuerwert_b": tax_statement.svTaxValueB,
             "brutto_mit_vst": tax_statement.svGrossRevenueA,
             "brutto_ohne_vst": tax_statement.svGrossRevenueB,
             "vst_anspruch": tax_statement.totalWithHoldingTaxClaim,

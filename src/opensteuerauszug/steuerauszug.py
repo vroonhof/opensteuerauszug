@@ -513,12 +513,6 @@ def main(
                     print(f"{prefix}: {error}")
             else:
                 print("No errors calculation")
-            
-            # Fill in missing fields to make rendering possible
-            calculator = TotalCalculator(mode=CalculationMode.FILL)
-            statement = calculator.calculate(statement)
-            print(f"Calculation successful.")
-            dump_debug_model(current_phase.value, statement)
 
         if Phase.RENDER in run_phases:
             current_phase = Phase.RENDER
@@ -527,6 +521,12 @@ def main(
                  raise ValueError("TaxStatement model not loaded. Cannot run render phase.")
             if not output_file:
                  raise ValueError("Output file path must be specified for the render phase.")
+
+            # Fill in missing fields to make rendering possible
+            calculator = TotalCalculator(mode=CalculationMode.FILL)
+            statement = calculator.calculate(statement)
+            print(f"Calculation successful.")
+            dump_debug_model(current_phase.value, statement)
             
             if org_nr is not None:
                 if not isinstance(org_nr, str) or not org_nr.isdigit() or len(org_nr) != 5:
