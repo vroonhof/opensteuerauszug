@@ -2,6 +2,10 @@ from decimal import Decimal, ROUND_HALF_UP
 from .date_coverage import DateRangeCoverage
 from .known_issues import is_known_issue
 
+QUANTIZE_3_PLACES = Decimal("0.001")
+QUANTIZE_2_PLACES = Decimal("0.01")
+
+
 def round_accounting(value: Decimal | float | int) -> Decimal:
     """
     Rundet einen Betrag gemäss eCH-0196 Spezifikation.
@@ -27,7 +31,7 @@ def round_accounting(value: Decimal | float | int) -> Decimal:
 
     if abs(val_decimal) < 100:
         # Round to 3 decimal places
-        return val_decimal.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+        return val_decimal.quantize(QUANTIZE_3_PLACES, rounding=ROUND_HALF_UP)
     else:
         # Round to 2 decimal places
-        return val_decimal.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return val_decimal.quantize(QUANTIZE_2_PLACES, rounding=ROUND_HALF_UP)
