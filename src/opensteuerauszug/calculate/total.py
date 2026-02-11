@@ -1,6 +1,7 @@
 from decimal import Decimal
 from typing import List, Optional, Dict, Any, cast
 
+from ..core.security import determine_security_type
 from ..model.ech0196 import (
     TaxStatement, Security, BankAccount, LiabilityAccount, Expense,
     ListOfSecurities, Depot, ListOfBankAccounts, ListOfLiabilities, ListOfExpenses
@@ -175,7 +176,7 @@ class TotalCalculator(BaseCalculator):
                             list_non_recoverable_tax += sec_non_recoverable_tax
 
                             # Split WV and DA1 tax values
-                            if sec_lump_sum_tax_credit > 0 or sec_additional_withholding_tax_usa > 0:
+                            if determine_security_type(security) == "DA1":
                                 # DA1
                                 self.total_tax_value_da1 += sec_tax_value
                                 self.total_gross_revenue_da1 += sec_revenue_b
