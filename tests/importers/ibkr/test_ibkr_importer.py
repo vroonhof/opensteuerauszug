@@ -351,15 +351,13 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert msft_sec.isin == "US5949181045"
         assert msft_sec.currency == "USD"
         assert msft_sec.country == "US"
-        assert len(msft_sec.stock) == 3
-        assert msft_sec.stock[0].mutation is False
-        assert msft_sec.stock[0].referenceDate == date(2023, 1, 1)
-        assert msft_sec.stock[0].quantity == Decimal("0")
-        assert msft_sec.stock[1].mutation is True  # Trade
+        assert len(msft_sec.stock) == 2
+        # No peroid start stock entry needed because initial position is zero
+        assert msft_sec.stock[0].mutation is True  # Trade
+        assert msft_sec.stock[0].quantity == Decimal("10")
+        assert msft_sec.stock[1].mutation is False
+        assert msft_sec.stock[1].referenceDate == date(2024, 1, 1)
         assert msft_sec.stock[1].quantity == Decimal("10")
-        assert msft_sec.stock[2].mutation is False
-        assert msft_sec.stock[2].referenceDate == date(2024, 1, 1)
-        assert msft_sec.stock[2].quantity == Decimal("10")
         assert all(s.referenceDate != date(2023, 12, 31) for s in msft_sec.stock)
 
         # Divdend fom cash transaction should be mapped to SecurityPayment
@@ -374,6 +372,7 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert aapl_sec.isin == "US0378331005"
         assert aapl_sec.country == "IE"
         assert len(aapl_sec.stock) == 3
+        # Peroid start stock entry needed because initial position is not zero
         assert aapl_sec.stock[0].mutation is False
         assert aapl_sec.stock[0].quantity == Decimal("5")
         assert aapl_sec.stock[0].referenceDate == date(2023, 1, 1)
@@ -670,16 +669,8 @@ def test_transfer_with_open_position_no_trades(sample_ibkr_settings):
         assert iwda_sec.currency == "EUR"
         assert iwda_sec.country == "IE"
         
-        # Check stock entries: should have opening balance, transfer mutation, and closing balance
-        assert len(iwda_sec.stock) == 3, f"Expected 3 stock entries (opening, transfer, closing), got {len(iwda_sec.stock)}"
-        
-        # Opening balance at period start should be 0 (no holdings before transfer)
-        opening_balance = next(
-            (s for s in iwda_sec.stock if not s.mutation and s.referenceDate == period_from),
-            None,
-        )
-        assert opening_balance is not None, "Opening balance entry should exist"
-        assert opening_balance.quantity == Decimal("0"), f"Opening balance should be 0, got {opening_balance.quantity}"
+        # Check stock entries: should have a transfer mutation and a closing balance (no opening balance at period start)
+        assert len(iwda_sec.stock) == 2, f"Expected 2 stock entries (transfer, closing), got {len(iwda_sec.stock)}"
         
         # Transfer mutation should exist
         transfer_mutations = [s for s in iwda_sec.stock if s.mutation]
@@ -801,8 +792,8 @@ def test_ibkr_trade_aggregation(sample_ibkr_settings):
         )
         assert msft_sec is not None and aapl_sec is not None
         # Should aggregate into a single trade entry per security
-        assert len(msft_sec.stock) == 3
-        assert msft_sec.stock[1].quantity == Decimal("10")
+        assert len(msft_sec.stock) == 2
+        assert msft_sec.stock[0].quantity == Decimal("10")
         assert len(aapl_sec.stock) == 3
         assert aapl_sec.stock[1].quantity == Decimal("-5")
     finally:
