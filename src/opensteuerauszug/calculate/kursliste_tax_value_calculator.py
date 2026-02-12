@@ -76,10 +76,17 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         self._current_kursliste_security = None
         self._missing_kursliste_entries = []
         self._previous_year_exdate_warnings = []
+        self._all_securities: List[Security] = []
 
     def calculate(self, tax_statement):
         self._missing_kursliste_entries = []
         self._previous_year_exdate_warnings = []
+        # Collect all securities across all depots so that cross-security
+        # split validation (valorNumberNew) can look up the target security.
+        self._all_securities = []
+        if tax_statement.listOfSecurities:
+            for depot in tax_statement.listOfSecurities.depot:
+                self._all_securities.extend(depot.security)
         result = super().calculate(tax_statement)
         if self._missing_kursliste_entries:
             logger.warning("Missing Kursliste entries for securities:")
@@ -185,6 +192,138 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
         super()._handle_SecurityTaxValue(sec_tax_value, path_prefix)
 
+    def _validate_stock_split(
+        self,
+        security: Security,
+        reconciliation_date,
+        quantity: Decimal,
+        ratio_present: Decimal,
+        ratio_new: Decimal,
+        valor_number_new: Optional[int],
+    ) -> None:
+        """Validate that a stock split is correctly reflected in the imported mutations.
+
+        There are two distinct cases:
+
+        **Same-ISIN split** (``valor_number_new`` is ``None``):
+        The security keeps its ISIN/valor number and the broker reports a single
+        corporate-action whose quantity equals the net change in shares.  We
+        expect a mutation on *this* security of
+        ``quantity * (ratio_new / ratio_present - 1)``.
+
+        **Cross-ISIN split** (``valor_number_new`` is set):
+        The security's ISIN/valor number changes as part of the split.  The
+        broker reports *two* corporate-actions – one negative on the old ISIN
+        (removing all old shares) and one positive on the new ISIN (adding the
+        post-split shares).  We expect:
+          - a negative mutation on the *old* (current) security of ``-quantity``
+          - a positive mutation on a *new* security (identified by
+            ``valor_number_new``) of ``quantity * ratio_new / ratio_present``
+        """
+        sec_ident = security.isin or security.securityName
+
+        mutations_on_date = [
+            stock
+            for stock in security.stock
+            if stock.mutation and stock.referenceDate == reconciliation_date
+        ]
+
+        if valor_number_new is None:
+            # ---- Same-ISIN split: look for a single delta on this security ----
+            expected_delta = quantity * (ratio_new / ratio_present - Decimal("1"))
+            if not mutations_on_date:
+                raise ValueError(
+                    f"Missing stock split mutation for {sec_ident} on "
+                    f"{reconciliation_date}: expected a mutation of "
+                    f"{expected_delta} shares (split ratio "
+                    f"{ratio_new}:{ratio_present}, pre-split position "
+                    f"{quantity}), but no mutations were found on that date."
+                )
+            mutation_quantities = {m.quantity for m in mutations_on_date}
+            if expected_delta not in mutation_quantities:
+                raise ValueError(
+                    f"Stock split ratio mismatch for {sec_ident} on "
+                    f"{reconciliation_date}: expected a mutation of "
+                    f"{expected_delta} shares (split ratio "
+                    f"{ratio_new}:{ratio_present}, pre-split position "
+                    f"{quantity}), but the mutations found on that date "
+                    f"have quantities {sorted(mutation_quantities)}."
+                )
+        else:
+            # ---- Cross-ISIN split (valorNumberNew): two securities involved ----
+            expected_removal = -quantity
+            expected_addition = quantity * ratio_new / ratio_present
+
+            # 1. Validate the negative mutation on the old (current) security
+            mutation_quantities = {m.quantity for m in mutations_on_date}
+            if expected_removal not in mutation_quantities:
+                raise ValueError(
+                    f"Stock split with ISIN change for {sec_ident} on "
+                    f"{reconciliation_date}: expected a removal mutation of "
+                    f"{expected_removal} shares on the old security (split "
+                    f"ratio {ratio_new}:{ratio_present}, pre-split position "
+                    f"{quantity}, new valor {valor_number_new}), but the "
+                    f"mutations found on that date have quantities "
+                    f"{sorted(mutation_quantities)}."
+                )
+
+            # 2. Validate the positive mutation on the new security
+            new_security = None
+            for sec in self._all_securities:
+                if sec.valorNumber == valor_number_new:
+                    new_security = sec
+                    break
+
+            if new_security is None:
+                raise ValueError(
+                    f"Stock split with ISIN change for {sec_ident} on "
+                    f"{reconciliation_date}: the Kursliste split legend "
+                    f"references new valor number {valor_number_new}, but no "
+                    f"security with that valor number was found in the tax "
+                    f"statement. This typically means the broker's corporate "
+                    f"action for the new ISIN was not imported. Expected "
+                    f"{expected_addition} shares to appear on the new security "
+                    f"(split ratio {ratio_new}:{ratio_present}, pre-split "
+                    f"position {quantity})."
+                )
+
+            new_sec_ident = new_security.isin or new_security.securityName
+            new_mutations_on_date = [
+                stock
+                for stock in new_security.stock
+                if stock.mutation and stock.referenceDate == reconciliation_date
+            ]
+            if not new_mutations_on_date:
+                raise ValueError(
+                    f"Stock split with ISIN change for {sec_ident} on "
+                    f"{reconciliation_date}: the new security "
+                    f"{new_sec_ident} (valor {valor_number_new}) has no "
+                    f"mutations on the split date. Expected an addition of "
+                    f"{expected_addition} shares (split ratio "
+                    f"{ratio_new}:{ratio_present}, pre-split position "
+                    f"{quantity})."
+                )
+            new_mutation_quantities = {m.quantity for m in new_mutations_on_date}
+            if expected_addition not in new_mutation_quantities:
+                raise ValueError(
+                    f"Stock split with ISIN change for {sec_ident} on "
+                    f"{reconciliation_date}: the new security "
+                    f"{new_sec_ident} (valor {valor_number_new}) has "
+                    f"mutations with quantities "
+                    f"{sorted(new_mutation_quantities)} on the split date, "
+                    f"but expected an addition of {expected_addition} shares "
+                    f"(split ratio {ratio_new}:{ratio_present}, pre-split "
+                    f"position {quantity})."
+                )
+
+            logger.info(
+                "Validated cross-ISIN stock split for %s on %s: "
+                "removed %s shares from old security, added %s shares "
+                "to new security %s (valor %s).",
+                sec_ident, reconciliation_date, expected_removal,
+                expected_addition, new_sec_ident, valor_number_new,
+            )
+
     def computePayments(self, security: Security, path_prefix: str) -> None:
         """Compute payments for a security using the Kursliste."""
         if not self.kursliste_manager:
@@ -272,21 +411,16 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 if split_legend:
                     ratio_present = split_legend.exchangeRatioPresent
                     ratio_new = split_legend.exchangeRatioNew
+                    valor_number_new = split_legend.valorNumberNew
                     if ratio_present:
-                        expected_delta = quantity * (ratio_new / ratio_present - Decimal("1"))
-                        mutations_on_date = [
-                            stock
-                            for stock in security.stock
-                            if stock.mutation and stock.referenceDate == reconciliation_date
-                        ]
-                        if not mutations_on_date:
-                            raise ValueError(
-                                f"Missing stock split mutation for {security.isin or security.securityName} on {reconciliation_date}"
-                            )
-                        if expected_delta not in {m.quantity for m in mutations_on_date}:
-                            raise ValueError(
-                                f"Stock split ratio mismatch for {security.isin or security.securityName} on {reconciliation_date}"
-                            )
+                        self._validate_stock_split(
+                            security=security,
+                            reconciliation_date=reconciliation_date,
+                            quantity=quantity,
+                            ratio_present=ratio_present,
+                            ratio_new=ratio_new,
+                            valor_number_new=valor_number_new,
+                        )
 
                     if pay.paymentValueCHF in (None, Decimal("0")) and pay.paymentValue in (None, Decimal("0")):
                         continue

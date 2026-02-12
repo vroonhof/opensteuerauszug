@@ -19,6 +19,7 @@ from opensteuerauszug.model.ech0196 import (
     SecurityTaxValue,
     SecurityStock,
     TaxStatement,
+    ValorNumber,
 )
 from opensteuerauszug.model.kursliste import (
     Fund,
@@ -377,6 +378,724 @@ def test_compute_payments_stock_split_requires_mutation():
     )
 
     with pytest.raises(ValueError, match="Missing stock split mutation"):
+        calc.calculate(statement)
+
+
+def test_cross_isin_stock_split_succeeds_with_correct_mutations():
+    """When a stock split changes the ISIN (valorNumberNew is set), the validator
+    should accept a negative mutation on the old security and a positive mutation
+    on the new security, matching the split ratio."""
+    split_date = date(2025, 4, 16)
+    old_isin = "CH0011029946"
+    new_valor = 143159891
+    new_isin = "CH1431598916"
+
+    # Kursliste payment on the OLD security with a split legend referencing the new valor
+    payment = PaymentShare(
+        id=1,
+        paymentDate=split_date,
+        currency="CHF",
+        paymentValue=Decimal("0"),
+        paymentValueCHF=Decimal("0"),
+        paymentType=PaymentTypeESTV.OTHER_BENEFIT,
+        taxEvent=True,
+        exDate=split_date,
+        legend=[
+            Legend(
+                id=1,
+                effectiveDate=split_date,
+                exchangeRatioPresent=Decimal("1"),
+                exchangeRatioNew=Decimal("10"),
+                valorNumberNew=new_valor,
+            )
+        ],
+    )
+    share = Share(
+        id=1,
+        isin=old_isin,
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="INFICON HOLDING AG-REG",
+        institutionId=1,
+        institutionName="INFICON HOLDING AG",
+        country="CH",
+        currency="CHF",
+        nominalValue=Decimal("5"),
+        payment=[payment],
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2025, 1, 1),
+        year=2025,
+        shares=[share],
+    )
+    kursliste_manager = KurslisteManager()
+    kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
+
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+    )
+
+    # Old security: held 5 shares, removed all on split date
+    old_security = Security(
+        country="CH",
+        securityName="INFICON HOLDING AG-REG",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(old_isin),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("0"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2025, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("5"),
+                balanceCurrency="CHF",
+            ),
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("-5"),
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    # New security: received 50 shares on split date
+    new_security = Security(
+        country="CH",
+        securityName="INFICON HOLDING AG-REG",
+        positionId=2,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(new_isin),
+        valorNumber=ValorNumber(new_valor),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("50"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("50"),
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2025,
+        periodFrom=date(2025, 1, 1),
+        periodTo=date(2025, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("U1234567"),
+                    security=[old_security, new_security],
+                )
+            ]
+        ),
+    )
+
+    calc.calculate(statement)
+
+    assert old_security.payment == []
+    assert calc.errors == []
+
+
+def test_cross_isin_stock_split_error_when_removal_mutation_missing():
+    """When a cross-ISIN split occurs but the old security has no removal mutation,
+    the validator should raise a descriptive error."""
+    split_date = date(2025, 4, 16)
+    old_isin = "CH0011029946"
+    new_valor = 143159891
+    new_isin = "CH1431598916"
+
+    payment = PaymentShare(
+        id=1,
+        paymentDate=split_date,
+        currency="CHF",
+        paymentValue=Decimal("0"),
+        paymentValueCHF=Decimal("0"),
+        paymentType=PaymentTypeESTV.OTHER_BENEFIT,
+        taxEvent=True,
+        exDate=split_date,
+        legend=[
+            Legend(
+                id=1,
+                effectiveDate=split_date,
+                exchangeRatioPresent=Decimal("1"),
+                exchangeRatioNew=Decimal("10"),
+                valorNumberNew=new_valor,
+            )
+        ],
+    )
+    share = Share(
+        id=1,
+        isin=old_isin,
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="INFICON HOLDING AG-REG",
+        institutionId=1,
+        institutionName="INFICON HOLDING AG",
+        country="CH",
+        currency="CHF",
+        nominalValue=Decimal("5"),
+        payment=[payment],
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2025, 1, 1),
+        year=2025,
+        shares=[share],
+    )
+    kursliste_manager = KurslisteManager()
+    kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
+
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+    )
+
+    # Old security: held 5 shares, but NO removal mutation
+    old_security = Security(
+        country="CH",
+        securityName="INFICON HOLDING AG-REG",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(old_isin),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("5"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2025, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("5"),
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    # New security exists with the correct mutation
+    new_security = Security(
+        country="CH",
+        securityName="INFICON HOLDING AG-REG",
+        positionId=2,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(new_isin),
+        valorNumber=ValorNumber(new_valor),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("50"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("50"),
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2025,
+        periodFrom=date(2025, 1, 1),
+        periodTo=date(2025, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("U1234567"),
+                    security=[old_security, new_security],
+                )
+            ]
+        ),
+    )
+
+    with pytest.raises(ValueError, match="expected a removal mutation of -5"):
+        calc.calculate(statement)
+
+
+def test_cross_isin_stock_split_error_when_new_security_missing():
+    """When a cross-ISIN split references a valorNumberNew that does not
+    correspond to any security in the statement, the validator should raise."""
+    split_date = date(2025, 4, 16)
+    old_isin = "CH0011029946"
+    new_valor = 143159891
+
+    payment = PaymentShare(
+        id=1,
+        paymentDate=split_date,
+        currency="CHF",
+        paymentValue=Decimal("0"),
+        paymentValueCHF=Decimal("0"),
+        paymentType=PaymentTypeESTV.OTHER_BENEFIT,
+        taxEvent=True,
+        exDate=split_date,
+        legend=[
+            Legend(
+                id=1,
+                effectiveDate=split_date,
+                exchangeRatioPresent=Decimal("1"),
+                exchangeRatioNew=Decimal("10"),
+                valorNumberNew=new_valor,
+            )
+        ],
+    )
+    share = Share(
+        id=1,
+        isin=old_isin,
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="INFICON HOLDING AG-REG",
+        institutionId=1,
+        institutionName="INFICON HOLDING AG",
+        country="CH",
+        currency="CHF",
+        nominalValue=Decimal("5"),
+        payment=[payment],
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2025, 1, 1),
+        year=2025,
+        shares=[share],
+    )
+    kursliste_manager = KurslisteManager()
+    kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
+
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+    )
+
+    # Old security: correctly has removal mutation
+    old_security = Security(
+        country="CH",
+        securityName="INFICON HOLDING AG-REG",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(old_isin),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("0"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2025, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("5"),
+                balanceCurrency="CHF",
+            ),
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("-5"),
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    # No new security at all in the statement!
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2025,
+        periodFrom=date(2025, 1, 1),
+        periodTo=date(2025, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("U1234567"),
+                    security=[old_security],
+                )
+            ]
+        ),
+    )
+
+    with pytest.raises(ValueError, match="no security with that valor number was found"):
+        calc.calculate(statement)
+
+
+def test_cross_isin_stock_split_error_when_new_security_addition_wrong():
+    """When a cross-ISIN split's new security has a mutation but with the wrong
+    quantity, the validator should raise with a descriptive message."""
+    split_date = date(2025, 4, 16)
+    old_isin = "CH0011029946"
+    new_valor = 143159891
+    new_isin = "CH1431598916"
+
+    payment = PaymentShare(
+        id=1,
+        paymentDate=split_date,
+        currency="CHF",
+        paymentValue=Decimal("0"),
+        paymentValueCHF=Decimal("0"),
+        paymentType=PaymentTypeESTV.OTHER_BENEFIT,
+        taxEvent=True,
+        exDate=split_date,
+        legend=[
+            Legend(
+                id=1,
+                effectiveDate=split_date,
+                exchangeRatioPresent=Decimal("1"),
+                exchangeRatioNew=Decimal("10"),
+                valorNumberNew=new_valor,
+            )
+        ],
+    )
+    share = Share(
+        id=1,
+        isin=old_isin,
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="INFICON HOLDING AG-REG",
+        institutionId=1,
+        institutionName="INFICON HOLDING AG",
+        country="CH",
+        currency="CHF",
+        nominalValue=Decimal("5"),
+        payment=[payment],
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2025, 1, 1),
+        year=2025,
+        shares=[share],
+    )
+    kursliste_manager = KurslisteManager()
+    kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
+
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+    )
+
+    # Old security: correct removal
+    old_security = Security(
+        country="CH",
+        securityName="INFICON HOLDING AG-REG",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(old_isin),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("0"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2025, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("5"),
+                balanceCurrency="CHF",
+            ),
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("-5"),
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    # New security: wrong addition quantity (40 instead of 50)
+    new_security = Security(
+        country="CH",
+        securityName="INFICON HOLDING AG-REG",
+        positionId=2,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(new_isin),
+        valorNumber=ValorNumber(new_valor),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("40"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("40"),
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2025,
+        periodFrom=date(2025, 1, 1),
+        periodTo=date(2025, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("U1234567"),
+                    security=[old_security, new_security],
+                )
+            ]
+        ),
+    )
+
+    with pytest.raises(ValueError, match="expected an addition of 50"):
+        calc.calculate(statement)
+
+
+def test_cross_isin_stock_split_error_when_new_security_has_no_mutations():
+    """When a cross-ISIN split's new security exists but has no mutations on the
+    split date, the validator should raise."""
+    split_date = date(2025, 4, 16)
+    old_isin = "CH0011029946"
+    new_valor = 143159891
+    new_isin = "CH1431598916"
+
+    payment = PaymentShare(
+        id=1,
+        paymentDate=split_date,
+        currency="CHF",
+        paymentValue=Decimal("0"),
+        paymentValueCHF=Decimal("0"),
+        paymentType=PaymentTypeESTV.OTHER_BENEFIT,
+        taxEvent=True,
+        exDate=split_date,
+        legend=[
+            Legend(
+                id=1,
+                effectiveDate=split_date,
+                exchangeRatioPresent=Decimal("1"),
+                exchangeRatioNew=Decimal("10"),
+                valorNumberNew=new_valor,
+            )
+        ],
+    )
+    share = Share(
+        id=1,
+        isin=old_isin,
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="INFICON HOLDING AG-REG",
+        institutionId=1,
+        institutionName="INFICON HOLDING AG",
+        country="CH",
+        currency="CHF",
+        nominalValue=Decimal("5"),
+        payment=[payment],
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2025, 1, 1),
+        year=2025,
+        shares=[share],
+    )
+    kursliste_manager = KurslisteManager()
+    kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
+
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+    )
+
+    # Old security: correct removal
+    old_security = Security(
+        country="CH",
+        securityName="INFICON HOLDING AG-REG",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(old_isin),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("0"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2025, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("5"),
+                balanceCurrency="CHF",
+            ),
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("-5"),
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    # New security exists but has NO mutations on the split date
+    new_security = Security(
+        country="CH",
+        securityName="INFICON HOLDING AG-REG",
+        positionId=2,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(new_isin),
+        valorNumber=ValorNumber(new_valor),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("50"),
+            balanceCurrency="CHF",
+        ),
+        stock=[],
+    )
+
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2025,
+        periodFrom=date(2025, 1, 1),
+        periodTo=date(2025, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("U1234567"),
+                    security=[old_security, new_security],
+                )
+            ]
+        ),
+    )
+
+    with pytest.raises(ValueError, match="has no mutations on the split date"):
+        calc.calculate(statement)
+
+
+def test_same_isin_stock_split_error_message_is_descriptive():
+    """Verify that the same-ISIN split error messages include quantities and ratios."""
+    split_date = date(2025, 6, 18)
+    payment = PaymentShare(
+        id=1,
+        paymentDate=split_date,
+        currency="USD",
+        paymentValue=Decimal("0"),
+        paymentValueCHF=Decimal("0"),
+        paymentType=PaymentTypeESTV.OTHER_BENEFIT,
+        taxEvent=True,
+        exDate=split_date,
+        legend=[
+            Legend(
+                id=1,
+                effectiveDate=split_date,
+                exchangeRatioPresent=Decimal("1"),
+                exchangeRatioNew=Decimal("4"),
+            )
+        ],
+    )
+    share = Share(
+        id=1,
+        isin="US45841N1072",
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="Interactive Brokers Group, Inc.",
+        institutionId=1,
+        institutionName="Interactive Brokers Group, Inc.",
+        country="US",
+        currency="USD",
+        nominalValue=Decimal("0.01"),
+        payment=[payment],
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2025, 1, 1),
+        year=2025,
+        shares=[share],
+    )
+    kursliste_manager = KurslisteManager()
+    kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
+
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+    )
+
+    security = Security(
+        country="US",
+        securityName="Interactive Brokers Group, Inc.",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("US45841N1072"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("8"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2025, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("2"),
+                balanceCurrency="CHF",
+            ),
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("3"),  # Wrong: should be 6
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2025,
+        periodFrom=date(2025, 1, 1),
+        periodTo=date(2025, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[Depot(depotNumber=DepotNumber("U1234567"), security=[security])]
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"Stock split ratio mismatch.*expected a mutation of 6.*split ratio 4:1.*pre-split position 2",
+    ):
         calc.calculate(statement)
 
 
