@@ -18,9 +18,11 @@ from opensteuerauszug.model.ech0196 import (
 )
 from opensteuerauszug.core.prior_period_verifier import (
     MissingSecurity,
+    PositionKey,
     PositionMismatch,
     PriorPeriodVerificationResult,
     PriorPeriodXmlLoadError,
+    SecurityId,
     load_prior_period_statement,
     verify_prior_period_positions,
     _get_ending_positions,
@@ -110,11 +112,11 @@ def _make_statement(
 class TestSecurityIdentifier:
     def test_prefers_isin_over_valor(self):
         sec = _make_security(1, "TestCo", isin="US0378331005", valor=12345)
-        assert _security_identifier(sec) == "isin:US0378331005"
+        assert _security_identifier(sec) == ("isin", "US0378331005")
 
     def test_falls_back_to_valor(self):
         sec = _make_security(1, "TestCo", valor=12345)
-        assert _security_identifier(sec) == "valor:12345"
+        assert _security_identifier(sec) == ("valor", 12345)
 
     def test_returns_none_when_no_identifiers(self):
         sec = _make_security(1, "TestCo")
@@ -124,15 +126,15 @@ class TestSecurityIdentifier:
 class TestPositionKey:
     def test_includes_depot_and_isin(self):
         sec = _make_security(1, "X", isin="US0378331005")
-        assert _position_key("D001", sec) == "D001|isin:US0378331005"
+        assert _position_key("D001", sec) == ("D001", ("isin", "US0378331005"))
 
     def test_includes_depot_and_valor(self):
         sec = _make_security(1, "X", valor=12345)
-        assert _position_key("D002", sec) == "D002|valor:12345"
+        assert _position_key("D002", sec) == ("D002", ("valor", 12345))
 
-    def test_none_depot_uses_placeholder(self):
+    def test_none_depot(self):
         sec = _make_security(1, "X", isin="US0378331005")
-        assert _position_key(None, sec) == "_|isin:US0378331005"
+        assert _position_key(None, sec) == (None, ("isin", "US0378331005"))
 
     def test_returns_none_when_no_security_id(self):
         sec = _make_security(1, "X")
@@ -149,8 +151,9 @@ class TestGetEndingPositions:
         sec = _make_security(1, "AAPL", isin="US0378331005", tax_value_qty=Decimal("100"))
         stmt = _make_statement(securities=[sec])
         positions = _get_ending_positions(stmt)
-        assert "D001|isin:US0378331005" in positions
-        qty, _, _ = positions["D001|isin:US0378331005"]
+        key = ("D001", ("isin", "US0378331005"))
+        assert key in positions
+        qty, _, _ = positions[key]
         assert qty == Decimal("100")
 
     def test_skips_security_without_tax_value(self):
@@ -174,8 +177,9 @@ class TestGetEndingPositions:
         sec = _make_security(1, "SOLD", isin="US1234567890", tax_value_qty=Decimal("0"))
         stmt = _make_statement(securities=[sec])
         positions = _get_ending_positions(stmt)
-        assert "D001|isin:US1234567890" in positions
-        qty, _, _ = positions["D001|isin:US1234567890"]
+        key = ("D001", ("isin", "US1234567890"))
+        assert key in positions
+        qty, _, _ = positions[key]
         assert qty == Decimal("0")
 
     def test_same_security_in_two_depots_tracked_separately(self):
@@ -186,10 +190,11 @@ class TestGetEndingPositions:
         stmt = _make_statement(depots=[depot_a, depot_b])
         positions = _get_ending_positions(stmt)
 
-        assert "DA|isin:US0378331005" in positions
-        assert "DB|isin:US0378331005" in positions
-        assert positions["DA|isin:US0378331005"][0] == Decimal("100")
-        assert positions["DB|isin:US0378331005"][0] == Decimal("50")
+        isin_id = ("isin", "US0378331005")
+        assert (DepotNumber("DA"), isin_id) in positions
+        assert (DepotNumber("DB"), isin_id) in positions
+        assert positions[(DepotNumber("DA"), isin_id)][0] == Decimal("100")
+        assert positions[(DepotNumber("DB"), isin_id)][0] == Decimal("50")
 
 
 # ---------------------------------------------------------------------------
@@ -202,8 +207,9 @@ class TestGetOpeningPositions:
         sec = _make_security(1, "AAPL", isin="US0378331005", opening_stock_qty=Decimal("200"))
         stmt = _make_statement(securities=[sec], period_year=2025)
         positions = _get_opening_positions(stmt)
-        assert "D001|isin:US0378331005" in positions
-        qty, _, _ = positions["D001|isin:US0378331005"]
+        key = ("D001", ("isin", "US0378331005"))
+        assert key in positions
+        qty, _, _ = positions[key]
         assert qty == Decimal("200")
 
     def test_ignores_mutation_stock_entries(self):
@@ -241,7 +247,8 @@ class TestGetOpeningPositions:
         ]
         stmt = _make_statement(securities=[sec], period_year=2025)
         positions = _get_opening_positions(stmt)
-        qty, _, _ = positions["D001|isin:US0378331005"]
+        key = ("D001", ("isin", "US0378331005"))
+        qty, _, _ = positions[key]
         assert qty == Decimal("100")
 
     def test_same_security_in_two_depots_tracked_separately(self):
@@ -252,8 +259,9 @@ class TestGetOpeningPositions:
         stmt = _make_statement(depots=[depot_a, depot_b], period_year=2025)
         positions = _get_opening_positions(stmt)
 
-        assert positions["DA|isin:US0378331005"][0] == Decimal("100")
-        assert positions["DB|isin:US0378331005"][0] == Decimal("40")
+        isin_id = ("isin", "US0378331005")
+        assert positions[(DepotNumber("DA"), isin_id)][0] == Decimal("100")
+        assert positions[(DepotNumber("DB"), isin_id)][0] == Decimal("40")
 
 
 # ---------------------------------------------------------------------------

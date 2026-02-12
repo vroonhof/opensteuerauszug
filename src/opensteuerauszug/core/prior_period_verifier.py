@@ -17,7 +17,7 @@ ending quantity for those securities.
 import logging
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from ..model.ech0196 import Security, TaxStatement
 
@@ -84,20 +84,27 @@ class PriorPeriodVerificationResult:
         return len(self.mismatches) + len(self.missing_in_current) + len(self.missing_in_prior)
 
 
-def _security_identifier(security: Security) -> Optional[str]:
-    """Return a canonical identifier fragment for a security (without depot).
+# A security identifier is a tagged tuple: ("isin", value) or ("valor", value).
+SecurityId = Tuple[str, Union[str, int]]
+
+# A position key combines the depot number with the security identifier.
+PositionKey = Tuple[Optional[str], SecurityId]
+
+
+def _security_identifier(security: Security) -> Optional[SecurityId]:
+    """Return a canonical identifier for a security (without depot).
 
     Prefers ISIN over valor number.  Returns ``None`` when neither is
     available.
     """
     if security.isin:
-        return f"isin:{security.isin}"
+        return ("isin", str(security.isin))
     if security.valorNumber:
-        return f"valor:{security.valorNumber}"
+        return ("valor", int(security.valorNumber))
     return None
 
 
-def _position_key(depot_number: Optional[str], security: Security) -> Optional[str]:
+def _position_key(depot_number: Optional[str], security: Security) -> Optional[PositionKey]:
     """Return a composite key that includes the depot and security identifier.
 
     Using the depot in the key ensures that the same security held in two
@@ -106,12 +113,11 @@ def _position_key(depot_number: Optional[str], security: Security) -> Optional[s
     sec_id = _security_identifier(security)
     if sec_id is None:
         return None
-    depot_part = depot_number or "_"
-    return f"{depot_part}|{sec_id}"
+    return (depot_number, sec_id)
 
 
 # Type alias for the position maps.
-_PositionMap = Dict[str, Tuple[Decimal, Security, Optional[str]]]
+_PositionMap = Dict[PositionKey, Tuple[Decimal, Security, Optional[str]]]
 
 
 def _get_ending_positions(statement: TaxStatement) -> _PositionMap:
