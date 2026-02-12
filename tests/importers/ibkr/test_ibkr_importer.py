@@ -352,6 +352,7 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert msft_sec.currency == "USD"
         assert msft_sec.country == "US"
         assert len(msft_sec.stock) == 2
+        # No peroid start stock entry needed because initial position is zero
         assert msft_sec.stock[0].mutation is True  # Trade
         assert msft_sec.stock[0].quantity == Decimal("10")
         assert msft_sec.stock[1].mutation is False
@@ -371,6 +372,7 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert aapl_sec.isin == "US0378331005"
         assert aapl_sec.country == "IE"
         assert len(aapl_sec.stock) == 3
+        # Peroid start stock entry needed because initial position is not zero
         assert aapl_sec.stock[0].mutation is False
         assert aapl_sec.stock[0].quantity == Decimal("5")
         assert aapl_sec.stock[0].referenceDate == date(2023, 1, 1)
@@ -667,7 +669,7 @@ def test_transfer_with_open_position_no_trades(sample_ibkr_settings):
         assert iwda_sec.currency == "EUR"
         assert iwda_sec.country == "IE"
         
-        # Check stock entries: should have opening balance, transfer mutation, and closing balance
+        # Check stock entries: should have a transfer mutation and a closing balance (no opening balance at period start)
         assert len(iwda_sec.stock) == 2, f"Expected 2 stock entries (transfer, closing), got {len(iwda_sec.stock)}"
         
         # Transfer mutation should exist
