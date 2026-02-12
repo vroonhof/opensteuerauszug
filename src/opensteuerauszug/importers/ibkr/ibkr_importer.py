@@ -813,7 +813,7 @@ class IbkrImporter:
                 (not s.mutation and s.referenceDate == self.period_from)
                 for s in sorted_stocks
             )
-            if not start_exists:
+            if not start_exists and opening_balance != 0:
                 sorted_stocks.append(
                     SecurityStock(
                         referenceDate=self.period_from,

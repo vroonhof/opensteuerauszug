@@ -148,15 +148,17 @@ class SchwabImporter:
                    (earliest_stock_date == self.period_from and live_stocks_list[0].mutation):
                     logger.info(f"[{current_identifier}] No suitable existing/synthesizable start balance for {self.period_from}. Inserting zero balance.")
 
-            start_balance_stock = SecurityStock(
-                referenceDate=self.period_from,
-                mutation=False,
-                quantity=qty_to_set_at_start,
-                balanceCurrency=currency_at_start,
-                quotationType=q_type_at_start,
-                name=f"{balance_name_prefix}Opening Balance (Tax Period Start)".strip()
-            )
-            live_stocks_list.append(start_balance_stock)
+            if qty_to_set_at_start != 0:
+                start_balance_stock = SecurityStock(
+                    referenceDate=self.period_from,
+                    mutation=False,
+                    quantity=qty_to_set_at_start,
+                    balanceCurrency=currency_at_start,
+                    quotationType=q_type_at_start,
+                    name=f"{balance_name_prefix}Opening Balance (Tax Period Start)".strip()
+                )
+                live_stocks_list.append(start_balance_stock)
+
             live_stocks_list = sorted(live_stocks_list, key=lambda s: (s.referenceDate, s.mutation))
             print(f"[{current_identifier}] Added/updated start-of-period balance for {self.period_from}.")
 
