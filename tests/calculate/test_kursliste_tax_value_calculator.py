@@ -51,7 +51,10 @@ class MockFlagOverrideProvider(FlagOverrideProvider):
 class TestKurslisteTaxValueCalculatorIntegration:
     @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
     def test_run_in_verify_mode_no_errors(
-        self, sample_file: str, exchange_rate_provider: KurslisteExchangeRateProvider, kursliste_manager
+        self,
+        sample_file: str,
+        exchange_rate_provider: KurslisteExchangeRateProvider,
+        kursliste_manager,
     ):
         """
         Tests that KurslisteTaxValueCalculator runs in VERIFY mode
@@ -61,7 +64,7 @@ class TestKurslisteTaxValueCalculatorIntegration:
         # Ensure the required kursliste year is available
         required_year = get_tax_year_for_sample(sample_file)
         ensure_kursliste_year_available(kursliste_manager, required_year, sample_file)
-        
+
         flag_override_provider = MockFlagOverrideProvider()
         if "Truewealth.xml" in sample_file:
             # For this specific test case, we know the sample file does not expect DA-1 calculation
@@ -86,7 +89,9 @@ class TestKurslisteTaxValueCalculatorIntegration:
         if filtered_errors:
             error_messages = [str(e) for e in filtered_errors]
             error_details = "\n".join(error_messages)
-            pytest.fail(f"Unexpected validation errors for {sample_file} with {len(filtered_errors)} errors:\n{error_details}")
+            pytest.fail(
+                f"Unexpected validation errors for {sample_file} with {len(filtered_errors)} errors:\n{error_details}"
+            )
         assert processed_statement is tax_statement_input
 
 
@@ -247,7 +252,9 @@ def test_compute_payments_skips_stock_split_payment():
     kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
 
     provider = KurslisteExchangeRateProvider(kursliste_manager)
-    calc = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+    )
 
     security = Security(
         country="US",
@@ -340,7 +347,9 @@ def test_compute_payments_stock_split_requires_mutation():
     kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
 
     provider = KurslisteExchangeRateProvider(kursliste_manager)
-    calc = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+    )
 
     security = Security(
         country="US",
@@ -640,6 +649,151 @@ def test_cross_isin_stock_split_error_when_removal_mutation_missing():
 
     with pytest.raises(ValueError, match="expected a removal mutation of -5"):
         calc.calculate(statement)
+
+
+def test_cross_isin_stock_split_resolves_new_security_by_kursliste_isin_when_valor_not_enriched_yet():
+    """Cross-ISIN validation should resolve the target security via Kursliste ISIN
+    if the statement security exists but has not had its valorNumber enriched yet."""
+    split_date = date(2025, 4, 16)
+    old_isin = "CH0011029946"
+    new_valor = 143159891
+    new_isin = "CH1431598916"
+
+    payment = PaymentShare(
+        id=1,
+        paymentDate=split_date,
+        currency="CHF",
+        paymentValue=Decimal("0"),
+        paymentValueCHF=Decimal("0"),
+        paymentType=PaymentTypeESTV.OTHER_BENEFIT,
+        taxEvent=True,
+        exDate=split_date,
+        legend=[
+            Legend(
+                id=1,
+                effectiveDate=split_date,
+                exchangeRatioPresent=Decimal("1"),
+                exchangeRatioNew=Decimal("10"),
+                valorNumberNew=new_valor,
+            )
+        ],
+    )
+    old_share = Share(
+        id=1,
+        isin=old_isin,
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="INFICON HOLDING AG-REG",
+        institutionId=1,
+        institutionName="INFICON HOLDING AG",
+        country="CH",
+        currency="CHF",
+        nominalValue=Decimal("5"),
+        payment=[payment],
+    )
+    new_share = Share(
+        id=2,
+        isin=new_isin,
+        valorNumber=new_valor,
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="INFICON HOLDING AG-REG",
+        institutionId=1,
+        institutionName="INFICON HOLDING AG",
+        country="CH",
+        currency="CHF",
+        nominalValue=Decimal("5"),
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2025, 1, 1),
+        year=2025,
+        shares=[old_share, new_share],
+    )
+    kursliste_manager = KurslisteManager()
+    kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
+
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+    )
+
+    old_security = Security(
+        country="CH",
+        securityName="INFICON HOLDING AG-REG",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(old_isin),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("0"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2025, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("5"),
+                balanceCurrency="CHF",
+            ),
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("-5"),
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    # New security exists but does not have valorNumber yet (would be enriched later).
+    new_security = Security(
+        country="CH",
+        securityName="INFICON HOLDING AG-REG",
+        positionId=2,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(new_isin),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2025, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("50"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("50"),
+                balanceCurrency="CHF",
+            ),
+        ],
+    )
+
+    # Order old security first, new security second to reproduce enrichment-order issue.
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2025,
+        periodFrom=date(2025, 1, 1),
+        periodTo=date(2025, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("U1234567"),
+                    security=[old_security, new_security],
+                )
+            ]
+        ),
+    )
+
+    calc.calculate(statement)
+
+    assert old_security.payment == []
+    assert calc.errors == []
 
 
 def test_cross_isin_stock_split_error_when_new_security_missing():
@@ -1202,7 +1356,7 @@ def test_propagate_payment_fields(kursliste_manager):
                 gratis=True,
                 paymentType=PaymentTypeESTV.GRATIS,
             )
-        ]
+        ],
     )
 
     sec = Security(
@@ -1271,7 +1425,7 @@ def test_compute_payments_withholding_tax_scenario(kursliste_manager):
                 exchangeRate=Decimal("1.0"),
                 withHoldingTax=True,  # This triggers grossRevenueA and withHoldingTaxClaim
             )
-        ]
+        ],
     )
 
     sec = Security(
@@ -1390,7 +1544,7 @@ def test_compute_payments_capital_gain_scenario(kursliste_manager):
                 exchangeRate=Decimal("1.0"),
                 capitalGain=True,
             )
-        ]
+        ],
     )
 
     sec = Security(
@@ -1454,7 +1608,7 @@ def test_compute_payments_unknown_sign_type_raises_error(kursliste_manager):
                 exchangeRate=Decimal("1.0"),
                 sign="XXX",  # Unknown sign type
             )
-        ]
+        ],
     )
 
     sec = Security(
@@ -1514,7 +1668,7 @@ def test_compute_payments_skips_kep_payments(kursliste_manager):
                 exchangeRate=Decimal("1.0"),
                 sign="KEP",  # Return of capital - non-taxable
             )
-        ]
+        ],
     )
 
     sec = Security(
@@ -1576,7 +1730,7 @@ def test_compute_payments_skips_capital_gain_sign_payments(kursliste_manager):
                 exchangeRate=Decimal("1.0"),
                 sign="(KG)",  # Capital gain - non-taxable
             )
-        ]
+        ],
     )
 
     sec = Security(
@@ -1638,7 +1792,7 @@ def test_compute_payments_sets_additional_withholding_tax_usa(kursliste_manager)
                 exchangeRate=Decimal("0.88"),
                 withHoldingTax=False,
             )
-        ]
+        ],
     )
 
     sec = Security(

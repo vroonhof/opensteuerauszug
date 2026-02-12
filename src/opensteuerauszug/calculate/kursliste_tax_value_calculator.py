@@ -26,31 +26,31 @@ logger = logging.getLogger(__name__)
 # - (KR): Return of Capital - non-taxable, skip payment
 # - Other signs are informational and don't affect tax calculation
 KNOWN_SIGN_TYPES: Set[str] = {
-    "(B)",   # Bonus
-    "(E)",   # Ex-date related
-    "(G)",   # Withholding tax free capital gains
-    "(H)",   # Investment fund with direct real estate
-    "(I)",   # Taxable earnings not yet determined
+    "(B)",  # Bonus
+    "(E)",  # Ex-date related
+    "(G)",  # Withholding tax free capital gains
+    "(H)",  # Investment fund with direct real estate
+    "(I)",  # Taxable earnings not yet determined
     "(IK)",  # Non-taxable KEP distribution not yet determined
     "(IM)",  # Reinvestment of retained earnings
-    "KEP",   # Return of capital contributions - SKIP PAYMENT
+    "KEP",  # Return of capital contributions - SKIP PAYMENT
     "(KG)",  # Capital gain - SKIP PAYMENT
     "(KR)",  # Return of Capital - SKIP PAYMENT
-    "(L)",   # No withholding tax deduction
-    "(M)",   # Re-investment fund (Switzerland)
+    "(L)",  # No withholding tax deduction
+    "(M)",  # Re-investment fund (Switzerland)
     "(MV)",  # Distribution notification procedure
-    "(N)",   # Re-investment fund (abroad)
-    "(P)",   # Foreign earnings subject to withholding tax
-    "PRO",   # Provisional
-    "(Q)",   # With foreign withholding tax - SPECIAL HANDLING
-    "(V)",   # Distribution in form of shares - NOT IMPLEMENTED
-    "(Y)",   # Purchasing own shares
-    "(Z)",   # Without withholding tax
+    "(N)",  # Re-investment fund (abroad)
+    "(P)",  # Foreign earnings subject to withholding tax
+    "PRO",  # Provisional
+    "(Q)",  # With foreign withholding tax - SPECIAL HANDLING
+    "(V)",  # Distribution in form of shares - NOT IMPLEMENTED
+    "(Y)",  # Purchasing own shares
+    "(Z)",  # Without withholding tax
 }
 
 # Signs that indicate non-taxable payments that should be skipped entirely
 NON_TAXABLE_SIGNS: Set[str] = {
-    "KEP",   # Return of capital contributions
+    "KEP",  # Return of capital contributions
     "(KG)",  # Capital gain
     "(KR)",  # Return of Capital
 }
@@ -62,8 +62,16 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
     tax values for securities.
     """
 
-    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, flag_override_provider: Optional[FlagOverrideProvider] = None, keep_existing_payments: bool = False):
-        super().__init__(mode, exchange_rate_provider, keep_existing_payments=keep_existing_payments)
+    def __init__(
+        self,
+        mode: CalculationMode,
+        exchange_rate_provider: ExchangeRateProvider,
+        flag_override_provider: Optional[FlagOverrideProvider] = None,
+        keep_existing_payments: bool = False,
+    ):
+        super().__init__(
+            mode, exchange_rate_provider, keep_existing_payments=keep_existing_payments
+        )
         logger.info(
             "KurslisteTaxValueCalculator initialized with mode: %s and provider: %s",
             mode.value,
@@ -142,8 +150,11 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             kl_sec = accessor.get_security_by_isin(security.isin)
 
         if kl_sec:
-            logger.debug("Kursliste security found: %s", kl_sec.isin or kl_sec.valorNumber or kl_sec.securityName)
-            
+            logger.debug(
+                "Kursliste security found: %s",
+                kl_sec.isin or kl_sec.valorNumber or kl_sec.securityName,
+            )
+
             self._current_kursliste_security = kl_sec
             if security.valorNumber is None and kl_sec.valorNumber is not None:
                 try:
@@ -166,7 +177,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 closing_balance = security.taxValue.quantity
 
             if is_rights and closing_balance == 0:
-                logger.debug("Suppressing missing Kursliste warning for rights issue %s with zero balance.", ident)
+                logger.debug(
+                    "Suppressing missing Kursliste warning for rights issue %s with zero balance.",
+                    ident,
+                )
             else:
                 self._missing_kursliste_entries.append(ident)
 
@@ -274,6 +288,23 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     new_security = sec
                     break
 
+            if (
+                new_security is None
+                and self.kursliste_manager
+                and security.taxValue
+                and security.taxValue.referenceDate
+            ):
+                accessor = self.kursliste_manager.get_kurslisten_for_year(
+                    security.taxValue.referenceDate.year
+                )
+                if accessor:
+                    new_kl_security = accessor.get_security_by_valor(int(valor_number_new))
+                    if new_kl_security and new_kl_security.isin:
+                        for sec in self._all_securities:
+                            if sec.isin == new_kl_security.isin:
+                                new_security = sec
+                                break
+
             if new_security is None:
                 raise ValueError(
                     f"Stock split with ISIN change for {sec_ident} on "
@@ -320,8 +351,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 "Validated cross-ISIN stock split for %s on %s: "
                 "removed %s shares from old security, added %s shares "
                 "to new security %s (valor %s).",
-                sec_ident, reconciliation_date, expected_removal,
-                expected_addition, new_sec_ident, valor_number_new,
+                sec_ident,
+                reconciliation_date,
+                expected_removal,
+                expected_addition,
+                new_sec_ident,
+                valor_number_new,
             )
 
     def computePayments(self, security: Security, path_prefix: str) -> None:
@@ -344,7 +379,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
         reconciler = PositionReconciler(stock, identifier=f"{security.isin or 'SEC'}-payments")
 
-        accessor = self.kursliste_manager.get_kurslisten_for_year(security.taxValue.referenceDate.year)
+        accessor = self.kursliste_manager.get_kurslisten_for_year(
+            security.taxValue.referenceDate.year
+        )
 
         for pay in payments:
             if not pay.paymentDate:
@@ -357,16 +394,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             reconciliation_date = pay.exDate or pay.paymentDate
 
             # Warn if exDate is in the previous year (before the tax period)
-            if (
-                pay.exDate
-                and security.taxValue
-                and security.taxValue.referenceDate
-            ):
+            if pay.exDate and security.taxValue and security.taxValue.referenceDate:
                 tax_year = security.taxValue.referenceDate.year
                 if pay.exDate.year < tax_year:
-                    sec_ident = (
-                        security.isin or security.securityName
-                    )
+                    sec_ident = security.isin or security.securityName
                     warning_msg = (
                         f"Payment '{pay.paymentDate}' for security "
                         f"'{sec_ident}' has an ex-date "
@@ -377,10 +408,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                         f"processed. Please double-check the amount."
                     )
                     logger.warning(warning_msg)
-                    self._previous_year_exdate_warnings.append({
-                        "message": warning_msg,
-                        "identifier": sec_ident,
-                    })
+                    self._previous_year_exdate_warnings.append(
+                        {
+                            "message": warning_msg,
+                            "identifier": sec_ident,
+                        }
+                    )
 
             pos = reconciler.synthesize_position_at_date(reconciliation_date)
             if pos is None:
@@ -422,7 +455,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                             valor_number_new=valor_number_new,
                         )
 
-                    if pay.paymentValueCHF in (None, Decimal("0")) and pay.paymentValue in (None, Decimal("0")):
+                    if pay.paymentValueCHF in (None, Decimal("0")) and pay.paymentValue in (
+                        None,
+                        Decimal("0"),
+                    ):
                         continue
 
             # Validate sign type if present
@@ -438,7 +474,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             if current_sign in NON_TAXABLE_SIGNS:
                 logger.debug(
                     "Skipping non-taxable payment with sign '%s' on %s for %s",
-                    current_sign, pay.paymentDate, security.isin or security.securityName
+                    current_sign,
+                    pay.paymentDate,
+                    security.isin or security.securityName,
                 )
                 continue
 
@@ -480,7 +518,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     f"Kursliste payment on {pay.paymentDate} for {security.isin or security.securityName} missing paymentValueCHF"
                 )
 
-            amount_per_unit = pay.paymentValue if pay.paymentValue is not None else pay.paymentValueCHF
+            amount_per_unit = (
+                pay.paymentValue if pay.paymentValue is not None else pay.paymentValueCHF
+            )
             chf_per_unit = pay.paymentValueCHF
 
             amount = amount_per_unit * quantity
@@ -516,11 +556,11 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 override_flag = self.flag_override_provider.get_flag(security.isin)
                 if override_flag:
                     logger.debug("Found override flag '%s' for %s", override_flag, security.isin)
-                    if not (override_flag.startswith('(') and override_flag.endswith(')')):
+                    if not (override_flag.startswith("(") and override_flag.endswith(")")):
                         effective_sign = f"({override_flag})"
                     else:
                         effective_sign = override_flag
-            
+
             sec_payment.sign = effective_sign
 
             if hasattr(pay, "gratis") and pay.gratis:
@@ -531,9 +571,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             if pay.withHoldingTax:
                 sec_payment.grossRevenueA = chf_amount
                 sec_payment.grossRevenueB = Decimal("0")
-                sec_payment.withHoldingTaxClaim = (
-                    chf_amount * WITHHOLDING_TAX_RATE
-                ).quantize(Decimal("0.01"))
+                sec_payment.withHoldingTaxClaim = (chf_amount * WITHHOLDING_TAX_RATE).quantize(
+                    Decimal("0.01")
+                )
             else:
                 sec_payment.grossRevenueA = Decimal("0")
                 sec_payment.grossRevenueB = chf_amount
@@ -546,7 +586,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 da1_security_type = None
 
             da1_rate = accessor.get_da1_rate(
-                kl_sec.country, da1_security_group, da1_security_type, reference_date=pay.paymentDate
+                kl_sec.country,
+                da1_security_group,
+                da1_security_type,
+                reference_date=pay.paymentDate,
             )
 
             if da1_rate:
