@@ -27,7 +27,11 @@ from .importers.ibkr.ibkr_importer import IbkrImporter # Added IbkrImporter
 from .core.exchange_rate_provider import ExchangeRateProvider
 from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
-from .core.prior_period_verifier import verify_prior_period_positions
+from .core.prior_period_verifier import (
+    load_prior_period_statement,
+    PriorPeriodXmlLoadError,
+    verify_prior_period_positions,
+)
 from .config import ConfigManager, ConcreteAccountSettings
 
 logger = logging.getLogger(__name__)
@@ -473,7 +477,12 @@ def main(
                 )
             else:
                 print(f"Loading prior-period tax statement from: {prior_period_xml}")
-                prior_statement = TaxStatement.from_xml_file(str(prior_period_xml))
+                try:
+                    prior_statement = load_prior_period_statement(str(prior_period_xml))
+                except PriorPeriodXmlLoadError as e:
+                    print(f"Error: {e}")
+                    raise typer.Exit(code=1)
+
                 print(
                     f"Prior-period statement loaded: "
                     f"taxPeriod={prior_statement.taxPeriod}, "

@@ -5,7 +5,13 @@ Loads a previous-period eCH-0196 tax statement and verifies that every
 security's opening (start-of-year) position in the current statement matches
 the closing (end-of-year) position reported in the prior statement.
 
-Matching is performed by ISIN first, then by valor number as a fallback.
+Matching is performed by depot number *and* security identifier (ISIN first,
+then valor number as a fallback).
+
+Securities without an opening balance stock entry are treated as having an
+implicit opening quantity of zero — useful for newly acquired positions.
+The verifier still checks that the prior period did not hold a non-zero
+ending quantity for those securities.
 """
 
 import logging
@@ -78,8 +84,12 @@ class PriorPeriodVerificationResult:
         return len(self.mismatches) + len(self.missing_in_current) + len(self.missing_in_prior)
 
 
-def _security_key(security: Security) -> Optional[str]:
-    """Return a canonical lookup key for a security, preferring ISIN over valor."""
+def _security_identifier(security: Security) -> Optional[str]:
+    """Return a canonical identifier fragment for a security (without depot).
+
+    Prefers ISIN over valor number.  Returns ``None`` when neither is
+    available.
+    """
     if security.isin:
         return f"isin:{security.isin}"
     if security.valorNumber:
@@ -87,25 +97,40 @@ def _security_key(security: Security) -> Optional[str]:
     return None
 
 
-def _get_ending_positions(
-    statement: TaxStatement,
-) -> Dict[str, Tuple[Decimal, Security, Optional[str]]]:
+def _position_key(depot_number: Optional[str], security: Security) -> Optional[str]:
+    """Return a composite key that includes the depot and security identifier.
+
+    Using the depot in the key ensures that the same security held in two
+    different depots is tracked independently.
+    """
+    sec_id = _security_identifier(security)
+    if sec_id is None:
+        return None
+    depot_part = depot_number or "_"
+    return f"{depot_part}|{sec_id}"
+
+
+# Type alias for the position maps.
+_PositionMap = Dict[str, Tuple[Decimal, Security, Optional[str]]]
+
+
+def _get_ending_positions(statement: TaxStatement) -> _PositionMap:
     """Extract ending (closing) positions from a tax statement.
 
     The ending position is the quantity from the security's ``taxValue``
-    element whose ``referenceDate`` equals the statement's ``periodTo``.
+    element.
 
     Returns:
-        Mapping of security key -> (quantity, Security object, depot number).
+        Mapping of position key -> (quantity, Security object, depot number).
     """
-    positions: Dict[str, Tuple[Decimal, Security, Optional[str]]] = {}
+    positions: _PositionMap = {}
     if not statement.listOfSecurities:
         return positions
 
     for depot in statement.listOfSecurities.depot:
         depot_number = depot.depotNumber
         for security in depot.security:
-            key = _security_key(security)
+            key = _position_key(depot_number, security)
             if key is None:
                 logger.warning(
                     "Cannot identify security '%s' (positionId=%s) for prior-period "
@@ -123,37 +148,32 @@ def _get_ending_positions(
                 continue
 
             quantity = security.taxValue.quantity
-            if quantity == Decimal(0):
-                logger.debug(
-                    "Security %s has zero ending quantity — including in map.",
-                    key,
-                )
-
             positions[key] = (quantity, security, depot_number)
 
     return positions
 
 
-def _get_opening_positions(
-    statement: TaxStatement,
-) -> Dict[str, Tuple[Decimal, Security, Optional[str]]]:
+def _get_opening_positions(statement: TaxStatement) -> _PositionMap:
     """Extract opening (start-of-year) positions from a tax statement.
 
     The opening position is the first ``stock`` entry with ``mutation=False``
     for each security.  The eCH-0196 convention is that a balance stock entry
     records the position at the *start* of its ``referenceDate``.
 
+    When no opening balance stock entry exists for a security the position is
+    **not** included in the map.  The caller treats this as an implicit zero.
+
     Returns:
-        Mapping of security key -> (quantity, Security object, depot number).
+        Mapping of position key -> (quantity, Security object, depot number).
     """
-    positions: Dict[str, Tuple[Decimal, Security, Optional[str]]] = {}
+    positions: _PositionMap = {}
     if not statement.listOfSecurities:
         return positions
 
     for depot in statement.listOfSecurities.depot:
         depot_number = depot.depotNumber
         for security in depot.security:
-            key = _security_key(security)
+            key = _position_key(depot_number, security)
             if key is None:
                 logger.warning(
                     "Cannot identify security '%s' (positionId=%s) for prior-period "
@@ -171,13 +191,42 @@ def _get_opening_positions(
                     break
 
             if opening_stock is None:
+                # No opening balance → implicit zero.  We intentionally omit it
+                # from the map; the comparison logic treats absence as zero and
+                # will verify the prior period agrees.
                 logger.debug(
-                    "Security %s has no opening balance stock entry — skipping.",
+                    "Security %s has no opening balance stock entry — "
+                    "treating as implicit zero.",
                     key,
                 )
                 continue
 
             positions[key] = (opening_stock.quantity, security, depot_number)
+
+    return positions
+
+
+def _get_all_current_security_keys(statement: TaxStatement) -> _PositionMap:
+    """Return a map of *every* identifiable security in the current statement,
+    regardless of whether it has an opening balance.
+
+    Securities without an opening balance are recorded with quantity zero.
+    This lets us check that a prior-period holding was not silently dropped
+    when the current statement simply omits the opening stock entry.
+    """
+    positions: _PositionMap = {}
+    if not statement.listOfSecurities:
+        return positions
+
+    for depot in statement.listOfSecurities.depot:
+        depot_number = depot.depotNumber
+        for security in depot.security:
+            key = _position_key(depot_number, security)
+            if key is None:
+                continue
+            # Only add if not already present from _get_opening_positions
+            if key not in positions:
+                positions[key] = (Decimal(0), security, depot_number)
 
     return positions
 
@@ -188,6 +237,10 @@ def verify_prior_period_positions(
 ) -> PriorPeriodVerificationResult:
     """Compare ending positions from a prior-period statement against opening
     positions in the current statement.
+
+    Securities without an explicit opening balance stock entry are treated as
+    having an opening quantity of zero.  If the prior period had a non-zero
+    ending quantity for such a security the mismatch is reported.
 
     Args:
         prior_statement: The previous tax period's ``TaxStatement``.
@@ -201,6 +254,11 @@ def verify_prior_period_positions(
 
     prior_ending = _get_ending_positions(prior_statement)
     current_opening = _get_opening_positions(current_statement)
+
+    # Build the full set of security keys that appear in the current
+    # statement so we can distinguish "security exists but has no opening
+    # balance" from "security does not appear at all".
+    all_current_keys = _get_all_current_security_keys(current_statement)
 
     all_keys = set(prior_ending.keys()) | set(current_opening.keys())
 
@@ -233,8 +291,34 @@ def verify_prior_period_positions(
 
         elif in_prior and not in_current:
             prior_qty, prior_sec, prior_depot = prior_ending[key]
-            # Only flag as missing if the prior ending quantity was non-zero
-            if prior_qty != Decimal(0):
+
+            # The security has no explicit opening balance in the current
+            # statement.  That is fine as long as the prior ended at zero.
+            # It may still *exist* in the current statement (with
+            # transactions but no opening stock entry) — check for that
+            # to give a better message.
+            if prior_qty == Decimal(0):
+                logger.debug(
+                    "Security %s has zero ending quantity in prior period "
+                    "and no opening in current — OK (fully sold).",
+                    key,
+                )
+                result.matched_count += 1
+            elif key in all_current_keys:
+                # Security is present in the current statement but without
+                # an opening balance → implicit zero vs. non-zero prior.
+                _, current_sec, current_depot = all_current_keys[key]
+                mismatch = PositionMismatch(
+                    security_name=current_sec.securityName,
+                    isin=current_sec.isin,
+                    valor=current_sec.valorNumber,
+                    prior_quantity=prior_qty,
+                    current_quantity=Decimal(0),
+                    depot=current_depot,
+                )
+                result.mismatches.append(mismatch)
+                logger.warning("Prior-period verification: %s", mismatch)
+            else:
                 missing = MissingSecurity(
                     security_name=prior_sec.securityName,
                     isin=prior_sec.isin,
@@ -245,17 +329,10 @@ def verify_prior_period_positions(
                 result.missing_in_current.append(missing)
                 logger.warning(
                     "Prior-period verification: security %s with qty %s "
-                    "exists in prior period but has no opening position in current period.",
+                    "exists in prior period but not in current period at all.",
                     key,
                     prior_qty,
                 )
-            else:
-                logger.debug(
-                    "Security %s has zero ending quantity in prior period "
-                    "and no opening in current — OK (fully sold).",
-                    key,
-                )
-                result.matched_count += 1
 
         else:  # in_current and not in_prior
             current_qty, current_sec, current_depot = current_opening[key]
@@ -284,3 +361,65 @@ def verify_prior_period_positions(
                 result.matched_count += 1
 
     return result
+
+
+class PriorPeriodXmlLoadError(Exception):
+    """Raised when the prior-period XML file cannot be read or parsed.
+
+    Wraps the underlying I/O or XML parsing error with a user-friendly
+    message suitable for display on the CLI.
+    """
+
+    def __init__(self, path: str, reason: str):
+        self.path = path
+        self.reason = reason
+        super().__init__(
+            f"Could not load prior-period tax statement from '{path}': {reason}"
+        )
+
+
+def load_prior_period_statement(file_path: str) -> TaxStatement:
+    """Load and parse a prior-period eCH-0196 tax statement XML file.
+
+    Provides user-friendly error messages for common failure modes such as
+    missing files, permission errors, and malformed XML.
+
+    Args:
+        file_path: Path to the prior-period XML file.
+
+    Returns:
+        The parsed ``TaxStatement``.
+
+    Raises:
+        PriorPeriodXmlLoadError: On any I/O or parse failure.
+    """
+    import os
+
+    if not os.path.exists(file_path):
+        raise PriorPeriodXmlLoadError(
+            file_path,
+            "File does not exist. Check the path and try again.",
+        )
+
+    if not os.path.isfile(file_path):
+        raise PriorPeriodXmlLoadError(
+            file_path,
+            "Path is not a regular file (perhaps a directory?).",
+        )
+
+    if not os.access(file_path, os.R_OK):
+        raise PriorPeriodXmlLoadError(
+            file_path,
+            "File is not readable. Check file permissions.",
+        )
+
+    try:
+        return TaxStatement.from_xml_file(file_path)
+    except ValueError as exc:
+        # TaxStatement.from_xml_file wraps lxml and other errors in ValueError.
+        raise PriorPeriodXmlLoadError(file_path, str(exc)) from exc
+    except Exception as exc:
+        raise PriorPeriodXmlLoadError(
+            file_path,
+            f"Unexpected error: {exc}",
+        ) from exc
