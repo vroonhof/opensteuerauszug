@@ -51,10 +51,10 @@ def sample_tax_statement_data():
                 salutation="2"
             )
         ],
-        totalTaxValue=Decimal("1000.50"),
-        totalGrossRevenueA=Decimal("100.00"),
-        totalGrossRevenueB=Decimal("50.00"),
-        totalWithHoldingTaxClaim=Decimal("35.00")
+        totalTaxValue=Decimal("1000.5"),
+        totalGrossRevenueA=Decimal("100"),
+        totalGrossRevenueB=Decimal("50"),
+        totalWithHoldingTaxClaim=Decimal("35")
     )
 
 # Use the centralized helper function
@@ -74,7 +74,7 @@ def test_tax_statement_creation(sample_tax_statement_data):
     assert statement.institution.name == "Test Bank AG"
     assert len(statement.client) == 1
     assert statement.client[0].lastName == "Muster"
-    assert statement.totalTaxValue == Decimal("1000.50")
+    assert statement.totalTaxValue == Decimal("1000.5")
 
 def test_tax_statement_to_xml(sample_tax_statement_data):
     """Tests serialization to XML bytes and checks basic structure."""
@@ -91,7 +91,7 @@ def test_tax_statement_to_xml(sample_tax_statement_data):
         assert root.get('minorVersion') == "2"
         assert root.get('id') == "test-id-123"
         assert root.get('canton') == "ZH"
-        assert root.get('totalTaxValue') == "1000.50"
+        assert root.get('totalTaxValue') == "1000.5"
         # Check institution element existence and name attribute
         institution_el = root.find(ns_tag('eCH-0196', 'institution'), namespaces=NS_MAP)
         assert institution_el is not None
@@ -190,7 +190,7 @@ def test_bank_account_round_trip():
                  bankAccountNumber="ACC987"
                  bankAccountName="Main Account">
       <taxValue referenceDate="2024-12-31" balanceCurrency="CHF" balance="10000" exchangeRate="1" value="10000"/>
-      <payment paymentDate="2024-03-31" name="Habenzins mit Verrechnungssteuer" amountCurrency="CHF" amount="1.20" exchangeRate="1" grossRevenueA="1.20" grossRevenueB="0" withHoldingTaxClaim=".3"/>
+      <payment paymentDate="2024-03-31" name="Habenzins mit Verrechnungssteuer" amountCurrency="CHF" amount="1.2" exchangeRate="1" grossRevenueA="1.2" grossRevenueB="0" withHoldingTaxClaim=".3"/>
     </bankAccount>
     '''
     parser = ET.XMLParser(remove_blank_text=True)
@@ -511,6 +511,59 @@ def test_decimal_serialization_avoids_scientific_notation():
     assert serialized_value is not None, "totalTaxValue attribute should be serialized"
     assert "E" not in serialized_value.upper(), f"Scientific notation found in serialized decimal: {serialized_value}"
     assert serialized_value == "0.0000000001", f"Serialized decimal has incorrect format: {serialized_value}"
+
+def test_decimal_trailing_zero_removal():
+    """Test that trailing zeros are removed from decimal serialization in XML output."""
+    from decimal import Decimal
+    from opensteuerauszug.model.ech0196 import BankAccount, BankAccountName, BankAccountNumber
+    import lxml.etree as ET
+
+    temp_parent = ET.Element("temp", nsmap={None: 'http://www.ech.ch/xmlns/eCH-0196/2'})
+    # 0.000 -> 0
+    ba1 = BankAccount(
+        iban="CH0",
+        bankAccountNumber=BankAccountNumber("ACC0"),
+        bankAccountName=BankAccountName("Test"),
+        totalTaxValue=Decimal("0.000")
+    )
+    el1 = ba1._build_xml_element(temp_parent)
+    assert el1.get("totalTaxValue") == "0"
+    # 1.2300 -> 1.23
+    ba2 = BankAccount(
+        iban="CH1",
+        bankAccountNumber=BankAccountNumber("ACC1"),
+        bankAccountName=BankAccountName("Test"),
+        totalTaxValue=Decimal("1.2300")
+    )
+    el2 = ba2._build_xml_element(temp_parent)
+    assert el2.get("totalTaxValue") == "1.23"
+    # 2.100 -> 2.1
+    ba3 = BankAccount(
+        iban="CH2",
+        bankAccountNumber=BankAccountNumber("ACC2"),
+        bankAccountName=BankAccountName("Test"),
+        totalTaxValue=Decimal("2.100")
+    )
+    el3 = ba3._build_xml_element(temp_parent)
+    assert el3.get("totalTaxValue") == "2.1"
+    # 5.0 -> 5
+    ba4 = BankAccount(
+        iban="CH3",
+        bankAccountNumber=BankAccountNumber("ACC3"),
+        bankAccountName=BankAccountName("Test"),
+        totalTaxValue=Decimal("5.0")
+    )
+    el4 = ba4._build_xml_element(temp_parent)
+    assert el4.get("totalTaxValue") == "5"
+    # 7.123 -> 7.123 (no change)
+    ba5 = BankAccount(
+        iban="CH4",
+        bankAccountNumber=BankAccountNumber("ACC4"),
+        bankAccountName=BankAccountName("Test"),
+        totalTaxValue=Decimal("7.123")
+    )
+    el5 = ba5._build_xml_element(temp_parent)
+    assert el5.get("totalTaxValue") == "7.123"
 
 def test_optional_boolean_serialization():
     """
