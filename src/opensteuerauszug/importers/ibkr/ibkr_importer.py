@@ -286,10 +286,25 @@ class IbkrImporter:
         # Key: SecurityPosition or tuple for cash. Value: dict with 'stocks', 'payments'
         processed_security_positions: defaultdict[SecurityPosition, Dict[str, list]] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
+
+        # Metadata for security names: {SecurityPosition: {'best_name': str, 'priority': int}}
+        security_name_metadata: defaultdict[SecurityPosition, Dict[str, Any]] = \
+            defaultdict(lambda: {'best_name': None, 'priority': -1})
+
         processed_cash_positions: defaultdict[tuple, Dict[str, list]] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
         security_country_map: Dict[SecurityPosition, str] = {}
         rights_issue_positions: set[SecurityPosition] = set()
+
+        def _update_security_name_metadata(
+            sec_pos: SecurityPosition,
+            name: str,
+            priority: int,
+        ) -> None:
+            entry = security_name_metadata[sec_pos]
+            if priority > entry['priority']:
+                entry['best_name'] = name
+                entry['priority'] = priority
 
         for stmt in all_flex_statements:
             account_id = self._get_required_field(
@@ -381,6 +396,10 @@ class IbkrImporter:
                         symbol=conid,
                         description=f"{description} ({symbol})"
                     )
+
+                    # Update name metadata (Priority: 8 for Trades)
+                    _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 8)
+
                     trade_country = self._normalize_country_code(
                         getattr(trade, 'issuerCountryCode', None)
                     )
@@ -463,6 +482,10 @@ class IbkrImporter:
                         symbol=conid,
                         description=f"{description} ({symbol})"
                     )
+
+                    # Update name metadata (Priority: 10 for OpenPositions)
+                    _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 10)
+
                     position_country = self._normalize_country_code(
                         getattr(open_pos, 'issuerCountryCode', None)
                     )
@@ -549,6 +572,9 @@ class IbkrImporter:
                         description=f"{description} ({symbol})",
                     )
 
+                    # Update name metadata (Priority: 5 for Transfers)
+                    _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 5)
+
                     stock_mutation = SecurityStock(
                         referenceDate=tx_date,
                         mutation=True,
@@ -599,6 +625,34 @@ class IbkrImporter:
                         symbol=conid,
                         description=f"{description} ({symbol})",
                     )
+
+                    # Update name metadata for CorporateActions
+                    # Priority logic:
+                    # - Issuer available: 4
+                    # - Description only (short): 1
+                    # - Description only (long): 0 (use symbol fallback via helper logic if priority 0 beats existing)
+                    # Actually, if description is long, we prefer symbol.
+                    # Let's say:
+                    # - Issuer: 4
+                    # - Description <= 50 chars: 1
+                    # - Description > 50 chars: -1 (Don't use if possible, prefer symbol if nothing else)
+
+                    issuer = getattr(action, "issuer", None)
+                    ca_name = f"{description} ({symbol})"
+                    ca_priority = 1
+
+                    if issuer:
+                        ca_name = f"{issuer} ({symbol})"
+                        ca_priority = 4
+                    elif len(description) > 50:
+                        # Long description and no issuer. Prefer symbol (short name).
+                        ca_name = f"{symbol} ({symbol})"
+                        ca_priority = 2
+                    else:
+                        ca_name = f"{description} ({symbol})"
+                        ca_priority = 3
+
+                    _update_security_name_metadata(sec_pos, ca_name, ca_priority)
 
                     sub_category = getattr(action, "subCategory", None)
                     if sub_category == "RIGHT":
@@ -659,9 +713,10 @@ class IbkrImporter:
                                 sec_pos_key = pos
                                 break
 
+                        sym_attr = cash_tx.symbol
+
                         if sec_pos_key is None:
                             isin_attr = cash_tx.isin
-                            sym_attr = cash_tx.symbol
                             sec_pos_key = SecurityPosition(
                                 depot=account_id,
                                 valor=None,
@@ -671,6 +726,16 @@ class IbkrImporter:
                                     f"{description} ({sym_attr})" if sym_attr else description
                                 ),
                             )
+
+                        # Update name metadata (Priority: 0 for CashTransactions - lowest)
+                        # Use description or symbol if description is generic?
+                        # Usually description in CashTx is like "Dividend ...". Not great for security name.
+                        # But if it's the only source, it's better than nothing.
+                        _update_security_name_metadata(
+                            sec_pos_key,
+                            f"{description} ({sym_attr})" if sym_attr else description,
+                            0
+                        )
 
                         sec_payment = SecurityPayment(
                             paymentDate=tx_date,
@@ -845,12 +910,25 @@ class IbkrImporter:
                 sorted_stocks, key=lambda s: (s.referenceDate, s.mutation)
             )
 
+            # Determine best security name
+            name_metadata = security_name_metadata[sec_pos_obj]
+            best_name = name_metadata['best_name']
+
+            if best_name:
+                final_security_name = best_name
+            else:
+                # Fallback to description from position key or just symbol
+                if sec_pos_obj.description:
+                    final_security_name = sec_pos_obj.description
+                else:
+                    final_security_name = sec_pos_obj.symbol
+
             sec = Security(
                 positionId=sec_pos_idx,
                 currency=primary_currency,
                 quotationType=primary_quotation_type,
                 securityCategory=sec_category,
-                securityName=sec_pos_obj.description or sec_pos_obj.symbol,
+                securityName=final_security_name,
                 isin=ISINType(sec_pos_obj.isin) if sec_pos_obj.isin is not None else None,
                 valorNumber=sec_pos_obj.valor,
                 country=security_country_map.get(sec_pos_obj, "US"),
