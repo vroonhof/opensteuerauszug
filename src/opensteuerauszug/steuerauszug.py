@@ -27,6 +27,11 @@ from .importers.ibkr.ibkr_importer import IbkrImporter # Added IbkrImporter
 from .core.exchange_rate_provider import ExchangeRateProvider
 from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
+from .core.prior_period_verifier import (
+    load_prior_period_statement,
+    PriorPeriodXmlLoadError,
+    verify_prior_period_positions,
+)
 from .config import ConfigManager, ConcreteAccountSettings
 
 logger = logging.getLogger(__name__)
@@ -36,6 +41,7 @@ app = typer.Typer()
 class Phase(str, Enum):
     IMPORT = "import"
     VALIDATE = "validate"
+    PRIOR_PERIOD = "prior_period"
     VERIFY = "verify"
     CALCULATE = "calculate"
     RENDER = "render"
@@ -86,6 +92,7 @@ def main(
     override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
     kursliste_dir: Path = typer.Option(Path("data/kursliste"), "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste'."),
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
+    prior_period_xml: Optional[Path] = typer.Option(None, "--prior-period-xml", exists=True, file_okay=True, dir_okay=False, readable=True, help="Path to the previous period's eCH-0196 tax statement XML file. When provided, a verification phase checks that current opening positions match prior ending positions."),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
     logging.basicConfig(level=log_level.value)
@@ -93,6 +100,13 @@ def main(
     
     phases_specified_by_user = run_phases_input is not None
     run_phases = run_phases_input if phases_specified_by_user else default_phases[:]
+
+    # Automatically include the prior-period verification phase when a
+    # prior-period XML file is supplied and the user hasn't hand-picked phases.
+    if prior_period_xml is not None and not phases_specified_by_user:
+        # Insert right after IMPORT so positions are checked early.
+        import_idx = run_phases.index(Phase.IMPORT) if Phase.IMPORT in run_phases else 0
+        run_phases.insert(import_idx + 1, Phase.PRIOR_PERIOD)
 
     print(f"Starting OpenSteuerauszug processing...")
     print(f"Input file: {input_file}")
@@ -268,7 +282,7 @@ def main(
         if not phases_specified_by_user:
             run_phases = []
 
-        if not any(p in run_phases for p in [Phase.VALIDATE, Phase.CALCULATE, Phase.VERIFY, Phase.RENDER]):
+        if not any(p in run_phases for p in [Phase.VALIDATE, Phase.PRIOR_PERIOD, Phase.CALCULATE, Phase.VERIFY, Phase.RENDER]):
              print("No further phases selected after raw import. Exiting.")
              return
         
@@ -449,11 +463,62 @@ def main(
             print(f"TotalCalculator finished. Modified fields: {len(calculator.modified_fields) if calculator.modified_fields else '0'}")
             dump_debug_model(current_phase.value, statement)
 
+        if Phase.PRIOR_PERIOD in run_phases:
+            current_phase = Phase.PRIOR_PERIOD
+            print(f"Phase: {current_phase.value}")
+            if not statement:
+                raise ValueError(
+                    "TaxStatement model not loaded. Cannot run prior_period phase."
+                )
+            if prior_period_xml is None:
+                print(
+                    "No --prior-period-xml file provided; skipping prior-period "
+                    "position verification."
+                )
+            else:
+                print(f"Loading prior-period tax statement from: {prior_period_xml}")
+                try:
+                    prior_statement = load_prior_period_statement(str(prior_period_xml))
+                except PriorPeriodXmlLoadError as e:
+                    print(f"Error: {e}")
+                    raise typer.Exit(code=1)
+
+                print(
+                    f"Prior-period statement loaded: "
+                    f"taxPeriod={prior_statement.taxPeriod}, "
+                    f"periodFrom={prior_statement.periodFrom}, "
+                    f"periodTo={prior_statement.periodTo}"
+                )
+                pp_result = verify_prior_period_positions(prior_statement, statement)
+
+                if pp_result.is_ok:
+                    print(
+                        f"Prior-period position verification passed "
+                        f"({pp_result.matched_count} positions matched)."
+                    )
+                else:
+                    print(
+                        f"Prior-period position verification found "
+                        f"{pp_result.error_count} issue(s):"
+                    )
+                    for m in pp_result.mismatches:
+                        print(f"  Mismatch: {m}")
+                    for m in pp_result.missing_in_current:
+                        print(
+                            f"  Missing in current period (was in prior): {m}"
+                        )
+                    for m in pp_result.missing_in_prior:
+                        print(
+                            f"  Missing in prior period (new in current): {m}"
+                        )
+
+            dump_debug_model(current_phase.value, statement)
+
         if Phase.VERIFY in run_phases:
             current_phase = Phase.VERIFY
             print(f"Phase: {current_phase.value}")
             if not statement:
-                 raise ValueError("TaxStatement model not loaded. Cannot run calculate phase.")
+                 raise ValueError("TaxStatement model not loaded. Cannot run verify phase.")
             
             print(f"Verifying with tax calculation level: {tax_calculation_level.value}...")
             exchange_rate_provider_verify: ExchangeRateProvider
