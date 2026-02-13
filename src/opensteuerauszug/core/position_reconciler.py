@@ -128,7 +128,7 @@ class PositionReconciler:
             
         return is_consistent, log_messages
 
-    def synthesize_position_at_date(self, target_date: date, print_log: bool = False) -> Optional[ReconciledQuantity]:
+    def synthesize_position_at_date(self, target_date: date, print_log: bool = False, assume_zero_if_no_balances: bool = False) -> Optional[ReconciledQuantity]:
         """
         Calculates the position (quantity) at the START of the target_date.
         This means mutations on target_date itself are not included.
@@ -136,6 +136,8 @@ class PositionReconciler:
         Args:
             target_date: The date for which to synthesize the position.
             print_log: If True, prints log messages to console as they are generated.
+            assume_zero_if_no_balances: If True, and no balance (mutation=False) items are found, 
+                                        assume an initial quantity of 0 before the earliest mutation.
 
         Returns:
             A ReconciledQuantity object if successful, None otherwise.
@@ -149,6 +151,9 @@ class PositionReconciler:
                 logger.log(level, msg)
 
         if not self.sorted_stocks:
+            if assume_zero_if_no_balances:
+                _synth_log(f"{log_prefix} No stock data. Assuming 0 quantity at {target_date}.")
+                return ReconciledQuantity(reference_date=target_date, quantity=Decimal("0"))
             _synth_log(f"{log_prefix} Cannot synthesize position for {target_date}: No stock data.")
             return None
 
@@ -211,6 +216,25 @@ class PositionReconciler:
                     break # Found the earliest one
             
             if first_future_balance_event is None:
+                # If there are NO balance items at all in the entire sorted_stocks list,
+                # we assume an initial balance of 0 before any of the provided mutations.
+                if assume_zero_if_no_balances and not any(not s.mutation for s in self.sorted_stocks):
+                    _synth_log(f"{log_prefix} No balance items found for security. Assuming initial quantity 0.")
+                    current_quantity = Decimal("0")
+                    current_currency = self.sorted_stocks[0].balanceCurrency if self.sorted_stocks else None
+                    
+                    # Apply mutations that occurred strictly BEFORE the target_date.
+                    for mutation_event in self.sorted_stocks:
+                        if mutation_event.referenceDate >= target_date:
+                            break
+                        if mutation_event.mutation:
+                            delta_quantity = mutation_event.quantity
+                            current_quantity += delta_quantity
+                            _synth_log(f"{log_prefix} Synthesizing from zero: Applied mutation on {mutation_event.referenceDate}, Name='{mutation_event.name or 'N/A'}', Qty Change={delta_quantity}. New Qty: {current_quantity}.")
+
+                    _synth_log(f"{log_prefix} Synthesized from zero for START of {target_date}: Final Qty: {current_quantity} ({current_currency}).")
+                    return ReconciledQuantity(reference_date=target_date, quantity=current_quantity, currency=current_currency)
+
                 _synth_log(f"{log_prefix} Cannot synthesize BACKWARD for {target_date}: No balance (mutation=False) found after this date to serve as a starting point.")
                 return None
 

@@ -415,7 +415,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                         }
                     )
 
-            pos = reconciler.synthesize_position_at_date(reconciliation_date)
+            pos = reconciler.synthesize_position_at_date(reconciliation_date, assume_zero_if_no_balances=True)
             if pos is None:
                 for l in reconciler.get_log():
                     logger.debug(l)

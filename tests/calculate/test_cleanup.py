@@ -1082,16 +1082,9 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False)
 
-        with pytest.raises(ValueError) as excinfo:
-            calculator.calculate(statement)
-
-        error_message = str(excinfo.value)
-        assert "Could not determine stock quantity for security" in error_message
-        assert f"'{security.isin}'" in error_message
-        assert f"using date {payment_date}" in error_message # Check the date used
-        assert "(as paymentDate)" in error_message
-        assert "Check stock history" in error_message
-        assert security.payment[0].quantity == UNINITIALIZED_QUANTITY
+        result_statement = calculator.calculate(statement)
+        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
+        assert calculated_payment_result.quantity == Decimal("0"), f"Quantity should be 0, got {calculated_payment_result.quantity}"
 
     def test_calculate_quantity_exdate_prioritized_stock_held(self, sample_period_from, sample_period_to):
         statement, security = self._create_base_statement_and_security(sample_period_from, sample_period_to, security_name="SecExDatePrioritizedStockHeld")
@@ -1158,16 +1151,9 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
 
         calculator = CleanupCalculator(sample_period_from, sample_period_to, "QtyCalcTestImporter", enable_filtering=False)
 
-        with pytest.raises(ValueError) as excinfo:
-            calculator.calculate(statement)
-
-        error_message = str(excinfo.value)
-        assert "Could not determine stock quantity for security" in error_message
-        assert f"'{security.isin}'" in error_message
-        assert f"using date {ex_date}" in error_message # Check the date used
-        assert "(as exDate)" in error_message
-        assert "Check stock history" in error_message
-        assert security.payment[0].quantity == UNINITIALIZED_QUANTITY
+        result_statement = calculator.calculate(statement)
+        calculated_payment_result = result_statement.listOfSecurities.depot[0].security[0].payment[0]
+        assert calculated_payment_result.quantity == Decimal("0"), f"Quantity should be 0, got {calculated_payment_result.quantity}"
 
     def test_calculate_quantity_raises_value_error_if_security_stock_missing(self, sample_period_from, sample_period_to):
         statement, security = self._create_base_statement_and_security(

@@ -347,11 +347,17 @@ class CleanupCalculator:
                                 )
                             )
 
+                        full_stock_history: List[SecurityStock] = []
                         if security.stock:
                             original_stock_count = len(security.stock)
 
                             # Sort stock events (silently)
                             security.stock = sort_security_stocks(security.stock)
+
+                            # Keep the full, sorted stock history for quantity reconciliation
+                            # even if we filter security.stock for the final XML representation.
+                            full_stock_history = list(security.stock)
+
                             # End of period balances are reflected in the tax value
                             if self.period_to:
                                 period_end_plus_one = self.period_to + timedelta(days=1)
@@ -435,7 +441,7 @@ class CleanupCalculator:
                             # This block is now only entered if security.stock is guaranteed to be non-empty (due to the check above)
                             # OR if no payments needed update in the first place.
                             if payments_needing_qty_update and security.stock: # security.stock check is technically redundant here but safe
-                                reconciler = PositionReconciler(list(security.stock), identifier=f"{pos_id}-payment-qty-reconcile")
+                                reconciler = PositionReconciler(full_stock_history, identifier=f"{pos_id}-payment-qty-reconcile")
                                 for payment_event in security.payment:
                                     if payment_event.quantity == UNINITIALIZED_QUANTITY:
                                         date_to_use_for_reconciliation = payment_event.paymentDate
@@ -445,7 +451,10 @@ class CleanupCalculator:
                                             log_date_source = "exDate"
                                             # Removed the preliminary "Using exDate..." log as requested.
                                             # The information will be in the success or error message.
-                                        reconciled_quantity_info = reconciler.synthesize_position_at_date(date_to_use_for_reconciliation)
+                                        reconciled_quantity_info = reconciler.synthesize_position_at_date(
+                                            date_to_use_for_reconciliation,
+                                            assume_zero_if_no_balances=True
+                                        )
 
                                         if reconciled_quantity_info is not None and reconciled_quantity_info.quantity is not None:
                                             original_dummy_qty = payment_event.quantity
