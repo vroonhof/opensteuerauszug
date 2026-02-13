@@ -629,13 +629,8 @@ class IbkrImporter:
                     # Update name metadata for CorporateActions
                     # Priority logic:
                     # - Issuer available: 4
-                    # - Description only (short): 1
-                    # - Description only (long): 0 (use symbol fallback via helper logic if priority 0 beats existing)
-                    # Actually, if description is long, we prefer symbol.
-                    # Let's say:
-                    # - Issuer: 4
-                    # - Description <= 50 chars: 1
-                    # - Description > 50 chars: -1 (Don't use if possible, prefer symbol if nothing else)
+                    # - Description only (short): 3
+                    # - Description only (long > 50 chars): 2 (fallback to symbol)
 
                     issuer = getattr(action, "issuer", None)
                     ca_name = f"{description} ({symbol})"
