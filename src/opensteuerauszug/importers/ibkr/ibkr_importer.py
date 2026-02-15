@@ -514,7 +514,9 @@ class IbkrImporter:
                 for transfer in stmt.Transfers:
                     if should_skip_entry(transfer, "Transfer"):
                         continue
-                    asset_category = transfer.assetCategory
+                    asset_category = self._get_required_field(
+                        transfer, 'assetCategory', 'Transfer'
+                    )
                     asset_cat_val = (
                         asset_category.value if hasattr(asset_category, 'value') else str(asset_category)
                     )
