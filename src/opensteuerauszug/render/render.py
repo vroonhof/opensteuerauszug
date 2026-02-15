@@ -1523,6 +1523,94 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
     return securities_table
 
 # --- Main API function to be called from steuerauszug.py ---
+def create_payment_reconciliation_tables(tax_statement: TaxStatement, styles, usable_width):
+    report = tax_statement.payment_reconciliation_report
+    if report is None or not report.rows:
+        return []
+
+    val_left = styles['table_value_left']
+    val_right = styles['table_value']
+    header_style = styles['table_header']
+    status_ok = colors.HexColor('#1f7a1f')
+    status_err = colors.HexColor('#b22222')
+    status_exp = colors.HexColor('#8a6d3b')
+
+    grouped = {}
+    for row in report.rows:
+        grouped.setdefault(row.country or '??', []).append(row)
+
+    flowables = []
+    for country in sorted(grouped.keys()):
+        rows = sorted(grouped[country], key=lambda r: (r.security, r.payment_date))
+        flowables.append(Paragraph(f"Abgleich Zahlungen ({country})", styles['h2']))
+
+        table_header = [
+            Paragraph('Wertschrift', header_style),
+            Paragraph('Datum', header_style),
+            Paragraph('KL Div CHF', header_style),
+            Paragraph('KL Quellenst. CHF', header_style),
+            Paragraph('Broker Div', header_style),
+            Paragraph('Broker Quellenst.', header_style),
+            Paragraph('OK', header_style),
+        ]
+        data = []
+        mismatch_rows = []
+        expected_rows = []
+
+        for idx, row in enumerate(rows, start=1):
+            broker_div = ''
+            if row.broker_dividend_amount is not None:
+                broker_div = f"{format_currency(row.broker_dividend_amount)} {row.broker_dividend_currency or ''}".strip()
+            broker_wht = ''
+            if row.broker_withholding_amount is not None:
+                broker_wht = f"{format_currency(row.broker_withholding_amount)} {row.broker_withholding_currency or ''}".strip()
+                if row.broker_withholding_entry_text:
+                    broker_wht = f"{broker_wht}<br/><font size=7>{escape_html_for_paragraph(row.broker_withholding_entry_text)}</font>"
+
+            status_mark = '✓' if row.status in ('match', 'expected') else '✗'
+            data.append([
+                Paragraph(escape_html_for_paragraph(row.security), val_left),
+                Paragraph(str(row.payment_date), val_left),
+                Paragraph(format_currency(row.kursliste_dividend_chf), val_right),
+                Paragraph(format_currency(row.kursliste_withholding_chf), val_right),
+                Paragraph(escape_html_for_paragraph(broker_div), val_right),
+                Paragraph(escape_html_for_paragraph(broker_wht), val_right),
+                Paragraph(status_mark, val_right),
+            ])
+
+            if row.status == 'mismatch':
+                mismatch_rows.append(idx)
+            elif row.status == 'expected':
+                expected_rows.append(idx)
+
+        col_widths = [usable_width * 0.22, usable_width * 0.12, usable_width * 0.12, usable_width * 0.14, usable_width * 0.14, usable_width * 0.14, usable_width * 0.12]
+        table = Table([table_header] + data, colWidths=col_widths, repeatRows=1)
+        style = [
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#d3d3d3')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+            ('TOPPADDING', (0, 0), (-1, -1), 1),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+        ]
+        for idx in mismatch_rows:
+            style.append(('TEXTCOLOR', (-1, idx), (-1, idx), status_err))
+            style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#fdecea')))
+        for idx in expected_rows:
+            style.append(('TEXTCOLOR', (-1, idx), (-1, idx), status_exp))
+            style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#fff6dd')))
+        for i, row in enumerate(rows, start=1):
+            if row.status == 'match':
+                style.append(('TEXTCOLOR', (-1, i), (-1, i), status_ok))
+
+        table.setStyle(TableStyle(style))
+        flowables.append(table)
+        flowables.append(Spacer(1, 0.4 * cm))
+
+    return flowables
+
+
 def render_tax_statement(
     tax_statement: TaxStatement,
     output_path: Union[str, Path],
@@ -1713,6 +1801,13 @@ def render_tax_statement(
         story.append(Paragraph("Werte mit Anrechnung ausländischer Quellensteuer / zusätzlicher Steuerrückbehalt USA", title_style))
         story.append(securities_table_da1)
         story.append(Spacer(1, 0.5*cm))
+
+    # Optional payment reconciliation pages before notices/barcode
+    reconciliation_flowables = create_payment_reconciliation_tables(tax_statement, styles, usable_width)
+    if reconciliation_flowables:
+        story.append(PageBreak())
+        story.append(Paragraph("Abgleich Kursliste / Brokerzahlungen", title_style))
+        story.extend(reconciliation_flowables)
 
     # Info pages before the barcode
     templates_path = Path(__file__).parent / 'templates'

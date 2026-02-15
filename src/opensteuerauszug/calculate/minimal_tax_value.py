@@ -198,6 +198,9 @@ class MinimalTaxValueCalculator(BaseCalculator):
         else:
             self._current_security_is_type_A = None
 
+        if security.payment and not security.broker_payments:
+            security.broker_payments = [payment.model_copy(deep=True) for payment in security.payment]
+
         # BaseCalculator does not have a _handle_Security method.
 
         # After the basic context is set up compute the expected payments
