@@ -124,3 +124,54 @@ def test_accumulating_fund_without_broker_cashflow_is_expected():
     row = result.payment_reconciliation_report.rows[0]
     assert row.status == "expected"
     assert row.matched is True
+
+
+def test_mixed_cash_and_noncash_same_date_allows_broker_cash_below_kursliste_total():
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="FUND",
+                            securityName="VT",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("1200"),
+                                    exchangeRate=Decimal("1"),
+                                    grossRevenueB=Decimal("1200"),
+                                    kursliste=True,
+                                    payment_type_original=PaymentTypeOriginal.FUND_ACCUMULATION,
+                                )
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("900"),
+                                    name="Dividend",
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator().calculate(statement)
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.status == "match"
+    assert row.matched is True

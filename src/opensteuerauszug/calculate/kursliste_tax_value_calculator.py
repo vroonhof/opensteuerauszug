@@ -504,7 +504,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     quantity=quantity,
                     amountCurrency=security.currency,
                     kursliste=True,
-                    payment_type_original=(pay.paymentType.value if pay.paymentType is not None else PaymentTypeOriginal.STANDARD.value),
+                    payment_type_original=(pay.paymentType.value if pay.paymentType is not None else None),
                 )
                 sec_payment.undefined = True
                 if pay.sign is not None:
@@ -548,7 +548,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 amount=amount,
                 exchangeRate=rate,
                 kursliste=True,
-                payment_type_original=(pay.paymentType.value if pay.paymentType is not None else PaymentTypeOriginal.STANDARD.value),
+                payment_type_original=(pay.paymentType.value if pay.paymentType is not None else None),
             )
 
             # Not all payment subtypes have these fields

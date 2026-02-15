@@ -1528,9 +1528,9 @@ def create_payment_reconciliation_tables(tax_statement: TaxStatement, styles, us
     if report is None or not report.rows:
         return []
 
-    val_left = styles['table_value_left']
-    val_right = styles['table_value']
-    header_style = styles['table_header']
+    val_left = styles['Val_LEFT']
+    val_right = styles['Val_RIGHT']
+    header_style = styles['Header_RIGHT']
     status_ok = colors.HexColor('#1f7a1f')
     status_err = colors.HexColor('#b22222')
     status_exp = colors.HexColor('#8a6d3b')
@@ -1545,8 +1545,8 @@ def create_payment_reconciliation_tables(tax_statement: TaxStatement, styles, us
         flowables.append(Paragraph(f"Abgleich Zahlungen ({country})", styles['h2']))
 
         table_header = [
-            Paragraph('Wertschrift', header_style),
-            Paragraph('Datum', header_style),
+            Paragraph('Wertschrift', styles['Header_LEFT']),
+            Paragraph('Datum', styles['Header_LEFT']),
             Paragraph('KL Div CHF', header_style),
             Paragraph('KL Quellenst. CHF', header_style),
             Paragraph('Broker Div', header_style),

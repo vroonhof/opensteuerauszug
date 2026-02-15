@@ -108,8 +108,16 @@ class PaymentReconciliationCalculator:
                 note = "Accumulating fund payment expected to be absent in broker cash flow."
                 matched = True
             elif has_kurs and has_broker and broker_div_chf is not None and broker_with_chf is not None:
-                div_ok = abs(kurs.dividend_chf - broker_div_chf) <= self.tolerance_chf
-                w_ok = abs(kurs.withholding_chf - broker_with_chf) <= self.tolerance_chf
+                if kurs.noncash:
+                    div_ok = broker_div_chf <= (kurs.dividend_chf + self.tolerance_chf)
+                    w_ok = broker_with_chf <= (kurs.withholding_chf + self.tolerance_chf)
+                    if not div_ok:
+                        note = "Broker cash dividend exceeds Kursliste total for a non-cash date."
+                    elif not w_ok:
+                        note = "Broker cash withholding exceeds Kursliste total for a non-cash date."
+                else:
+                    div_ok = abs(kurs.dividend_chf - broker_div_chf) <= self.tolerance_chf
+                    w_ok = abs(kurs.withholding_chf - broker_with_chf) <= self.tolerance_chf
                 matched = div_ok and w_ok
                 status = "match" if matched else "mismatch"
             elif not has_kurs and has_broker:
@@ -167,10 +175,9 @@ class PaymentReconciliationCalculator:
         agg.withholding_chf += (
             (payment.withHoldingTaxClaim or Decimal("0"))
             + (payment.nonRecoverableTaxAmount or Decimal("0"))
-            + (payment.nonRecoverableTax or Decimal("0"))
         )
         if agg.exchange_rate is None and payment.exchangeRate is not None:
             agg.exchange_rate = payment.exchangeRate
-        payment_type = payment.payment_type_original or PaymentTypeOriginal.STANDARD
-        if payment_type != PaymentTypeOriginal.STANDARD:
+        payment_type = payment.payment_type_original
+        if payment_type is not None and payment_type != PaymentTypeOriginal.STANDARD:
             agg.noncash = True
