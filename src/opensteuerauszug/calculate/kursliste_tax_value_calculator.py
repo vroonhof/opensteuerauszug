@@ -6,7 +6,7 @@ from ..core.exchange_rate_provider import ExchangeRateProvider
 from ..core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from ..core.kursliste_manager import KurslisteManager
 from ..core.flag_override_provider import FlagOverrideProvider
-from ..model.ech0196 import Security, SecurityTaxValue, SecurityPayment
+from ..model.ech0196 import Security, SecurityTaxValue, SecurityPayment, PaymentTypeOriginal
 from ..model.kursliste import PaymentTypeESTV, SecurityGroupESTV
 from ..model.critical_warning import CriticalWarning, CriticalWarningCategory
 from ..core.position_reconciler import PositionReconciler
@@ -500,7 +500,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             # against XML inputs that never contained this internal metadata field.
             payment_type_original = None
             if pay.paymentType is not None and pay.paymentType != PaymentTypeESTV.STANDARD:
-                payment_type_original = pay.paymentType.value
+                payment_type_original = PaymentTypeOriginal(pay.paymentType.value)
 
             if pay.undefined:
                 sec_payment = SecurityPayment(
