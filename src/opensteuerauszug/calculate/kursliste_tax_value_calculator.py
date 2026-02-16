@@ -495,6 +495,13 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             elif pay.paymentType == PaymentTypeESTV.FUND_ACCUMULATION:
                 payment_name = "Taxable Income from Accumulating Fund"
 
+            # Preserve the original payment subtype only when it is explicitly non-standard.
+            # Standard is the default and should remain unset so VERIFY mode does not fail
+            # against XML inputs that never contained this internal metadata field.
+            payment_type_original = None
+            if pay.paymentType is not None and pay.paymentType != PaymentTypeESTV.STANDARD:
+                payment_type_original = pay.paymentType.value
+
             if pay.undefined:
                 sec_payment = SecurityPayment(
                     paymentDate=pay.paymentDate,
@@ -504,7 +511,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     quantity=quantity,
                     amountCurrency=security.currency,
                     kursliste=True,
-                    payment_type_original=(pay.paymentType.value if pay.paymentType is not None else None),
+                    payment_type_original=payment_type_original,
                 )
                 sec_payment.undefined = True
                 if pay.sign is not None:
@@ -548,7 +555,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 amount=amount,
                 exchangeRate=rate,
                 kursliste=True,
-                payment_type_original=(pay.paymentType.value if pay.paymentType is not None else None),
+                payment_type_original=payment_type_original,
             )
 
             # Not all payment subtypes have these fields
