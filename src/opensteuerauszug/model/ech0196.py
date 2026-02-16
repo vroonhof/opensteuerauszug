@@ -19,6 +19,7 @@ from typing import (
     Annotated,
 )
 from datetime import date, datetime
+from enum import Enum
 from decimal import Decimal
 import lxml.etree as ET
 from inspect import isclass  # Add import for isclass function
@@ -26,6 +27,7 @@ import logging
 import re
 
 from opensteuerauszug.model.critical_warning import CriticalWarning
+from opensteuerauszug.model.payment_reconciliation import PaymentReconciliationReport
 
 logger = logging.getLogger(__name__)
 
@@ -1085,6 +1087,14 @@ class SecurityTaxValue(BaseXmlModel):
     }
 
 
+class PaymentTypeOriginal(str, Enum):
+    STANDARD = "0"
+    GRATIS = "1"
+    OTHER_BENEFIT = "2"
+    AGIO = "3"
+    FUND_ACCUMULATION = "5"
+
+
 class SecurityPurchaseDisposition(BaseXmlModel):
     """Represents purchase or disposition of a security for IUP calculation."""
     # Required attributes
@@ -1142,6 +1152,12 @@ class SecurityPayment(BaseXmlModel):
     undefined: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
     kursliste: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
     sign: Optional[str] = Field(default=None, json_schema_extra={'is_attribute': True})
+
+    # Internal evidence metadata (never serialized to XML).
+    # Preserve original broker text only when needed for reconciliation output.
+    broker_label_original: Optional[str] = Field(default=None, exclude=True)
+    nonRecoverableTaxAmountOriginal: Optional[Decimal] = Field(default=None, exclude=True)
+    payment_type_original: Optional[PaymentTypeOriginal] = Field(default=None, exclude=True)
     
     model_config = {
         "json_schema_extra": {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}
@@ -1212,6 +1228,7 @@ class Security(BaseXmlModel):
     totalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, exclude=True)
     totalNonRecoverableTax: Optional[Decimal] = Field(default=None, exclude=True)
     totalAdditionalWithHoldingTaxUSA: Optional[Decimal] = Field(default=None, exclude=True)
+    broker_payments: List[SecurityPayment] = Field(default_factory=list, exclude=True)
     is_rights_issue: bool = Field(default=False, exclude=True)
     model_config = {
         "json_schema_extra": {'tag_name': 'security', 'tag_namespace': NS_MAP['eCH-0196']}
@@ -1340,6 +1357,7 @@ class TaxStatement(TaxStatementBase):
     # Critical warnings collected during import and calculation phases.
     # These are NOT serialized to XML – they are used only for PDF rendering.
     critical_warnings: List["CriticalWarning"] = Field(default_factory=list, exclude=True)
+    payment_reconciliation_report: Optional[PaymentReconciliationReport] = Field(default=None, exclude=True)
 
     model_config = {
         "json_schema_extra": {'tag_name': 'taxStatement', 'tag_namespace': NS_MAP['eCH-0196']}

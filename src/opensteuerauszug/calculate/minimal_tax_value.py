@@ -19,6 +19,13 @@ from datetime import date
 import logging
 
 
+INTERNAL_ONLY_SECURITY_PAYMENT_FIELDS = (
+    "broker_label_original",
+    "nonRecoverableTaxAmountOriginal",
+    "payment_type_original",
+)
+
+
 class MinimalTaxValueCalculator(BaseCalculator):
     """
     A minimal implementation of a tax value calculator. This computes only simple
@@ -198,6 +205,9 @@ class MinimalTaxValueCalculator(BaseCalculator):
         else:
             self._current_security_is_type_A = None
 
+        if security.payment and not security.broker_payments:
+            security.broker_payments = [payment.model_copy(deep=True) for payment in security.payment]
+
         # BaseCalculator does not have a _handle_Security method.
 
         # After the basic context is set up compute the expected payments
@@ -353,6 +363,8 @@ class MinimalTaxValueCalculator(BaseCalculator):
                     p_exp_vars = vars(p_exp)
                     all_keys = sorted(list(set(p_curr_vars.keys()) | set(p_exp_vars.keys())))
                     for key in all_keys:
+                        if key in INTERNAL_ONLY_SECURITY_PAYMENT_FIELDS:
+                            continue
                         v_curr = p_curr_vars.get(key)
                         v_exp = p_exp_vars.get(key)
                         if v_curr != v_exp:

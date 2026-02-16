@@ -21,6 +21,7 @@ from .calculate.cleanup import CleanupCalculator
 from .calculate.minimal_tax_value import MinimalTaxValueCalculator
 from .calculate.kursliste_tax_value_calculator import KurslisteTaxValueCalculator
 from .calculate.fill_in_tax_value_calculator import FillInTaxValueCalculator
+from .calculate.payment_reconciliation_calculator import PaymentReconciliationCalculator
 from .util.known_issues import is_known_issue
 from .importers.schwab.schwab_importer import SchwabImporter
 from .importers.ibkr.ibkr_importer import IbkrImporter # Added IbkrImporter
@@ -38,6 +39,7 @@ class Phase(str, Enum):
     VALIDATE = "validate"
     VERIFY = "verify"
     CALCULATE = "calculate"
+    RECONCILE_PAYMENTS = "reconcile-payments"
     RENDER = "render"
 
 class ImporterType(str, Enum):
@@ -86,6 +88,7 @@ def main(
     override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
     kursliste_dir: Path = typer.Option(Path("data/kursliste"), "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste'."),
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
+    payment_reconciliation: bool = typer.Option(False, "--payment-reconciliation/--no-payment-reconciliation", help="Run optional payment reconciliation between Kursliste and broker evidence."),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
     logging.basicConfig(level=log_level.value)
@@ -93,6 +96,10 @@ def main(
     
     phases_specified_by_user = run_phases_input is not None
     run_phases = run_phases_input if phases_specified_by_user else default_phases[:]
+
+    if payment_reconciliation and Phase.RECONCILE_PAYMENTS not in run_phases:
+        render_idx = run_phases.index(Phase.RENDER) if Phase.RENDER in run_phases else len(run_phases)
+        run_phases.insert(render_idx, Phase.RECONCILE_PAYMENTS)
 
     print(f"Starting OpenSteuerauszug processing...")
     print(f"Input file: {input_file}")
@@ -268,7 +275,7 @@ def main(
         if not phases_specified_by_user:
             run_phases = []
 
-        if not any(p in run_phases for p in [Phase.VALIDATE, Phase.CALCULATE, Phase.VERIFY, Phase.RENDER]):
+        if not any(p in run_phases for p in [Phase.VALIDATE, Phase.CALCULATE, Phase.VERIFY, Phase.RECONCILE_PAYMENTS, Phase.RENDER]):
              print("No further phases selected after raw import. Exiting.")
              return
         
@@ -513,6 +520,50 @@ def main(
                     print(f"{prefix}: {error}")
             else:
                 print("No errors calculation")
+
+        if Phase.RECONCILE_PAYMENTS in run_phases:
+            current_phase = Phase.RECONCILE_PAYMENTS
+            print(f"Phase: {current_phase.value}")
+            if not statement:
+                raise ValueError("TaxStatement model not loaded. Cannot run payment reconciliation phase.")
+
+            reconciliation_calculator = PaymentReconciliationCalculator()
+            statement = reconciliation_calculator.calculate(statement)
+            report = statement.payment_reconciliation_report
+            if report:
+                print(
+                    "Payment reconciliation complete: "
+                    f"matches={report.match_count}, "
+                    f"expected-missing={report.expected_missing_count}, "
+                    f"mismatches={report.mismatch_count}"
+                )
+                for row in report.rows:
+                    if row.status == "mismatch":
+                        div_diff_chf = None
+                        wht_diff_chf = None
+                        div_diff_orig = None
+                        wht_diff_orig = None
+                        if row.exchange_rate is not None and row.exchange_rate != 0:
+                            if row.broker_dividend_amount is not None:
+                                broker_div_chf = row.broker_dividend_amount * row.exchange_rate
+                                div_diff_chf = broker_div_chf - row.kursliste_dividend_chf
+                                div_diff_orig = row.broker_dividend_amount - (row.kursliste_dividend_chf / row.exchange_rate)
+                            if row.broker_withholding_amount is not None:
+                                broker_wht_chf = row.broker_withholding_amount * row.exchange_rate
+                                wht_diff_chf = broker_wht_chf - row.kursliste_withholding_chf
+                                wht_diff_orig = row.broker_withholding_amount - (row.kursliste_withholding_chf / row.exchange_rate)
+
+                        print(
+                            f"  MISMATCH {row.country} {row.security} {row.payment_date}: "
+                            f"KL div {row.kursliste_dividend_chf} CHF / KL wht {row.kursliste_withholding_chf} CHF vs "
+                            f"Broker div {row.broker_dividend_amount} {row.broker_dividend_currency} / "
+                            f"Broker wht {row.broker_withholding_amount} {row.broker_withholding_currency}; "
+                            f"ΔCHF(div={div_diff_chf}, wht={wht_diff_chf}); "
+                            f"ΔORIG(div={div_diff_orig} {row.broker_dividend_currency}, "
+                            f"wht={wht_diff_orig} {row.broker_withholding_currency})"
+                        )
+
+            dump_debug_model(current_phase.value, statement)
 
         if Phase.RENDER in run_phases:
             current_phase = Phase.RENDER

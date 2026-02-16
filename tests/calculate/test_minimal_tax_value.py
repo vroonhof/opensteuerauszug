@@ -5,7 +5,7 @@ from opensteuerauszug.calculate.base import CalculationError, CalculationMode
 from opensteuerauszug.model.ech0196 import (
     TaxStatement, BankAccount, BankAccountTaxValue, BankAccountPayment,
     LiabilityAccountTaxValue, LiabilityAccountPayment, Security, SecurityTaxValue,
-    SecurityPayment, Institution
+    SecurityPayment, Institution, PaymentTypeOriginal
 )
 from opensteuerauszug.core.exchange_rate_provider import DummyExchangeRateProvider, ExchangeRateProvider
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
@@ -298,3 +298,115 @@ class TestMinimalTaxValueCalculatorHandlers:
         # assert not hasattr(sp, "exchangeRate")
         # assert not hasattr(sp, "grossRevenueA")
         # assert not hasattr(sp, "grossRevenueB")
+
+
+def test_broker_payments_are_snapshotted_before_kursliste_overwrite(minimal_tax_value_calculator_overwrite: MinimalTaxValueCalculator):
+    calculator = minimal_tax_value_calculator_overwrite
+    original_broker_payment = SecurityPayment(
+        paymentDate=date(2023, 1, 15),
+        quotationType="PIECE",
+        quantity=Decimal("1"),
+        amountCurrency="USD",
+        amount=Decimal("10"),
+        name="Dividend",
+        broker_label_original="Dividend",
+    )
+    security = Security(
+        country="US",
+        securityName="Example",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        payment=[original_broker_payment],
+    )
+
+    calculator._handle_Security(security, "listOfSecurities.depot[0].security[0]")
+
+    assert len(security.broker_payments) == 1
+    assert security.broker_payments[0].name == "Dividend"
+    assert security.broker_payments[0].amount == Decimal("10")
+    assert security.broker_payments[0].broker_label_original == "Dividend"
+    assert security.payment == []
+
+
+def test_existing_broker_payments_are_not_replaced_when_present(minimal_tax_value_calculator_overwrite: MinimalTaxValueCalculator):
+    calculator = minimal_tax_value_calculator_overwrite
+    existing_snapshot = SecurityPayment(
+        paymentDate=date(2023, 1, 20),
+        quotationType="PIECE",
+        quantity=Decimal("1"),
+        amountCurrency="USD",
+        amount=Decimal("5"),
+        name="Tax Withholding",
+        broker_label_original="Tax Withholding",
+        nonRecoverableTaxAmountOriginal=Decimal("5"),
+    )
+    fresh_payment = SecurityPayment(
+        paymentDate=date(2023, 1, 21),
+        quotationType="PIECE",
+        quantity=Decimal("1"),
+        amountCurrency="USD",
+        amount=Decimal("15"),
+        name="Dividend",
+    )
+    security = Security(
+        country="US",
+        securityName="Example",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        payment=[fresh_payment],
+        broker_payments=[existing_snapshot],
+    )
+
+    calculator._handle_Security(security, "listOfSecurities.depot[0].security[0]")
+
+    assert len(security.broker_payments) == 1
+    assert security.broker_payments[0].name == "Tax Withholding"
+    assert security.broker_payments[0].nonRecoverableTaxAmountOriginal == Decimal("5")
+
+
+def test_verify_ignores_internal_only_security_payment_fields(
+    minimal_tax_value_calculator_verify: MinimalTaxValueCalculator,
+):
+    calculator = minimal_tax_value_calculator_verify
+
+    current_payment = SecurityPayment(
+        paymentDate=date(2023, 1, 15),
+        quotationType="PIECE",
+        quantity=Decimal("1"),
+        amountCurrency="USD",
+        amount=Decimal("10"),
+        name="Dividend",
+    )
+    expected_payment = SecurityPayment(
+        paymentDate=date(2023, 1, 15),
+        quotationType="PIECE",
+        quantity=Decimal("1"),
+        amountCurrency="USD",
+        amount=Decimal("10"),
+        name="Dividend",
+        broker_label_original="Dividend",
+        nonRecoverableTaxAmountOriginal=Decimal("1"),
+        payment_type_original=PaymentTypeOriginal.OTHER_BENEFIT,
+    )
+
+    security = Security(
+        country="US",
+        securityName="Example",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        payment=[current_payment],
+    )
+
+    calculator.setKurslistePayments(
+        security,
+        [expected_payment],
+        "listOfSecurities.depot[0].security[0]",
+    )
+
+    assert calculator.errors == []

@@ -332,7 +332,8 @@ class TransactionExtractor:
                     paymentDate=tx_date, quotationType="PIECE", 
                     quantity=UNINITIALIZED_QUANTITY, amountCurrency=currency, # Use currency string
                     amount=schwab_amount, name="Credit Interest",
-                    grossRevenueB=schwab_amount
+                    grossRevenueB=schwab_amount,
+                    broker_label_original=action,
                 )
                 # Cash stock mutation
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Credit Interest")
@@ -346,7 +347,8 @@ class TransactionExtractor:
                     paymentDate=tx_date, quotationType="PIECE",
                     quantity=payment_quantity, amountCurrency=currency, # Use currency string
                     amount=schwab_amount, name="Dividend",
-                    grossRevenueB=schwab_amount
+                    grossRevenueB=schwab_amount,
+                    broker_label_original=action,
                     # TODO: Withholding tax check might generate cash_stock here later
                 )
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Dividend {pos_object.symbol}")
@@ -404,7 +406,9 @@ class TransactionExtractor:
                     quantity=UNINITIALIZED_QUANTITY, amountCurrency=currency, # Use currency string
                     amount=schwab_amount, name=f"{action}",
                     nonRecoverableTax=abs(schwab_amount) if schwab_amount < 0 else None,
-                    grossRevenueB=schwab_amount if schwab_amount > 0 else None
+                    grossRevenueB=schwab_amount if schwab_amount > 0 else None,
+                    broker_label_original=action,
+                    nonRecoverableTaxAmountOriginal=abs(schwab_amount) if schwab_amount < 0 else None,
                 )
                 # Cash stock reflects the actual cash movement
                 cash_stock = create_cash_stock(schwab_amount, f"Cash flow for {action} {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")

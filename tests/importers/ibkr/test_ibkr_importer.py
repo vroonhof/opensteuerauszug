@@ -564,6 +564,9 @@ def test_security_payment_quantity_is_minus_one(sample_ibkr_settings):
                 assert payment.quantity == UNINITIALIZED_QUANTITY, f"Dividend payment quantity for {payment.name} should be UNINITIALIZED_QUANTITY"
             elif payment.name == "Tax on MSFT Dividend":
                 assert payment.quantity == UNINITIALIZED_QUANTITY, f"Tax payment quantity for {payment.name} should be UNINITIALIZED_QUANTITY"
+                assert payment.nonRecoverableTax is None
+                assert payment.nonRecoverableTaxAmountOriginal == Decimal("1.85")
+                assert payment.broker_label_original == "Withholding Tax"
             else:
                 pytest.fail(f"Unexpected payment found: {payment.name}")
 
@@ -1904,6 +1907,72 @@ def test_unknown_xml_element_types_are_silently_ignored(sample_ibkr_settings):
         assert tax_statement is not None
         assert tax_statement.listOfSecurities is not None
         assert len(tax_statement.listOfSecurities.depot) == 1
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_withholding_tax_cash_transactions_are_mapped_to_security_tax_fields(sample_ibkr_settings):
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    xml_content = f"""
+<FlexQueryResponse queryName="WithholdingTaxMapping" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U123456" fromDate="{period_from}" toDate="{period_to}" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <Trades>
+        <Trade transactionID="7001" accountId="U123456" assetCategory="STK" symbol="IREN" description="INFRACORE HOLDING AG" conid="238751851" isin="CH0325094297" issuerCountryCode="CH" currency="CHF" quantity="10" tradeDate="2025-01-10" settleDateTarget="2025-01-14" tradePrice="10" tradeMoney="100" buySell="BUY" ibCommission="-1" netCash="-101" />
+        <Trade transactionID="7002" accountId="U123456" assetCategory="STK" symbol="ASML" description="ASML HOLDING" conid="117589399" isin="NL0010273215" issuerCountryCode="NL" currency="EUR" quantity="1" tradeDate="2025-01-10" settleDateTarget="2025-01-14" tradePrice="700" tradeMoney="700" buySell="BUY" ibCommission="-1" netCash="-701" />
+      </Trades>
+      <CashTransactions>
+        <CashTransaction accountId="U123456" currency="CHF" assetCategory="STK" subCategory="COMMON" symbol="IREN" description="IREN(CH0325094297) CASH DIVIDEND CHF 2.60 PER SHARE - CH TAX" conid="238751851" isin="CH0325094297" issuerCountryCode="CH" dateTime="2025-05-12;202000" amount="-1234.56" type="Withholding Tax" levelOfDetail="DETAIL" />
+        <CashTransaction accountId="U123456" currency="EUR" assetCategory="STK" subCategory="COMMON" symbol="ASML" description="ASML(NL0010273215) CASH DIVIDEND EUR 1.52 PER SHARE - NL TAX" conid="117589399" isin="NL0010273215" issuerCountryCode="NL" dateTime="2025-02-19;202000" amount="-1.13" type="Withholding Tax" levelOfDetail="DETAIL" />
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U123456" currency="CHF" endingCash="0"/>
+        <CashReportCurrency accountId="U123456" currency="EUR" endingCash="0"/>
+      </CashReport>
+      <OpenPositions>
+        <OpenPosition accountId="U123456" assetCategory="STK" symbol="IREN" description="INFRACORE HOLDING AG" conid="238751851" isin="CH0325094297" currency="CHF" position="10" markPrice="12" positionValue="120" reportDate="{period_to}" />
+        <OpenPosition accountId="U123456" assetCategory="STK" symbol="ASML" description="ASML HOLDING" conid="117589399" isin="NL0010273215" currency="EUR" position="1" markPrice="750" positionValue="750" reportDate="{period_to}" />
+      </OpenPositions>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_content)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        assert tax_statement.listOfSecurities is not None
+        assert len(tax_statement.listOfSecurities.depot) == 1
+        securities = tax_statement.listOfSecurities.depot[0].security
+
+        ireen = next(security for security in securities if security.isin == "CH0325094297")
+        asml = next(security for security in securities if security.isin == "NL0010273215")
+
+        assert len(ireen.payment) == 1
+        assert ireen.payment[0].name == "IREN(CH0325094297) CASH DIVIDEND CHF 2.60 PER SHARE - CH TAX"
+        assert ireen.payment[0].broker_label_original == "Withholding Tax"
+        assert ireen.payment[0].amount == Decimal("-1234.56")
+        assert ireen.payment[0].withHoldingTaxClaim == Decimal("1234.56")
+        assert ireen.payment[0].nonRecoverableTax is None
+        assert ireen.payment[0].nonRecoverableTaxAmountOriginal is None
+
+        assert len(asml.payment) == 1
+        assert asml.payment[0].name == "ASML(NL0010273215) CASH DIVIDEND EUR 1.52 PER SHARE - NL TAX"
+        assert asml.payment[0].broker_label_original == "Withholding Tax"
+        assert asml.payment[0].amount == Decimal("-1.13")
+        assert asml.payment[0].nonRecoverableTax is None
+        assert asml.payment[0].nonRecoverableTaxAmountOriginal == Decimal("1.13")
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)

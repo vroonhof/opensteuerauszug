@@ -707,7 +707,8 @@ class IbkrImporter:
 
                     if security_id:
                         tx_type_str = tx_type.value
-                        assert 'interest' not in str(tx_type_str).lower()
+                        tx_type_str_lower = str(tx_type_str).lower()
+                        assert 'interest' not in tx_type_str_lower
 
                         sec_pos_key = None
                         for pos in processed_security_positions.keys():
@@ -745,8 +746,18 @@ class IbkrImporter:
                             amountCurrency=currency,
                             amount=amount,
                             quotationType='PIECE',
-                            quantity=UNINITIALIZED_QUANTITY
+                            quantity=UNINITIALIZED_QUANTITY,
+                            broker_label_original=tx_type_str,
                         )
+
+                        if "withholding" in tx_type_str_lower:
+                            if amount < 0:
+                                if currency == "CHF":
+                                    sec_payment.withHoldingTaxClaim = abs(amount)
+                                else:
+                                    sec_payment.nonRecoverableTaxAmountOriginal = abs(amount)
+                            elif amount > 0:
+                                sec_payment.grossRevenueB = amount
                         processed_security_positions[sec_pos_key]['payments'].append(
                             sec_payment
                         )
