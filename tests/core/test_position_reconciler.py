@@ -302,17 +302,19 @@ class TestPositionReconciler(unittest.TestCase):
         reconciler = PositionReconciler(stocks, identifier="SYNTH_NO_BALANCES_ANYWHERE")
         pos = reconciler.synthesize_position_at_date(date(2023,1,1))
 
-    def test_synthesize_backward_mutation_on_target_date_ignored(self):
+    def test_synthesize_backward_unapplies_mutation_on_target_date(self):
         stocks = [
             create_stock("2023-01-15", "+5", True, name="MutationOnTargetDate"),
             create_stock("2023-02-01", "205", False, currency="CAD", name="Future Balance")
         ]
         reconciler = PositionReconciler(stocks, identifier="SYNTH_BACK_MUT_ON_TARGET")
-        # Synthesize for START of 2023-01-15. Mutation on this day is ignored.
-        # Expected qty is 205 (from future balance, no mutations between target and future balance to unapply).
+        # Synthesize for START of 2023-01-15.
+        # The mutation on 2023-01-15 occurred during that date and must be
+        # unapplied to get the start-of-day quantity.
+        # Expected qty is 200 (future 205 minus same-day +5 mutation).
         pos = reconciler.synthesize_position_at_date(date(2023,1,15))
         if pos is not None:
-            self.assertEqual(pos.quantity, Decimal("205"))
+            self.assertEqual(pos.quantity, Decimal("200"))
             self.assertEqual(pos.currency, "CAD")
 
     def test_synthesize_forward_preferred_if_past_balance_exists(self):
