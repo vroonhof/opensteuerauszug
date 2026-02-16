@@ -539,11 +539,28 @@ def main(
                 )
                 for row in report.rows:
                     if row.status == "mismatch":
+                        div_diff_chf = None
+                        wht_diff_chf = None
+                        div_diff_orig = None
+                        wht_diff_orig = None
+                        if row.exchange_rate is not None and row.exchange_rate != 0:
+                            if row.broker_dividend_amount is not None:
+                                broker_div_chf = row.broker_dividend_amount * row.exchange_rate
+                                div_diff_chf = broker_div_chf - row.kursliste_dividend_chf
+                                div_diff_orig = row.broker_dividend_amount - (row.kursliste_dividend_chf / row.exchange_rate)
+                            if row.broker_withholding_amount is not None:
+                                broker_wht_chf = row.broker_withholding_amount * row.exchange_rate
+                                wht_diff_chf = broker_wht_chf - row.kursliste_withholding_chf
+                                wht_diff_orig = row.broker_withholding_amount - (row.kursliste_withholding_chf / row.exchange_rate)
+
                         print(
                             f"  MISMATCH {row.country} {row.security} {row.payment_date}: "
                             f"KL div {row.kursliste_dividend_chf} CHF / KL wht {row.kursliste_withholding_chf} CHF vs "
                             f"Broker div {row.broker_dividend_amount} {row.broker_dividend_currency} / "
-                            f"Broker wht {row.broker_withholding_amount} {row.broker_withholding_currency}"
+                            f"Broker wht {row.broker_withholding_amount} {row.broker_withholding_currency}; "
+                            f"ΔCHF(div={div_diff_chf}, wht={wht_diff_chf}); "
+                            f"ΔORIG(div={div_diff_orig} {row.broker_dividend_currency}, "
+                            f"wht={wht_diff_orig} {row.broker_withholding_currency})"
                         )
 
             dump_debug_model(current_phase.value, statement)

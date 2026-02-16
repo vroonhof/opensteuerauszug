@@ -1561,11 +1561,14 @@ def create_payment_reconciliation_tables(tax_statement: TaxStatement, styles, us
             broker_div = ''
             if row.broker_dividend_amount is not None:
                 broker_div = f"{format_currency(row.broker_dividend_amount)} {row.broker_dividend_currency or ''}".strip()
-            broker_wht = ''
+            broker_wht_paragraph = Paragraph('', val_right)
             if row.broker_withholding_amount is not None:
                 broker_wht = f"{format_currency(row.broker_withholding_amount)} {row.broker_withholding_currency or ''}".strip()
+                broker_wht_markup = escape_html_for_paragraph(broker_wht)
                 if row.broker_withholding_entry_text:
-                    broker_wht = f"{broker_wht}<br/><font size=7>{escape_html_for_paragraph(row.broker_withholding_entry_text)}</font>"
+                    broker_wht_text = escape_html_for_paragraph(row.broker_withholding_entry_text).replace("\n", "<br/>")
+                    broker_wht_markup = f"{broker_wht_markup}<br/><font size=7>{broker_wht_text}</font>"
+                broker_wht_paragraph = Paragraph(broker_wht_markup, val_right)
 
             status_mark = '✓' if row.status in ('match', 'expected') else '✗'
             data.append([
@@ -1574,7 +1577,7 @@ def create_payment_reconciliation_tables(tax_statement: TaxStatement, styles, us
                 Paragraph(format_currency(row.kursliste_dividend_chf), val_right),
                 Paragraph(format_currency(row.kursliste_withholding_chf), val_right),
                 Paragraph(escape_html_for_paragraph(broker_div), val_right),
-                Paragraph(escape_html_for_paragraph(broker_wht), val_right),
+                broker_wht_paragraph,
                 Paragraph(status_mark, val_right),
             ])
 
