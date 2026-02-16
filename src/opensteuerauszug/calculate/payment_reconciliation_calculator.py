@@ -88,8 +88,8 @@ class PaymentReconciliationCalculator:
             broker = broker_by_date.get(d, _BrokerAgg())
             kurs = kurs_by_date.get(d, _KurslisteAgg())
 
-            has_broker = broker.dividend != 0 or broker.withholding != 0
-            has_kurs = kurs.dividend_chf != 0 or kurs.withholding_chf != 0
+            has_broker = d in broker_by_date
+            has_kurs = d in kurs_by_date
 
             broker_div_chf = None
             broker_with_chf = None

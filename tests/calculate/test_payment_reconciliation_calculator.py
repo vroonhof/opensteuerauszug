@@ -276,3 +276,54 @@ def test_negligible_kursliste_values_allow_missing_broker_entry():
     row = result.payment_reconciliation_report.rows[0]
     assert row.status == "match"
     assert row.matched is True
+
+
+def test_explicit_zero_kursliste_entry_with_broker_cash_is_accepted():
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="VT",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("0"),
+                                    exchangeRate=Decimal("1"),
+                                    grossRevenueB=Decimal("0"),
+                                    withHoldingTaxClaim=Decimal("0"),
+                                    kursliste=True,
+                                )
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("25"),
+                                    name="Dividend",
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator().calculate(statement)
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.status == "match"
+    assert row.matched is True
