@@ -797,8 +797,10 @@ def test_ibkr_trade_aggregation(sample_ibkr_settings):
         # Should aggregate into a single trade entry per security
         assert len(msft_sec.stock) == 2
         assert msft_sec.stock[0].quantity == Decimal("10")
+        assert msft_sec.stock[0].unitPrice == Decimal("280.50")
         assert len(aapl_sec.stock) == 3
         assert aapl_sec.stock[1].quantity == Decimal("-5")
+        assert aapl_sec.stock[1].unitPrice == Decimal("179.70")
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
