@@ -245,14 +245,14 @@ class PositionReconciler:
             _synth_log(f"{log_prefix} Synthesizing BACKWARD for START of {target_date}: Starting from future balance on {effective_future_balance_date}, Qty: {current_quantity} ({current_currency}).")
 
             # Iterate backward from the event *before* first_future_balance_event
-            # down to events that are still *after* target_date.
-            # Mutations on target_date itself are *not* considered for synthesizing position at START of target_date.
+            # down to events that are still at or after target_date.
+            # Mutations on target_date are unapplied because they happen during
+            # target_date and are therefore not part of the start-of-day position.
             for i in range(first_future_balance_idx - 1, -1, -1):
                 mutation_event = self.sorted_stocks[i]
 
-                if mutation_event.referenceDate <= target_date:
-                    # We've gone too far back, or reached target_date events.
-                    # Mutations on target_date are not used for start-of-day balance.
+                if mutation_event.referenceDate < target_date:
+                    # We've gone too far back.
                     break
                 
                 # Only consider mutations that happened between target_date and effective_future_balance_date
