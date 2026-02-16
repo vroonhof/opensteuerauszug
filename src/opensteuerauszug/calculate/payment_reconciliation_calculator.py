@@ -70,12 +70,12 @@ class PaymentReconciliationCalculator:
         kurs_by_date: Dict[date, _KurslisteAgg] = defaultdict(_KurslisteAgg)
 
         for payment in broker_payments:
-            key_date = payment.exDate or payment.paymentDate
+            key_date = payment.paymentDate
             agg = broker_by_date[key_date]
             self._accumulate_broker(agg, payment)
 
         for payment in kursliste_payments:
-            key_date = payment.exDate or payment.paymentDate
+            key_date = payment.paymentDate
             agg = kurs_by_date[key_date]
             self._accumulate_kursliste(agg, payment)
 
