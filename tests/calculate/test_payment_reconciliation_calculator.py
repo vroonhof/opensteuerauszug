@@ -175,3 +175,104 @@ def test_mixed_cash_and_noncash_same_date_allows_broker_cash_below_kursliste_tot
     row = result.payment_reconciliation_report.rows[0]
     assert row.status == "match"
     assert row.matched is True
+
+
+def test_kursliste_lower_than_broker_is_accepted_for_now():
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="GOOG",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("100"),
+                                    exchangeRate=Decimal("1"),
+                                    grossRevenueB=Decimal("100"),
+                                    withHoldingTaxClaim=Decimal("10"),
+                                    kursliste=True,
+                                )
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("120"),
+                                    name="Dividend",
+                                ),
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("-12"),
+                                    name="Withholding",
+                                    nonRecoverableTaxAmountOriginal=Decimal("12"),
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator().calculate(statement)
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.status == "match"
+
+
+def test_negligible_kursliste_values_allow_missing_broker_entry():
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="SMALL",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 24),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("0.001"),
+                                    exchangeRate=Decimal("1"),
+                                    grossRevenueB=Decimal("0.009"),
+                                    withHoldingTaxClaim=Decimal("0.000"),
+                                    kursliste=True,
+                                )
+                            ],
+                            broker_payments=[],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator().calculate(statement)
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.status == "match"
+    assert row.matched is True

@@ -107,23 +107,35 @@ class PaymentReconciliationCalculator:
                 status = "expected"
                 note = "Accumulating fund payment expected to be absent in broker cash flow."
                 matched = True
-            elif has_kurs and has_broker and broker_div_chf is not None and broker_with_chf is not None:
-                if kurs.noncash:
-                    div_ok = broker_div_chf <= (kurs.dividend_chf + self.tolerance_chf)
-                    w_ok = broker_with_chf <= (kurs.withholding_chf + self.tolerance_chf)
-                    if not div_ok:
-                        note = "Broker cash dividend exceeds Kursliste total for a non-cash date."
-                    elif not w_ok:
-                        note = "Broker cash withholding exceeds Kursliste total for a non-cash date."
-                else:
-                    div_ok = abs(kurs.dividend_chf - broker_div_chf) <= self.tolerance_chf
-                    w_ok = abs(kurs.withholding_chf - broker_with_chf) <= self.tolerance_chf
+            elif has_kurs and has_broker:
+                div_ok = self._component_matches(
+                    kurs_value_chf=kurs.dividend_chf,
+                    broker_value_chf=broker_div_chf,
+                    allow_bidirectional_on_noncash=kurs.noncash,
+                )
+                w_ok = self._component_matches(
+                    kurs_value_chf=kurs.withholding_chf,
+                    broker_value_chf=broker_with_chf,
+                    allow_bidirectional_on_noncash=kurs.noncash,
+                )
+                if not div_ok:
+                    note = "Broker dividend is below Kursliste value beyond tolerance."
+                elif not w_ok:
+                    note = "Broker withholding is below Kursliste value beyond tolerance."
                 matched = div_ok and w_ok
                 status = "match" if matched else "mismatch"
             elif not has_kurs and has_broker:
                 note = "Broker payment has no Kursliste entry."
             elif has_kurs and not has_broker:
-                note = "Kursliste payment has no broker evidence."
+                if (
+                    abs(kurs.dividend_chf) < Decimal("0.01")
+                    and abs(kurs.withholding_chf) < Decimal("0.01")
+                ):
+                    status = "match"
+                    matched = True
+                    note = "Kursliste amounts are negligible; missing broker entry accepted."
+                else:
+                    note = "Kursliste payment has no broker evidence."
             else:
                 status = "match"
                 matched = True
@@ -149,6 +161,22 @@ class PaymentReconciliationCalculator:
             )
 
         return rows
+
+    def _component_matches(
+        self,
+        kurs_value_chf: Decimal,
+        broker_value_chf: Optional[Decimal],
+        allow_bidirectional_on_noncash: bool,
+    ) -> bool:
+        if broker_value_chf is None:
+            return abs(kurs_value_chf) < Decimal("0.01")
+
+        if allow_bidirectional_on_noncash:
+            return True
+
+        # For now, accept cases where the broker side is larger than Kursliste.
+        # Mismatch is only when the broker side is materially lower.
+        return broker_value_chf + self.tolerance_chf >= kurs_value_chf
 
     def _accumulate_broker(self, agg: _BrokerAgg, payment: SecurityPayment) -> None:
         non_recoverable_original = payment.nonRecoverableTaxAmountOriginal
