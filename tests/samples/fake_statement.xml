@@ -10,10 +10,10 @@
               periodTo="2024-12-31"
               country="CH"
               canton="ZH"
-              totalTaxValue="162750"
-              totalGrossRevenueA="4800"
+              totalTaxValue="162750.00"
+              totalGrossRevenueA="4800.00"
               totalGrossRevenueB="548.29"
-              totalWithHoldingTaxClaim="1680"
+              totalWithHoldingTaxClaim="1680.00"
               minorVersion="22">
   <institution name="Sample Foreign Bank ltd">
     <uid>
@@ -22,28 +22,28 @@
     </uid>
   </institution>
   <client clientNumber="987654" salutation="2" firstName="Max" lastName="Muster"/>
-  <listOfBankAccounts totalTaxValue="35000" totalGrossRevenueA="0" totalGrossRevenueB="548.29" totalWithHoldingTaxClaim="0">
-    <bankAccount bankAccountName="Private Account" bankAccountCountry="LU" bankAccountCurrency="CHF" totalTaxValue="35000" totalGrossRevenueA="0" totalGrossRevenueB="548.29" totalWithHoldingTaxClaim="0" iban="LU9300762011623852957" bankAccountNumber="11623852957">
-      <taxValue referenceDate="2024-12-31" balanceCurrency="CHF" balance="35000" value="35000"/>
-      <payment paymentDate="2024-06-30" name="Interest Credit" amountCurrency="CHF" amount="500" grossRevenueA="0" grossRevenueB="500" withHoldingTaxClaim="0"/>
-      <payment paymentDate="2024-03-15" name="Foreign Interest" amountCurrency="EUR" amount="50" exchangeRate="0.9657075" grossRevenueA="0" grossRevenueB="48.285375" withHoldingTaxClaim="0"/>
+  <listOfBankAccounts totalTaxValue="35000.00" totalGrossRevenueA="0.00" totalGrossRevenueB="548.29" totalWithHoldingTaxClaim="0.00">
+    <bankAccount bankAccountName="Private Account" bankAccountCountry="LU" bankAccountCurrency="CHF" totalTaxValue="35000.00" totalGrossRevenueA="0.00" totalGrossRevenueB="548.29" totalWithHoldingTaxClaim="0.00" iban="LU9300762011623852957" bankAccountNumber="11623852957">
+      <taxValue referenceDate="2024-12-31" balanceCurrency="CHF" balance="35000.00" value="35000.00"/>
+      <payment paymentDate="2024-06-30" name="Interest Credit" amountCurrency="CHF" amount="500.00" grossRevenueA="0.00" grossRevenueB="500.00" withHoldingTaxClaim="0.00"/>
+      <payment paymentDate="2024-03-15" name="Foreign Interest" amountCurrency="EUR" amount="50.00" exchangeRate="0.9657075" grossRevenueA="0.00" grossRevenueB="48.285375000" withHoldingTaxClaim="0.00"/>
     </bankAccount>
   </listOfBankAccounts>
-  <listOfLiabilities totalTaxValue="250000" totalGrossRevenueB="3000">
-    <liabilityAccount bankAccountName="Mortgage Property ZH" bankAccountCountry="CH" bankAccountCurrency="CHF" totalTaxValue="250000" totalGrossRevenueB="3000" bankAccountNumber="HYPO-123">
-      <taxValue referenceDate="2024-12-31" balanceCurrency="CHF" balance="250000" value="250000"/>
-      <payment paymentDate="2024-12-31" name="Mortgage Interest Paid" amountCurrency="CHF" amount="3000" grossRevenueB="3000"/>
+  <listOfLiabilities totalTaxValue="250000.00" totalGrossRevenueB="3000.00">
+    <liabilityAccount bankAccountName="Mortgage Property ZH" bankAccountCountry="CH" bankAccountCurrency="CHF" totalTaxValue="250000.00" totalGrossRevenueB="3000.00" bankAccountNumber="HYPO-123">
+      <taxValue referenceDate="2024-12-31" balanceCurrency="CHF" balance="250000.00" value="250000.00"/>
+      <payment paymentDate="2024-12-31" name="Mortgage Interest Paid" amountCurrency="CHF" amount="3000.00" grossRevenueB="3000.00"/>
     </liabilityAccount>
   </listOfLiabilities>
-  <listOfExpenses totalExpenses="150">
-    <expense name="Depot Fees 2024" amountCurrency="CHF" expenses="150" expenseType="22" depotNumber="DEPOT-001"/>
+  <listOfExpenses totalExpenses="150.00">
+    <expense name="Depot Fees 2024" amountCurrency="CHF" expenses="150.00" expenseType="22" depotNumber="DEPOT-001"/>
   </listOfExpenses>
-  <listOfSecurities totalTaxValue="127750" totalGrossRevenueA="4800" totalGrossRevenueB="0" totalWithHoldingTaxClaim="1680" totalLumpSumTaxCredit="0" totalNonRecoverableTax="0" totalAdditionalWithHoldingTaxUSA="0" totalGrossRevenueIUP="0" totalGrossRevenueConversion="0">
+  <listOfSecurities totalTaxValue="127750.00" totalGrossRevenueA="4800.00" totalGrossRevenueB="0.00" totalWithHoldingTaxClaim="1680.00" totalLumpSumTaxCredit="0.00" totalNonRecoverableTax="0.00" totalAdditionalWithHoldingTaxUSA="0.00" totalGrossRevenueIUP="0.00" totalGrossRevenueConversion="0.00">
     <depot depotNumber="DEPOT-001">
       <security positionId="1" country="CH" currency="CHF" quotationType="PIECE" securityCategory="SHARE" securityName="Roche Holding Genussschein" valorNumber="1203204" isin="CH0012032048">
-        <taxValue referenceDate="2024-12-31" quotationType="PIECE" quantity="500" balanceCurrency="CHF" unitPrice="255.5" value="127750" kursliste="1"/>
-        <payment paymentDate="2024-03-18" exDate="2024-03-14" name="Dividend" quotationType="PIECE" quantity="500" amountCurrency="CHF" amountPerUnit="9.6" amount="4800" exchangeRate="1" grossRevenueA="4800" grossRevenueB="0" withHoldingTaxClaim="1680" kursliste="1"/>
-        <stock referenceDate="2024-01-01" mutation="0" quotationType="PIECE" quantity="500" balanceCurrency="CHF" value="145000"/>
+        <taxValue referenceDate="2024-12-31" quotationType="PIECE" quantity="500" balanceCurrency="CHF" unitPrice="255.50" value="127750.00" kursliste="1"/>
+        <payment paymentDate="2024-03-18" exDate="2024-03-14" name="Dividend" quotationType="PIECE" quantity="500" amountCurrency="CHF" amountPerUnit="9.6" amount="4800.00" exchangeRate="1" grossRevenueA="4800.00" grossRevenueB="0.00" withHoldingTaxClaim="1680.00" kursliste="1"/>
+        <stock referenceDate="2024-01-01" mutation="0" quotationType="PIECE" quantity="500" balanceCurrency="CHF" value="145000.00"/>
       </security>
     </depot>
   </listOfSecurities>
