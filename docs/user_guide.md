@@ -86,6 +86,12 @@ You need to obtain the official Kursliste XML file for the relevant tax year. Th
 
 After unzipping, the file is typically named something like `kursliste_JJJJ.xml` (e.g., `kursliste_2023.xml`).
 
+⚠️ **Important - Kursliste Version Compatibility**: Due to an unknown parsing issue, **you must download Kursliste Initial V2.0** (typically 31 MB), not V1.2 or V2.2. Using V2.2 (37 MB) may result in exchange rate lookup failures, and V1.2 (29 MB) may not be recognized for recent tax years. If you have already downloaded V2.2, you can either:
+- Download the V2.0 version instead (recommended), OR
+- Use the conversion script with the "convert to 2.2 liste" option (see conversion section below)
+
+This is a known issue tracked in [#91](https://github.com/vroonhof/opensteuerauszug/issues/91).
+
 ### Storing the Kursliste
 
 Place the downloaded Kursliste XML file(s) into the `data/kursliste/` directory within your OpenSteuerAuszug project. The application will automatically detect files in this location.

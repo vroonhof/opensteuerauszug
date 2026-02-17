@@ -86,6 +86,28 @@ python -m opensteuerauszug.steuerauszug --importer ibkr <flex query xml file> ..
 
 *   **Missing Data**: If the generated Steuerauszug seems incomplete, double-check that your IBKR reports cover the full tax year and include all necessary sections/fields.
 *   **Incorrect Values**: Verify that the currency and amounts in your reports are correctly interpreted.
+*   **Exchange Rate Lookup Failures**: If you encounter errors like `ValueError: Exchange rate for USD on YYYY-MM-DD not found in any Kursliste source`, this is likely due to using an incompatible Kursliste version. See the "Kursliste Version Compatibility" section below for the solution.
+
+### Kursliste Version Compatibility
+
+⚠️ **Known Issue**: Due to an unknown parsing issue, exchange rate lookups may fail when using certain Kursliste versions with IBKR imports that contain USD or other foreign currency securities.
+
+**Symptoms:**
+- **V2.2 (37 MB)**: `ValueError: Exchange rate for USD on YYYY-MM-DD not found in any Kursliste source for tax year YYYY.`
+- **V1.2 (29 MB)**: `Kursliste data for tax year YYYY not found. Available years: none.`
+- **V2.0 (31 MB)**: ✅ Works correctly
+
+**Solution:**
+1. Go to the official ESTV Kursliste download page: https://www.ictax.admin.ch/extern/en.html#/xml
+2. **Download Kursliste Initial V2.0** - NOT V1.2 or V2.2
+3. Extract the ZIP file
+4. Place the XML file in `data/kursliste/` directory
+5. Optionally convert to SQLite using `python scripts/convert_kursliste_to_sqlite.py` (recommended for performance)
+6. Re-run your import
+
+**Alternative**: If you have already downloaded V2.2, you may use the "convert to 2.2 liste" option with the conversion script.
+
+This is a known issue tracked in [#91](https://github.com/vroonhof/opensteuerauszug/issues/91).
 
 ---
 Return to [User Guide](user_guide.md)

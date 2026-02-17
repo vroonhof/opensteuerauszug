@@ -52,6 +52,18 @@ A utility script is provided to convert XML Kurslisten to the SQLite format. Thi
     ```
 4.  **Place the generated `.sqlite` file** into the `data/kursliste/` directory. The `KurslisteManager` will then automatically discover and prioritize it for the corresponding year.
 
+## Kursliste Version Compatibility
+
+⚠️ **Important**: Due to an unknown parsing issue, **you must use Kursliste Initial V2.0** when downloading from ESTV. Using other versions may cause problems:
+
+- **V2.0 (31 MB)**: ✅ **Recommended** - Works correctly and is automatically upgraded internally to V2.2 parser
+- **V2.2 (37 MB)**: ❌ Exchange rates embedded in payment records aren't parsed correctly, causing lookup failures
+- **V1.2 (29 MB)**: ❌ Format not recognized/supported for recent tax years
+
+When downloading from the [ESTV website](https://www.ictax.admin.ch/extern/en.html#/xml), select **Kursliste Initial V2.0** and avoid V1.2 or V2.2 versions. If you have already downloaded V2.2, you can either download V2.0 instead (recommended) or use the "convert to 2.2 liste" option with the conversion script.
+
+This is a known issue tracked in [#91](https://github.com/vroonhof/opensteuerauszug/issues/91).
+
 ## Manual Data Placement
 
 If you have pre-existing Kursliste XML or SQLite files:
