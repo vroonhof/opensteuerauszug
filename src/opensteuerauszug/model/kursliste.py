@@ -732,9 +732,9 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
     sectors: List[Sector] = element(tag="sector", default_factory=list)
     shortCuts: List[ShortCut] = element(tag="shortCut", default_factory=list)
     signs: List[Sign] = element(tag="sign", default_factory=list)
+    capitalisationRates: List[CapitalisationRate] = element(tag="capitalisationRate", default_factory=list)
     da1Rates: List[Da1Rate] = element(tag="da1Rate", default_factory=list)
     mediumTermBonds: List[MediumTermBond] = element(tag="mediumTermBond", default_factory=list)
-    capitalisationRates: List[CapitalisationRate] = element(tag="capitalisationRate", default_factory=list)
 
     institutions: List[Institution] = element(tag="institution", default_factory=list)
     bonds: List[Bond] = element(tag="bond", default_factory=list)
