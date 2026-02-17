@@ -236,6 +236,15 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         """
         sec_ident = security.isin or security.securityName
 
+        # When valorNumberNew points to the same security (e.g. Kursliste records the
+        # new valor as identical to the existing one), treat it as a same-ISIN split.
+        if (
+            valor_number_new is not None
+            and security.valorNumber is not None
+            and int(valor_number_new) == int(security.valorNumber)
+        ):
+            valor_number_new = None
+
         mutations_on_date = [
             stock
             for stock in security.stock
