@@ -20,6 +20,8 @@ def setup_logging(verbose: bool):
     
     root_logger = logging.getLogger('opensteuerauszug')
     root_logger.setLevel(level)
+    # Clear existing handlers to avoid duplicates if called multiple times
+    root_logger.handlers.clear()
     root_logger.addHandler(handler)
     # Prevent propagation to the root logger to avoid duplicate messages
     root_logger.propagate = False
