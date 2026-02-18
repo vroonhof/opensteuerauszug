@@ -23,6 +23,11 @@ def setup_logging(verbose: bool):
     root_logger.addHandler(handler)
     # Prevent propagation to the root logger to avoid duplicate messages
     root_logger.propagate = False
+    
+    # Suppress pypdf warnings to avoid cluttering output with benign warnings
+    # about rotated text and other PDF layout issues
+    pypdf_logger = logging.getLogger('pypdf')
+    pypdf_logger.setLevel(logging.ERROR)
 
     
 
