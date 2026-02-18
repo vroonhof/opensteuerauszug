@@ -1422,7 +1422,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
                         Paragraph(format_stock_quantity(entry.quantity, entry.mutation, stock_quantity_template), val_right),
                         Paragraph(entry.balanceCurrency if entry.unitPrice else '', val_right),
                         # TODO: What should the resolution of unit price be? UK stocks can have fractions of a penny
-                        Paragraph(format_currency(entry.unitPrice) if getattr(entry, 'unitPrice', None) else '', val_right),
+                        Paragraph(format_currency(entry.unitPrice), val_right),
                         Paragraph('', val_left),
                         Paragraph(format_exchange_rate(entry.exchangeRate) if getattr(entry, 'exchangeRate', None) else '', val_right),
                         Paragraph('', val_right),

@@ -179,11 +179,11 @@ class IbkrImporter:
                     # test for same sign of quantity
                     and (pending.quantity * stock.quantity) > 0
                 ):
-                    pending.quantity += stock.quantity
-                    if pending.quantity > 0:
-                        pending.name = "Buy"
-                    else:
-                        pending.name = "Sell"
+                    total_quantity = pending.quantity + stock.quantity
+                    if pending.unitPrice != stock.unitPrice:
+                        pending.unitPrice = (pending.quantity * pending.unitPrice + stock.quantity * stock.unitPrice) / total_quantity
+
+                    pending.quantity = total_quantity
                 else:
                     if pending:
                         aggregated.append(pending)
@@ -191,6 +191,7 @@ class IbkrImporter:
                         referenceDate=stock.referenceDate,
                         mutation=True,
                         quantity=stock.quantity,
+                        unitPrice=stock.unitPrice,
                         name=stock.name,
                         balanceCurrency=stock.balanceCurrency,
                         quotationType=stock.quotationType,
@@ -414,8 +415,8 @@ class IbkrImporter:
                         referenceDate=trade_date,
                         mutation=True,
                         quantity=quantity,
-                        name=f"{buy_sell} {abs(quantity)} {symbol} "
-                             f"@ {trade_price} {currency}",
+                        unitPrice=trade_price,
+                        name=buy_sell.value,
                         balanceCurrency=currency,
                         quotationType="PIECE"
                     )
