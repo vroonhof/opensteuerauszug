@@ -52,8 +52,9 @@ class PaymentReconciliationCalculator:
         "kapitalgewinn",
     )
 
-    def __init__(self, tolerance_chf: Decimal = Decimal("0.05")):
+    def __init__(self, tolerance_chf: Decimal = Decimal("0.05"), tolerance_frac = Decimal(0.0005)):
         self.tolerance_chf = tolerance_chf
+        self.tolerance_frac = tolerance_frac
 
     def calculate(self, tax_statement: TaxStatement) -> TaxStatement:
         report = PaymentReconciliationReport()
@@ -195,6 +196,9 @@ class PaymentReconciliationCalculator:
 
         delta = broker_value_chf - kurs_value_chf
         if abs(delta) <= self.tolerance_chf:
+            return True
+
+        if abs(delta) <= self.tolerance_frac * broker_value_chf:
             return True
 
         if delta > self.tolerance_chf and allow_broker_above_kursliste:
