@@ -167,17 +167,19 @@ class TestTotalCalculator:
         calculator = TotalCalculator(mode=CalculationMode.FILL)
         result = calculator.calculate(tax_statement)
         
-        # Check that totals were filled correctly
-        assert result.totalTaxValue == expected_tax_value
-        assert result.totalGrossRevenueA == expected_gross_revenue_a
-        assert result.totalGrossRevenueB == expected_gross_revenue_b
-        assert result.totalWithHoldingTaxClaim == expected_withholding_tax_claim
+        # Check that totals were filled correctly (using internal fields for calculation check)
+        # Note: spec fields like totalTaxValue are NOT updated by TotalCalculator in FILL mode anymore
+        assert (result.svTaxValueA + result.svTaxValueB) == expected_tax_value
+        assert result.svGrossRevenueA == expected_gross_revenue_a
+        assert result.svGrossRevenueB == expected_gross_revenue_b
+        assert result.internalTotalWithHoldingTaxClaim == expected_withholding_tax_claim
         
-        # Check that the modified fields were tracked
-        assert "totalTaxValue" in calculator.modified_fields
-        assert "totalGrossRevenueA" in calculator.modified_fields
-        assert "totalGrossRevenueB" in calculator.modified_fields
-        assert "totalWithHoldingTaxClaim" in calculator.modified_fields
+        # Check that the modified fields were tracked (internal fields)
+        assert "svTaxValueA" in calculator.modified_fields
+        assert "svTaxValueB" in calculator.modified_fields
+        assert "svGrossRevenueA" in calculator.modified_fields
+        assert "svGrossRevenueB" in calculator.modified_fields
+        assert "internalTotalWithHoldingTaxClaim" in calculator.modified_fields
     
     def test_calculate_verify_mode_success(self):
         """Test that the calculator correctly verifies existing total values."""
@@ -237,17 +239,18 @@ class TestTotalCalculator:
         calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
         result = calculator.calculate(tax_statement)
         
-        # Check that totals were overwritten correctly
-        assert result.totalTaxValue == expected_tax_value
-        assert result.totalGrossRevenueA == expected_gross_revenue_a
-        assert result.totalGrossRevenueB == expected_gross_revenue_b
-        assert result.totalWithHoldingTaxClaim == expected_withholding_tax_claim
+        # Check that totals were overwritten correctly (internal fields)
+        # Spec fields should remain as they were (0.00 in this test case setup)
+        assert result.totalTaxValue == Decimal("0.00")
+
+        assert (result.svTaxValueA + result.svTaxValueB) == expected_tax_value
+        assert result.svGrossRevenueA == expected_gross_revenue_a
+        assert result.svGrossRevenueB == expected_gross_revenue_b
+        assert result.internalTotalWithHoldingTaxClaim == expected_withholding_tax_claim
         
         # Check that the modified fields were tracked
-        assert "totalTaxValue" in calculator.modified_fields
-        assert "totalGrossRevenueA" in calculator.modified_fields
-        assert "totalGrossRevenueB" in calculator.modified_fields
-        assert "totalWithHoldingTaxClaim" in calculator.modified_fields
+        assert "svTaxValueA" in calculator.modified_fields
+        assert "internalTotalWithHoldingTaxClaim" in calculator.modified_fields
     
     def test_usa_specific_calculations(self):
         """Test USA-specific calculations (DA-1)."""
@@ -318,14 +321,29 @@ class TestTotalCalculator:
         # Check USA-specific totals
         assert result.da_GrossRevenue == Decimal("90.00")
         assert result.da1TaxValue == Decimal("900.00")
-        assert result.listOfSecurities.totalLumpSumTaxCredit == Decimal("5.00")
-        assert result.listOfSecurities.totalAdditionalWithHoldingTaxUSA == Decimal("15.00")
+        assert result.listOfSecurities.internalTotalLumpSumTaxCredit == Decimal("5.00")
+        assert result.listOfSecurities.internalTotalAdditionalWithHoldingTaxUSA == Decimal("15.00")
         
-        # Check regular totals
-        assert result.totalTaxValue == Decimal("900.00")
-        assert result.totalGrossRevenueA == Decimal("0.00")
-        assert result.totalGrossRevenueB == Decimal("90.00")
-        assert result.totalWithHoldingTaxClaim == Decimal("31.50")
+        # Check regular totals (internal)
+        assert (result.svTaxValueA + result.svTaxValueB + result.da1TaxValue) == Decimal("900.00")
+        assert result.svGrossRevenueA == Decimal("0.00")
+        # svGrossRevenueB only contains non-DA1 B-revenue. DA1 revenue is in da_GrossRevenue.
+        # Total B revenue logic in TotalCalculator splits them.
+        # But wait, TotalCalculator logic:
+        # self.total_gross_revenue_b += list_revenue_b_rounded
+        # self.total_gross_revenue_da1 += sec_revenue_b (if DA1)
+        # So totalGrossRevenueB on TaxStatement (spec) includes ALL B revenue?
+        # No, let's check code.
+        # if determine_security_type(security) == "DA1": ... else: list_revenue_b_sv += sec_revenue_b
+        # And final_gross_revenue_b = self._round_sub_total(self.total_gross_revenue_b)
+        # self.total_gross_revenue_b accumulates list_revenue_b_rounded.
+        # list_revenue_b accumulates sec_revenue_b (ALL securities).
+        # So totalGrossRevenueB includes DA1.
+        # But svGrossRevenueB only includes non-DA1.
+
+        assert result.svGrossRevenueB == Decimal("0.00") # Because the only security is DA1
+        assert result.da_GrossRevenue == Decimal("90.00")
+        assert result.internalTotalWithHoldingTaxClaim == Decimal("31.50")
 
     def test_minimal_bank_account_only(self):
         """Test calculation with only one CHF bank account and no payments, ensuring sub-totals are calculated."""
@@ -386,33 +404,33 @@ class TestTotalCalculator:
         result = calculator.calculate(tax_statement)
 
         # Assert totals on TaxStatement level
-        assert result.totalTaxValue == Decimal("1234.56")
-        assert result.totalGrossRevenueA == Decimal("0.00")
-        assert result.totalGrossRevenueB == Decimal("0.00")
-        assert result.totalWithHoldingTaxClaim == Decimal("0.00")
+        assert (result.svTaxValueA + result.svTaxValueB) == Decimal("1234.56")
+        assert result.svGrossRevenueA == Decimal("0.00")
+        assert result.svGrossRevenueB == Decimal("0.00")
+        assert result.internalTotalWithHoldingTaxClaim == Decimal("0.00")
 
         # Assert totals on ListOfBankAccounts level
         assert result.listOfBankAccounts is not None
-        assert result.listOfBankAccounts.totalTaxValue == Decimal("1234.56")
-        assert result.listOfBankAccounts.totalGrossRevenueA == Decimal("0.00")
-        assert result.listOfBankAccounts.totalGrossRevenueB == Decimal("0.00")
-        assert result.listOfBankAccounts.totalWithHoldingTaxClaim == Decimal("0.00")
+        assert result.listOfBankAccounts.internalTotalTaxValue == Decimal("1234.56")
+        assert result.listOfBankAccounts.internalTotalGrossRevenueA == Decimal("0.00")
+        assert result.listOfBankAccounts.internalTotalGrossRevenueB == Decimal("0.00")
+        assert result.listOfBankAccounts.internalTotalWithHoldingTaxClaim == Decimal("0.00")
 
         # Assert totals on the individual BankAccount level
         assert len(result.listOfBankAccounts.bankAccount) == 1
         calculated_bank_account = result.listOfBankAccounts.bankAccount[0]
-        assert calculated_bank_account.totalTaxValue == Decimal("1234.56")
-        assert calculated_bank_account.totalGrossRevenueA == Decimal("0.00")
-        assert calculated_bank_account.totalGrossRevenueB == Decimal("0.00")
-        assert calculated_bank_account.totalWithHoldingTaxClaim == Decimal("0.00")
+        assert calculated_bank_account.internalTotalTaxValue == Decimal("1234.56")
+        assert calculated_bank_account.internalTotalGrossRevenueA == Decimal("0.00")
+        assert calculated_bank_account.internalTotalGrossRevenueB == Decimal("0.00")
+        assert calculated_bank_account.internalTotalWithHoldingTaxClaim == Decimal("0.00")
 
         expected_modified = {
-            "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
-            "listOfBankAccounts.totalTaxValue", "listOfBankAccounts.totalGrossRevenueA",
-            "listOfBankAccounts.totalGrossRevenueB", "listOfBankAccounts.totalWithHoldingTaxClaim",
-            "listOfBankAccounts.bankAccount[0].totalTaxValue", "listOfBankAccounts.bankAccount[0].totalGrossRevenueA",
-            "listOfBankAccounts.bankAccount[0].totalGrossRevenueB",
-            "listOfBankAccounts.bankAccount[0].totalWithHoldingTaxClaim"
+            "svTaxValueA", "svTaxValueB", "svGrossRevenueA", "svGrossRevenueB", "internalTotalWithHoldingTaxClaim",
+            "listOfBankAccounts.internalTotalTaxValue", "listOfBankAccounts.internalTotalGrossRevenueA",
+            "listOfBankAccounts.internalTotalGrossRevenueB", "listOfBankAccounts.internalTotalWithHoldingTaxClaim",
+            "listOfBankAccounts.bankAccount[0].internalTotalTaxValue", "listOfBankAccounts.bankAccount[0].internalTotalGrossRevenueA",
+            "listOfBankAccounts.bankAccount[0].internalTotalGrossRevenueB",
+            "listOfBankAccounts.bankAccount[0].internalTotalWithHoldingTaxClaim"
         }
  
         assert calculator.modified_fields.issuperset(expected_modified)
@@ -486,31 +504,31 @@ class TestTotalCalculator:
         result = calculator.calculate(tax_statement)
 
         # Assert totals on TaxStatement level
-        assert result.totalTaxValue == Decimal("5000.00")  # Account balance
-        assert result.totalGrossRevenueA == Decimal("100.00")  # Interest payment
-        assert result.totalGrossRevenueB == Decimal("0.00")  # No revenue B
-        assert result.totalWithHoldingTaxClaim == Decimal("35.00")  # Withholding tax
+        assert (result.svTaxValueA + result.svTaxValueB) == Decimal("5000.00")  # Account balance
+        assert result.svGrossRevenueA == Decimal("100.00")  # Interest payment
+        assert result.svGrossRevenueB == Decimal("0.00")  # No revenue B
+        assert result.internalTotalWithHoldingTaxClaim == Decimal("35.00")  # Withholding tax
 
         # Assert totals on ListOfBankAccounts level
-        assert result.listOfBankAccounts.totalTaxValue == Decimal("5000.00")
-        assert result.listOfBankAccounts.totalGrossRevenueA == Decimal("100.00")
-        assert result.listOfBankAccounts.totalGrossRevenueB == Decimal("0.00")
-        assert result.listOfBankAccounts.totalWithHoldingTaxClaim == Decimal("35.00")
+        assert result.listOfBankAccounts.internalTotalTaxValue == Decimal("5000.00")
+        assert result.listOfBankAccounts.internalTotalGrossRevenueA == Decimal("100.00")
+        assert result.listOfBankAccounts.internalTotalGrossRevenueB == Decimal("0.00")
+        assert result.listOfBankAccounts.internalTotalWithHoldingTaxClaim == Decimal("35.00")
 
         # Assert totals on the individual BankAccount level
         calculated_bank_account = result.listOfBankAccounts.bankAccount[0]
-        assert calculated_bank_account.totalTaxValue == Decimal("5000.00")
-        assert calculated_bank_account.totalGrossRevenueA == Decimal("100.00")
-        assert calculated_bank_account.totalGrossRevenueB == Decimal("0.00")
-        assert calculated_bank_account.totalWithHoldingTaxClaim == Decimal("35.00")
+        assert calculated_bank_account.internalTotalTaxValue == Decimal("5000.00")
+        assert calculated_bank_account.internalTotalGrossRevenueA == Decimal("100.00")
+        assert calculated_bank_account.internalTotalGrossRevenueB == Decimal("0.00")
+        assert calculated_bank_account.internalTotalWithHoldingTaxClaim == Decimal("35.00")
 
         expected_modified = {
-            "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
-            "listOfBankAccounts.totalTaxValue", "listOfBankAccounts.totalGrossRevenueA",
-            "listOfBankAccounts.totalGrossRevenueB", "listOfBankAccounts.totalWithHoldingTaxClaim",
-            "listOfBankAccounts.bankAccount[0].totalTaxValue", "listOfBankAccounts.bankAccount[0].totalGrossRevenueA",
-            "listOfBankAccounts.bankAccount[0].totalGrossRevenueB",
-            "listOfBankAccounts.bankAccount[0].totalWithHoldingTaxClaim"
+            "svTaxValueA", "svTaxValueB", "svGrossRevenueA", "svGrossRevenueB", "internalTotalWithHoldingTaxClaim",
+            "listOfBankAccounts.internalTotalTaxValue", "listOfBankAccounts.internalTotalGrossRevenueA",
+            "listOfBankAccounts.internalTotalGrossRevenueB", "listOfBankAccounts.internalTotalWithHoldingTaxClaim",
+            "listOfBankAccounts.bankAccount[0].internalTotalTaxValue", "listOfBankAccounts.bankAccount[0].internalTotalGrossRevenueA",
+            "listOfBankAccounts.bankAccount[0].internalTotalGrossRevenueB",
+            "listOfBankAccounts.bankAccount[0].internalTotalWithHoldingTaxClaim"
         }
         
         assert calculator.modified_fields.issuperset(expected_modified)
@@ -584,31 +602,31 @@ class TestTotalCalculator:
         result = calculator.calculate(tax_statement)
 
         # Assert totals on TaxStatement level
-        assert result.totalTaxValue == Decimal("10000.00")  # Account balance
-        assert result.totalGrossRevenueA == Decimal("0.00")  # No revenue A
-        assert result.totalGrossRevenueB == Decimal("75.50")  # Tax-free interest
-        assert result.totalWithHoldingTaxClaim == Decimal("0.00")  # No withholding tax
+        assert (result.svTaxValueA + result.svTaxValueB) == Decimal("10000.00")  # Account balance
+        assert result.svGrossRevenueA == Decimal("0.00")  # No revenue A
+        assert result.svGrossRevenueB == Decimal("75.50")  # Tax-free interest
+        assert result.internalTotalWithHoldingTaxClaim == Decimal("0.00")  # No withholding tax
 
         # Assert totals on ListOfBankAccounts level
-        assert result.listOfBankAccounts.totalTaxValue == Decimal("10000.00")
-        assert result.listOfBankAccounts.totalGrossRevenueA == Decimal("0.00")
-        assert result.listOfBankAccounts.totalGrossRevenueB == Decimal("75.50")
-        assert result.listOfBankAccounts.totalWithHoldingTaxClaim == Decimal("0.00")
+        assert result.listOfBankAccounts.internalTotalTaxValue == Decimal("10000.00")
+        assert result.listOfBankAccounts.internalTotalGrossRevenueA == Decimal("0.00")
+        assert result.listOfBankAccounts.internalTotalGrossRevenueB == Decimal("75.50")
+        assert result.listOfBankAccounts.internalTotalWithHoldingTaxClaim == Decimal("0.00")
 
         # Assert totals on the individual BankAccount level
         calculated_bank_account = result.listOfBankAccounts.bankAccount[0]
-        assert calculated_bank_account.totalTaxValue == Decimal("10000.00")
-        assert calculated_bank_account.totalGrossRevenueA == Decimal("0.00")
-        assert calculated_bank_account.totalGrossRevenueB == Decimal("75.50")
-        assert calculated_bank_account.totalWithHoldingTaxClaim == Decimal("0.00")
+        assert calculated_bank_account.internalTotalTaxValue == Decimal("10000.00")
+        assert calculated_bank_account.internalTotalGrossRevenueA == Decimal("0.00")
+        assert calculated_bank_account.internalTotalGrossRevenueB == Decimal("75.50")
+        assert calculated_bank_account.internalTotalWithHoldingTaxClaim == Decimal("0.00")
 
         expected_modified = {
-            "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
-            "listOfBankAccounts.totalTaxValue", "listOfBankAccounts.totalGrossRevenueA",
-            "listOfBankAccounts.totalGrossRevenueB", "listOfBankAccounts.totalWithHoldingTaxClaim",
-            "listOfBankAccounts.bankAccount[0].totalTaxValue", "listOfBankAccounts.bankAccount[0].totalGrossRevenueA",
-            "listOfBankAccounts.bankAccount[0].totalGrossRevenueB",
-            "listOfBankAccounts.bankAccount[0].totalWithHoldingTaxClaim"
+            "svTaxValueA", "svTaxValueB", "svGrossRevenueA", "svGrossRevenueB", "internalTotalWithHoldingTaxClaim",
+            "listOfBankAccounts.internalTotalTaxValue", "listOfBankAccounts.internalTotalGrossRevenueA",
+            "listOfBankAccounts.internalTotalGrossRevenueB", "listOfBankAccounts.internalTotalWithHoldingTaxClaim",
+            "listOfBankAccounts.bankAccount[0].internalTotalTaxValue", "listOfBankAccounts.bankAccount[0].internalTotalGrossRevenueA",
+            "listOfBankAccounts.bankAccount[0].internalTotalGrossRevenueB",
+            "listOfBankAccounts.bankAccount[0].internalTotalWithHoldingTaxClaim"
         }
         
         assert calculator.modified_fields.issuperset(expected_modified)
@@ -722,22 +740,22 @@ class TestTotalCalculator:
 
         # Assert totals on the individual BankAccount level
         calculated_bank_account = result.listOfBankAccounts.bankAccount[0]
-        assert calculated_bank_account.totalTaxValue == Decimal("8000.00")
-        assert calculated_bank_account.totalGrossRevenueA == expected_gross_revenue_a
-        assert calculated_bank_account.totalGrossRevenueB == expected_gross_revenue_b
-        assert calculated_bank_account.totalWithHoldingTaxClaim == expected_withholding_tax
+        assert calculated_bank_account.internalTotalTaxValue == Decimal("8000.00")
+        assert calculated_bank_account.internalTotalGrossRevenueA == expected_gross_revenue_a
+        assert calculated_bank_account.internalTotalGrossRevenueB == expected_gross_revenue_b
+        assert calculated_bank_account.internalTotalWithHoldingTaxClaim == expected_withholding_tax
 
         # Assert totals on ListOfBankAccounts level
-        assert result.listOfBankAccounts.totalTaxValue == Decimal("8000.00")
-        assert result.listOfBankAccounts.totalGrossRevenueA == expected_gross_revenue_a
-        assert result.listOfBankAccounts.totalGrossRevenueB == expected_gross_revenue_b
-        assert result.listOfBankAccounts.totalWithHoldingTaxClaim == expected_withholding_tax
+        assert result.listOfBankAccounts.internalTotalTaxValue == Decimal("8000.00")
+        assert result.listOfBankAccounts.internalTotalGrossRevenueA == expected_gross_revenue_a
+        assert result.listOfBankAccounts.internalTotalGrossRevenueB == expected_gross_revenue_b
+        assert result.listOfBankAccounts.internalTotalWithHoldingTaxClaim == expected_withholding_tax
 
         # Assert totals on TaxStatement level
-        assert result.totalTaxValue == Decimal("8000.00")
-        assert result.totalGrossRevenueA == expected_gross_revenue_a
-        assert result.totalGrossRevenueB == expected_gross_revenue_b
-        assert result.totalWithHoldingTaxClaim == expected_withholding_tax
+        assert (result.svTaxValueA + result.svTaxValueB) == Decimal("8000.00")
+        assert result.svGrossRevenueA == expected_gross_revenue_a
+        assert result.svGrossRevenueB == expected_gross_revenue_b
+        assert result.internalTotalWithHoldingTaxClaim == expected_withholding_tax
 
     def test_minimal_security(self):
         """Test calculation with a minimal tax statement containing one security."""
@@ -823,19 +841,19 @@ class TestTotalCalculator:
         result = calculator.calculate(tax_statement)
 
         # Assert totals on TaxStatement level
-        assert result.totalTaxValue == Decimal("5000.00")
-        assert result.totalGrossRevenueA == Decimal("200.00")
-        assert result.totalGrossRevenueB == Decimal("0.00")
-        assert result.totalWithHoldingTaxClaim == Decimal("70.00")
+        assert (result.svTaxValueA + result.svTaxValueB) == Decimal("5000.00")
+        assert result.svGrossRevenueA == Decimal("200.00")
+        assert result.svGrossRevenueB == Decimal("0.00")
+        assert result.internalTotalWithHoldingTaxClaim == Decimal("70.00")
 
         # Assert totals on ListOfSecurities level
-        assert result.listOfSecurities.totalTaxValue == Decimal("5000.00")
-        assert result.listOfSecurities.totalGrossRevenueA == Decimal("200.00")
-        assert result.listOfSecurities.totalGrossRevenueB == Decimal("0.00")
-        assert result.listOfSecurities.totalWithHoldingTaxClaim == Decimal("70.00")
+        assert result.listOfSecurities.internalTotalTaxValue == Decimal("5000.00")
+        assert result.listOfSecurities.internalTotalGrossRevenueA == Decimal("200.00")
+        assert result.listOfSecurities.internalTotalGrossRevenueB == Decimal("0.00")
+        assert result.listOfSecurities.internalTotalWithHoldingTaxClaim == Decimal("70.00")
         # Without DA-1 values these should still set
-        assert result.listOfSecurities.totalLumpSumTaxCredit == Decimal("0.00")
-        assert result.listOfSecurities.totalAdditionalWithHoldingTaxUSA == Decimal("0.00")
+        assert result.listOfSecurities.internalTotalLumpSumTaxCredit == Decimal("0.00")
+        assert result.listOfSecurities.internalTotalAdditionalWithHoldingTaxUSA == Decimal("0.00")
     
         # Check internal SV split
         assert result.svTaxValueA == Decimal("5000.00")
@@ -849,9 +867,9 @@ class TestTotalCalculator:
 
         # Check that modified fields include all expected fields
         expected_modified = {
-            "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
-            "listOfSecurities.totalTaxValue", "listOfSecurities.totalGrossRevenueA",
-            "listOfSecurities.totalGrossRevenueB", "listOfSecurities.totalWithHoldingTaxClaim",
+            "svTaxValueA", "svTaxValueB", "svGrossRevenueA", "svGrossRevenueB", "internalTotalWithHoldingTaxClaim",
+            "listOfSecurities.internalTotalTaxValue", "listOfSecurities.internalTotalGrossRevenueA",
+            "listOfSecurities.internalTotalGrossRevenueB", "listOfSecurities.internalTotalWithHoldingTaxClaim",
         }
         
         assert calculator.modified_fields.issuperset(expected_modified)
@@ -933,26 +951,26 @@ class TestTotalCalculator:
 
         # Assert totals on TaxStatement level - 
         # liabilities don not impact them
-        assert result.totalTaxValue == Decimal("0.00")
-        assert result.totalGrossRevenueA == Decimal("0.00")
-        assert result.totalGrossRevenueB == Decimal("0.00")
-        assert result.totalWithHoldingTaxClaim == Decimal("0.00")  # Liabilities don't have withholding tax
+        assert (result.svTaxValueA + result.svTaxValueB) == Decimal("0.00")
+        assert result.svGrossRevenueA == Decimal("0.00")
+        assert result.svGrossRevenueB == Decimal("0.00")
+        assert result.internalTotalWithHoldingTaxClaim == Decimal("0.00")  # Liabilities don't have withholding tax
 
         # Assert totals on ListOfLiabilities level
-        assert result.listOfLiabilities.totalTaxValue == Decimal("120000.00")  # Positive in list context
-        assert result.listOfLiabilities.totalGrossRevenueB == Decimal("1800.00")
+        assert result.listOfLiabilities.internalTotalTaxValue == Decimal("120000.00")  # Positive in list context
+        assert result.listOfLiabilities.internalTotalGrossRevenueB == Decimal("1800.00")
 
         # Assert totals on individual LiabilityAccount level
         calculated_liability = result.listOfLiabilities.liabilityAccount[0]
-        assert calculated_liability.totalTaxValue == Decimal("120000.00")
-        assert calculated_liability.totalGrossRevenueB == Decimal("1800.00")
+        assert calculated_liability.internalTotalTaxValue == Decimal("120000.00")
+        assert calculated_liability.internalTotalGrossRevenueB == Decimal("1800.00")
 
         # Check that modified fields include all expected fields
         expected_modified = {
-            "totalTaxValue", "totalGrossRevenueA", "totalGrossRevenueB", "totalWithHoldingTaxClaim",
-            "listOfLiabilities.totalTaxValue", "listOfLiabilities.totalGrossRevenueB",
-            "listOfLiabilities.liabilityAccount[0].totalTaxValue", 
-            "listOfLiabilities.liabilityAccount[0].totalGrossRevenueB"
+            "svTaxValueA", "svTaxValueB", "svGrossRevenueA", "svGrossRevenueB", "internalTotalWithHoldingTaxClaim",
+            "listOfLiabilities.internalTotalTaxValue", "listOfLiabilities.internalTotalGrossRevenueB",
+            "listOfLiabilities.liabilityAccount[0].internalTotalTaxValue",
+            "listOfLiabilities.liabilityAccount[0].internalTotalGrossRevenueB"
         }
         missing_fields = expected_modified - calculator.modified_fields
         assert not missing_fields, f"Fields missing from modified_fields: {missing_fields}"

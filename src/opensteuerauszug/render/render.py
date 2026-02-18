@@ -159,6 +159,20 @@ def find_minimal_decimals(value: Optional[Decimal]):
     if isinstance(exponent, int): return max(0, -exponent)
     return 4
 
+def get_val_with_fallback(obj: Any, internal_attr: str, spec_attr: Optional[str] = None, default: Any = None) -> Any:
+    """
+    Get value from internal attribute, falling back to spec attribute if internal is None.
+    Handles '0' correctly (unlike 'or' operator).
+    """
+    val = getattr(obj, internal_attr, None)
+    if val is not None:
+        return val
+    if spec_attr:
+        val = getattr(obj, spec_attr, None)
+        if val is not None:
+            return val
+    return default
+
 def extract_client_info(tax_statement: TaxStatement) -> Dict[str, str]:
     """Extract client information from tax statement for header display.
     
@@ -1199,9 +1213,9 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
             Paragraph(currency_str, val_center),
             Paragraph(balance_str, val_right),
             Paragraph(exchange_rate_str, val_right),
-            Paragraph(format_currency_2dp(account.totalTaxValue), bold_right),
-            '', '', Paragraph(format_currency_2dp(account.totalGrossRevenueA), bold_right),
-            '', '', Paragraph(format_currency_2dp(account.totalGrossRevenueB), bold_right),
+            Paragraph(format_currency_2dp(get_val_with_fallback(account, 'internalTotalTaxValue', 'totalTaxValue')), bold_right),
+            '', '', Paragraph(format_currency_2dp(get_val_with_fallback(account, 'internalTotalGrossRevenueA', 'totalGrossRevenueA')), bold_right),
+            '', '', Paragraph(format_currency_2dp(get_val_with_fallback(account, 'internalTotalGrossRevenueB', 'totalGrossRevenueB')), bold_right),
         ])
         intermediate_total_rows.append(current_row)
         current_row += 1
@@ -1216,9 +1230,9 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
         '',
         '',
         '',
-        Paragraph(format_currency_2dp(tax_statement.listOfBankAccounts.totalTaxValue), bold_right),
-        '', '', Paragraph(format_currency_2dp(tax_statement.listOfBankAccounts.totalGrossRevenueA), bold_right),
-        '', '', Paragraph(format_currency_2dp(tax_statement.listOfBankAccounts.totalGrossRevenueB), bold_right),
+        Paragraph(format_currency_2dp(get_val_with_fallback(tax_statement.listOfBankAccounts, 'internalTotalTaxValue', 'totalTaxValue')), bold_right),
+        '', '', Paragraph(format_currency_2dp(get_val_with_fallback(tax_statement.listOfBankAccounts, 'internalTotalGrossRevenueA', 'totalGrossRevenueA')), bold_right),
+        '', '', Paragraph(format_currency_2dp(get_val_with_fallback(tax_statement.listOfBankAccounts, 'internalTotalGrossRevenueB', 'totalGrossRevenueB')), bold_right),
     ])
 
     # Column widths (adjust as needed for layout)
@@ -1490,8 +1504,8 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         Paragraph(format_currency_2dp(total_gross_revenueA), bold_right) if total_gross_revenueA is not None else '',
         '',
         Paragraph(format_currency_2dp(total_gross_revenueB), bold_right) if total_gross_revenueB is not None else '',
-        Paragraph(format_currency_2dp(tax_statement.listOfSecurities.totalNonRecoverableTax), bold_right),
-        Paragraph(format_currency_2dp(tax_statement.listOfSecurities.totalAdditionalWithHoldingTaxUSA), bold_right),
+        Paragraph(format_currency_2dp(get_val_with_fallback(tax_statement.listOfSecurities, 'internalTotalNonRecoverableTax', 'totalNonRecoverableTax')), bold_right),
+        Paragraph(format_currency_2dp(get_val_with_fallback(tax_statement.listOfSecurities, 'internalTotalAdditionalWithHoldingTaxUSA', 'totalAdditionalWithHoldingTaxUSA')), bold_right),
     ])
     intermediate_total_rows.append(current_row)
     current_row += 1
@@ -1741,20 +1755,30 @@ def render_tax_statement(
             tax_statement.svTaxValueB = Decimal('0')
 
         # Create summary data dictionary from model fields
+        # Note: We prioritize internal calculated fields, but fall back to spec fields
+        # sv* fields map to corresponding A/B spec fields
+        sv_tax_value_a = get_val_with_fallback(tax_statement, 'svTaxValueA') # No spec fallback for split
+        sv_tax_value_b = get_val_with_fallback(tax_statement, 'svTaxValueB')
+
+        # Calculate total tax value from components if possible, else fallback to totalTaxValue
+        total_steuerwert_internal = None
+        if sv_tax_value_a is not None and sv_tax_value_b is not None:
+             total_steuerwert_internal = sv_tax_value_a + sv_tax_value_b
+
         summary_data = {
-            "steuerwert_ab": tax_statement.svTaxValueA + tax_statement.svTaxValueB,
-            "steuerwert_a": tax_statement.svTaxValueA,
-            "steuerwert_b": tax_statement.svTaxValueB,
-            "brutto_mit_vst": tax_statement.svGrossRevenueA,
-            "brutto_ohne_vst": tax_statement.svGrossRevenueB,
-            "vst_anspruch": tax_statement.totalWithHoldingTaxClaim,
-            "steuerwert_da1_usa": tax_statement.da1TaxValue,
-            "brutto_da1_usa": tax_statement.da_GrossRevenue,
-            "pauschale_da1": tax_statement.listOfSecurities.totalNonRecoverableTax if tax_statement.listOfSecurities else Decimal('0'),
-            "rueckbehalt_usa": tax_statement.listOfSecurities.totalAdditionalWithHoldingTaxUSA if tax_statement.listOfSecurities else Decimal('0'),
-            "total_steuerwert": tax_statement.totalTaxValue,
-            "total_brutto_mit_vst": tax_statement.totalGrossRevenueA,
-            "total_brutto_ohne_vst": tax_statement.totalGrossRevenueB,
+            "steuerwert_ab": total_steuerwert_internal if total_steuerwert_internal is not None else tax_statement.totalTaxValue,
+            "steuerwert_a": sv_tax_value_a,
+            "steuerwert_b": sv_tax_value_b,
+            "brutto_mit_vst": get_val_with_fallback(tax_statement, 'svGrossRevenueA', 'totalGrossRevenueA'),
+            "brutto_ohne_vst": get_val_with_fallback(tax_statement, 'svGrossRevenueB', 'totalGrossRevenueB'),
+            "vst_anspruch": get_val_with_fallback(tax_statement, 'internalTotalWithHoldingTaxClaim', 'totalWithHoldingTaxClaim'),
+            "steuerwert_da1_usa": get_val_with_fallback(tax_statement, 'da1TaxValue'),
+            "brutto_da1_usa": get_val_with_fallback(tax_statement, 'da_GrossRevenue'),
+            "pauschale_da1": get_val_with_fallback(tax_statement.listOfSecurities, 'internalTotalNonRecoverableTax', 'totalNonRecoverableTax', Decimal('0')) if tax_statement.listOfSecurities else Decimal('0'),
+            "rueckbehalt_usa": get_val_with_fallback(tax_statement.listOfSecurities, 'internalTotalAdditionalWithHoldingTaxUSA', 'totalAdditionalWithHoldingTaxUSA', Decimal('0')) if tax_statement.listOfSecurities else Decimal('0'),
+            "total_steuerwert": total_steuerwert_internal if total_steuerwert_internal is not None else tax_statement.totalTaxValue,
+            "total_brutto_mit_vst": get_val_with_fallback(tax_statement, 'svGrossRevenueA', 'totalGrossRevenueA'),
+            "total_brutto_ohne_vst": get_val_with_fallback(tax_statement, 'svGrossRevenueB', 'totalGrossRevenueB'),
             "total_brutto_gesamt": tax_statement.total_brutto_gesamt,
             "tax_period": tax_period,
             "period_end_date": period_end_date

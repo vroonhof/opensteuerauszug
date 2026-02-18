@@ -930,6 +930,12 @@ class BankAccount(BaseXmlModel):
     totalGrossRevenueBCanton: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     totalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
 
+    # Internal totals for rendering
+    internalTotalTaxValue: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalGrossRevenueA: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalGrossRevenueB: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, exclude=True)
+
     model_config = {
         "arbitrary_types_allowed": True,
         "json_schema_extra": {'tag_name': 'bankAccount', 'tag_namespace': NS_MAP['eCH-0196']}
@@ -943,6 +949,12 @@ class ListOfBankAccounts(BaseXmlModel):
     totalGrossRevenueA: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
     totalGrossRevenueB: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
     totalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required in XSD
+
+    # Internal totals for rendering
+    internalTotalTaxValue: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalGrossRevenueA: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalGrossRevenueB: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, exclude=True)
 
     model_config = {
         "arbitrary_types_allowed": True,
@@ -1011,6 +1023,10 @@ class LiabilityAccount(BaseXmlModel):
         json_schema_extra={'is_attribute': True}
     ) # Required in XSD
     
+    # Internal totals for rendering
+    internalTotalTaxValue: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalGrossRevenueB: Optional[Decimal] = Field(default=None, exclude=True)
+
     model_config = {
         "arbitrary_types_allowed": True,
         "json_schema_extra": {'tag_name': 'liabilityAccount', 'tag_namespace': NS_MAP['eCH-0196']}
@@ -1022,6 +1038,10 @@ class ListOfLiabilities(BaseXmlModel):
     # attributes
     totalTaxValue: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal, required
     totalGrossRevenueB: Optional[PositiveDecimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # positive-decimal, required
+
+    # Internal totals for rendering
+    internalTotalTaxValue: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalGrossRevenueB: Optional[Decimal] = Field(default=None, exclude=True)
 
     model_config = {
         "arbitrary_types_allowed": True,
@@ -1291,6 +1311,17 @@ class ListOfSecurities(BaseXmlModel):
     totalGrossRevenueIUP: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required
     totalGrossRevenueConversion: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True}) # required
 
+    # Internal totals for rendering
+    internalTotalTaxValue: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalGrossRevenueA: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalGrossRevenueB: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalLumpSumTaxCredit: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalAdditionalWithHoldingTaxUSA: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalNonRecoverableTax: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalGrossRevenueIUP: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalGrossRevenueConversion: Optional[Decimal] = Field(default=None, exclude=True)
+
     model_config = {
         "arbitrary_types_allowed": True,
         "json_schema_extra": {'tag_name': 'listOfSecurities', 'tag_namespace': NS_MAP['eCH-0196']}
@@ -1347,11 +1378,12 @@ class TaxStatement(TaxStatementBase):
     svTaxValueB: Optional[Decimal] = Field(default=None, exclude=True)
     svGrossRevenueA: Optional[Decimal] = Field(default=None, exclude=True)
     svGrossRevenueB: Optional[Decimal] = Field(default=None, exclude=True)
-    da1TaxValue: Optional[Decimal] = Field(default=Decimal('0'), exclude=True)
-    da_GrossRevenue: Optional[Decimal] = Field(default=Decimal('0'), exclude=True)
-    pauschale_da1: Optional[Decimal] = Field(default=Decimal('0'), exclude=True)
-    rueckbehalt_usa: Optional[Decimal] = Field(default=Decimal('0'), exclude=True)
+    da1TaxValue: Optional[Decimal] = Field(default=None, exclude=True)
+    da_GrossRevenue: Optional[Decimal] = Field(default=None, exclude=True)
+    pauschale_da1: Optional[Decimal] = Field(default=None, exclude=True)
+    rueckbehalt_usa: Optional[Decimal] = Field(default=None, exclude=True)
     total_brutto_gesamt: Optional[Decimal] = Field(default=None, exclude=True)
+    internalTotalWithHoldingTaxClaim: Optional[Decimal] = Field(default=None, exclude=True)
     # importer_name: Optional[str] = Field(default=None, exclude=True) # Field removed as per instruction
 
     # Critical warnings collected during import and calculation phases.
