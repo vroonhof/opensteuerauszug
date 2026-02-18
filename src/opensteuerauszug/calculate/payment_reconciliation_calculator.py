@@ -33,11 +33,28 @@ class _KurslisteAgg:
     withholding_chf: Decimal = Decimal("0")
     exchange_rate: Optional[Decimal] = None
     noncash: bool = False
+    allows_broker_above_kursliste: bool = False
 
 
 class PaymentReconciliationCalculator:
-    def __init__(self, tolerance_chf: Decimal = Decimal("0.05")):
+    _BROKER_ABOVE_KURSLISTE_ALLOWLIST_SIGNS = {
+        "(H)",
+        "(IK)",
+        "(KG)",
+        "(KR)",
+        "KEP",
+    }
+
+    _BROKER_ABOVE_KURSLISTE_ALLOWLIST_KEYWORDS = (
+        "return of capital",
+        "capital gain",
+        "kapitaleinlage",
+        "kapitalgewinn",
+    )
+
+    def __init__(self, tolerance_chf: Decimal = Decimal("0.05"), tolerance_frac = Decimal(0.0005)):
         self.tolerance_chf = tolerance_chf
+        self.tolerance_frac = tolerance_frac
 
     def calculate(self, tax_statement: TaxStatement) -> TaxStatement:
         report = PaymentReconciliationReport()
@@ -112,11 +129,13 @@ class PaymentReconciliationCalculator:
                     kurs_value_chf=kurs.dividend_chf,
                     broker_value_chf=broker_div_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
+                    allow_broker_above_kursliste=kurs.allows_broker_above_kursliste,
                 )
                 w_ok = self._component_matches(
                     kurs_value_chf=kurs.withholding_chf,
                     broker_value_chf=broker_with_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
+                    allow_broker_above_kursliste=kurs.allows_broker_above_kursliste,
                 )
                 if not div_ok:
                     note = "Broker dividend is below Kursliste value beyond tolerance."
@@ -167,6 +186,7 @@ class PaymentReconciliationCalculator:
         kurs_value_chf: Decimal,
         broker_value_chf: Optional[Decimal],
         allow_bidirectional_on_noncash: bool,
+        allow_broker_above_kursliste: bool,
     ) -> bool:
         if broker_value_chf is None:
             return abs(kurs_value_chf) < Decimal("0.01")
@@ -174,9 +194,17 @@ class PaymentReconciliationCalculator:
         if allow_bidirectional_on_noncash:
             return True
 
-        # For now, accept cases where the broker side is larger than Kursliste.
-        # Mismatch is only when the broker side is materially lower.
-        return broker_value_chf + self.tolerance_chf >= kurs_value_chf
+        delta = broker_value_chf - kurs_value_chf
+        if abs(delta) <= self.tolerance_chf:
+            return True
+
+        if abs(delta) <= self.tolerance_frac * broker_value_chf:
+            return True
+
+        if delta > self.tolerance_chf and allow_broker_above_kursliste:
+            return True
+
+        return False
 
     def _accumulate_broker(self, agg: _BrokerAgg, payment: SecurityPayment) -> None:
         non_recoverable_original = payment.nonRecoverableTaxAmountOriginal
@@ -209,3 +237,22 @@ class PaymentReconciliationCalculator:
         payment_type = payment.payment_type_original
         if payment_type is not None and payment_type != PaymentTypeOriginal.STANDARD:
             agg.noncash = True
+
+        if self._is_broker_above_kursliste_allowlisted(payment):
+            agg.allows_broker_above_kursliste = True
+
+    def _is_broker_above_kursliste_allowlisted(self, payment: SecurityPayment) -> bool:
+        if payment.sign is not None and payment.sign in self._BROKER_ABOVE_KURSLISTE_ALLOWLIST_SIGNS:
+            return True
+
+        searchable_values = [
+            payment.sign,
+            payment.name,
+            payment.broker_label_original,
+        ]
+        lowered_values = [value.lower() for value in searchable_values if value]
+        return any(
+            keyword in value
+            for keyword in self._BROKER_ABOVE_KURSLISTE_ALLOWLIST_KEYWORDS
+            for value in lowered_values
+        )
