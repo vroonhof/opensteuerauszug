@@ -3,6 +3,7 @@ import decimal
 from datetime import datetime, timedelta
 import os
 import argparse # Added for command-line arguments
+import logging
 
 # Use pypdf for PDF reading
 from pypdf import PdfReader, errors
@@ -373,6 +374,9 @@ def main():
     creates a StatementExtractor instance, extracts data, and verifies calculations.
     Requires pypdf: pip install pypdf
     """
+    # Suppress pypdf warnings to avoid cluttering output
+    logging.getLogger('pypdf').setLevel(logging.ERROR)
+    
     # --- Argument Parsing ---
     parser = argparse.ArgumentParser(
         description="Extracts and verifies data from a Charles Schwab PDF account statement.",
