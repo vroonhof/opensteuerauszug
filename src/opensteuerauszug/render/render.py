@@ -1329,6 +1329,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
     table_data = []
     intermediate_total_rows = []
     depot_header_rows = []
+    country_header_rows = []  # Track country header rows for DA1 securities
     current_row = 1  # Start after header
 
     
@@ -1342,14 +1343,37 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         table_data.append(depot_header_row)
         depot_header_rows.append(current_row)
         current_row += 1
+        # Separator row - use non-breaking space for height
+        table_data.append([Paragraph('&nbsp;')]*len(table_header))
+        current_row += 1
 
-        securities_in_depot.sort(
-            key=lambda s: (
-                int(s.valorNumber) if s.valorNumber is not None else 0,
-                s.securityName if s.securityName is not None else ''
-            )
-        )
+        # Sort by country first if security type is DA1, then by valor number and name
+        def securities_in_depot_sort_key(s):
+            country = (s.country if s.country is not None else '',) if security_type == "DA1" else ()
+            valor = int(s.valorNumber) if s.valorNumber is not None else 0
+            name = s.securityName if s.securityName is not None else ''
+            return country + (valor, name)
+
+        securities_in_depot.sort(key=securities_in_depot_sort_key)
+        previous_country = None
         for security in securities_in_depot:
+            # For DA1, add country header row when country changes
+            if security_type == "DA1":
+                current_country = security.country if security.country is not None else ''
+                if current_country != previous_country:
+                    # Add country header row
+                    country_header_row = [
+                        Paragraph('', val_left),
+                        Paragraph(current_country or '', bold_left),
+                    ] + [Paragraph('', val_left)] * (len(table_header) - 2)
+                    table_data.append(country_header_row)
+                    country_header_rows.append(current_row)
+                    current_row += 1
+                    previous_country = current_country
+                    # Separator row - use non-breaking space for height
+                    table_data.append([Paragraph('&nbsp;')]*len(table_header))
+                    current_row += 1
+
             # Description/header row for the security
             if security.country != "CH" and security.country != None:
                 cur_country = f"{security.currency or ''}<br/>{security.country}"
@@ -1459,8 +1483,8 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             ])
             intermediate_total_rows.append(current_row)
             current_row += 1
-            # Separator row
-            table_data.append([Paragraph('')]*len(table_header))
+            # Separator row - use non-breaking space for height
+            table_data.append([Paragraph('&nbsp;')]*len(table_header))
             current_row += 1
 
     # TODO read pre-summed totals from the model
@@ -1513,6 +1537,9 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         table_style.append(('RIGHTPADDING', (col, 0), (col, -1), 0))
         table_style.append(('TOPPADDING', (col, 0), (col, -1), 0))
         table_style.append(('BOTTOMPADDING', (col, 0), (col, -1), 0))
+    # Country header rows for DA1
+    for idx in country_header_rows:
+        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#f3f3f3')))
     for idx in intermediate_total_rows:
         table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#f0f0f0')))
     # Final totals
