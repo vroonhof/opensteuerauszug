@@ -280,6 +280,8 @@ class TotalCalculator(BaseCalculator):
 
             # Round list totals before setting them
             list_tax_value_rounded = self._round_sub_total(list_tax_value)
+            list_tax_value_a_sv_rounded = self._round_sub_total(list_tax_value_a_sv)
+            list_tax_value_b_sv_rounded = self._round_sub_total(list_tax_value_b_sv)
             list_revenue_a_rounded = self._round_sub_total(list_revenue_a)
             list_revenue_b_rounded = self._round_sub_total(list_revenue_b)
             list_withholding_rounded = self._round_sub_total(list_withholding)
@@ -292,8 +294,8 @@ class TotalCalculator(BaseCalculator):
 
             # Add to global totals (use rounded values)
             self.total_tax_value += list_tax_value_rounded
-            self.total_tax_value_a_sv += list_tax_value_a_sv
-            self.total_tax_value_b_sv += list_tax_value_b_sv
+            self.total_tax_value_a_sv += list_tax_value_a_sv_rounded
+            self.total_tax_value_b_sv += list_tax_value_b_sv_rounded
             self.total_gross_revenue_a += list_revenue_a_rounded
             self.total_gross_revenue_a_sv += list_revenue_a_rounded
             self.total_gross_revenue_b += list_revenue_b_rounded
