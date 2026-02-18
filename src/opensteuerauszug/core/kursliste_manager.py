@@ -57,14 +57,19 @@ class KurslisteManager:
             Year as integer if found, None otherwise
         """
         try:
-            tree = ET.parse(file_path)
-            root = tree.getroot()
-            year_str = root.get('year')
-            if year_str:
-                year = int(year_str)
-                # Basic sanity check for a reasonable year range
-                if 1900 < year < 2100:
-                    return year
+            # Use iterparse to read only the start of the root element
+            # Open file manually to ensure it's closed properly
+            with file_path.open('rb') as f:
+                context = ET.iterparse(f, events=('start',))
+                for event, elem in context:
+                    year_str = elem.get('year')
+                    if year_str:
+                        year = int(year_str)
+                        # Basic sanity check for a reasonable year range
+                        if 1900 < year < 2100:
+                            return year
+                    # We only need to check the root element
+                    break
         except Exception as e:
             print(f"Warning: Could not extract year from XML content of {file_path.name}: {e}")
         return None
