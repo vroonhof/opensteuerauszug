@@ -1,0 +1,68 @@
+name: Update README sample previews
+
+on:
+  # Trigger manually from the Actions UI
+  workflow_dispatch:
+
+  # Trigger automatically on push to main only when the commit message contains [update-samples]
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write  # needed to commit the generated files back
+
+jobs:
+  generate-previews:
+    # For push events, only run if the commit message contains [update-samples]
+    # For workflow_dispatch, always run
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[update-samples]')
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install git+https://github.com/vroonhof/pdf417-py.git
+          pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
+
+      - name: Install poppler (pdftoppm)
+        run: sudo apt-get install -y poppler-utils
+
+      - name: Generate sample PDF from vtandchill_2025.xml
+        run: |
+          opensteuerauszug \
+            tests/samples/import/ibkr/vtandchill_2025.xml \
+            --importer ibkr \
+            --tax-year 2025 \
+            --kursliste-dir tests/samples/kursliste \
+            --output docs/sample_output.pdf
+
+      - name: Extract page 1 (Summary) and page 3 (Stock table) as PNG
+        run: |
+          mkdir -p docs
+          # Page 1 – Summary page (pdftoppm pages are 1-indexed)
+          pdftoppm -r 150 -png -f 1 -l 1 -singlefile \
+            docs/sample_output.pdf docs/sample_summary_page
+          # Page 3 – Stock table example
+          pdftoppm -r 150 -png -f 3 -l 3 -singlefile \
+            docs/sample_output.pdf docs/sample_stock_table_page
+
+      - name: Commit updated previews
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update sample output previews [skip ci]"
+          file_pattern: |
+            docs/sample_output.pdf
+            docs/sample_summary_page.png
+            docs/sample_stock_table_page.png

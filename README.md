@@ -31,6 +31,16 @@ The tool can also be used to cross check and existing existing Steuerauszug (eCH
 - Cross verify calculations against existing E-Steuerauszug data
 - Create standardized formatted PDF that can be imported into Tax Software. 
 
+## Sample Output
+
+Below are previews from a sample Steuerauszug generated from the [VT and Chill](tests/samples/import/ibkr/vtandchill_2025.xml) IBKR test data.
+
+| Summary page (p.1) | Stock table (p.3) |
+|---|---|
+| ![Summary page](docs/sample_summary_page.png) | ![Stock table](docs/sample_stock_table_page.png) |
+
+[📄 Download full sample PDF](docs/sample_output.pdf)
+
 ## Supported Brokers
 
 For now the focus is on brokers / banks that the author has 
