@@ -2,6 +2,16 @@
 
 This document describes how to configure the OpenSteuerAuszug application using a `config.toml` file. The system allows for general user settings, per-financial-institution (broker) overrides, and per-account settings, providing a high degree of flexibility for processing your bank statements for tax documents.
 
+## Setup
+
+The configuration file is **optional**. To set it up:
+
+1. Copy the template file: `cp config.template.toml config.toml`
+2. Edit `config.toml` with your personal information (canton, full name, account numbers, etc.)
+3. The `config.toml` file is ignored by git to protect your personal data
+
+**Note:** If `config.toml` is not present, the application will still run but will use empty configuration. You may need to provide required settings via command-line arguments.
+
 ## User Documentation: Configuring with `config.toml`
 
 The configuration is loaded from a single `config.toml` file. The settings are structured hierarchically, allowing specific configurations to override more general ones in the following order of precedence (most specific wins):
