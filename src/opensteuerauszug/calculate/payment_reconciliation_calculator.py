@@ -38,11 +38,11 @@ class _KurslisteAgg:
 
 class PaymentReconciliationCalculator:
     _BROKER_ABOVE_KURSLISTE_ALLOWLIST_SIGNS = {
-        "KEP",
+        "(H)",
+        "(IK)",
         "(KG)",
         "(KR)",
-        "(IK)",
-        "(H)",
+        "KEP",
     }
 
     _BROKER_ABOVE_KURSLISTE_ALLOWLIST_KEYWORDS = (
