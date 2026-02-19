@@ -84,26 +84,30 @@ class TotalCalculator(BaseCalculator):
         # Reset accumulators before processing children
         self.total_tax_value = Decimal('0')
         self.total_gross_revenue_a = Decimal('0')
-        self.total_gross_revenue_a_sv = Decimal('0')
         self.total_gross_revenue_b = Decimal('0')
-        self.total_gross_revenue_b_sv = Decimal('0')
         self.total_withholding_tax_claim = Decimal('0')
         self.total_gross_revenue_da1 = Decimal('0')
         self.total_tax_value_da1 = Decimal('0')
-        self.total_tax_value_a_sv = Decimal('0')
-        self.total_tax_value_b_sv = Decimal('0')
         self.total_flat_rate_tax_credit = Decimal('0')
         self.total_additional_withholding_tax_usa = Decimal('0')
+
+        # sv accumulators (Securities ONLY)
+        self.total_tax_value_a_sv = Decimal('0')
+        self.total_tax_value_b_sv = Decimal('0')
+        self.total_gross_revenue_a_sv = Decimal('0')
+        self.total_gross_revenue_b_sv = Decimal('0')
+
+        # Summary accumulators (Securities + Bank Accounts, excluding DA1)
+        self.total_tax_value_a_summary = Decimal('0')
+        self.total_tax_value_b_summary = Decimal('0')
+        self.total_gross_revenue_a_summary = Decimal('0')
+        self.total_gross_revenue_b_summary = Decimal('0')
 
         # 1. Process Securities
         if tax_statement.listOfSecurities:
             list_tax_value = Decimal('0')
-            list_tax_value_a_sv = Decimal('0')
-            list_tax_value_b_sv = Decimal('0')
             list_revenue_a = Decimal('0')
-            list_revenue_a_sv = Decimal('0')
             list_revenue_b = Decimal('0')
-            list_revenue_b_sv= Decimal('0')
             list_withholding = Decimal('0')
             list_lump_sum_tax_credit = Decimal('0')
             list_additional_withholding_tax_usa = Decimal('0')
@@ -166,7 +170,8 @@ class TotalCalculator(BaseCalculator):
                                     security.totalWithHoldingTaxClaim = round_accounting(sec_withholding)
                                     security.totalNonRecoverableTax = round_accounting(sec_non_recoverable_tax)
                                     security.totalAdditionalWithHoldingTaxUSA = round_accounting(sec_additional_withholding_tax_usa)
-                            # Accumulate depot totals using rounded security totals
+                            
+                            # Accumulate depot totals using security totals
                             list_tax_value += sec_tax_value
                             list_revenue_a += sec_revenue_a
                             list_revenue_b += sec_revenue_b
@@ -182,22 +187,22 @@ class TotalCalculator(BaseCalculator):
                                 self.total_gross_revenue_da1 += sec_revenue_b
                                 assert sec_revenue_a == 0, "Gross revenue A should be 0 for DA1 securities"
                             else:
-                                list_revenue_a_sv += sec_revenue_a
-                                list_revenue_b_sv += sec_revenue_b
                                 if sec_revenue_a > 0 or security.country == "CH":
-                                    list_tax_value_a_sv += sec_tax_value
+                                    self.total_tax_value_a_sv += sec_tax_value
+                                    self.total_tax_value_a_summary += sec_tax_value
                                 else:
-                                    list_tax_value_b_sv += sec_tax_value
-                                pass
+                                    self.total_tax_value_b_sv += sec_tax_value
+                                    self.total_tax_value_b_summary += sec_tax_value
+                                
+                                self.total_gross_revenue_a_sv += sec_revenue_a
+                                self.total_gross_revenue_a_summary += sec_revenue_a
+                                self.total_gross_revenue_b_sv += sec_revenue_b
+                                self.total_gross_revenue_b_summary += sec_revenue_b
 
             # Round list totals before setting them
             list_tax_value_rounded = self._round_sub_total(list_tax_value)
-            list_tax_value_a_sv_rounded = self._round_sub_total(list_tax_value_a_sv)
-            list_tax_value_b_sv_rounded = self._round_sub_total(list_tax_value_b_sv)
             list_revenue_a_rounded = self._round_sub_total(list_revenue_a)
-            list_revenue_a_sv_rounded = self._round_sub_total(list_revenue_a_sv)
             list_revenue_b_rounded = self._round_sub_total(list_revenue_b)
-            list_revenue_b_sv_rounded = self._round_sub_total(list_revenue_b_sv)
             list_withholding_rounded = self._round_sub_total(list_withholding)
 
             # Set list level totals for securities
@@ -213,13 +218,8 @@ class TotalCalculator(BaseCalculator):
 
             # Accumulate global totals from list totals (use rounded values)
             self.total_tax_value += list_tax_value_rounded
-            self.total_tax_value_a_sv += list_tax_value_a_sv_rounded
-            self.total_tax_value_b_sv += list_tax_value_b_sv_rounded
-
             self.total_gross_revenue_a += list_revenue_a_rounded
-            self.total_gross_revenue_a_sv += list_revenue_a_sv_rounded
             self.total_gross_revenue_b += list_revenue_b_rounded
-            self.total_gross_revenue_b_sv += list_revenue_b_sv_rounded
             self.total_withholding_tax_claim += list_withholding_rounded
 
         # 2. Process Bank Accounts
@@ -261,11 +261,20 @@ class TotalCalculator(BaseCalculator):
                 self._round_and_set_field(account, 'totalGrossRevenueB', account_revenue_b_rounded, path)
                 self._round_and_set_field(account, 'totalWithHoldingTaxClaim', account_withholding_rounded, path)
 
-                # Accumulate list totals (use rounded values)
+                # Accumulate list totals
                 list_tax_value += account_tax_value_rounded
                 list_revenue_a += account_revenue_a_rounded
                 list_revenue_b += account_revenue_b_rounded
                 list_withholding += account_withholding_rounded
+
+                # Accumulate summary totals (Bank Accounts are A if they have grossRevenueA > 0, else B)
+                if account_revenue_a > 0:
+                    self.total_tax_value_a_summary += account_tax_value_rounded
+                else:
+                    self.total_tax_value_b_summary += account_tax_value_rounded
+                
+                self.total_gross_revenue_a_summary += account_revenue_a_rounded
+                self.total_gross_revenue_b_summary += account_revenue_b_rounded
 
             # Round list totals before setting them
             list_tax_value_rounded = self._round_sub_total(list_tax_value)
@@ -280,7 +289,6 @@ class TotalCalculator(BaseCalculator):
             self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalWithHoldingTaxClaim', list_withholding_rounded, "listOfBankAccounts")
 
             # Update global totals with list totals from bank accounts
-            # sv accumulators are NOT updated here because they should only contain securities
             self.total_tax_value += list_tax_value_rounded
             self.total_gross_revenue_a += list_revenue_a_rounded
             self.total_gross_revenue_b += list_revenue_b_rounded
@@ -324,11 +332,6 @@ class TotalCalculator(BaseCalculator):
             # Set list level totals for liabilities (rounded)
             self._round_and_set_field(tax_statement.listOfLiabilities, 'totalTaxValue', liability_list_tax_value_rounded, "listOfLiabilities")
             self._round_and_set_field(tax_statement.listOfLiabilities, 'totalGrossRevenueB', liability_list_revenue_b_rounded, "listOfLiabilities")
-
-            # Global total_tax_value: Liabilities are handled separately in Swiss tax law
-            # but for the XML totalTaxValue they are usually included as positive numbers?
-            # Actually, eCH-0196 totalTaxValue is sum of securities and bank accounts.
-            # Liabilities are in their own list.
             pass
 
         if tax_statement.listOfExpenses and tax_statement.listOfExpenses.expense:
@@ -355,6 +358,13 @@ class TotalCalculator(BaseCalculator):
             tax_statement.svTaxValueB = round_accounting(self.total_tax_value_b_sv)
             tax_statement.svGrossRevenueA = round_accounting(self.total_gross_revenue_a_sv)
             tax_statement.svGrossRevenueB = round_accounting(self.total_gross_revenue_b_sv)
+            
+            tax_statement.summaryTaxValueA = round_accounting(self.total_tax_value_a_summary)
+            tax_statement.summaryTaxValueB = round_accounting(self.total_tax_value_b_summary)
+            tax_statement.summaryGrossRevenueA = round_accounting(self.total_gross_revenue_a_summary)
+            tax_statement.summaryGrossRevenueB = round_accounting(self.total_gross_revenue_b_summary)
+            tax_statement.steuerwert_ab = tax_statement.summaryTaxValueA + tax_statement.summaryTaxValueB
+
             tax_statement.da1TaxValue = round_accounting(self.total_tax_value_da1)
             tax_statement.da_GrossRevenue = round_accounting(self.total_gross_revenue_da1)
         elif self.mode == CalculationMode.VERIFY:

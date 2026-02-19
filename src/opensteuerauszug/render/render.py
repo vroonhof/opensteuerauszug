@@ -1729,24 +1729,24 @@ def render_tax_statement(
             tax_statement.total_brutto_gesamt = total_gross_revenue_a + total_gross_revenue_b
 
         # Ensure the model fields are populated
-        if tax_statement.svGrossRevenueA is None:
-            tax_statement.svGrossRevenueA = tax_statement.totalGrossRevenueA or Decimal('0')
-
-        if tax_statement.svGrossRevenueB is None:
-            tax_statement.svGrossRevenueB = tax_statement.totalGrossRevenueB or Decimal('0')
-
-        if tax_statement.svTaxValueA is None:
-            tax_statement.svTaxValueA = Decimal('0')
-        if tax_statement.svTaxValueB is None:
-            tax_statement.svTaxValueB = Decimal('0')
+        if tax_statement.summaryGrossRevenueA is None:
+            tax_statement.summaryGrossRevenueA = tax_statement.svGrossRevenueA or Decimal('0')
+        if tax_statement.summaryGrossRevenueB is None:
+            tax_statement.summaryGrossRevenueB = tax_statement.svGrossRevenueB or Decimal('0')
+        if tax_statement.summaryTaxValueA is None:
+            tax_statement.summaryTaxValueA = tax_statement.svTaxValueA or Decimal('0')
+        if tax_statement.summaryTaxValueB is None:
+            tax_statement.summaryTaxValueB = tax_statement.svTaxValueB or Decimal('0')
+        if tax_statement.steuerwert_ab is None:
+            tax_statement.steuerwert_ab = tax_statement.summaryTaxValueA + tax_statement.summaryTaxValueB
 
         # Create summary data dictionary from model fields
         summary_data = {
-            "steuerwert_ab": tax_statement.svTaxValueA + tax_statement.svTaxValueB,
-            "steuerwert_a": tax_statement.svTaxValueA,
-            "steuerwert_b": tax_statement.svTaxValueB,
-            "brutto_mit_vst": tax_statement.svGrossRevenueA,
-            "brutto_ohne_vst": tax_statement.svGrossRevenueB,
+            "steuerwert_ab": tax_statement.steuerwert_ab,
+            "steuerwert_a": tax_statement.summaryTaxValueA,
+            "steuerwert_b": tax_statement.summaryTaxValueB,
+            "brutto_mit_vst": tax_statement.summaryGrossRevenueA,
+            "brutto_ohne_vst": tax_statement.summaryGrossRevenueB,
             "vst_anspruch": tax_statement.totalWithHoldingTaxClaim,
             "steuerwert_da1_usa": tax_statement.da1TaxValue,
             "brutto_da1_usa": tax_statement.da_GrossRevenue,
