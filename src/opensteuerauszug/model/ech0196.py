@@ -1185,6 +1185,8 @@ class SecurityStock(BaseXmlModel):
     blocked: Optional[bool] = Field(default=None, json_schema_extra={'is_attribute': True})
     blockingTo: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
 
+    # Opaque helper string that allows importers extra structure. Not used in calculation
+    # or in the export.
     orderId: Optional[str] = Field(default=None, exclude=True)
 
     model_config = {
