@@ -95,7 +95,7 @@ class TotalCalculator(BaseCalculator):
         self.total_flat_rate_tax_credit = Decimal('0')
         self.total_additional_withholding_tax_usa = Decimal('0')
 
-        # Explicitly iterate through children and call handlers
+        # 1. Process Securities
         if tax_statement.listOfSecurities:
             list_tax_value = Decimal('0')
             list_tax_value_a_sv = Decimal('0')
@@ -200,8 +200,6 @@ class TotalCalculator(BaseCalculator):
             list_revenue_b_sv_rounded = self._round_sub_total(list_revenue_b_sv)
             list_withholding_rounded = self._round_sub_total(list_withholding)
 
-
-
             # Set list level totals for securities
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalTaxValue', list_tax_value_rounded, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueA', list_revenue_a_rounded, "listOfSecurities")
@@ -224,16 +222,12 @@ class TotalCalculator(BaseCalculator):
             self.total_gross_revenue_b_sv += list_revenue_b_sv_rounded
             self.total_withholding_tax_claim += list_withholding_rounded
 
-
+        # 2. Process Bank Accounts
         if tax_statement.listOfBankAccounts and tax_statement.listOfBankAccounts.bankAccount:
             list_tax_value = Decimal('0')
             list_revenue_a = Decimal('0')
             list_revenue_b = Decimal('0')
             list_withholding = Decimal('0')
-            list_tax_value_a_sv = Decimal('0')
-            list_tax_value_b_sv = Decimal('0')
-            list_revenue_a_sv = Decimal('0')
-            list_revenue_b_sv = Decimal('0')
 
             for i, account in enumerate(tax_statement.listOfBankAccounts.bankAccount):
                 path = f"listOfBankAccounts.bankAccount[{i}]"
@@ -269,11 +263,6 @@ class TotalCalculator(BaseCalculator):
 
                 # Accumulate list totals (use rounded values)
                 list_tax_value += account_tax_value_rounded
-                if account_revenue_a > 0:
-                    list_tax_value_a_sv += account_tax_value_rounded
-                else:
-                    list_tax_value_b_sv += account_tax_value_rounded
-
                 list_revenue_a += account_revenue_a_rounded
                 list_revenue_b += account_revenue_b_rounded
                 list_withholding += account_withholding_rounded
@@ -290,16 +279,14 @@ class TotalCalculator(BaseCalculator):
             self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalGrossRevenueB', list_revenue_b_rounded, "listOfBankAccounts")
             self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalWithHoldingTaxClaim', list_withholding_rounded, "listOfBankAccounts")
 
-            # Add to global totals (use rounded values)
+            # Update global totals with list totals from bank accounts
+            # sv accumulators are NOT updated here because they should only contain securities
             self.total_tax_value += list_tax_value_rounded
-            self.total_tax_value_a_sv += list_tax_value_a_sv
-            self.total_tax_value_b_sv += list_tax_value_b_sv
             self.total_gross_revenue_a += list_revenue_a_rounded
-            self.total_gross_revenue_a_sv += list_revenue_a_rounded
             self.total_gross_revenue_b += list_revenue_b_rounded
-            self.total_gross_revenue_b_sv += list_revenue_b_rounded
             self.total_withholding_tax_claim += list_withholding_rounded
 
+        # 3. Process Liabilities
         if tax_statement.listOfLiabilities and tax_statement.listOfLiabilities.liabilityAccount:
             liability_list_tax_value = Decimal('0')
             liability_list_revenue_b = Decimal('0')
@@ -338,8 +325,10 @@ class TotalCalculator(BaseCalculator):
             self._round_and_set_field(tax_statement.listOfLiabilities, 'totalTaxValue', liability_list_tax_value_rounded, "listOfLiabilities")
             self._round_and_set_field(tax_statement.listOfLiabilities, 'totalGrossRevenueB', liability_list_revenue_b_rounded, "listOfLiabilities")
 
-            # Note: Liabilities are handled seperate by the tax accounting, they are 
-            # NOT subtracted from the report total value and income statments.
+            # Global total_tax_value: Liabilities are handled separately in Swiss tax law
+            # but for the XML totalTaxValue they are usually included as positive numbers?
+            # Actually, eCH-0196 totalTaxValue is sum of securities and bank accounts.
+            # Liabilities are in their own list.
             pass
 
         if tax_statement.listOfExpenses and tax_statement.listOfExpenses.expense:
@@ -353,7 +342,7 @@ class TotalCalculator(BaseCalculator):
         final_withholding_tax_claim = self._round_sub_total(self.total_withholding_tax_claim)
 
         # Set the regular totals (rounded)
-        self._round_and_set_field(tax_statement, 'totalTaxValue', final_tax_value, "") # Path prefix is "" as we are at the root
+        self._round_and_set_field(tax_statement, 'totalTaxValue', final_tax_value, "") 
         self._round_and_set_field(tax_statement, 'totalGrossRevenueA', final_gross_revenue_a, "")
         self._round_and_set_field(tax_statement, 'totalGrossRevenueB', final_gross_revenue_b, "")
         self._round_and_set_field(tax_statement, 'totalWithHoldingTaxClaim', final_withholding_tax_claim, "")
