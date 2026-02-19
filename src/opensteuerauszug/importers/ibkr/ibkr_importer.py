@@ -163,8 +163,8 @@ class IbkrImporter:
             #     f"{self.account_settings_list[0].account_id}"
             # )
 
-    def _aggregate_stocks_by_date(self, stocks: List[SecurityStock]) -> List[SecurityStock]:
-        """Aggregate buy and sell entries on the same date without reordering."""
+    def _aggregate_stocks(self, stocks: List[SecurityStock]) -> List[SecurityStock]:
+        """Aggregate buy and sell entries on the same date with equal order id if present without reordering."""
 
         aggregated: List[SecurityStock] = []
         pending: SecurityStock | None = None
@@ -174,6 +174,7 @@ class IbkrImporter:
                 if (
                     pending
                     and pending.referenceDate == stock.referenceDate
+                    and pending.orderId == stock.orderId
                     and pending.balanceCurrency == stock.balanceCurrency
                     and pending.quotationType == stock.quotationType
                     # test for same sign of quantity
@@ -193,6 +194,7 @@ class IbkrImporter:
                         quantity=stock.quantity,
                         unitPrice=stock.unitPrice,
                         name=stock.name,
+                        orderId=stock.orderId,
                         balanceCurrency=stock.balanceCurrency,
                         quotationType=stock.quotationType,
                     )
@@ -417,6 +419,7 @@ class IbkrImporter:
                         quantity=quantity,
                         unitPrice=trade_price,
                         name=buy_sell.value,
+                        orderId=trade.ibOrderID,
                         balanceCurrency=currency,
                         quotationType="PIECE"
                     )
@@ -801,7 +804,7 @@ class IbkrImporter:
         sec_pos_idx = 0
         for sec_pos_obj, data in processed_security_positions.items():
             sec_pos_idx += 1
-            sorted_stocks = self._aggregate_stocks_by_date(data['stocks'])
+            sorted_stocks = self._aggregate_stocks(data['stocks'])
             sorted_payments = sorted(
                 data['payments'], key=lambda p: p.paymentDate
             )

@@ -98,13 +98,14 @@ SAMPLE_IBKR_FLEX_XML_AGGREGATE = """
   <FlexStatements count="1">
     <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
       <Trades>
-        <Trade transactionID="1101" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" quantity="5" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="280.00" tradeMoney="1400.00" buySell="BUY" ibCommission="-0.50" netCash="-1400.50" />
-        <Trade transactionID="1102" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" quantity="5" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="281.00" tradeMoney="1405.00" buySell="BUY" ibCommission="-0.50" netCash="-1405.50" />
+        <Trade transactionID="1101" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" quantity="5" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="280.00" tradeMoney="1400.00" buySell="BUY" ibCommission="-0.50" netCash="-1400.50" ibOrderID="123456788" />
+        <Trade transactionID="1102" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" quantity="5" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="281.00" tradeMoney="1405.00" buySell="BUY" ibCommission="-0.50" netCash="-1405.50" ibOrderID="123456788" />
+        <Trade transactionID="1105" accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" quantity="10" tradeDate="2023-03-15" settleDateTarget="2023-03-17" tradePrice="282.00" tradeMoney="2820.00" buySell="BUY" ibCommission="-0.50" netCash="-2820.50" ibOrderID="123456789" />
         <Trade transactionID="1103" accountId="U1234567" assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" currency="USD" quantity="-2" tradeDate="2023-06-20" settleDateTarget="2023-06-22" tradePrice="180.00" tradeMoney="-360.00" buySell="SELL" ibCommission="-0.20" netCash="359.80" />
         <Trade transactionID="1104" accountId="U1234567" assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" currency="USD" quantity="-3" tradeDate="2023-06-20" settleDateTarget="2023-06-22" tradePrice="179.50" tradeMoney="-538.50" buySell="SELL" ibCommission="-0.30" netCash="538.20" />
       </Trades>
       <OpenPositions>
-        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" position="10" markPrice="300.00" positionValue="3000.00" reportDate="2023-12-31" />
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="MSFT" description="MICROSOFT CORP" conid="272120" isin="US5949181045" currency="USD" position="20" markPrice="300.00" positionValue="6000.00" reportDate="2023-12-31" />
       </OpenPositions>
       <CashReport>
         <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2023-01-01" toDate="2023-12-31" />
@@ -794,10 +795,12 @@ def test_ibkr_trade_aggregation(sample_ibkr_settings):
             None,
         )
         assert msft_sec is not None and aapl_sec is not None
-        # Should aggregate into a single trade entry per security
-        assert len(msft_sec.stock) == 2
+        # Should aggregate into a single trade entry per security and ibOrderID if present
+        assert len(msft_sec.stock) == 3
         assert msft_sec.stock[0].quantity == Decimal("10")
         assert msft_sec.stock[0].unitPrice == Decimal("280.50")
+        assert msft_sec.stock[1].quantity == Decimal("10")
+        assert msft_sec.stock[1].unitPrice == Decimal("282.0")
         assert len(aapl_sec.stock) == 3
         assert aapl_sec.stock[1].quantity == Decimal("-5")
         assert aapl_sec.stock[1].unitPrice == Decimal("179.70")
