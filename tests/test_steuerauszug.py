@@ -63,6 +63,8 @@ def test_main_basic_run(dummy_input_file: Path):
         app,
         [
             str(dummy_input_file),
+            "--config",
+            "config.template.toml",
             "--tax-year",
             "2024",
             "--kursliste-dir",
@@ -131,6 +133,8 @@ def test_main_raw_import_with_phases(dummy_xml_file: Path, tmp_path: Path):
         app,
         [
             str(dummy_xml_file),
+            "--config",
+            "config.template.toml",
             "--raw-import",
             "--tax-year",
             "2024",

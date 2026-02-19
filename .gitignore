@@ -9,6 +9,9 @@
 # Real tax data for integration testing
 /private
 
+# User-specific configuration file (copy config.template.toml to config.toml)
+/config.toml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

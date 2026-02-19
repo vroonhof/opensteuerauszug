@@ -32,11 +32,11 @@ class ConfigManager:
 
     def _load_raw_config(self) -> Dict[str, Any]:
         if not os.path.exists(self.config_file_path):
-            # In a real application, you might raise an error or log a more severe warning.
-            # For now, returning an empty dict allows the app to proceed with default Pydantic model values if possible,
+            # Returning an empty dict allows the app to proceed with default Pydantic model values if possible,
             # or fail later if essential configs like 'canton' or 'full_name' are missing and accessed.
             logger.warning(
-                "Configuration file '%s' not found. Using empty config.",
+                "Configuration file '%s' not found. Using empty config. "
+                "To configure, copy config.template.toml to config.toml and edit with your details.",
                 self.config_file_path,
             )
             return {}

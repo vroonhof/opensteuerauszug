@@ -140,18 +140,25 @@ This is the primary use case for OpenSteuerAuszug: generating a PDF Steuerauszug
 To generate a Steuerauszug, you will need to provide the following:
 
 1.  **Broker Statements**: These are the reports or data files you download from your bank or financial institution. The required format varies by broker. See the specific importer documentation (linked under "Importing Data from Brokers" below) for details on what files are needed and how to obtain them.
-2.  **Configuration File (`config.toml`)**: This file tells OpenSteuerAuszug your personal details (name, canton for tax purposes), information about your financial institutions, and specific settings for each account. You must create this file in the root directory of the OpenSteuerAuszug project.
+2.  **Configuration File (`config.toml`)**: This file tells OpenSteuerAuszug your personal details (name, canton for tax purposes), information about your financial institutions, and specific settings for each account. You can copy `config.template.toml` to `config.toml`. The file is optional.
 3.  **Kursliste**: As described in the "Preparing the Kursliste" section, ensure you have the relevant Kursliste (preferably as an SQLite file in `data/kursliste/`) for the tax year you are processing.
 
 ### Configuring OpenSteuerAuszug (`config.toml`)
 
-The `config.toml` file is crucial for tailoring OpenSteuerAuszug to your needs. It uses a hierarchical structure:
+The `config.toml` file is optional. It allows tailoring OpenSteuerAuszug to your needs, for example if you want to correct or extend broker exported data. To set it up:
+
+1. Copy the template: `cp config.template.toml config.toml`
+2. Edit the file with your personal information
+
+The configuration uses a hierarchical structure:
 
 *   `[general]` settings apply globally (e.g., your name, canton).
 *   `[brokers.<BrokerName>]` settings apply to a specific financial institution.
 *   `[brokers.<BrokerName>.accounts.<AccountName>]` settings apply to a specific account, including the **mandatory `account_number`**.
 
 For detailed instructions on how to structure your `config.toml` file, what settings are available, and examples, please refer to the [Configuration Guide](config.md).
+
+**Note:** The `config.toml` file is ignored by git to protect your personal data. If it's not present, the application will still run but may require configuration settings via command-line arguments.
 
 ### Importing Data from Brokers
 
