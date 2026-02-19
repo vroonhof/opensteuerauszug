@@ -1,0 +1,101 @@
+name: Comment sample PDF link on PR
+
+on:
+  workflow_run:
+    workflows: ["Generate sample PDF for PR"]
+    types: [completed]
+
+permissions:
+  pull-requests: write
+  actions: read
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Download PR number artifact
+        uses: actions/github-script@v7
+        id: get-pr-number
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: ${{ github.event.workflow_run.id }},
+            });
+            const prNumberArtifact = artifacts.data.artifacts.find(a => a.name === 'pr-number');
+            if (!prNumberArtifact) {
+              core.setFailed('Could not find pr-number artifact');
+              return;
+            }
+            const download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: prNumberArtifact.id,
+              archive_format: 'zip',
+            });
+            const fs = require('fs');
+            fs.writeFileSync('/tmp/pr_number.zip', Buffer.from(download.data));
+            core.setOutput('artifact_run_id', '${{ github.event.workflow_run.id }}');
+
+      - name: Unzip PR number
+        run: unzip /tmp/pr_number.zip -d /tmp/pr_number_dir
+
+      - name: Post comment on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const prNumber = parseInt(fs.readFileSync('/tmp/pr_number_dir/pr_number.txt', 'utf8').trim(), 10);
+
+            // Find the sample PDF artifact from the triggering run
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: ${{ github.event.workflow_run.id }},
+            });
+            const pdfArtifact = artifacts.data.artifacts.find(a => a.name.startsWith('sample-pdf-pr-'));
+
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${{ github.event.workflow_run.id }}`;
+            const artifactUrl = pdfArtifact
+              ? `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${{ github.event.workflow_run.id }}/artifacts/${pdfArtifact.id}`
+              : runUrl;
+
+            const body = [
+              '## 📄 Sample PDF Preview',
+              '',
+              'A sample Steuerauszug PDF has been generated from `vtandchill_2025.xml` for this PR.',
+              '',
+              `**[⬇️ Download sample_output.pdf](${artifactUrl})**`,
+              '',
+              `_(Artifact expires in 14 days. Requires GitHub login to download. [View workflow run](${runUrl}))_`,
+            ].join('\n');
+
+            // Find existing bot comment to update instead of creating duplicates
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            const botComment = comments.data.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Sample PDF Preview')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
