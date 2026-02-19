@@ -137,7 +137,9 @@ class SchwabImporter:
             currency_at_start = self._determine_synthesized_stock_currency(
                 pos_obj, live_stocks_list, start_pos_synth.currency if start_pos_synth else None
             )
-            q_type_at_start = live_stocks_list[0].quotationType if live_stocks_list else "PIECE"
+            q_type_at_start = "PIECE"
+            if live_stocks_list:
+                q_type_at_start = live_stocks_list[0].quotationType
 
             if start_pos_synth:
                 qty_to_set_at_start = start_pos_synth.quantity
@@ -167,7 +169,9 @@ class SchwabImporter:
             currency_at_end = self._determine_synthesized_stock_currency(
                 pos_obj, live_stocks_list, end_pos_synth.currency if end_pos_synth else None
             )
-            q_type_at_end = live_stocks_list[0].quotationType if live_stocks_list else "PIECE"
+            q_type_at_end = "PIECE"
+            if live_stocks_list:
+                q_type_at_end = live_stocks_list[0].quotationType
 
             print(f"[{current_identifier}] Synthesized end position for {effective_period_end_date}: Qty {end_pos_synth.quantity} {currency_at_end}")
             end_balance_stock = SecurityStock(
@@ -279,11 +283,11 @@ class SchwabImporter:
                         if filtered_stocks:
                             for i, stock_item in enumerate(filtered_stocks):
                                 payments_for_this_entry = None
-                                if i == 0 and filtered_payments: \
+                                if i == 0 and filtered_payments:
                                     payments_for_this_entry = filtered_payments
                                 all_positions.append((position, stock_item, payments_for_this_entry))
-                        elif filtered_payments: \
-                            print(f"WARNING: Transaction for {position} from {filename} (period {start_date}-{end_date}) has {len(filtered_payments)} filtered_payments for newly covered segments {newly_covered_segments} but no corresponding filtered_stocks. These payments will not be added to all_positions.")
+                        elif filtered_payments:
+                            all_positions.append((position, None, filtered_payments))
                             
                     # print(f"Extracted transactions from {filename}: {transactions}")
             elif ext == ".csv":
@@ -348,16 +352,30 @@ class SchwabImporter:
         position_map = defaultdict(lambda: ([], []))  # Position -> (list of SecurityStock, list of SecurityPayment)
         
         for pos, stock, payments in all_positions:
-            if not is_date_in_valid_transaction_range(stock.referenceDate, max_ranges[pos.depot]):
-                print(f"WARNING: Skipping stock {stock} for position {pos} because its referenceDate {stock.referenceDate} is not in the valid transaction range {max_ranges[pos.depot]}.")
-                continue
+            if stock:
+                if not is_date_in_valid_transaction_range(stock.referenceDate, max_ranges[pos.depot]):
+                    print(f"WARNING: Skipping stock {stock} for position {pos} because its referenceDate {stock.referenceDate} is not in the valid transaction range {max_ranges[pos.depot]}.")
+                    continue
             
+            if not stock and payments:
+                # Filter payments by valid transaction range if they are not associated with a stock
+                valid_payments = []
+                for p in payments:
+                    if is_date_in_valid_transaction_range(p.paymentDate, max_ranges[pos.depot]):
+                        valid_payments.append(p)
+                    else:
+                        print(f"WARNING: Skipping payment {p} for position {pos} because its paymentDate {p.paymentDate} is not in the valid transaction range {max_ranges[pos.depot]}.")
+                payments = valid_payments
+                if not payments:
+                    continue
+
             # Ensure pos is a known type before using it as a key
             if not isinstance(pos, (SecurityPosition, CashPosition)):
                 raise TypeError(f"Unknown position type: {type(pos)}")
 
             current_stocks, current_payments = position_map[pos]
-            current_stocks.append(stock)
+            if stock:
+                current_stocks.append(stock)
             if payments: # payments can be a list or a single item
                 if isinstance(payments, list):
                     current_payments.extend(payments)
@@ -446,6 +464,10 @@ def convert_security_positions_to_list_of_securities(
         else:
             security_name = pos.symbol
             
+        if not stocks:
+            print(f"WARNING: Security {security_name} has no stocks after reconciliation and will be skipped.")
+            continue
+
         first_stock = stocks[0]
         position_counter += 1
         sec = Security(
