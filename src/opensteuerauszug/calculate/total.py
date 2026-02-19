@@ -12,16 +12,6 @@ from ..util import round_accounting
 class TotalCalculator(BaseCalculator):
     """
     Calculator that computes and verifies the total values at the top level of the tax statement.
-    
-    This calculator handles:
-    - totalTaxValue: Sum of all tax values across securities, bank accounts, and liabilities
-    - totalGrossRevenueA: Sum of all type A gross revenues
-    - totalGrossRevenueB: Sum of all type B gross revenues
-    - totalWithHoldingTaxClaim: Sum of all withholding tax claims
-    - totalGrossRevenueDA1: Sum of all DA-1 gross revenues (USA)
-    - totalTaxValueDA1: Sum of all DA-1 tax values (USA)
-    - totalFlatRateTaxCredit: Sum of all flat rate tax credits
-    - totalAdditionalWithHoldingTaxUSA: Sum of all additional withholding taxes for USA
     """
     
     def __init__(self, mode: CalculationMode = CalculationMode.FILL,
@@ -39,86 +29,59 @@ class TotalCalculator(BaseCalculator):
         self.round_sub_total = round_sub_total
     
     def _round_sub_total(self, value: Decimal) -> Decimal:
-        """
-        Round a sub-total value according to the current rounding strategy.
-        
-        Args:
-            value: The value to round
-            
-        Returns:
-            The rounded value
-        """
-        # Rounding subtotals is what I think the spec says but at least some
-        # real world example round only the final values.
+        """Round a sub-total value according to the current rounding strategy."""
         if self.round_sub_total:
-            # If round_sub_total is True, round the value
             return round_accounting(value)
-        else:
-            # Sadly this breaks composibility has the totals cannot be recomputed
-            # from the stored values.
-            return value
+        return value
     
     def _round_and_set_field(self, model: Any, field_name: str, value: Decimal, path: str) -> None:
-        """
-        Round a value and set it on a model field.
-        
-        Args:
-            model: The model containing the field
-            field_name: The name of the field to set
-            value: The value to round and set
-            path: The path for error reporting
-        """
-        # all stored values are rounded. They may have been rounded before, but
-        # that is OK as rounding is idempotent.
+        """Round a value and set it on a model field."""
         rounded_value = round_accounting(value)
         self._set_field_value(model, field_name, rounded_value, path)
     
-    def _process_tax_statement(self, tax_statement: TaxStatement) -> None: # Overrides base class method
-        """
-        Process the tax statement to calculate and verify total values by explicitly iterating children.
-        This method opts out of the base class visitor pattern for top-level traversal.
-        
-        Args:
-            tax_statement: The tax statement to process
-        """
-        # Reset accumulators before processing children
+    def _process_tax_statement(self, tax_statement: TaxStatement) -> None:
+        # Reset global accumulators
         self.total_tax_value = Decimal('0')
         self.total_gross_revenue_a = Decimal('0')
-        self.total_gross_revenue_a_sv = Decimal('0')
         self.total_gross_revenue_b = Decimal('0')
-        self.total_gross_revenue_b_sv = Decimal('0')
         self.total_withholding_tax_claim = Decimal('0')
         self.total_gross_revenue_da1 = Decimal('0')
         self.total_tax_value_da1 = Decimal('0')
         self.total_tax_value_a_sv = Decimal('0')
         self.total_tax_value_b_sv = Decimal('0')
+        self.total_gross_revenue_a_sv = Decimal('0')
+        self.total_gross_revenue_b_sv = Decimal('0')
+        self.total_tax_value_a_summary = Decimal('0')
+        self.total_tax_value_b_summary = Decimal('0')
+        self.total_gross_revenue_a_summary = Decimal('0')
+        self.total_gross_revenue_b_summary = Decimal('0')
         self.total_flat_rate_tax_credit = Decimal('0')
         self.total_additional_withholding_tax_usa = Decimal('0')
 
-        # Explicitly iterate through children and call handlers
+        # 1. Process Securities
         if tax_statement.listOfSecurities:
             list_tax_value = Decimal('0')
-            list_tax_value_a_sv = Decimal('0')
-            list_tax_value_b_sv = Decimal('0')
             list_revenue_a = Decimal('0')
-            list_revenue_a_sv = Decimal('0')
             list_revenue_b = Decimal('0')
-            list_revenue_b_sv= Decimal('0')
             list_withholding = Decimal('0')
             list_lump_sum_tax_credit = Decimal('0')
             list_additional_withholding_tax_usa = Decimal('0')
             list_non_recoverable_tax = Decimal('0')
+            
+            # sv/summary/da1 specific list accumulators
+            list_tax_value_a_sv = Decimal('0')
+            list_tax_value_b_sv = Decimal('0')
+            list_revenue_a_sv = Decimal('0')
+            list_revenue_b_sv = Decimal('0')
+            list_tax_value_da1 = Decimal('0')
+            list_revenue_da1 = Decimal('0')
 
-            # Process securities in depots
             if tax_statement.listOfSecurities.depot:
                 for i, depot in enumerate(tax_statement.listOfSecurities.depot):
-
                     if depot.security:
                         for j, security in enumerate(depot.security):
                             path = f"listOfSecurities.depot[{i}].security[{j}]"
-
-                            # Calculate totals for this security
-                            sec_tax_value = Decimal('0')
+                            sec_tax_value = security.taxValue.value if security.taxValue and security.taxValue.value is not None else Decimal('0')
                             sec_revenue_a = Decimal('0')
                             sec_revenue_b = Decimal('0')
                             sec_withholding = Decimal('0')
@@ -126,47 +89,22 @@ class TotalCalculator(BaseCalculator):
                             sec_additional_withholding_tax_usa = Decimal('0')
                             sec_non_recoverable_tax = Decimal('0')
 
-                            if security.taxValue and security.taxValue.value is not None:
-                                sec_tax_value = security.taxValue.value
-
-
                             if security.payment:
                                 for payment in security.payment:
-                                    if payment.grossRevenueA is not None:
-                                        sec_revenue_a += payment.grossRevenueA
-
-                                    if payment.grossRevenueB is not None:
-                                        sec_revenue_b += payment.grossRevenueB
-
-                                    if payment.withHoldingTaxClaim is not None:
-                                        sec_withholding += payment.withHoldingTaxClaim
-
-                                    if payment.lumpSumTaxCreditAmount is not None:
-                                        sec_lump_sum_tax_credit += payment.lumpSumTaxCreditAmount
-
-                                    if payment.additionalWithHoldingTaxUSA is not None:
-                                        sec_additional_withholding_tax_usa += payment.additionalWithHoldingTaxUSA
-
-                                    if payment.nonRecoverableTaxAmount is not None:
-                                        sec_non_recoverable_tax += payment.nonRecoverableTaxAmount
+                                    if payment.grossRevenueA is not None: sec_revenue_a += payment.grossRevenueA
+                                    if payment.grossRevenueB is not None: sec_revenue_b += payment.grossRevenueB
+                                    if payment.withHoldingTaxClaim is not None: sec_withholding += payment.withHoldingTaxClaim
+                                    if payment.lumpSumTaxCreditAmount is not None: sec_lump_sum_tax_credit += payment.lumpSumTaxCreditAmount
+                                    if payment.additionalWithHoldingTaxUSA is not None: sec_additional_withholding_tax_usa += payment.additionalWithHoldingTaxUSA
+                                    if payment.nonRecoverableTaxAmount is not None: sec_non_recoverable_tax += payment.nonRecoverableTaxAmount
                             
-                                    # For all unsupported fields raise an exception
-                                    unsupported_fields = [
-                                        'grossRevenueACanton', 'grossRevenueBCanton',
-                                        'iup'
-                                    ]
-                                    
-                                    for field in unsupported_fields:
-                                        if hasattr(payment, field) and not (getattr(payment, field) in  [None, Decimal('0')]):
-                                            raise NotImplementedError(f"Field '{field}' with value '{getattr(payment, field)}'' is not supported yet in {path}.payment")
-                                # Set the security totals for use rendering
-                                if self.mode == CalculationMode.FILL or self.mode == CalculationMode.OVERWRITE:                                   
+                                if self.mode in [CalculationMode.FILL, CalculationMode.OVERWRITE]:                                   
                                     security.totalGrossRevenueA = round_accounting(sec_revenue_a)
                                     security.totalGrossRevenueB = round_accounting(sec_revenue_b)
                                     security.totalWithHoldingTaxClaim = round_accounting(sec_withholding)
                                     security.totalNonRecoverableTax = round_accounting(sec_non_recoverable_tax)
                                     security.totalAdditionalWithHoldingTaxUSA = round_accounting(sec_additional_withholding_tax_usa)
-                            # Accumulate depot totals using rounded security totals
+                            
                             list_tax_value += sec_tax_value
                             list_revenue_a += sec_revenue_a
                             list_revenue_b += sec_revenue_b
@@ -175,198 +113,147 @@ class TotalCalculator(BaseCalculator):
                             list_additional_withholding_tax_usa += sec_additional_withholding_tax_usa
                             list_non_recoverable_tax += sec_non_recoverable_tax
 
-                            # Split WV and DA1 tax values
                             if determine_security_type(security) == "DA1":
-                                # DA1
-                                self.total_tax_value_da1 += sec_tax_value
-                                self.total_gross_revenue_da1 += sec_revenue_b
-                                assert sec_revenue_a == 0, "Gross revenue A should be 0 for DA1 securities"
+                                list_tax_value_da1 += sec_tax_value
+                                list_revenue_da1 += sec_revenue_b
                             else:
-                                list_revenue_a_sv += sec_revenue_a
-                                list_revenue_b_sv += sec_revenue_b
                                 if sec_revenue_a > 0 or security.country == "CH":
                                     list_tax_value_a_sv += sec_tax_value
                                 else:
                                     list_tax_value_b_sv += sec_tax_value
-                                pass
+                                list_revenue_a_sv += sec_revenue_a
+                                list_revenue_b_sv += sec_revenue_b
 
-            # Round list totals before setting them
-            list_tax_value_rounded = self._round_sub_total(list_tax_value)
-            list_tax_value_a_sv_rounded = self._round_sub_total(list_tax_value_a_sv)
-            list_tax_value_b_sv_rounded = self._round_sub_total(list_tax_value_b_sv)
-            list_revenue_a_rounded = self._round_sub_total(list_revenue_a)
-            list_revenue_a_sv_rounded = self._round_sub_total(list_revenue_a_sv)
-            list_revenue_b_rounded = self._round_sub_total(list_revenue_b)
-            list_revenue_b_sv_rounded = self._round_sub_total(list_revenue_b_sv)
-            list_withholding_rounded = self._round_sub_total(list_withholding)
-
-
-
-            # Set list level totals for securities
-            self._round_and_set_field(tax_statement.listOfSecurities, 'totalTaxValue', list_tax_value_rounded, "listOfSecurities")
-            self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueA', list_revenue_a_rounded, "listOfSecurities")
-            self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueB', list_revenue_b_rounded, "listOfSecurities")
-            self._round_and_set_field(tax_statement.listOfSecurities, 'totalWithHoldingTaxClaim', list_withholding_rounded, "listOfSecurities")
+            # Set list-level fields (rounded)
+            self._round_and_set_field(tax_statement.listOfSecurities, 'totalTaxValue', list_tax_value, "listOfSecurities")
+            self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueA', list_revenue_a, "listOfSecurities")
+            self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueB', list_revenue_b, "listOfSecurities")
+            self._round_and_set_field(tax_statement.listOfSecurities, 'totalWithHoldingTaxClaim', list_withholding, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalLumpSumTaxCredit', list_lump_sum_tax_credit, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalAdditionalWithHoldingTaxUSA', list_additional_withholding_tax_usa, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalNonRecoverableTax', list_non_recoverable_tax, "listOfSecurities")
-            self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueIUP', Decimal('0'), "listOfSecurities")
-            self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueConversion', Decimal('0'), "listOfSecurities")
 
-            # Accumulate global totals from list totals (use rounded values)
-            self.total_tax_value += list_tax_value_rounded
-            self.total_tax_value_a_sv += list_tax_value_a_sv_rounded
-            self.total_tax_value_b_sv += list_tax_value_b_sv_rounded
+            # Accumulate global/internal totals from ROUNDED list subtotals
+            self.total_tax_value += self._round_sub_total(list_tax_value)
+            self.total_gross_revenue_a += self._round_sub_total(list_revenue_a)
+            self.total_gross_revenue_b += self._round_sub_total(list_revenue_b)
+            self.total_withholding_tax_claim += self._round_sub_total(list_withholding)
 
-            self.total_gross_revenue_a += list_revenue_a_rounded
-            self.total_gross_revenue_a_sv += list_revenue_a_sv_rounded
-            self.total_gross_revenue_b += list_revenue_b_rounded
-            self.total_gross_revenue_b_sv += list_revenue_b_sv_rounded
-            self.total_withholding_tax_claim += list_withholding_rounded
+            self.total_tax_value_a_sv += self._round_sub_total(list_tax_value_a_sv)
+            self.total_tax_value_b_sv += self._round_sub_total(list_tax_value_b_sv)
+            self.total_gross_revenue_a_sv += self._round_sub_total(list_revenue_a_sv)
+            self.total_gross_revenue_b_sv += self._round_sub_total(list_revenue_b_sv)
 
+            # summary totals from securities (excluding DA1)
+            self.total_tax_value_a_summary += self._round_sub_total(list_tax_value_a_sv)
+            self.total_tax_value_b_summary += self._round_sub_total(list_tax_value_b_sv)
+            self.total_gross_revenue_a_summary += self._round_sub_total(list_revenue_a_sv)
+            self.total_gross_revenue_b_summary += self._round_sub_total(list_revenue_b_sv)
 
+            self.total_tax_value_da1 += self._round_sub_total(list_tax_value_da1)
+            self.total_gross_revenue_da1 += self._round_sub_total(list_revenue_da1)
+
+        # 2. Process Bank Accounts
         if tax_statement.listOfBankAccounts and tax_statement.listOfBankAccounts.bankAccount:
             list_tax_value = Decimal('0')
             list_revenue_a = Decimal('0')
             list_revenue_b = Decimal('0')
             list_withholding = Decimal('0')
-            list_tax_value_a_sv = Decimal('0')
-            list_tax_value_b_sv = Decimal('0')
-            list_revenue_a_sv = Decimal('0')
-            list_revenue_b_sv = Decimal('0')
+            
+            # summary specific list accumulators for bank accounts
+            list_tax_value_a_summary = Decimal('0')
+            list_tax_value_b_summary = Decimal('0')
+            list_revenue_a_summary = Decimal('0')
+            list_revenue_b_summary = Decimal('0')
 
             for i, account in enumerate(tax_statement.listOfBankAccounts.bankAccount):
                 path = f"listOfBankAccounts.bankAccount[{i}]"
-                # Calculate totals for this account
-                account_tax_value = Decimal('0')
-                account_revenue_a = Decimal('0')
-                account_revenue_b = Decimal('0')
-                account_withholding = Decimal('0')
-
-                if account.taxValue and account.taxValue.value is not None:
-                    account_tax_value = account.taxValue.value
+                acc_tax_value = account.taxValue.value if account.taxValue and account.taxValue.value is not None else Decimal('0')
+                acc_revenue_a = Decimal('0')
+                acc_revenue_b = Decimal('0')
+                acc_withholding = Decimal('0')
 
                 if account.payment:
                     for payment in account.payment:
-                        if payment.grossRevenueA is not None:
-                            account_revenue_a += payment.grossRevenueA
-                        if payment.grossRevenueB is not None:
-                            account_revenue_b += payment.grossRevenueB
-                        if payment.withHoldingTaxClaim is not None:
-                            account_withholding += payment.withHoldingTaxClaim
+                        if payment.grossRevenueA is not None: acc_revenue_a += payment.grossRevenueA
+                        if payment.grossRevenueB is not None: acc_revenue_b += payment.grossRevenueB
+                        if payment.withHoldingTaxClaim is not None: acc_withholding += payment.withHoldingTaxClaim
 
-                # Round account totals before setting them
-                account_tax_value_rounded = self._round_sub_total(account_tax_value)
-                account_revenue_a_rounded = self._round_sub_total(account_revenue_a)
-                account_revenue_b_rounded = self._round_sub_total(account_revenue_b)
-                account_withholding_rounded = self._round_sub_total(account_withholding)
+                if self.mode in [CalculationMode.FILL, CalculationMode.OVERWRITE]:
+                    self._round_and_set_field(account, 'totalTaxValue', acc_tax_value, path)
+                    self._round_and_set_field(account, 'totalGrossRevenueA', acc_revenue_a, path)
+                    self._round_and_set_field(account, 'totalGrossRevenueB', acc_revenue_b, path)
+                    self._round_and_set_field(account, 'totalWithHoldingTaxClaim', acc_withholding, path)
 
-                # Set individual account totals (rounded)
-                self._round_and_set_field(account, 'totalTaxValue', account_tax_value_rounded, path)
-                self._round_and_set_field(account, 'totalGrossRevenueA', account_revenue_a_rounded, path)
-                self._round_and_set_field(account, 'totalGrossRevenueB', account_revenue_b_rounded, path)
-                self._round_and_set_field(account, 'totalWithHoldingTaxClaim', account_withholding_rounded, path)
+                list_tax_value += acc_tax_value
+                list_revenue_a += acc_revenue_a
+                list_revenue_b += acc_revenue_b
+                list_withholding += acc_withholding
 
-                # Accumulate list totals (use rounded values)
-                list_tax_value += account_tax_value_rounded
-                if account_revenue_a > 0:
-                    list_tax_value_a_sv += account_tax_value_rounded
+                if acc_revenue_a > 0:
+                    list_tax_value_a_summary += acc_tax_value
                 else:
-                    list_tax_value_b_sv += account_tax_value_rounded
+                    list_tax_value_b_summary += acc_tax_value
+                list_revenue_a_summary += acc_revenue_a
+                list_revenue_b_summary += acc_revenue_b
 
-                list_revenue_a += account_revenue_a_rounded
-                list_revenue_b += account_revenue_b_rounded
-                list_withholding += account_withholding_rounded
+            self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalTaxValue', list_tax_value, "listOfBankAccounts")
+            self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalGrossRevenueA', list_revenue_a, "listOfBankAccounts")
+            self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalGrossRevenueB', list_revenue_b, "listOfBankAccounts")
+            self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalWithHoldingTaxClaim', list_withholding, "listOfBankAccounts")
 
-            # Round list totals before setting them
-            list_tax_value_rounded = self._round_sub_total(list_tax_value)
-            list_revenue_a_rounded = self._round_sub_total(list_revenue_a)
-            list_revenue_b_rounded = self._round_sub_total(list_revenue_b)
-            list_withholding_rounded = self._round_sub_total(list_withholding)
+            # Accumulate global/summary totals from ROUNDED list subtotals
+            self.total_tax_value += self._round_sub_total(list_tax_value)
+            self.total_gross_revenue_a += self._round_sub_total(list_revenue_a)
+            self.total_gross_revenue_b += self._round_sub_total(list_revenue_b)
+            self.total_withholding_tax_claim += self._round_sub_total(list_withholding)
 
-            # Set list level totals (rounded)
-            self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalTaxValue', list_tax_value_rounded, "listOfBankAccounts")
-            self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalGrossRevenueA', list_revenue_a_rounded, "listOfBankAccounts")
-            self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalGrossRevenueB', list_revenue_b_rounded, "listOfBankAccounts")
-            self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalWithHoldingTaxClaim', list_withholding_rounded, "listOfBankAccounts")
+            self.total_tax_value_a_summary += self._round_sub_total(list_tax_value_a_summary)
+            self.total_tax_value_b_summary += self._round_sub_total(list_tax_value_b_summary)
+            self.total_gross_revenue_a_summary += self._round_sub_total(list_revenue_a_summary)
+            self.total_gross_revenue_b_summary += self._round_sub_total(list_revenue_b_summary)
 
-            # Add to global totals (use rounded values)
-            self.total_tax_value += list_tax_value_rounded
-            self.total_tax_value_a_sv += list_tax_value_a_sv
-            self.total_tax_value_b_sv += list_tax_value_b_sv
-            self.total_gross_revenue_a += list_revenue_a_rounded
-            self.total_gross_revenue_a_sv += list_revenue_a_rounded
-            self.total_gross_revenue_b += list_revenue_b_rounded
-            self.total_gross_revenue_b_sv += list_revenue_b_rounded
-            self.total_withholding_tax_claim += list_withholding_rounded
-
+        # 3. Process Liabilities
         if tax_statement.listOfLiabilities and tax_statement.listOfLiabilities.liabilityAccount:
-            liability_list_tax_value = Decimal('0')
-            liability_list_revenue_b = Decimal('0')
+            list_tax_value = Decimal('0')
+            list_revenue_b = Decimal('0')
 
             for i, account in enumerate(tax_statement.listOfLiabilities.liabilityAccount):
                 path = f"listOfLiabilities.liabilityAccount[{i}]"
-
-                liability_value = Decimal('0') # Initialize liability_value
-                if account.taxValue and account.taxValue.value is not None:
-                    liability_value = account.taxValue.value
-                
-                # Process payments for gross revenue B
-                account_revenue_b = Decimal('0')
+                liab_value = account.taxValue.value if account.taxValue and account.taxValue.value is not None else Decimal('0')
+                liab_revenue_b = Decimal('0')
                 if account.payment:
                     for payment in account.payment:
-                        if payment.grossRevenueB is not None:
-                            account_revenue_b += payment.grossRevenueB
+                        if payment.grossRevenueB is not None: liab_revenue_b += payment.grossRevenueB
 
-                # Round account totals before setting them
-                liability_value_rounded = self._round_sub_total(liability_value)
-                account_revenue_b_rounded = self._round_sub_total(account_revenue_b)
+                # Always set liability totals as they are required by the standard
+                self._round_and_set_field(account, 'totalTaxValue', liab_value, path)
+                self._round_and_set_field(account, 'totalGrossRevenueB', liab_revenue_b, path)
 
-                # Set account totals (rounded)
-                self._round_and_set_field(account, 'totalTaxValue', liability_value_rounded, path)
-                self._round_and_set_field(account, 'totalGrossRevenueB', account_revenue_b_rounded, path)
+                list_tax_value += liab_value
+                list_revenue_b += liab_revenue_b
 
-                # Accumulate list totals (use rounded values)  
-                liability_list_tax_value += liability_value_rounded
-                liability_list_revenue_b += account_revenue_b_rounded
+            # Always set list-level liability totals
+            self._round_and_set_field(tax_statement.listOfLiabilities, 'totalTaxValue', list_tax_value, "listOfLiabilities")
+            self._round_and_set_field(tax_statement.listOfLiabilities, 'totalGrossRevenueB', list_revenue_b, "listOfLiabilities")
 
-            # Round list totals before setting them
-            liability_list_tax_value_rounded = self._round_sub_total(liability_list_tax_value)
-            liability_list_revenue_b_rounded = self._round_sub_total(liability_list_revenue_b)
-
-            # Set list level totals for liabilities (rounded)
-            self._round_and_set_field(tax_statement.listOfLiabilities, 'totalTaxValue', liability_list_tax_value_rounded, "listOfLiabilities")
-            self._round_and_set_field(tax_statement.listOfLiabilities, 'totalGrossRevenueB', liability_list_revenue_b_rounded, "listOfLiabilities")
-
-            # Note: Liabilities are handled seperate by the tax accounting, they are 
-            # NOT subtracted from the report total value and income statments.
-            pass
-
-        if tax_statement.listOfExpenses and tax_statement.listOfExpenses.expense:
-             # Expenses currently don't contribute to these totals
-             pass
-
-        # Round final global totals before setting them
-        final_tax_value = self._round_sub_total(self.total_tax_value)
-        final_gross_revenue_a = self._round_sub_total(self.total_gross_revenue_a)
-        final_gross_revenue_b = self._round_sub_total(self.total_gross_revenue_b)
-        final_withholding_tax_claim = self._round_sub_total(self.total_withholding_tax_claim)
-
-        # Set the regular totals (rounded)
-        self._round_and_set_field(tax_statement, 'totalTaxValue', final_tax_value, "") # Path prefix is "" as we are at the root
-        self._round_and_set_field(tax_statement, 'totalGrossRevenueA', final_gross_revenue_a, "")
-        self._round_and_set_field(tax_statement, 'totalGrossRevenueB', final_gross_revenue_b, "")
-        self._round_and_set_field(tax_statement, 'totalWithHoldingTaxClaim', final_withholding_tax_claim, "")
+        # Set final global totals (already rounded when accumulated from list subtotals)
+        self._round_and_set_field(tax_statement, 'totalTaxValue', self.total_tax_value, "") 
+        self._round_and_set_field(tax_statement, 'totalGrossRevenueA', self.total_gross_revenue_a, "")
+        self._round_and_set_field(tax_statement, 'totalGrossRevenueB', self.total_gross_revenue_b, "")
+        self._round_and_set_field(tax_statement, 'totalWithHoldingTaxClaim', self.total_withholding_tax_claim, "")
         
-        # Values that are only for out internal debugging
-        if self.mode == CalculationMode.FILL or self.mode == CalculationMode.OVERWRITE:
-            # In FILL and OVERWRITE modes we set the values
-            # round for cleanliness
+        if self.mode in [CalculationMode.FILL, CalculationMode.OVERWRITE]:
             tax_statement.svTaxValueA = round_accounting(self.total_tax_value_a_sv)
             tax_statement.svTaxValueB = round_accounting(self.total_tax_value_b_sv)
             tax_statement.svGrossRevenueA = round_accounting(self.total_gross_revenue_a_sv)
             tax_statement.svGrossRevenueB = round_accounting(self.total_gross_revenue_b_sv)
+            
+            tax_statement.summaryTaxValueA = round_accounting(self.total_tax_value_a_summary)
+            tax_statement.summaryTaxValueB = round_accounting(self.total_tax_value_b_summary)
+            tax_statement.summaryGrossRevenueA = round_accounting(self.total_gross_revenue_a_summary)
+            tax_statement.summaryGrossRevenueB = round_accounting(self.total_gross_revenue_b_summary)
+            tax_statement.steuerwert_ab = tax_statement.summaryTaxValueA + tax_statement.summaryTaxValueB
+
             tax_statement.da1TaxValue = round_accounting(self.total_tax_value_da1)
             tax_statement.da_GrossRevenue = round_accounting(self.total_gross_revenue_da1)
-        elif self.mode == CalculationMode.VERIFY:
-            pass

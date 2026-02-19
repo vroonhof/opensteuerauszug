@@ -613,6 +613,35 @@ class TestTotalCalculator:
         
         assert calculator.modified_fields.issuperset(expected_modified)
 
+    def test_invariant_security_sv_totals_exclude_bank_accounts(self):
+        """Invariant: sv fields (internal security subtotals) must only include values from securities."""
+        tax_statement = create_test_tax_statement()
+        calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
+        result = calculator.calculate(tax_statement)
+        
+        # Security in create_test_tax_statement is CH (Type A)
+        # TaxValue: 1000, RevenueA: 50, RevenueB: 30
+        # Bank Account: TaxValue: 5000, RevenueA: 25
+        
+        assert result.svTaxValueA == Decimal("1000.00")
+        assert result.svGrossRevenueA == Decimal("50.00")
+        assert result.svGrossRevenueB == Decimal("30.00")
+        assert result.svTaxValueB == Decimal("0.00")
+
+    def test_invariant_summary_totals_include_both_securities_and_bank_accounts(self):
+        """Invariant: summary fields must include combined values from both securities and bank accounts."""
+        tax_statement = create_test_tax_statement()
+        calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
+        result = calculator.calculate(tax_statement)
+        
+        # Security (A): 1000 tax, 50 revA, 30 revB
+        # Bank Account (A): 5000 tax, 25 revA
+        
+        assert result.summaryTaxValueA == Decimal("6000.00") # 1000 + 5000
+        assert result.summaryGrossRevenueA == Decimal("75.00") # 50 + 25
+        assert result.summaryGrossRevenueB == Decimal("30.00") # 30
+        assert result.steuerwert_ab == Decimal("6000.00") # summaryTaxValueA + summaryTaxValueB(0)
+
     def test_bank_account_multiple_payments(self):
         """Test calculation with a bank account that has multiple payments to ensure they are added correctly."""
         bank_account = BankAccount(
