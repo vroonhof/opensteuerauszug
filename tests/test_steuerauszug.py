@@ -180,6 +180,8 @@ def test_main_payment_reconciliation_by_default(dummy_input_file: Path):
     # Actually, if we don't specify phases, it should be in there.
     result = runner.invoke(app, [
         str(dummy_input_file),
+        "--config",
+        "config.template.toml",
         "--tax-year", "2024",
         "--kursliste-dir", str(KURSLISTE_SAMPLE_DIR),
     ])
