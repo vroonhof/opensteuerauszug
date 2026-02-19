@@ -60,7 +60,7 @@ class LogLevel(str, Enum):
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
 
-default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RENDER]
+default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RECONCILE_PAYMENTS, Phase.RENDER]
 
 @app.command()
 def main(
@@ -88,7 +88,7 @@ def main(
     override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
     kursliste_dir: Path = typer.Option(Path("data/kursliste"), "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste'."),
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
-    payment_reconciliation: bool = typer.Option(False, "--payment-reconciliation/--no-payment-reconciliation", help="Run optional payment reconciliation between Kursliste and broker evidence."),
+    payment_reconciliation: bool = typer.Option(True, "--payment-reconciliation/--no-payment-reconciliation", help="Run optional payment reconciliation between Kursliste and broker evidence."),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
     logging.basicConfig(level=log_level.value)
@@ -103,6 +103,8 @@ def main(
     if payment_reconciliation and Phase.RECONCILE_PAYMENTS not in run_phases:
         render_idx = run_phases.index(Phase.RENDER) if Phase.RENDER in run_phases else len(run_phases)
         run_phases.insert(render_idx, Phase.RECONCILE_PAYMENTS)
+    elif not payment_reconciliation and Phase.RECONCILE_PAYMENTS in run_phases:
+        run_phases.remove(Phase.RECONCILE_PAYMENTS)
 
     print(f"Starting OpenSteuerauszug processing...")
     print(f"Input file: {input_file}")

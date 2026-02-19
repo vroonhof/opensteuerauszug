@@ -64,6 +64,23 @@ Using OpenSteuerAuszug to generate your Steuerauszug generally involves the foll
     * Remove any manual entries you may have used in previous years.
     * **Recalculate the tax information using the tax software**. Most tax software offers the ability to recompute tax values based on the latest Kursliste, accept that option.
 
+## Features
+
+### Payment Reconciliation
+
+OpenSteuerAuszug includes a powerful **Payment Reconciliation** feature (enabled by default). 
+
+When you run the tool with Kursliste data, it automatically compares the dividends and withholding taxes reported by your broker against the official values expected from the Kursliste for each security.
+
+*   **Discrepancy Reporting**: It identifies cases where the broker's reported income or withholding tax differs from the Kursliste.
+*   **DA-1 Confidence**: The reconciliation tables are particularly useful for building confidence that foreign withholding tax (e.g., US withholding on dividends) has actually occurred and matches the expected rates. This is essential when claiming tax credits via the **DA-1 form** in your Swiss tax return.
+*   **Detailed Tables**: The generated PDF includes reconciliation tables showing these comparisons, making it easy to spot missing dividends or incorrect tax withholdings.
+*   **Automatic Match Detection**: It accounts for common scenarios like accumulating funds (where no cash flow is expected) and small rounding differences.
+
+You can explicitly control this feature using:
+*   `--payment-reconciliation`: (Default) Enables the reconciliation phase and reports.
+*   `--no-payment-reconciliation`: Skips the reconciliation step.
+
 ## Disclaimer and User Responsibility
 
 **Important**: OpenSteuerAuszug is provided "as is" without any formal audit or warranty. While it aims to be accurate, it is your responsibility as the taxpayer to:
