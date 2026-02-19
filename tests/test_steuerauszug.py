@@ -171,6 +171,25 @@ def test_main_debug_dump(dummy_input_file: Path, debug_dump_dir: Path):
     # Check content (minimal check for the placeholder JSON dump)
     # assert '"Portfolio"' in dump_import_file.read_text() # Check if it looks like our JSON dump
 
+def test_main_payment_reconciliation_by_default(dummy_input_file: Path):
+    """Test that reconcile_payments phase is run by default."""
+    # Actually, if we don't specify phases, it should be in there.
+    result = runner.invoke(app, [
+        str(dummy_input_file),
+        "--tax-year", "2024",
+        "--kursliste-dir", str(KURSLISTE_SAMPLE_DIR),
+    ])
+    assert "Phase: reconcile-payments" in result.stdout
+
+def test_main_no_payment_reconciliation(dummy_input_file: Path):
+    """Test that reconcile_payments phase is skipped with --no-payment-reconciliation."""
+    result = runner.invoke(app, [
+        str(dummy_input_file),
+        "--tax-year", "2024",
+        "--kursliste-dir", str(KURSLISTE_SAMPLE_DIR),
+        "--no-payment-reconciliation",
+    ])
+    assert "Phase: reconcile-payments" not in result.stdout
 
 def test_main_final_xml_output(dummy_input_file: Path, tmp_path: Path):
     """Test writing the final XML with --xml-output."""
