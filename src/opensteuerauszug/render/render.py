@@ -550,8 +550,10 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
 
     # --- Define common styles ---
     common_padding = [
-        ('LEFTPADDING', (0, 0), (-1, -1), 6), ('RIGHTPADDING', (0, 0), (-1, -1), 1),
-        ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 1),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         # footnote colunn
         ('LEFTPADDING', (1, 0), (1, -1), 1),
         ('LEFTPADDING', (7, 0), (7, -1), 1),
@@ -675,7 +677,21 @@ def create_liabilities_table(data, styles, usable_width):
     col_widths = [30*mm, 100*mm, 20*mm, 27*mm, 20*mm, 30*mm, 30*mm]
     assert sum(col_widths) < usable_width
     liabilities_table = Table(table_data, colWidths=col_widths)
-    liabilities_table.setStyle(TableStyle([ ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 1), ('RIGHTPADDING', (0, 0), (-1, -1), 1), ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 1), ('LINEBELOW', (0, 0), (-1, 0), 1, colors.black), ('BOTTOMPADDING', (0, 0), (-1, 0), 3*mm), ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black), ('TOPPADDING', (0, -1), (-1, -1), 3*mm), ]))
+    liabilities_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 1),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 1),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        # Header row
+        ('LINEBELOW', (0, 0), (-1, 0), 1, colors.black),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 1),
+        ('TOPPADDING', (0, 0), (-1, 0), 1),
+        # Footer/total row
+        ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black),
+        ('TOPPADDING', (0, -1), (-1, -1), 1),
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 1),
+    ]))
     return liabilities_table
 
 # --- Costs Table Function ---
@@ -705,7 +721,21 @@ def create_costs_table(data, styles, usable_width):
     col_widths = [110*mm, 97*mm, 50*mm]
     assert sum(col_widths) < usable_width
     costs_table = Table(table_data, colWidths=col_widths)
-    costs_table.setStyle(TableStyle([ ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('LEFTPADDING', (0, 0), (-1, -1), 1), ('RIGHTPADDING', (0, 0), (-1, -1), 1), ('TOPPADDING', (0, 0), (-1, -1), 1), ('BOTTOMPADDING', (0, 0), (-1, -1), 1), ('LINEBELOW', (0, 0), (-1, 0), 1, colors.black), ('BOTTOMPADDING', (0, 0), (-1, 0), 3*mm), ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black), ('TOPPADDING', (0, -1), (-1, -1), 3*mm), ]))
+    costs_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 1),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 1),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        # Header row
+        ('LINEBELOW', (0, 0), (-1, 0), 1, colors.black),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 1),
+        ('TOPPADDING', (0, 0), (-1, 0), 1),
+        # Footer/total row
+        ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black),
+        ('TOPPADDING', (0, -1), (-1, -1), 1),
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 1),
+    ]))
     footnote_text = '(2) Über die Abzugsfähigkeit der Spesen entscheidet die zuständige Veranlagungsbehörde.'
     return KeepTogether([costs_table, Spacer(1, 2*mm), Paragraph(footnote_text, val_left)])
 
@@ -1258,14 +1288,16 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 1),
         ('RIGHTPADDING', (0, 0), (-1, -1), 1),
-        ('TOPPADDING', (0, 0), (-1, -1), 1),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        # Header row
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 1),
+        ('TOPPADDING', (0, 0), (-1, 0), 1),
         # First content row
-        ('TOPPADDING', (0, 1), (-1, 1), 3*mm),
-        # Last content row
-        # For now handled by the extra seperator row
-        # ('BOTTOMPADDING', (0, -2), (-1, -2), 3*mm),
-        # Header row background (light grey)
+        ('TOPPADDING', (0, 1), (-1, 1), 5),
+        # Footer/total row
+        ('TOPPADDING', (0, -1), (-1, -1), 1),
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 1),
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#d3d3d3')),
         # Final totals
         ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#d3d3d3')),
@@ -1554,11 +1586,15 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 1),
         ('RIGHTPADDING', (0, 0), (-1, -1), 1),
-        ('TOPPADDING', (0, 0), (-1, -1), 1),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
-        ('TOPPADDING', (0, -2), (-1, -2), 3*mm),
-        # Header row background (light grey)
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        # Footer/total row (row before final separator)
+        ('TOPPADDING', (0, -2), (-1, -2), 1),
+        ('BOTTOMPADDING', (0, -2), (-1, -2), 1),
+        # Header row
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#d3d3d3')),
+        ('TOPPADDING', (0, 0), (-1, 0), 1),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 1),
     ]
     # Set padding to 0 for hidden columns to avoid negative availWidth
     for col in hidden_columns:
@@ -1629,7 +1665,7 @@ def create_payment_reconciliation_tables(tax_statement: TaxStatement, styles, us
             status_mark = '✓' if row.status in ('match', 'expected') else '✗'
             data.append([
                 Paragraph(escape_html_for_paragraph(row.security), val_left),
-                Paragraph(str(row.payment_date), val_left),
+                Paragraph(row.payment_date.strftime("%d.%m.%Y"), val_left),
                 Paragraph(format_currency(row.kursliste_dividend_chf), val_right),
                 Paragraph(format_currency(row.kursliste_withholding_chf), val_right),
                 Paragraph(escape_html_for_paragraph(broker_div), val_right),
@@ -1647,11 +1683,13 @@ def create_payment_reconciliation_tables(tax_statement: TaxStatement, styles, us
         style = [
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#d3d3d3')),
-            ('LEFTPADDING', (0, 0), (-1, -1), 2),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+            ('LEFTPADDING', (0, 0), (-1, -1), 1),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 1),
             ('TOPPADDING', (0, 0), (-1, -1), 1),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
-            ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+            # Header row
+            ('TOPPADDING', (0, 0), (-1, 0), 1),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 1),
         ]
         for idx in mismatch_rows:
             style.append(('TEXTCOLOR', (-1, idx), (-1, idx), status_err))
