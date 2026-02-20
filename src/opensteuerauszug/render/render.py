@@ -45,9 +45,6 @@ from opensteuerauszug.render.markdown_renderer import markdown_to_platypus
 
 logger = logging.getLogger(__name__)
 
-# --- Configuration ---
-DOC_INFO = "TODO: Place some compact info here"
-
 __all__ = [
     'render_tax_statement',
     'render_statement_info',
@@ -376,13 +373,45 @@ def draw_page_footer(canvas, doc):
     # Company Name
     if doc.company_name:
         canvas.drawString(doc.leftMargin, footer_y, f"{doc.company_name} konvertiert mit OpenSteuerauszug (https://github.com/vroonhof/opensteuerauszug)")
-    # Doc Info
-    # canvas.drawCentredString(page_width / 2.0, footer_y, DOC_INFO)
     # Page Number - Standard onPageEnd handlers typically only get current page number
-    page_num = canvas.getPageNumber()
-    text = f"Seite {page_num}"
-    canvas.drawRightString(page_width - doc.rightMargin, footer_y, text)
+    if not getattr(canvas, "defer_page_number", False):
+        page_num = canvas.getPageNumber()
+        text = f"Seite {page_num}"
+        canvas.drawRightString(page_width - doc.rightMargin, footer_y, text)
     canvas.restoreState()
+
+
+class NumberedCanvas(canvas.Canvas):
+    """Canvas that knows the total page count to render."""
+
+    def __init__(self, *args, **kwargs):
+        self._saved_page_states = []
+        self.left_margin = kwargs.pop("left_margin", 0)
+        self.right_margin = kwargs.pop("right_margin", 0)
+        self.bottom_margin = kwargs.pop("bottom_margin", 0)
+        self.defer_page_number = True
+        super().__init__(*args, **kwargs)
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self._draw_page_number(num_pages)
+            canvas.Canvas.showPage(self)
+        canvas.Canvas.save(self)
+
+    def _draw_page_number(self, page_count: int) -> None:
+        page_num = self.getPageNumber()
+        text = f"Seite {page_num} von {page_count}"
+        self.setFont("Helvetica", 8)
+        footer_y = self.bottom_margin - 10 * mm
+        page_width = self._pagesize[0]
+        self.drawRightString(page_width - self.right_margin, footer_y, text)
+
 
 # --- Table Creation Functions ---
 
@@ -1859,8 +1888,17 @@ def render_tax_statement(
     make_barcode_pages(doc, story, tax_statement, title_style)
     
     # Build the PDF
-    doc.build(story)
-    
+    def _canvas_maker(*args, **kwargs):
+        return NumberedCanvas(
+            *args,
+            left_margin=left_margin,
+            right_margin=right_margin,
+            bottom_margin=bottom_margin,
+            **kwargs,
+        )
+
+    doc.build(story, canvasmaker=_canvas_maker)
+
     pdf_data = buffer.getvalue()
     buffer.close()
     
