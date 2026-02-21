@@ -1,4 +1,4 @@
-name: Generate sample PDF for PR
+name: Generate sample PDF and XML for PR
 
 on:
   pull_request:
