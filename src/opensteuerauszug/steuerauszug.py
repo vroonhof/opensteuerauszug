@@ -402,6 +402,7 @@ def main(
                 identifier_map=security_identifier_map,
                 enable_filtering=filter_to_period_flag,
                 importer_name=importer_type.value,
+                override_org_nr=org_nr,
                 config_settings=general_config_settings
             )
             statement = cleanup_calculator.calculate(statement)

@@ -1941,8 +1941,16 @@ def render_tax_statement(
     # Set up barcode generator
     doc.onedee_generator = OneDeeBarCode()
     
-    # Compute the organization number
-    doc.org_nr = compute_org_nr(tax_statement, override_org_nr)
+    # Extract the organization number from the tax statement ID
+    # The ID format is: CC(2 chars)NNNNN(5 digits org_nr)CCCCCCCCCCCCCC(14 chars)YYYYMMDD(8)SS(2)
+    # So org_nr is at positions 2-6 (0-indexed: [2:7])
+    if tax_statement.id and len(tax_statement.id) >= 7:
+        doc.org_nr = tax_statement.id[2:7]
+    else:
+        # Fallback to computing if ID is not set or too short (shouldn't happen after cleanup phase)
+        logger.warning("tax_statement.id is not set or too short, computing org_nr as fallback")
+        doc.org_nr = compute_org_nr(tax_statement, override_org_nr)
+
     doc.company_name = tax_statement.institution.name if tax_statement.institution else ""
 
     # Store tax statement for header access
