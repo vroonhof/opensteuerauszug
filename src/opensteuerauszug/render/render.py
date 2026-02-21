@@ -364,15 +364,54 @@ def draw_page_header_barcode(canvas, doc):
     """Draws the header and barcode on the barcode pages."""
     draw_page_header(canvas, doc, is_barcode_page=True)
 
+def format_uid_for_footer(uid):
+    """Format UID for footer display.
+
+    Example: CHE-489.219.513 MWST
+    Format: {uidOrganisationIdCategorie}-{formatted uidOrganisationId} MWST
+
+    Args:
+        uid: The Uid object from tax_statement.institution.uid
+
+    Returns:
+        Formatted string like "CHE-489.219.513 MWST" or None if uid is None
+    """
+    if uid is None:
+        return None
+
+    category = uid.uidOrganisationIdCategorie
+    org_id = uid.uidOrganisationId
+
+    # Format the 9-digit number as XXX.XXX.XXX
+    org_id_str = f"{org_id:09d}"  # Pad to 9 digits
+    formatted_id = f"{org_id_str[0:3]}.{org_id_str[3:6]}.{org_id_str[6:9]}"
+
+    return f"{category}-{formatted_id} MWST"
+
 def draw_page_footer(canvas, doc):
     """Draws the footer content and page number on each page."""
     canvas.saveState()
     page_width = doc.pagesize[0]
     canvas.setFont('Helvetica', 8)
     footer_y = doc.bottomMargin - 10*mm # Adjust position
-    # Company Name
+
+    # Build footer text: Company name and optional UID
+    footer_parts = []
     if doc.company_name:
-        canvas.drawString(doc.leftMargin, footer_y, f"{doc.company_name} konvertiert mit OpenSteuerauszug (https://github.com/vroonhof/opensteuerauszug)")
+        footer_parts.append(doc.company_name)
+
+    # Add UID if present
+    if hasattr(doc, 'tax_statement') and doc.tax_statement:
+        institution = doc.tax_statement.institution
+        if institution and institution.uid:
+            uid_text = format_uid_for_footer(institution.uid)
+            if uid_text:
+                footer_parts.append(uid_text)
+
+    if footer_parts:
+        footer_text = ", ".join(footer_parts) + " konvertiert mit OpenSteuerauszug (https://github.com/vroonhof/opensteuerauszug)"
+        canvas.drawString(doc.leftMargin, footer_y, footer_text)
+
     # Page Number - Standard onPageEnd handlers typically only get current page number
     if not getattr(canvas, "defer_page_number", False):
         page_num = canvas.getPageNumber()
@@ -1200,7 +1239,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
 
     intermediate_total_rows = []
     current_row = 1  # Start after header
-    bank_accounts.sort(key=lambda a: a.iban or a.bankAccountName or a.bankAccountNumber or '')
+    bank_accounts.sort(key=lambda a: a.bankAccountName or a.iban or a.bankAccountNumber or '')
     for account in bank_accounts:
         # Build the account description with optional opening/closing date lines
         account_desc = f"<strong>{escape_html_for_paragraph(account.bankAccountName)}</strong>"
@@ -1548,18 +1587,17 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             table_data.append([Paragraph('&nbsp;')]*len(table_header))
             current_row += 1
 
-    # TODO read pre-summed totals from the model
     if security_type == "A":
         total_tax_value = tax_statement.svTaxValueA
         total_gross_revenueA = tax_statement.svGrossRevenueA
-        total_gross_revenueB = None
+        total_gross_revenueB = Decimal('0')
     elif security_type == "B":
         total_tax_value = tax_statement.svTaxValueB
-        total_gross_revenueA = None
+        total_gross_revenueA = Decimal('0')
         total_gross_revenueB = tax_statement.svGrossRevenueB
     elif security_type == "DA1":
         total_tax_value = tax_statement.da1TaxValue
-        total_gross_revenueA = None
+        total_gross_revenueA = Decimal('0')
         total_gross_revenueB = tax_statement.da_GrossRevenue
     # Add a total row
     table_data.append([
@@ -1769,9 +1807,8 @@ def render_tax_statement(
     doc.tax_statement = tax_statement
 
     # Set the PDF title using institution name and tax year
-    company_name = tax_statement.institution.name if tax_statement.institution else ""
     tax_year = str(tax_statement.taxPeriod) if tax_statement.taxPeriod else ""
-    title_parts = ["Steuerauszug", company_name, tax_year]
+    title_parts = ["Steuerauszug", doc.company_name, tax_year]
     doc.title = " ".join(part for part in title_parts if part)
     
     # Extract and store client information for header display (backward compatibility)

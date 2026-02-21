@@ -900,3 +900,90 @@ def test_depot_headers_in_securities_table():
     assert depot_002_row < novartis_rows[0], f"DEPOT-002 header (row {depot_002_row}) should appear before Novartis (row {novartis_rows[0]})"
 
 
+class TestFormatUidForFooter:
+    """Tests for the format_uid_for_footer function."""
+
+    def test_format_uid_with_che(self):
+        """Test formatting UID with CHE category."""
+        from opensteuerauszug.render.render import format_uid_for_footer
+        from opensteuerauszug.model.ech0196 import Uid
+
+        uid = Uid(
+            uidOrganisationIdCategorie="CHE",
+            uidOrganisationId=489219513
+        )
+
+        result = format_uid_for_footer(uid)
+        assert result == "CHE-489.219.513 MWST"
+
+    def test_format_uid_with_leading_zeros(self):
+        """Test formatting UID with leading zeros in the organization ID."""
+        from opensteuerauszug.render.render import format_uid_for_footer
+        from opensteuerauszug.model.ech0196 import Uid
+
+        uid = Uid(
+            uidOrganisationIdCategorie="CHE",
+            uidOrganisationId=123456  # Should be formatted as 000.123.456
+        )
+
+        result = format_uid_for_footer(uid)
+        assert result == "CHE-000.123.456 MWST"
+
+    def test_format_uid_with_che1(self):
+        """Test formatting UID with CHE1 category."""
+        from opensteuerauszug.render.render import format_uid_for_footer
+        from opensteuerauszug.model.ech0196 import Uid
+
+        uid = Uid(
+            uidOrganisationIdCategorie="CHE1",
+            uidOrganisationId=123456789
+        )
+
+        result = format_uid_for_footer(uid)
+        assert result == "CHE1-123.456.789 MWST"
+
+    def test_format_uid_with_adm(self):
+        """Test formatting UID with ADM category."""
+        from opensteuerauszug.render.render import format_uid_for_footer
+        from opensteuerauszug.model.ech0196 import Uid
+
+        uid = Uid(
+            uidOrganisationIdCategorie="ADM",
+            uidOrganisationId=999888777
+        )
+
+        result = format_uid_for_footer(uid)
+        assert result == "ADM-999.888.777 MWST"
+
+    def test_format_uid_none(self):
+        """Test that None input returns None."""
+        from opensteuerauszug.render.render import format_uid_for_footer
+
+        result = format_uid_for_footer(None)
+        assert result is None
+
+    def test_format_uid_max_value(self):
+        """Test formatting UID with maximum organization ID (999999999)."""
+        from opensteuerauszug.render.render import format_uid_for_footer
+        from opensteuerauszug.model.ech0196 import Uid
+
+        uid = Uid(
+            uidOrganisationIdCategorie="CHE",
+            uidOrganisationId=999999999
+        )
+
+        result = format_uid_for_footer(uid)
+        assert result == "CHE-999.999.999 MWST"
+
+    def test_format_uid_min_value(self):
+        """Test formatting UID with minimum organization ID (0)."""
+        from opensteuerauszug.render.render import format_uid_for_footer
+        from opensteuerauszug.model.ech0196 import Uid
+
+        uid = Uid(
+            uidOrganisationIdCategorie="CHE",
+            uidOrganisationId=0
+        )
+
+        result = format_uid_for_footer(uid)
+        assert result == "CHE-000.000.000 MWST"
