@@ -255,23 +255,27 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             # ---- Same-ISIN split: look for a single delta on this security ----
             expected_delta = quantity * (ratio_new / ratio_present - Decimal("1"))
             if not mutations_on_date:
-                raise ValueError(
-                    f"Missing stock split mutation for {sec_ident} on "
-                    f"{reconciliation_date}: expected a mutation of "
-                    f"{expected_delta} shares (split ratio "
-                    f"{ratio_new}:{ratio_present}, pre-split position "
-                    f"{quantity}), but no mutations were found on that date."
+                logger.warning(
+                    "Missing stock split mutation for %s on %s: expected a "
+                    "mutation of %s shares (split ratio %s:%s, pre-split "
+                    "position %s), but no mutations were found on that date. "
+                    "Please verify this security manually.",
+                    sec_ident, reconciliation_date, expected_delta,
+                    ratio_new, ratio_present, quantity,
                 )
+                return
             mutation_quantities = {m.quantity for m in mutations_on_date}
             if expected_delta not in mutation_quantities:
-                raise ValueError(
-                    f"Stock split ratio mismatch for {sec_ident} on "
-                    f"{reconciliation_date}: expected a mutation of "
-                    f"{expected_delta} shares (split ratio "
-                    f"{ratio_new}:{ratio_present}, pre-split position "
-                    f"{quantity}), but the mutations found on that date "
-                    f"have quantities {sorted(mutation_quantities)}."
+                logger.warning(
+                    "Stock split ratio mismatch for %s on %s: expected a "
+                    "mutation of %s shares (split ratio %s:%s, pre-split "
+                    "position %s), but the mutations found on that date "
+                    "have quantities %s. Please verify this security manually.",
+                    sec_ident, reconciliation_date, expected_delta,
+                    ratio_new, ratio_present, quantity,
+                    sorted(mutation_quantities),
                 )
+                return
         else:
             # ---- Cross-ISIN split (valorNumberNew): two securities involved ----
             expected_removal = -quantity
@@ -280,15 +284,17 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             # 1. Validate the negative mutation on the old (current) security
             mutation_quantities = {m.quantity for m in mutations_on_date}
             if expected_removal not in mutation_quantities:
-                raise ValueError(
-                    f"Stock split with ISIN change for {sec_ident} on "
-                    f"{reconciliation_date}: expected a removal mutation of "
-                    f"{expected_removal} shares on the old security (split "
-                    f"ratio {ratio_new}:{ratio_present}, pre-split position "
-                    f"{quantity}, new valor {valor_number_new}), but the "
-                    f"mutations found on that date have quantities "
-                    f"{sorted(mutation_quantities)}."
+                logger.warning(
+                    "Stock split with ISIN change for %s on %s: expected a "
+                    "removal mutation of %s shares on the old security (split "
+                    "ratio %s:%s, pre-split position %s, new valor %s), but "
+                    "the mutations found on that date have quantities %s. "
+                    "Please verify this security manually.",
+                    sec_ident, reconciliation_date, expected_removal,
+                    ratio_new, ratio_present, quantity, valor_number_new,
+                    sorted(mutation_quantities),
                 )
+                return
 
             # 2. Validate the positive mutation on the new security
             new_security = None
@@ -315,17 +321,19 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                                 break
 
             if new_security is None:
-                raise ValueError(
-                    f"Stock split with ISIN change for {sec_ident} on "
-                    f"{reconciliation_date}: the Kursliste split legend "
-                    f"references new valor number {valor_number_new}, but no "
-                    f"security with that valor number was found in the tax "
-                    f"statement. This typically means the broker's corporate "
-                    f"action for the new ISIN was not imported. Expected "
-                    f"{expected_addition} shares to appear on the new security "
-                    f"(split ratio {ratio_new}:{ratio_present}, pre-split "
-                    f"position {quantity})."
+                logger.warning(
+                    "Stock split with ISIN change for %s on %s: the Kursliste "
+                    "split legend references new valor number %s, but no "
+                    "security with that valor number was found in the tax "
+                    "statement. This typically means the broker's corporate "
+                    "action for the new ISIN was not imported. Expected "
+                    "%s shares to appear on the new security (split ratio "
+                    "%s:%s, pre-split position %s). "
+                    "Please verify this security manually.",
+                    sec_ident, reconciliation_date, valor_number_new,
+                    expected_addition, ratio_new, ratio_present, quantity,
                 )
+                return
 
             new_sec_ident = new_security.isin or new_security.securityName
             new_mutations_on_date = [
@@ -334,27 +342,30 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 if stock.mutation and stock.referenceDate == reconciliation_date
             ]
             if not new_mutations_on_date:
-                raise ValueError(
-                    f"Stock split with ISIN change for {sec_ident} on "
-                    f"{reconciliation_date}: the new security "
-                    f"{new_sec_ident} (valor {valor_number_new}) has no "
-                    f"mutations on the split date. Expected an addition of "
-                    f"{expected_addition} shares (split ratio "
-                    f"{ratio_new}:{ratio_present}, pre-split position "
-                    f"{quantity})."
+                logger.warning(
+                    "Stock split with ISIN change for %s on %s: the new "
+                    "security %s (valor %s) has no mutations on the split "
+                    "date. Expected an addition of %s shares (split ratio "
+                    "%s:%s, pre-split position %s). "
+                    "Please verify this security manually.",
+                    sec_ident, reconciliation_date, new_sec_ident,
+                    valor_number_new, expected_addition,
+                    ratio_new, ratio_present, quantity,
                 )
+                return
             new_mutation_quantities = {m.quantity for m in new_mutations_on_date}
             if expected_addition not in new_mutation_quantities:
-                raise ValueError(
-                    f"Stock split with ISIN change for {sec_ident} on "
-                    f"{reconciliation_date}: the new security "
-                    f"{new_sec_ident} (valor {valor_number_new}) has "
-                    f"mutations with quantities "
-                    f"{sorted(new_mutation_quantities)} on the split date, "
-                    f"but expected an addition of {expected_addition} shares "
-                    f"(split ratio {ratio_new}:{ratio_present}, pre-split "
-                    f"position {quantity})."
+                logger.warning(
+                    "Stock split with ISIN change for %s on %s: the new "
+                    "security %s (valor %s) has mutations with quantities "
+                    "%s on the split date, but expected an addition of %s "
+                    "shares (split ratio %s:%s, pre-split position %s). "
+                    "Please verify this security manually.",
+                    sec_ident, reconciliation_date, new_sec_ident,
+                    valor_number_new, sorted(new_mutation_quantities),
+                    expected_addition, ratio_new, ratio_present, quantity,
                 )
+                return
 
             logger.info(
                 "Validated cross-ISIN stock split for %s on %s: "
