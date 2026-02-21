@@ -1981,3 +1981,78 @@ def test_withholding_tax_cash_transactions_are_mapped_to_security_tax_fields(sam
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+
+# Anonymized from real IBKR Flex Query export (Yield Enhancement Income program).
+# Original lines (conid/assetCategory/symbol/isin all empty):
+#
+# <CashTransaction accountId="U1234567" acctAlias="" model="" currency="CHF"
+#   fxRateToBase="1" assetCategory="" subCategory="" symbol=""
+#   description="WITHHOLDING @ 30% ON YIELD ENHANCEMENT INCOME  FOR FEB-2025"
+#   conid="" securityID="" securityIDType="" cusip="" isin="" figi=""
+#   listingExchange="" ... amount="-0.32" type="Withholding Tax" ...
+#   levelOfDetail="DETAIL" ... />
+#
+# <CashTransaction accountId="U1234567" acctAlias="" model="" currency="CHF"
+#   fxRateToBase="1" assetCategory="" subCategory="" symbol=""
+#   description="CANCEL WITHHOLDING ON YIELD ENHANCEMENT INCOME  FOR FEB-2025"
+#   conid="" securityID="" securityIDType="" cusip="" isin="" figi=""
+#   listingExchange="" ... amount="0.32" type="Withholding Tax" ...
+#   levelOfDetail="DETAIL" ... />
+SAMPLE_IBKR_FLEX_XML_WHTAX_NO_SECURITY = """
+<FlexQueryResponse queryName="WhtaxNoSecurityTest" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <CashTransactions>
+        <CashTransaction accountId="U1234567" acctAlias="" model="" currency="CHF" fxRateToBase="1" assetCategory="" subCategory="" symbol="" description="WITHHOLDING @ 30% ON YIELD ENHANCEMENT INCOME  FOR FEB-2025" conid="" securityID="" securityIDType="" cusip="" isin="" figi="" listingExchange="" underlyingConid="" underlyingSymbol="" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="" multiplier="0" strike="" expiry="" putCall="" principalAdjustFactor="" dateTime="20250305" settleDate="20250305" availableForTradingDate="" amount="-0.32" type="Withholding Tax" tradeID="" code="" transactionID="90000001" reportDate="20250305" exDate="" clientReference="" actionID="" levelOfDetail="DETAIL" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+        <CashTransaction accountId="U1234567" acctAlias="" model="" currency="CHF" fxRateToBase="1" assetCategory="" subCategory="" symbol="" description="CANCEL WITHHOLDING ON YIELD ENHANCEMENT INCOME  FOR FEB-2025" conid="" securityID="" securityIDType="" cusip="" isin="" figi="" listingExchange="" underlyingConid="" underlyingSymbol="" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="" multiplier="0" strike="" expiry="" putCall="" principalAdjustFactor="" dateTime="20250319" settleDate="20250319" availableForTradingDate="" amount="0.32" type="Withholding Tax" tradeID="" code="" transactionID="90000002" reportDate="20250319" exDate="" clientReference="" actionID="" levelOfDetail="DETAIL" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="CHF" endingCash="1000.00" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+
+def test_withholding_tax_without_security_creates_bank_payment(sample_ibkr_settings):
+    """Withholding tax not linked to a security (e.g. yield enhancement) should
+    fall through to create a BankAccountPayment instead of raising ValueError."""
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_WHTAX_NO_SECURITY)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        assert tax_statement.listOfBankAccounts is not None
+        assert len(tax_statement.listOfBankAccounts.bankAccount) == 1
+
+        bank_account = tax_statement.listOfBankAccounts.bankAccount[0]
+        assert bank_account.bankAccountNumber == "U1234567-CHF"
+        assert bank_account.taxValue is not None
+        assert bank_account.taxValue.balance == Decimal("1000.00")
+
+        assert len(bank_account.payment) == 2
+        payments_by_amount = {p.amount: p for p in bank_account.payment}
+        assert Decimal("-0.32") in payments_by_amount
+        assert Decimal("0.32") in payments_by_amount
+
+        wht = payments_by_amount[Decimal("-0.32")]
+        assert wht.name == "WITHHOLDING @ 30% ON YIELD ENHANCEMENT INCOME  FOR FEB-2025"
+        assert wht.amountCurrency == "CHF"
+
+        cancel = payments_by_amount[Decimal("0.32")]
+        assert cancel.name == "CANCEL WITHHOLDING ON YIELD ENHANCEMENT INCOME  FOR FEB-2025"
+        assert cancel.amountCurrency == "CHF"
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)

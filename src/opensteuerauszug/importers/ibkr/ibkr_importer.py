@@ -784,6 +784,10 @@ class IbkrImporter:
                         elif tx_type in [ibflex.CashAction.BROKERINTRCVD]:
                             # Tax relevant event. Fall through to create a bank payment.
                             pass
+                        elif tx_type in [ibflex.CashAction.WHTAX]:
+                            # Withholding tax not linked to a security (e.g. yield enhancement).
+                            # Tax relevant event. Fall through to create a bank payment.
+                            pass
                         else:
                             raise ValueError(f"CashTransaction type {tx_type} is not supported for {description}")
                         cash_pos_key = (account_id, currency, "MAIN_CASH")
