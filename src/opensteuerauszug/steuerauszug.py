@@ -89,6 +89,7 @@ def main(
     kursliste_dir: Path = typer.Option(Path("data/kursliste"), "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste'."),
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
     payment_reconciliation: bool = typer.Option(True, "--payment-reconciliation/--no-payment-reconciliation", help="Run optional payment reconciliation between Kursliste and broker evidence."),
+    embed_import_data: bool = typer.Option(True, "--embed-import-data/--no-embed-import-data", help="Embed import files zipped as PDF attachments. Defaults to enabled."),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
     logging.basicConfig(level=log_level.value)
@@ -271,6 +272,7 @@ def main(
             if not input_file.is_file():
                 raise typer.BadParameter(f"Raw import requires a file, but got a directory: {input_file}")
             statement = TaxStatement.from_xml_file(str(input_file))
+            statement.import_data_path = str(input_file)
             print("Raw import complete.")
             dump_debug_model("raw_import", statement)
         except Exception as e:
@@ -313,6 +315,7 @@ def main(
                     strict_consistency=strict_consistency_flag
                 )
                 statement = schwab_importer.import_dir(str(input_file))
+                statement.import_data_path = str(input_file)
                 print(f"Schwab import complete.")
 
             elif importer_type == ImporterType.IBKR:
@@ -340,6 +343,7 @@ def main(
                     account_settings_list=all_ibkr_account_settings_models
                 )
                 statement = ibkr_importer.import_files([str(input_file)])
+                statement.import_data_path = str(input_file)
                 print(f"IBKR import complete.")
 
             elif importer_type == ImporterType.NONE and not raw_import:
@@ -601,6 +605,7 @@ def main(
                         else True
                     )
                 ),
+                embed_import_data=embed_import_data,
             )
             print(f"Rendering successful to {rendered_path}")
 
