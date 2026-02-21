@@ -133,6 +133,8 @@ class TotalCalculator(BaseCalculator):
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalLumpSumTaxCredit', list_lump_sum_tax_credit, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalAdditionalWithHoldingTaxUSA', list_additional_withholding_tax_usa, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalNonRecoverableTax', list_non_recoverable_tax, "listOfSecurities")
+            self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueIUP', Decimal('0'), "listOfSecurities")
+            self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueConversion', Decimal('0'), "listOfSecurities")
 
             # Accumulate global/internal totals from ROUNDED list subtotals
             self.total_tax_value += self._round_sub_total(list_tax_value)
