@@ -563,8 +563,8 @@ def main(
                             f"KL div {row.kursliste_dividend_chf} CHF / KL wht {row.kursliste_withholding_chf} CHF vs "
                             f"Broker div {row.broker_dividend_amount} {row.broker_dividend_currency} / "
                             f"Broker wht {row.broker_withholding_amount} {row.broker_withholding_currency}; "
-                            f"ΔCHF(div={div_diff_chf}, wht={wht_diff_chf}); "
-                            f"ΔORIG(div={div_diff_orig} {row.broker_dividend_currency}, "
+                            f"dCHF(div={div_diff_chf}, wht={wht_diff_chf}); "
+                            f"dORIG(div={div_diff_orig} {row.broker_dividend_currency}, "
                             f"wht={wht_diff_orig} {row.broker_withholding_currency})"
                         )
 
