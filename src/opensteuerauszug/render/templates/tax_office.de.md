@@ -29,6 +29,11 @@ Die Verantwortung für die Richtigkeit und Vollständigkeit obliegt immer noch d
 
 Sämtliche Steuerberechnungen in dieser Datei basieren auf der Kursliste und dienen nur Informationszwecken.
 
+## Angehängte Originaldaten
+
+Dieses PDF-Dokument enthält die **ursprünglichen Importdaten als ZIP-Datei-Anhang**.
+Die angehängten Originaldaten ermöglichen die vollständige Nachvollziehbarkeit und Überprüfung der importierten Informationen. Bei Unklarheiten können diese Dateien mit einem PDF-Viewer (z.B. Adobe Acrobat Reader) extrahiert und geprüft werden.
+
 ## Wieso ein Steuerauszug?
 
 Leider besteht keine standardisierte Möglichkeit, nur Positions- oder

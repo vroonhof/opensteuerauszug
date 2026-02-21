@@ -1413,6 +1413,7 @@ class TaxStatement(TaxStatementBase):
     # These are NOT serialized to XML – they are used only for PDF rendering.
     critical_warnings: List["CriticalWarning"] = Field(default_factory=list, exclude=True)
     payment_reconciliation_report: Optional[PaymentReconciliationReport] = Field(default=None, exclude=True)
+    import_data_path: Optional[str] = Field(default=None, exclude=True)
 
     model_config = {
         "json_schema_extra": {'tag_name': 'taxStatement', 'tag_namespace': NS_MAP['eCH-0196']}

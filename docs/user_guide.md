@@ -102,6 +102,21 @@ python -m opensteuerauszug.steuerauszug input.xml --importer ibkr \
   -o final_tax_statement.pdf
 ```
 
+### Import Data Embedding
+
+OpenSteuerAuszug can **embed the original import data** as a ZIP file attachment within the generated PDF Steuerauszug (enabled by default).
+
+**Benefits**:
+*   **Audit Trail**: Provides a complete record of the source data used to generate your tax statement.
+*   **Verification**: Allows you or your tax advisor to verify the calculations against the original broker statements.
+*   **Archival**: Keeps all related documents in one convenient package for long-term storage.
+
+**How to Access**: Modern PDF viewers allow you to view and extract file attachments from PDFs. Look for an "Attachments" panel or similar feature in your PDF viewer.
+
+You can control this feature using:
+*   `--embed-import-data`: (Default) Embeds the import files as a ZIP attachment in the PDF.
+*   `--no-embed-import-data`: Skips embedding the import data, generating a smaller PDF without attachments.
+
 ## Disclaimer and User Responsibility
 
 **Important**: OpenSteuerAuszug is provided "as is" without any formal audit or warranty. While it aims to be accurate, it is your responsibility as the taxpayer to:

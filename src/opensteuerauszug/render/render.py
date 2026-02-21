@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Union
 from decimal import Decimal, ROUND_HALF_UP
 import zlib
+import zipfile
 from PIL import Image as PILImage
 import html
 
@@ -1893,6 +1894,7 @@ def render_tax_statement(
     output_path: Union[str, Path],
     override_org_nr: Optional[str] = None,
     minimal_frontpage_placeholder: bool = False,
+    embed_import_data: bool = True,
 ) -> Path:
     """Render a tax statement to PDF.
     
@@ -1902,7 +1904,9 @@ def render_tax_statement(
         override_org_nr: Optional override for organization number (5 digits)
         minimal_frontpage_placeholder: If True, replace the summary on the first
             page with a placeholder suitable for minimal tax statements
-        
+        embed_import_data: If True, embed import data (if available) zipped as
+            PDF attachment
+
     Returns:
         Path to the generated PDF file
     """
@@ -2143,10 +2147,65 @@ def render_tax_statement(
     pdf_data = buffer.getvalue()
     buffer.close()
     
+    from pypdf import PdfWriter, PdfReader
+
+    # Load and prepare PDF once for both attachment and compression
+    pdf_reader = PdfReader(io.BytesIO(pdf_data))
+    pdf_writer = PdfWriter()
+
+    # Copy PDF metadata from original document
+    if pdf_reader.metadata:
+        pdf_writer.add_metadata(pdf_reader.metadata)
+
+    # Copy all pages and compress (add first, then compress)
+    for page in pdf_reader.pages:
+        pdf_writer.add_page(page)
+        try:
+            page.compress_content_streams()
+        except Exception as e:
+            logger.debug(f"Could not compress page content streams: {e}. Continuing without compression for this page.")
+
+    if embed_import_data and tax_statement.import_data_path:
+        try:
+            # Create a zip file containing import files
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                import_path = Path(tax_statement.import_data_path)
+                files_to_add = [import_path] if import_path.is_file() else list(import_path.iterdir()) if import_path.is_dir() else []
+                allowed_extensions = {'.xml', '.json', '.csv', '.pdf'}
+                files_to_add = [f for f in files_to_add if f.suffix.lower() in allowed_extensions]
+
+                for file_path in files_to_add:
+                    if file_path.is_file():
+                        try:
+                            with open(file_path, 'rb') as f:
+                                zip_file.writestr(file_path.name, f.read())
+                            logger.info(f"Added {file_path.name} to import data zip")
+                        except Exception as e:
+                            logger.warning(f"Failed to add {file_path.name} to zip: {e}")
+
+            # Check zip file size before attaching
+            zip_data = zip_buffer.getvalue()
+            zip_size_mb = len(zip_data) / (1024 * 1024)
+            max_size_mb = 5
+
+            if zip_size_mb > max_size_mb:
+                raise ValueError(
+                    f"Import data zip is too large: {zip_size_mb:.2f}MB (maximum: {max_size_mb}MB). "
+                    f"Please use '--no-embed-import-data' or delete unused import files."
+                )
+
+            # Attach the zip file to the PDF
+            pdf_writer.add_attachment("import_data.zip", zip_data)
+            logger.info(f"Attached import data zip to PDF ({zip_size_mb:.2f}MB)")
+
+        except Exception as e:
+            logger.warning(f"Failed to attach files to PDF: {e}")
+
     # Write to file
     with open(output_path, 'wb') as f:
-        f.write(pdf_data)
-    
+        pdf_writer.write(f)
+
     return Path(output_path)
 
 
