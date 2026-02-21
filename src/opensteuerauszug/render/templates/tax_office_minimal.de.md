@@ -25,6 +25,11 @@ Die Verantwortung für die Richtigkeit und Vollständigkeit obliegt immer noch d
 - Es wurden *keinerlei Steuerberechnungen durchgeführt*. Wo vom Format vorausgesetzt, sind Werte und Totale auf Null gestellt.
 - Die auf der Kursliste basierende Steuerberechnung sollte von der Steuersoftware und/oder Veranlagungssoftware übernommen werden.
 
+## Angehängte Originaldaten
+
+Dieses PDF-Dokument enthält die **ursprünglichen Importdaten als ZIP-Datei-Anhang**.
+Die angehängten Originaldaten ermöglichen die vollständige Nachvollziehbarkeit und Überprüfung der importierten Informationen. Bei Unklarheiten können diese Dateien mit einem PDF-Viewer (z.B. Adobe Acrobat Reader) extrahiert und geprüft werden.
+
 ## Wieso ein Steuerauszug?
 
 Leider besteht keine standardisierte Möglichkeit, nur Positions- oder
