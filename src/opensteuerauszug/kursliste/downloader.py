@@ -9,6 +9,8 @@ from typing import Optional, List, Dict, Any
 logger = logging.getLogger(__name__)
 
 API_URL = "https://www.ictax.admin.ch/extern/api/xml/xmls.json"
+SESSION_URL = "https://www.ictax.admin.ch/extern/api/authentication/session.json"
+HOME_URL = "https://www.ictax.admin.ch/extern/en.html"
 DOWNLOAD_BASE_URL = "https://www.ictax.admin.ch/extern/api/download"
 
 # Standard headers to avoid 403
@@ -18,7 +20,7 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
     "Content-Type": "application/json",
     "Origin": "https://www.ictax.admin.ch",
-    "Referer": "https://www.ictax.admin.ch/extern/en.html"
+    "Referer": HOME_URL
 }
 
 def download_kursliste(year: int, destination_dir: Path) -> Path:
@@ -35,14 +37,20 @@ def download_kursliste(year: int, destination_dir: Path) -> Path:
     session = requests.Session()
     session.headers.update(HEADERS)
 
-    # First, hit the home page and the API endpoint to get cookies
+    # First, hit the home page and the session endpoint to get cookies and CSRF token
     logger.info("Initializing session...")
     try:
-        session.get("https://www.ictax.admin.ch/extern/en.html", timeout=10)
-        # Even if this returns 405, it might set cookies
-        session.get(API_URL, timeout=10)
+        session.get(HOME_URL, timeout=10)
+        session_response = session.get(SESSION_URL, timeout=10)
+        session_response.raise_for_status()
+        session_data = session_response.json()
+
+        csrf_token = session_data.get("data", {}).get("csrfToken")
+        if csrf_token:
+            logger.debug(f"Acquired CSRF token: {csrf_token[:10]}...")
+            session.headers.update({"X-CSRF-TOKEN": csrf_token})
     except Exception as e:
-        logger.debug(f"Pre-flight requests failed (expected if 405): {e}")
+        logger.warning(f"Session initialization failed: {e}")
 
     logger.info(f"Fetching Kursliste metadata for year {year}...")
 

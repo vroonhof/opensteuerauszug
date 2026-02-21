@@ -58,10 +58,19 @@ def mock_response():
 def test_download_kursliste_logic(mock_open, mock_zip, mock_get, mock_post, mock_response, tmp_path):
     mock_post.return_value = mock_response
 
-    # Mock the home page and API pre-flight calls
-    mock_preflight = MagicMock()
-    mock_preflight.status_code = 200
-    mock_get.side_effect = [mock_preflight, mock_preflight, MagicMock(status_code=200, content=b"zip_content")]
+    # Mock responses for GET calls:
+    # 1. HOME_URL
+    # 2. SESSION_URL
+    # 3. Download URL
+    mock_home_resp = MagicMock(status_code=200)
+    mock_session_resp = MagicMock(status_code=200)
+    mock_session_resp.json.return_value = {
+        "status": "SUCCESS",
+        "data": {"csrfToken": "test-csrf-token"}
+    }
+    mock_dl_resp = MagicMock(status_code=200, content=b"zip_content")
+
+    mock_get.side_effect = [mock_home_resp, mock_session_resp, mock_dl_resp]
 
     # Mock zip extraction
     mock_zip_instance = mock_zip.return_value.__enter__.return_value
@@ -73,8 +82,14 @@ def test_download_kursliste_logic(mock_open, mock_zip, mock_get, mock_post, mock
 
     download_kursliste(2025, tmp_path)
 
+    # Verify metadata call
+    assert mock_post.call_count == 1
+    # Check if CSRF token was added to session headers for the POST call
+    # Note: downloader.py updates session.headers directly.
+    # We can check the mock_post call headers if we really wanted,
+    # but requests.Session.post uses session.headers by default.
+
     # Verify that THIRD.INIT.220 was selected (highest version)
-    # The third call to get should be the download URL
     download_call = mock_get.call_args_list[2]
     assert download_call[0][0] == "https://www.ictax.admin.ch/extern/api/download/3586267/21f330db01497a390e5aa71cd5e3e21a/kursliste_2025.zip"
 
