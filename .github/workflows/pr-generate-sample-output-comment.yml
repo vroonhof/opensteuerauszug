@@ -1,4 +1,4 @@
-name: Comment sample PDF link on PR
+name: Comment sample PDF and XML link on PR
 
 on:
   workflow_run:
