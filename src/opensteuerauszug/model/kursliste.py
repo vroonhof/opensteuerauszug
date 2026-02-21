@@ -16,7 +16,7 @@ import logging
 from typing import Any, ClassVar, Dict, List, Literal, Optional, Set, Union
 # Removed io import as debugging is removed
 
-from pydantic import (BaseModel, ConfigDict, Field, StringConstraints,
+from pydantic import (BaseModel, ConfigDict, Field, PrivateAttr, StringConstraints,
                       ValidationError, field_validator)
 from typing_extensions import Annotated
 from pydantic_xml import BaseXmlModel as PydanticXmlModel, attr, element
@@ -706,6 +706,8 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
     Model for the Swiss "Kursliste" (price list) based on kursliste-2.0.0.xsd.
     Reflects the XSD structure with separate lists for definitions and security types.
     """
+    _isin_index: Optional[Dict[str, List[Security]]] = PrivateAttr(default=None)
+    _valor_index: Optional[Dict[int, List[Security]]] = PrivateAttr(default=None)
 
     # --- Attributes aligned with XSD ---
     version: Annotated[str, StringConstraints(pattern=r"2\.[02]\.0\.\d")] = attr()
@@ -857,6 +859,37 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
 
         return root
     
+    def _ensure_indices(self):
+        """Build the ISIN and valor indices if they haven't been built yet."""
+        if self._isin_index is not None and self._valor_index is not None:
+            return
+
+        isin_index: Dict[str, List[Security]] = {}
+        valor_index: Dict[int, List[Security]] = {}
+
+        for security_list in [
+            self.bonds,
+            self.shares,
+            self.funds,
+            self.derivatives,
+            self.coinBullions,
+            self.currencyNotes,
+            self.liborSwaps
+        ]:
+            for security in security_list:
+                if security.isin:
+                    if security.isin not in isin_index:
+                        isin_index[security.isin] = []
+                    isin_index[security.isin].append(security)
+
+                if security.valorNumber is not None:
+                    if security.valorNumber not in valor_index:
+                        valor_index[security.valorNumber] = []
+                    valor_index[security.valorNumber].append(security)
+
+        self._isin_index = isin_index
+        self._valor_index = valor_index
+
     @classmethod
     def from_xml_file(cls, file_path: Union[str, Path], denylist: Optional[Set[str]] = None) -> "Kursliste":
         """
@@ -910,21 +943,10 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         Returns:
             The security if found, None otherwise
         """
-        # Search in all security types
-        # TODO this does not handle special issues etc, that are subelemts
-        for security_list in [
-            self.bonds, 
-            self.shares, 
-            self.funds, 
-            self.derivatives, 
-            self.coinBullions, 
-            self.currencyNotes, 
-            self.liborSwaps
-        ]:
-            for security in security_list:
-                if security.valorNumber == valor_number:
-                    return security
-        return None
+        self._ensure_indices()
+        # self._valor_index is not None after _ensure_indices
+        securities = self._valor_index.get(valor_number, [])
+        return securities[0] if securities else None
     
     def find_security_by_isin(self, isin: str) -> Optional[Security]:
         """
@@ -936,20 +958,10 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         Returns:
             The security if found, None otherwise
         """
-        # Search in all security types
-        for security_list in [
-            self.bonds, 
-            self.shares, 
-            self.funds, 
-            self.derivatives, 
-            self.coinBullions, 
-            self.currencyNotes, 
-            self.liborSwaps
-        ]:
-            for security in security_list:
-                if security.isin == isin:
-                    return security
-        return None
+        self._ensure_indices()
+        # self._isin_index is not None after _ensure_indices
+        securities = self._isin_index.get(isin, [])
+        return securities[0] if securities else None
     
     def find_securities_by_valor(self, valor_number: int) -> List[Security]:
         """
@@ -961,20 +973,9 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         Returns:
             List of securities with the matching valor number
         """
-        results = []
-        for security_list in [
-            self.bonds, 
-            self.shares, 
-            self.funds, 
-            self.derivatives, 
-            self.coinBullions, 
-            self.currencyNotes, 
-            self.liborSwaps
-        ]:
-            for security in security_list:
-                if security.valorNumber == valor_number:
-                    results.append(security)
-        return results
+        self._ensure_indices()
+        # self._valor_index is not None after _ensure_indices
+        return self._valor_index.get(valor_number, [])
     
     def find_securities_by_isin(self, isin: str) -> List[Security]:
         """
@@ -986,19 +987,8 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         Returns:
             List of securities with the matching ISIN
         """
-        results = []
-        for security_list in [
-            self.bonds, 
-            self.shares, 
-            self.funds, 
-            self.derivatives, 
-            self.coinBullions, 
-            self.currencyNotes, 
-            self.liborSwaps
-        ]:
-            for security in security_list:
-                if security.isin == isin:
-                    results.append(security)
-        return results
+        self._ensure_indices()
+        # self._isin_index is not None after _ensure_indices
+        return self._isin_index.get(isin, [])
 
 
