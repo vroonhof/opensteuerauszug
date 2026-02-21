@@ -46,6 +46,7 @@ jobs:
             --importer ibkr \
             --tax-year 2025 \
             --kursliste-dir tests/samples/kursliste \
+            --xml-output docs/sample_output.xml \
             --output docs/sample_output.pdf
 
       - name: Extract page 1 (Summary) and page 3 (Stock table) as PNG
@@ -63,5 +64,6 @@ jobs:
           commit_message: "chore: update sample output previews [skip ci]"
           file_pattern: >
             docs/sample_output.pdf
+            docs/sample_output.xml
             docs/sample_summary_page.png
             docs/sample_stock_table_page.png

@@ -41,6 +41,8 @@ Below are previews from a sample Steuerauszug generated from the [VT and Chill](
 
 [📄 Download full sample PDF](docs/sample_output.pdf)
 
+[📄 Download full sample ECH-0196 XML](docs/sample_output.xml)
+
 ## Supported Brokers
 
 For now the focus is on brokers / banks that the author has 
