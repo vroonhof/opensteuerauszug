@@ -99,9 +99,26 @@ The **Kursliste** is an official list published annually by the Swiss Federal Ta
 
 ### Obtaining the Kursliste
 
-You need to obtain the official Kursliste XML file for the relevant tax year. This is usually available for download from the [ESTV website](https://www.ictax.admin.ch/extern/en.html#/xml). Always down the latest file marked "Initial" in the latest format, V2.0 at this time). 
+You need the official Kursliste XML file for the relevant tax year.
 
-After unzipping, the file is typically named something like `kursliste_JJJJ.xml` (e.g., `kursliste_2023.xml`).
+#### Automated Download (Recommended)
+
+OpenSteuerAuszug can automatically download and prepare the latest Kursliste for you:
+
+```bash
+python -m opensteuerauszug.kursliste download --year 2024
+```
+
+This command will fetch the latest "Initial" export in the best available format directly from the ESTV API and place it into `data/kursliste/kursliste_2024.xml`.
+
+#### Manual Download
+
+Alternatively, you can obtain the file manually:
+
+1. Visit the [ESTV website](https://www.ictax.admin.ch/extern/en.html#/xml).
+2. Download the latest file marked "Initial" for the relevant tax year (usually in the latest format, e.g., V2.2).
+3. Unzip the file. It is typically named something like `kursliste_JJJJ.xml` (e.g., `kursliste_2023.xml`).
+4. Place the XML file into the `data/kursliste/` directory.
 
 ### Storing the Kursliste
 
