@@ -11,7 +11,7 @@ import os # For path construction
 from .core.identifier_loader import SecurityIdentifierMapLoader
 
 # Use the generated eCH-0196 model
-from .model.ech0196 import TaxStatement
+from .model.ech0196 import TaxStatement, Client, ClientNumber, Institution
 # Import the rendering functionality
 from .render.render import render_tax_statement
 # Import calculation framework
@@ -344,26 +344,25 @@ def main(
 
             elif importer_type == ImporterType.NONE and not raw_import:
                 print("No specific importer selected, creating an empty TaxStatement for further processing.")
-                statement = TaxStatement(minorVersion=2) # type: ignore
+                # Create a minimal valid statement with required elements per eCH-0196 XSD
+                statement = TaxStatement(
+                    minorVersion=22,
+                    institution=Institution(name=""),
+                    client=[Client(clientNumber=ClientNumber(""))]
+                )
             else:
                 # This case implies an importer was specified but isn't handled yet,
                 # or raw_import is true (which is handled before this block).
                 # If more importers are added, they need to be handled here.
                 print(f"Importer '{importer_type.value}' not yet implemented or not applicable. Creating empty TaxStatement.")
-                statement = TaxStatement(minorVersion=2) # type: ignore
+                # Create a minimal valid statement with required elements per eCH-0196 XSD
+                statement = TaxStatement(
+                    minorVersion=22,
+                    institution=Institution(name=""),
+                    client=[Client(clientNumber=ClientNumber(""))]
+                )
 
             print(f"Import successful." )
-            dump_debug_model(current_phase.value, statement)
-
-        # ... (rest of the phases: VALIDATE, CALCULATE, VERIFY, RENDER remain the same) ...
-        if Phase.VALIDATE in run_phases:
-            current_phase = Phase.VALIDATE
-            print(f"Phase: {current_phase.value}")
-            if not statement:
-                 raise ValueError("TaxStatement model not loaded. Cannot run validate phase.")
-            # Call the model's validate method
-            statement.validate_model()
-            print(f"Validation successful (placeholder check)." )
             dump_debug_model(current_phase.value, statement)
 
         if Phase.CALCULATE in run_phases:
@@ -568,6 +567,15 @@ def main(
                             f"wht={wht_diff_orig} {row.broker_withholding_currency})"
                         )
 
+            dump_debug_model(current_phase.value, statement)
+
+        if Phase.VALIDATE in run_phases:
+            current_phase = Phase.VALIDATE
+            print(f"Phase: {current_phase.value}")
+            if not statement:
+                 raise ValueError("TaxStatement model not loaded. Cannot run validate phase.")
+            statement.validate_model()
+            print(f"Validation successful.")
             dump_debug_model(current_phase.value, statement)
 
         if Phase.RENDER in run_phases:
