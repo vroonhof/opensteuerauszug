@@ -417,7 +417,7 @@ class IbkrImporter:
                         referenceDate=trade_date,
                         mutation=True,
                         quantity=quantity,
-                        unitPrice=trade_price,
+                        unitPrice=trade_price if trade_price != Decimal(0) else None,
                         name=buy_sell.value,
                         orderId=trade.ibOrderID,
                         balanceCurrency=currency,
