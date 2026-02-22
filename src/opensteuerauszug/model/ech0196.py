@@ -995,11 +995,6 @@ class LiabilityAccount(BaseXmlModel):
     bankAccountCurrency: CurrencyId = Field(..., pattern=r"[A-Z]{3}", json_schema_extra={'is_attribute': True})
     openingDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
     closingDate: Optional[date] = Field(default=None, json_schema_extra={'is_attribute': True})
-    liabilityCategory: Optional[LiabilityCategory] = Field(
-        default=None, 
-        description="The category of the liability (MORTGAGE, LOAN, or OTHER)",
-        json_schema_extra={'is_attribute': True}
-    )
     totalTaxValue: PositiveDecimal = Field(
         ..., 
         description="Total of the tax values (absolute value ≥ 0) of negative tax values (debts), rounded according to DIN 1333",

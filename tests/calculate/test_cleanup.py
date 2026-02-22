@@ -8,14 +8,20 @@ from opensteuerauszug.model.ech0196 import (
     ISINType,
     TaxStatement,
     ListOfBankAccounts, BankAccount, BankAccountPayment, BankAccountNumber,
+    BankAccountTaxValue,
     ListOfSecurities, Depot, Security, SecurityStock, SecurityPayment, DepotNumber,
     CurrencyId, QuotationType,
     ValorNumber,
-    Institution, # Added
-    Client, # Added
-    ClientNumber, # Added for test fixes
-    LEIType, # Added for test fixes
-    TINType # Added for test fixes
+    Institution,
+    Client,
+    ClientNumber,
+    LEIType,
+    TINType,
+    LiabilityAccount,
+    LiabilityAccountTaxValue,
+    ListOfLiabilities,
+    BankAccountName,
+    CountryIdISO2Type
 )
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY # Added
 import os
@@ -196,8 +202,8 @@ class TestCleanupCalculatorFiltering:
         bank_account = BankAccount(bankAccountNumber=BankAccountNumber("BA1"), payment=list(payments))
         statement = TaxStatement(
             canton="ZH",
-            id=None, creationDate=datetime(sample_period_to.year,1,1), taxPeriod=sample_period_to.year, 
-            periodFrom=sample_period_from, periodTo=sample_period_to, 
+            id=None, creationDate=datetime(sample_period_to.year,1,1), taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from, periodTo=sample_period_to,
             country="CH", minorVersion=0,
             client=[Client(clientNumber=ClientNumber("FilterClient"))], institution=Institution(lei=LEIType("FILTERLEI123400000000")),
             # importer_name="FilterImporter", # Removed
@@ -1179,6 +1185,346 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         assert f"for security '{security.isin}'" in error_message # Check for actual name
         assert "which has payments requiring quantity calculation" in error_message
         assert security.payment[0].quantity == UNINITIALIZED_QUANTITY
+
+
+class TestNegativeBankAccountBalance:
+    """Test handling of negative bank account balances."""
+
+    def test_negative_bank_account_balance_converted_to_liability(self):
+        """Test that a negative bank account balance is converted to a liability."""
+        # Create a bank account with negative balance
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("NEGACC001"),
+            bankAccountName=BankAccountName("Negative Account"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2023, 12, 31),
+                balanceCurrency="CHF",
+                balance=Decimal("-1500.50"),
+                value=Decimal("-1500.50")
+            )
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2023, 12, 31),
+            taxPeriod=2023,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2023, 1, 1),
+            period_to=date(2023, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Verify bank account balance was set to 0
+        assert bank_account.taxValue.balance == Decimal("0")
+        assert bank_account.taxValue.value == Decimal("0")
+
+        # Verify liability was created
+        assert result.listOfLiabilities is not None
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+
+        liability = result.listOfLiabilities.liabilityAccount[0]
+        assert liability.taxValue.balance == Decimal("1500.50")
+        assert liability.totalTaxValue == Decimal("1500.50")
+        assert liability.bankAccountNumber == bank_account.bankAccountNumber
+        assert liability.bankAccountName == bank_account.bankAccountName
+        assert liability.bankAccountCountry == bank_account.bankAccountCountry
+        assert liability.bankAccountCurrency == bank_account.bankAccountCurrency
+
+    def test_positive_bank_account_not_converted(self):
+        """Test that positive bank account balances are not converted to liabilities."""
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("POSACC001"),
+            bankAccountName=BankAccountName("Positive Account"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2023, 12, 31),
+                balanceCurrency="CHF",
+                balance=Decimal("5000.00"),
+                value=Decimal("5000.00")
+            )
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2023, 12, 31),
+            taxPeriod=2023,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2023, 1, 1),
+            period_to=date(2023, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Verify bank account balance was NOT modified
+        assert bank_account.taxValue.balance == Decimal("5000.00")
+        assert bank_account.taxValue.value == Decimal("5000.00")
+
+        # Verify no liability was created
+        assert result.listOfLiabilities is None or len(result.listOfLiabilities.liabilityAccount) == 0
+
+    def test_zero_bank_account_balance_not_converted(self):
+        """Test that zero bank account balances are not converted to liabilities."""
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("ZEROACC001"),
+            bankAccountName=BankAccountName("Zero Account"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2023, 12, 31),
+                balanceCurrency="CHF",
+                balance=Decimal("0.00"),
+                value=Decimal("0.00")
+            )
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2023, 12, 31),
+            taxPeriod=2023,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2023, 1, 1),
+            period_to=date(2023, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Verify bank account balance remains 0
+        assert bank_account.taxValue.balance == Decimal("0.00")
+
+        # Verify no liability was created
+        assert result.listOfLiabilities is None or len(result.listOfLiabilities.liabilityAccount) == 0
+
+    def test_multiple_bank_accounts_mixed_balances(self):
+        """Test handling of multiple bank accounts with mixed positive/negative balances."""
+        bank_accounts = [
+            BankAccount(
+                bankAccountNumber=BankAccountNumber("POS001"),
+                bankAccountName=BankAccountName("Positive"),
+                bankAccountCountry=CountryIdISO2Type("CH"),
+                bankAccountCurrency=CurrencyId("CHF"),
+                taxValue=BankAccountTaxValue(
+                    referenceDate=date(2023, 12, 31),
+                    balanceCurrency="CHF",
+                    balance=Decimal("2000.00"),
+                    value=Decimal("2000.00")
+                )
+            ),
+            BankAccount(
+                bankAccountNumber=BankAccountNumber("NEG001"),
+                bankAccountName=BankAccountName("Negative"),
+                bankAccountCountry=CountryIdISO2Type("CH"),
+                bankAccountCurrency=CurrencyId("CHF"),
+                taxValue=BankAccountTaxValue(
+                    referenceDate=date(2023, 12, 31),
+                    balanceCurrency="CHF",
+                    balance=Decimal("-3000.25"),
+                    value=Decimal("-3000.25")
+                )
+            ),
+            BankAccount(
+                bankAccountNumber=BankAccountNumber("ZERO001"),
+                bankAccountName=BankAccountName("Zero"),
+                bankAccountCountry=CountryIdISO2Type("CH"),
+                bankAccountCurrency=CurrencyId("CHF"),
+                taxValue=BankAccountTaxValue(
+                    referenceDate=date(2023, 12, 31),
+                    balanceCurrency="CHF",
+                    balance=Decimal("0.00"),
+                    value=Decimal("0.00")
+                )
+            ),
+        ]
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2023, 12, 31),
+            taxPeriod=2023,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=bank_accounts)
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2023, 1, 1),
+            period_to=date(2023, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Verify positive account unchanged
+        assert bank_accounts[0].taxValue.balance == Decimal("2000.00")
+
+        # Verify negative account converted
+        assert bank_accounts[1].taxValue.balance == Decimal("0")
+
+        # Verify zero account unchanged
+        assert bank_accounts[2].taxValue.balance == Decimal("0.00")
+
+        # Verify only one liability created (from the negative account)
+        assert result.listOfLiabilities is not None
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+        assert result.listOfLiabilities.liabilityAccount[0].bankAccountNumber == BankAccountNumber("NEG001")
+        assert result.listOfLiabilities.liabilityAccount[0].taxValue.balance == Decimal("3000.25")
+
+    def test_negative_balance_with_payments(self):
+        """Test that negative balance conversion works with bank account payments."""
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("NEGPAY001"),
+            bankAccountName=BankAccountName("Negative with Payments"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2023, 12, 31),
+                balanceCurrency="CHF",
+                balance=Decimal("-500.00"),
+                value=Decimal("-500.00")
+            ),
+            payment=[
+                BankAccountPayment(
+                    paymentDate=date(2023, 6, 30),
+                    name="Interest",
+                    amountCurrency="CHF",
+                    amount=Decimal("50.00"),
+                    grossRevenueA=Decimal("50.00")
+                )
+            ]
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2023, 12, 31),
+            taxPeriod=2023,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2023, 1, 1),
+            period_to=date(2023, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Verify bank account balance was set to 0
+        assert bank_account.taxValue.balance == Decimal("0")
+
+        # Verify liability was created with payments intact
+        assert result.listOfLiabilities is not None
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+        liability = result.listOfLiabilities.liabilityAccount[0]
+        assert liability.taxValue.balance == Decimal("500.00")
+
+        # Original bank account payments should remain unchanged
+        assert len(bank_account.payment) == 1
+        assert bank_account.payment[0].amount == Decimal("50.00")
+
+    def test_negative_balance_preserves_account_dates(self):
+        """Test that opening/closing dates are preserved when converting negative balance."""
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("NEGDATES001"),
+            bankAccountName=BankAccountName("Negative with Dates"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            openingDate=date(2023, 1, 15),
+            closingDate=date(2023, 11, 30),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2023, 12, 31),
+                balanceCurrency="CHF",
+                balance=Decimal("-1000.00"),
+                value=Decimal("-1000.00")
+            )
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2023, 12, 31),
+            taxPeriod=2023,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2023, 1, 1),
+            period_to=date(2023, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Verify liability has the same dates as the original bank account
+        liability = result.listOfLiabilities.liabilityAccount[0]
+        assert liability.openingDate == date(2023, 1, 15)
+        assert liability.closingDate == date(2023, 11, 30)
+
+    def test_negative_balance_modified_fields_tracking(self):
+        """Test that negative balance conversion is properly tracked in modified_fields."""
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("NEGTRACK001"),
+            bankAccountName=BankAccountName("Tracked Negative"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2023, 12, 31),
+                balanceCurrency="CHF",
+                balance=Decimal("-750.00"),
+                value=Decimal("-750.00")
+            )
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2023, 12, 31),
+            taxPeriod=2023,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2023, 1, 1),
+            period_to=date(2023, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        calculator.calculate(statement)
+
+        # Verify modification tracking
+        assert "NEGTRACK001.taxValue (converted to liability)" in calculator.modified_fields
+        assert "NEGTRACK001.taxValue.balance (set to 0)" in calculator.modified_fields
+        assert any("listOfLiabilities (added" in field for field in calculator.modified_fields)
 
 
 class TestCleanupCalculatorIDGeneration:
