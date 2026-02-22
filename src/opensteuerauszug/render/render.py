@@ -801,7 +801,7 @@ _WARNING_BORDER = colors.HexColor('#FFCC00')  # darker amber for the border
 _WARNING_TEXT_COLOR = colors.HexColor('#664D03')  # dark amber for text
 
 
-def create_critical_warnings_flowables(warnings: list, styles) -> list:
+def create_critical_warnings_flowables(warnings: list, styles, usable_width) -> list:
     """Build a list of ReportLab flowables that render critical warnings.
 
     Each warning is shown as a bullet item inside a highlighted box so it
@@ -810,6 +810,7 @@ def create_critical_warnings_flowables(warnings: list, styles) -> list:
     Args:
         warnings: List of ``CriticalWarning`` instances.
         styles: The custom style dictionary.
+        usable_width: The usable width for the content area (used to constrain table width).
 
     Returns:
         A list of flowables (possibly empty).
@@ -838,33 +839,42 @@ def create_critical_warnings_flowables(warnings: list, styles) -> list:
         spaceBefore=1 * mm,
     )
 
-    inner = [
-        Paragraph(
+    # Subtract padding (4mm left + 4mm right = 8mm total)
+    effective_width = usable_width - 8*mm
+
+    # Build table rows: title row + one row per warning
+    rows = [
+        [Paragraph(
             "CRITICAL WARNINGS / KRITISCHE WARNUNGEN",
             warning_title_style,
-        )
+        )]
     ]
 
     for w in warnings:
         escaped_msg = escape_html_for_paragraph(w.message)
-        inner.append(
+        rows.append([
             Paragraph(
                 f"&bull; {escaped_msg}",
                 warning_item_style,
             )
-        )
+        ])
 
-    # Wrap in a table to get the coloured background and border
-    table = Table([[inner]], colWidths=[None])
-    table.setStyle(TableStyle([
+    # Create single table with all rows
+    table = Table(rows, colWidths=[effective_width])
+
+    # Apply style: border only around the full table, background for all cells
+    table_style = TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), _WARNING_BG),
         ('BOX', (0, 0), (-1, -1), 1, _WARNING_BORDER),
         ('LEFTPADDING', (0, 0), (-1, -1), 4 * mm),
         ('RIGHTPADDING', (0, 0), (-1, -1), 4 * mm),
-        ('TOPPADDING', (0, 0), (-1, -1), 3 * mm),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3 * mm),
+        ('TOPPADDING', (0, 0), (-1, 0), 3 * mm),  # Extra top padding for title row
+        ('TOPPADDING', (0, 1), (-1, -1), 1 * mm),  # Less padding for warning rows
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 3 * mm),  # Extra bottom padding for last row
+        ('BOTTOMPADDING', (0, 0), (-1, -2), 1 * mm),  # Less padding for other rows
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-    ]))
+    ])
+    table.setStyle(table_style)
 
     return [Spacer(1, 4 * mm), table, Spacer(1, 4 * mm)]
 
@@ -1919,8 +1929,10 @@ def render_tax_statement(
     story.append(PageBreak())
     story.extend(create_single_info_page(tax_payer_markdown, styles, section='long-version'))
 
-    # Render critical warnings on the instructions page so users cannot miss them
-    story.extend(create_critical_warnings_flowables(critical_warnings, styles))
+    criticial_warnings_flowables = create_critical_warnings_flowables(critical_warnings, styles, usable_width)
+    if criticial_warnings_flowables:
+        story.append(PageBreak())
+        story.extend(criticial_warnings_flowables)
 
     # Add the barcode page
     make_barcode_pages(doc, story, tax_statement, title_style)
