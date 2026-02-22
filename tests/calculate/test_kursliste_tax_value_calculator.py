@@ -166,6 +166,51 @@ def test_handle_security_tax_value_from_kursliste(kursliste_manager):
     assert stv.balanceCurrency == "CHF"
 
 
+def test_handle_security_tax_value_sets_undefined_when_not_in_kursliste(kursliste_manager):
+    """Test that SecurityTaxValue.undefined is set to True when security is not found in Kursliste."""
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    # Create a security with a non-existent ISIN that won't be found in Kursliste
+    sec = Security(
+        country="US",
+        securityName="Non-Existent Security",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("US9999999999"),  # Invalid ISIN that won't exist in Kursliste
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="USD",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="USD",
+            )
+        ],
+    )
+
+    calc._handle_Security(sec, "sec")
+    stv = sec.taxValue
+    assert stv is not None
+
+    # Call _handle_SecurityTaxValue which should set undefined=True
+    # since the security was not found in Kursliste
+    calc._handle_SecurityTaxValue(stv, "sec.taxValue")
+
+    # Verify that undefined flag is set to True
+    assert stv.undefined is True
+    # kursliste flag should not be set since security wasn't in Kursliste
+    assert stv.kursliste is not True
+
+
 def test_compute_payments_from_kursliste_missing_ex_date(kursliste_manager):
     provider = KurslisteExchangeRateProvider(kursliste_manager)
     calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)

@@ -247,6 +247,8 @@ class MinimalTaxValueCalculator(BaseCalculator):
             # If there's a value but no currency, this is an error as we cannot process it.
             raise ValueError(f"SecurityTaxValue at {path_prefix} has a 'value' but no 'balanceCurrency'. Cannot perform currency conversion or set exchange rate accurately.")
 
+        self._set_field_value(sec_tax_value, "undefined", True, path_prefix)
+
     def _handle_SecurityPayment(self, sec_payment: SecurityPayment, path_prefix: str) -> None:
         """Handles SecurityPayment objects for currency conversion and revenue categorization."""
         # In the base implementation all payments will have been cleared (outside of debugging and verify mode)

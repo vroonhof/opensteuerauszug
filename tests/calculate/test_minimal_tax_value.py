@@ -288,6 +288,7 @@ class TestMinimalTaxValueCalculatorHandlers:
         calculator._handle_SecurityTaxValue(stv, "stv")
         assert stv.exchangeRate == Decimal("0.5")
         assert stv.value is None # Value remains None
+        assert stv.undefined is True # undefined field is set
 
     def test_handle_security_payment_no_op(self, minimal_tax_value_calculator_fill: MinimalTaxValueCalculator):
         calculator = minimal_tax_value_calculator_fill

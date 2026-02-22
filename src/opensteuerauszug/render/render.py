@@ -1703,12 +1703,18 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
                 date_str = tax_value.referenceDate.strftime("%d.%m.%Y")
             else:
                 date_str = ""
+
+            unit_price = ''
+            if tax_value and getattr(tax_value, 'unitPrice', None):
+                unit_price = format_currency(tax_value.unitPrice)
+            elif tax_value and getattr(tax_value, 'undefined', None):
+                unit_price = "n.v."
             table_data.append([
                 Paragraph(date_str, bold_left),
                 Paragraph('Bestand / Steuerwert / Ertrag', bold_left),
                 Paragraph(format_stock_quantity(tax_value.quantity, False, stock_quantity_template) if tax_value else '0', val_right),
                 Paragraph(tax_value.balanceCurrency or '' if tax_value else '', val_right),
-                Paragraph(format_currency(tax_value.unitPrice) if tax_value and getattr(tax_value, 'unitPrice', None) else '', val_right),
+                Paragraph(unit_price, val_right),
                 Paragraph('', val_left),
                 Paragraph('', val_right),
                 Paragraph(format_currency_2dp(tax_value.value) if tax_value and getattr(tax_value, 'value', None) else '', bold_right),
