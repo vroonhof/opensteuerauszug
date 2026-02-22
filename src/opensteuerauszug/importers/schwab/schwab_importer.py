@@ -553,12 +553,14 @@ def convert_cash_positions_to_list_of_bank_accounts(
                     break
         
         if closing_stock_entry:
-            bank_account.taxValue = BankAccountTaxValue(
-                referenceDate=period_to, # Tax value is as of end of period_to
-                name="Closing Balance",
-                balanceCurrency=closing_stock_entry.balanceCurrency,
-                balance=closing_stock_entry.quantity # Quantity of cash is its balance
-            )
+            # Only create taxValue if closing balance is not zero
+            if closing_stock_entry.quantity is not None and closing_stock_entry.quantity != Decimal('0'):
+                bank_account.taxValue = BankAccountTaxValue(
+                    referenceDate=period_to, # Tax value is as of end of period_to
+                    name="Closing Balance",
+                    balanceCurrency=closing_stock_entry.balanceCurrency,
+                    balance=closing_stock_entry.quantity # Quantity of cash is its balance
+                )
         accounts.append(bank_account)
     return ListOfBankAccounts(bankAccount=accounts)
 

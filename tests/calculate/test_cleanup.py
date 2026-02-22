@@ -1842,3 +1842,191 @@ class TestCleanupCalculatorIDGeneration:
         calculator = CleanupCalculator(period_from=DEFAULT_TEST_PERIOD_FROM, period_to=DEFAULT_TEST_PERIOD_TO, importer_name="STRIPCASE", enable_filtering=False)
         calculator.calculate(statement)
         assert statement.id == expected_id
+
+
+class TestCleanupCalculatorClosingBalanceQuantity:
+    """Tests for SecurityTaxValue creation based on closing balance quantity."""
+
+    def test_closing_balance_quantity_nonzero_creates_tax_value(self, sample_period_from, sample_period_to):
+        """When closing balance quantity is non-zero, SecurityTaxValue should be created."""
+        # Create stock with non-zero closing balance at period_end + 1 day
+        closing_balance_date = sample_period_to + timedelta(days=1)
+        closing_stock = create_security_stock(
+            closing_balance_date,
+            Decimal("100"),  # Non-zero quantity
+            mutation=False,
+            name="Closing Balance",
+            balance_currency="CHF"
+        )
+        closing_stock.balance = Decimal("5000.00")
+        closing_stock.unitPrice = Decimal("50.00")
+
+        security = Security(
+            positionId=1,
+            country="CH",
+            currency="CHF",
+            quotationType="PIECE",
+            securityCategory="SHARE",
+            securityName="TestSecurity",
+            stock=[closing_stock]
+        )
+        depot = Depot(depotNumber=DepotNumber("D1"), security=[security])
+        statement = TaxStatement(
+            id=None,
+            creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from,
+            periodTo=sample_period_to,
+            country="CH",
+            canton="ZH",
+            minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("ClosingBalanceClient"))],
+            institution=Institution(lei=LEIType("CLOSINGBALEI1234000000")),
+            listOfSecurities=ListOfSecurities(depot=[depot])
+        )
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "ClosingBalanceImporter", enable_filtering=False)
+        result_statement = calculator.calculate(statement)
+
+        # Verify taxValue was created
+        result_security = result_statement.listOfSecurities.depot[0].security[0]
+        assert result_security.taxValue is not None
+        assert result_security.taxValue.quantity == Decimal("100")
+        assert result_security.taxValue.balance == Decimal("5000.00")
+        assert result_security.taxValue.referenceDate == sample_period_to
+
+    def test_closing_balance_quantity_zero_no_tax_value(self, sample_period_from, sample_period_to):
+        """When closing balance quantity is zero, SecurityTaxValue should NOT be created."""
+        # Create stock with zero closing balance at period_end + 1 day
+        closing_balance_date = sample_period_to + timedelta(days=1)
+        closing_stock = create_security_stock(
+            closing_balance_date,
+            Decimal("0"),  # Zero quantity
+            mutation=False,
+            name="Zero Closing Balance",
+            balance_currency="CHF"
+        )
+        closing_stock.balance = Decimal("0.00")
+        closing_stock.unitPrice = Decimal("50.00")
+
+        security = Security(
+            positionId=1,
+            country="CH",
+            currency="CHF",
+            quotationType="PIECE",
+            securityCategory="SHARE",
+            securityName="TestSecurityZero",
+            stock=[closing_stock]
+        )
+        depot = Depot(depotNumber=DepotNumber("D1"), security=[security])
+        statement = TaxStatement(
+            id=None,
+            creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from,
+            periodTo=sample_period_to,
+            country="CH",
+            canton="ZH",
+            minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("ZeroBalanceClient"))],
+            institution=Institution(lei=LEIType("QTYLEI12345000000000")),
+            listOfSecurities=ListOfSecurities(depot=[depot])
+        )
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "ZeroBalanceImporter", enable_filtering=False)
+        result_statement = calculator.calculate(statement)
+
+        # Verify taxValue was NOT created
+        result_security = result_statement.listOfSecurities.depot[0].security[0]
+        assert result_security.taxValue is None
+
+    def test_closing_balance_quantity_none_no_tax_value(self, sample_period_from, sample_period_to):
+        """When closing balance quantity is None, SecurityTaxValue should NOT be created."""
+        # Create stock with None quantity at period_end + 1 day
+        closing_balance_date = sample_period_to + timedelta(days=1)
+        closing_stock = create_security_stock(
+            closing_balance_date,
+            Decimal("50"),  # Will be overridden to None
+            mutation=False,
+            name="None Quantity Closing",
+            balance_currency="CHF"
+        )
+        closing_stock.quantity = None  # Override with None
+        closing_stock.balance = Decimal("0.00")
+
+        security = Security(
+            positionId=1,
+            country="CH",
+            currency="CHF",
+            quotationType="PIECE",
+            securityCategory="SHARE",
+            securityName="TestSecurityNone",
+            stock=[closing_stock]
+        )
+        depot = Depot(depotNumber=DepotNumber("D1"), security=[security])
+        statement = TaxStatement(
+            id=None,
+            creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from,
+            periodTo=sample_period_to,
+            country="CH",
+            canton="ZH",
+            minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("NoneQtyClient"))],
+            institution=Institution(lei=LEIType("QTYLEI12345000000000")),
+            listOfSecurities=ListOfSecurities(depot=[depot])
+        )
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "NoneQtyImporter", enable_filtering=False)
+        result_statement = calculator.calculate(statement)
+
+        # Verify taxValue was NOT created
+        result_security = result_statement.listOfSecurities.depot[0].security[0]
+        assert result_security.taxValue is None
+
+    def test_closing_balance_quantity_positive_creates_tax_value(self, sample_period_from, sample_period_to):
+        """When closing balance quantity is positive (non-zero), SecurityTaxValue should be created."""
+        closing_balance_date = sample_period_to + timedelta(days=1)
+        closing_stock = create_security_stock(
+            closing_balance_date,
+            Decimal("0.001"),  # Very small but non-zero quantity
+            mutation=False,
+            name="Fractional Closing",
+            balance_currency="CHF"
+        )
+        closing_stock.balance = Decimal("0.05")
+        closing_stock.unitPrice = Decimal("50.00")
+
+        security = Security(
+            positionId=1,
+            country="CH",
+            currency="CHF",
+            quotationType="PIECE",
+            securityCategory="SHARE",
+            securityName="FractionalSec",
+            stock=[closing_stock]
+        )
+        depot = Depot(depotNumber=DepotNumber("D1"), security=[security])
+        statement = TaxStatement(
+            id=None,
+            creationDate=datetime(sample_period_to.year, 1, 1),
+            taxPeriod=sample_period_to.year,
+            periodFrom=sample_period_from,
+            periodTo=sample_period_to,
+            country="CH",
+            canton="ZH",
+            minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("FractionalClient"))],
+            institution=Institution(lei=LEIType("FRACTIONEI1234000000")),
+            listOfSecurities=ListOfSecurities(depot=[depot])
+        )
+
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "FractionalImporter", enable_filtering=False)
+        result_statement = calculator.calculate(statement)
+
+        # Verify taxValue was created for non-zero quantity
+        result_security = result_statement.listOfSecurities.depot[0].security[0]
+        assert result_security.taxValue is not None
+        assert result_security.taxValue.quantity == Decimal("0.001")
+
