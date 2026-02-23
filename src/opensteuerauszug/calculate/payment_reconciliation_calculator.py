@@ -25,6 +25,7 @@ class _BrokerAgg:
     withholding: Decimal = Decimal("0")
     withholding_currency: Optional[str] = None
     withholding_entry_text: Optional[str] = None
+    allows_broker_above_kursliste: bool = False
 
 
 @dataclass
@@ -125,17 +126,20 @@ class PaymentReconciliationCalculator:
                 note = "Accumulating fund payment expected to be absent in broker cash flow."
                 matched = True
             elif has_kurs and has_broker:
+                allow_broker_above_kursliste = (
+                    kurs.allows_broker_above_kursliste or broker.allows_broker_above_kursliste
+                )
                 div_ok = self._component_matches(
                     kurs_value_chf=kurs.dividend_chf,
                     broker_value_chf=broker_div_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
-                    allow_broker_above_kursliste=kurs.allows_broker_above_kursliste,
+                    allow_broker_above_kursliste=allow_broker_above_kursliste,
                 )
                 w_ok = self._component_matches(
                     kurs_value_chf=kurs.withholding_chf,
                     broker_value_chf=broker_with_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
-                    allow_broker_above_kursliste=kurs.allows_broker_above_kursliste,
+                    allow_broker_above_kursliste=allow_broker_above_kursliste,
                 )
                 if not div_ok:
                     note = "Broker dividend is below Kursliste value beyond tolerance."
@@ -207,6 +211,9 @@ class PaymentReconciliationCalculator:
         return False
 
     def _accumulate_broker(self, agg: _BrokerAgg, payment: SecurityPayment) -> None:
+        if self._is_broker_above_kursliste_allowlisted(payment):
+            agg.allows_broker_above_kursliste = True
+
         non_recoverable_original = payment.nonRecoverableTaxAmountOriginal
         withholding_claim = payment.withHoldingTaxClaim
 
