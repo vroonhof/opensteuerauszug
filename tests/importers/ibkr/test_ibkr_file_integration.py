@@ -65,8 +65,12 @@ def test_ibkr_import_from_sample_file(xml_file_path_str: str, default_ibkr_setti
         except ValueError:
             pass # Not a valid year
     
-    if period_from is None or period_to is None:
-        pytest.skip(f"Cannot determine tax year from filename {xml_file_path.name!r}; skipping parametrized run")
+    # Skip files that are known to require a code-level fix before they can be imported
+    SKIPPED_FILENAMES = {"minimal_short_options_repro_2025.xml", "eTax_report_anonymised_2025.xml"}
+    if xml_file_path.name in SKIPPED_FILENAMES:
+        pytest.skip(f"{xml_file_path.name!r} is excluded from the general parametrized test — short options not yet supported (issue #218)")
+
+    assert period_from is not None and period_to is not None, f"Period from and to must be set for {xml_file_path.name}"
 
     importer = IbkrImporter(
         period_from=period_from,
@@ -144,11 +148,11 @@ SAMPLES_DIR = Path(__file__).resolve().parent.parent.parent / "samples" / "impor
 
 @pytest.mark.skip(reason="Short options (covered calls) not yet supported — tracked in issue #218")
 def test_ibkr_import_minimal_short_options_repro(default_ibkr_settings: List[IbkrAccountSettings]):
-    """Integration test for minimal_short_options_repro.xml containing short option positions.
+    """Integration test for minimal_short_options_repro_2025.xml containing short option positions.
 
     Skipped until negative-balance handling for short options is implemented.
     """
-    xml_file_path = SAMPLES_DIR / "minimal_short_options_repro.xml"
+    xml_file_path = SAMPLES_DIR / "minimal_short_options_repro_2025.xml"
     assert xml_file_path.exists(), f"Sample file not found: {xml_file_path}"
 
     importer = IbkrImporter(
@@ -162,11 +166,11 @@ def test_ibkr_import_minimal_short_options_repro(default_ibkr_settings: List[Ibk
 
 @pytest.mark.skip(reason="Short options (covered calls) not yet supported — tracked in issue #218")
 def test_ibkr_import_etax_report_anonymised(default_ibkr_settings: List[IbkrAccountSettings]):
-    """Integration test for eTax_report_anonymised.xml containing short option positions.
+    """Integration test for eTax_report_anonymised_2025.xml containing short option positions.
 
     Skipped until negative-balance handling for short options is implemented.
     """
-    xml_file_path = SAMPLES_DIR / "eTax_report_anonymised.xml"
+    xml_file_path = SAMPLES_DIR / "eTax_report_anonymised_2025.xml"
     assert xml_file_path.exists(), f"Sample file not found: {xml_file_path}"
 
     importer = IbkrImporter(
