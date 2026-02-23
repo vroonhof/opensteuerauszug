@@ -269,11 +269,16 @@ class CleanupCalculator:
                             f"Creating liability account and setting balance to 0."
                         )
 
+                        liability_name = str(bank_account.bankAccountName) or account_id
+                        # Must stay under 40 characaters.
+                        if len(liability_name) < (40 - 16):
+                            liability_name = f"{liability_name} (Negativ Saldo)"
+
                         # Create liability account from the negative bank account
                         liability_account = LiabilityAccount(
                             iban=bank_account.iban,
                             bankAccountNumber=bank_account.bankAccountNumber,
-                            bankAccountName=bank_account.bankAccountName or BankAccountName(account_id),
+                            bankAccountName=BankAccountName(liability_name),
                             bankAccountCountry=bank_account.bankAccountCountry or CountryIdISO2Type("CH"),
                             bankAccountCurrency=bank_account.bankAccountCurrency or CurrencyId("CHF"),
                             openingDate=bank_account.openingDate,
