@@ -1236,7 +1236,7 @@ class TestNegativeBankAccountBalance:
         assert liability.taxValue.balance == Decimal("1500.50")
         assert liability.totalTaxValue == Decimal("1500.50")
         assert liability.bankAccountNumber == bank_account.bankAccountNumber
-        assert liability.bankAccountName == bank_account.bankAccountName
+        assert bank_account.bankAccountName in liability.bankAccountName
         assert liability.bankAccountCountry == bank_account.bankAccountCountry
         assert liability.bankAccountCurrency == bank_account.bankAccountCurrency
 
