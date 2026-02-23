@@ -1981,3 +1981,177 @@ def test_withholding_tax_cash_transactions_are_mapped_to_security_tax_fields(sam
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+
+def test_trade_unit_price_set_when_not_zero(sample_ibkr_settings):
+    """Test that unitPrice is set when trade_price != Decimal(0)."""
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    xml_content = f"""
+<FlexQueryResponse queryName="UnitPriceNonZeroTest" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="{period_from}" toDate="{period_to}" period="Year" whenGenerated="2025-12-31T10:00:00">
+      <Trades>
+        <Trade transactionID="1" accountId="U1234567" assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" issuerCountryCode="US" currency="USD" quantity="10" tradeDate="2025-03-15" settleDateTarget="2025-03-17" tradePrice="150.50" tradeMoney="1505.00" buySell="BUY" ibCommission="-1.00" netCash="-1506.00" />
+      </Trades>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" issuerCountryCode="US" currency="USD" position="10" markPrice="160.00" positionValue="1600.00" reportDate="{period_to}" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0"/>
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_content)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        assert tax_statement.listOfSecurities is not None
+        securities = tax_statement.listOfSecurities.depot[0].security
+        apple = next(security for security in securities if security.isin == "US0378331005")
+
+        # Verify the trade mutation has unitPrice set
+        trade_mutations = [s for s in apple.stock if s.mutation]
+        assert len(trade_mutations) == 1
+        stock_mutation = trade_mutations[0]
+        assert stock_mutation.unitPrice == Decimal("150.50")
+        assert stock_mutation.mutation is True
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_trade_unit_price_none_when_zero(sample_ibkr_settings):
+    """Test that unitPrice is None when trade_price == Decimal(0)."""
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    xml_content = f"""
+<FlexQueryResponse queryName="UnitPriceZeroTest" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="{period_from}" toDate="{period_to}" period="Year" whenGenerated="2025-12-31T10:00:00">
+      <Trades>
+        <Trade transactionID="1" accountId="U1234567" assetCategory="STK" symbol="FREE" description="FREE STOCK" conid="999999" isin="US9999999999" issuerCountryCode="US" currency="USD" quantity="50" tradeDate="2025-03-15" settleDateTarget="2025-03-17" tradePrice="0" tradeMoney="0.00" buySell="BUY" ibCommission="0.00" netCash="0.00" />
+      </Trades>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="FREE" description="FREE STOCK" conid="999999" isin="US9999999999" issuerCountryCode="US" currency="USD" position="50" markPrice="0.10" positionValue="5.00" reportDate="{period_to}" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0"/>
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_content)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        assert tax_statement.listOfSecurities is not None
+        securities = tax_statement.listOfSecurities.depot[0].security
+        free_stock = next(security for security in securities if security.isin == "US9999999999")
+
+        # Verify the trade mutation has unitPrice set to None when price equals 0
+        trade_mutations = [s for s in free_stock.stock if s.mutation]
+        assert len(trade_mutations) == 1
+        stock_mutation = trade_mutations[0]
+        assert stock_mutation.unitPrice is None
+        assert stock_mutation.mutation is True
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_trade_unit_price_various_nonzero_and_zero_prices(sample_ibkr_settings):
+    """Test that unitPrice is correctly set for various trade prices including zero."""
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    xml_content = f"""
+<FlexQueryResponse queryName="UnitPriceMixedTest" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="{period_from}" toDate="{period_to}" period="Year" whenGenerated="2025-12-31T10:00:00">
+      <Trades>
+        <Trade transactionID="1" accountId="U1234567" assetCategory="STK" symbol="HIGH" description="HIGH PRICE" conid="1" isin="US0000000001" issuerCountryCode="US" currency="USD" quantity="1" tradeDate="2025-01-10" settleDateTarget="2025-01-14" tradePrice="9999.99" tradeMoney="9999.99" buySell="BUY" ibCommission="-1.00" netCash="-10000.99" />
+        <Trade transactionID="2" accountId="U1234567" assetCategory="STK" symbol="LOW" description="LOW PRICE" conid="2" isin="US0000000002" issuerCountryCode="US" currency="USD" quantity="1000" tradeDate="2025-01-10" settleDateTarget="2025-01-14" tradePrice="0.50" tradeMoney="500.00" buySell="BUY" ibCommission="-1.00" netCash="-501.00" />
+        <Trade transactionID="3" accountId="U1234567" assetCategory="STK" symbol="ZERO" description="ZERO PRICE" conid="3" isin="US0000000003" issuerCountryCode="US" currency="USD" quantity="100" tradeDate="2025-01-10" settleDateTarget="2025-01-14" tradePrice="0" tradeMoney="0.00" buySell="BUY" ibCommission="0.00" netCash="0.00" />
+        <Trade transactionID="4" accountId="U1234567" assetCategory="STK" symbol="FRAC" description="FRACTIONAL" conid="4" isin="US0000000004" issuerCountryCode="US" currency="USD" quantity="100" tradeDate="2025-01-10" settleDateTarget="2025-01-14" tradePrice="0.01" tradeMoney="1.00" buySell="BUY" ibCommission="0.00" netCash="-1.00" />
+      </Trades>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="HIGH" description="HIGH PRICE" conid="1" isin="US0000000001" issuerCountryCode="US" currency="USD" position="1" markPrice="10000.00" positionValue="10000.00" reportDate="{period_to}" />
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="LOW" description="LOW PRICE" conid="2" isin="US0000000002" issuerCountryCode="US" currency="USD" position="1000" markPrice="0.55" positionValue="550.00" reportDate="{period_to}" />
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="ZERO" description="ZERO PRICE" conid="3" isin="US0000000003" issuerCountryCode="US" currency="USD" position="100" markPrice="0.10" positionValue="10.00" reportDate="{period_to}" />
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="FRAC" description="FRACTIONAL" conid="4" isin="US0000000004" issuerCountryCode="US" currency="USD" position="100" markPrice="0.02" positionValue="2.00" reportDate="{period_to}" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0"/>
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(xml_content)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        assert tax_statement.listOfSecurities is not None
+        securities = tax_statement.listOfSecurities.depot[0].security
+
+        # Find each security by ISIN and check their unitPrice values
+        high = next(s for s in securities if s.isin == "US0000000001")
+        low = next(s for s in securities if s.isin == "US0000000002")
+        zero = next(s for s in securities if s.isin == "US0000000003")
+        frac = next(s for s in securities if s.isin == "US0000000004")
+
+        # High price: should have unitPrice set
+        high_mutation = next(s for s in high.stock if s.mutation)
+        assert high_mutation.unitPrice == Decimal("9999.99")
+
+        # Low price: should have unitPrice set
+        low_mutation = next(s for s in low.stock if s.mutation)
+        assert low_mutation.unitPrice == Decimal("0.50")
+
+        # Zero price: should have unitPrice as None
+        zero_mutation = next(s for s in zero.stock if s.mutation)
+        assert zero_mutation.unitPrice is None
+
+        # Fractional non-zero price: should have unitPrice set
+        frac_mutation = next(s for s in frac.stock if s.mutation)
+        assert frac_mutation.unitPrice == Decimal("0.01")
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
