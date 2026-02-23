@@ -1438,7 +1438,7 @@ class TestNegativeBankAccountBalance:
         # Verify bank account balance was set to 0
         assert bank_account.taxValue.balance == Decimal("0")
 
-        # Verify liability was created with payments intact
+        # Verify liability was created (but the payments are not copied over)
         assert result.listOfLiabilities is not None
         assert len(result.listOfLiabilities.liabilityAccount) == 1
         liability = result.listOfLiabilities.liabilityAccount[0]
