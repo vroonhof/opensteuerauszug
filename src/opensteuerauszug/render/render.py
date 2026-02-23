@@ -660,77 +660,164 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
     return KeepTogether([summary_table, Spacer(1, 2*mm)])
 
 # --- Liabilities Table Function ---
-def create_liabilities_table(data, styles, usable_width):
-    """Creates a table displaying liabilities information.
-    
+def create_liabilities_table(tax_statement, styles, usable_width):
+    """Creates a table displaying liabilities accounts information as per user specification.
+
     Args:
-        data: Dictionary containing the liabilities data
+        tax_statement: The TaxStatement model containing liabilities data
         styles: Dictionary of styles for text formatting
         usable_width: Available width for the table
         
     Returns:
         A Table object containing the liabilities data or None if no data
     """
-    if not data.get('liabilities'): return None
-    header_style = styles['Header_CENTER']
+    if not tax_statement.listOfLiabilities or not tax_statement.listOfLiabilities.liabilityAccount:
+        return None
+
+    liabilities = tax_statement.listOfLiabilities.liabilityAccount
+    period_end_date = tax_statement.periodTo.strftime("%d.%m.%Y") if tax_statement.periodTo else "31.12"
+    year = str(tax_statement.taxPeriod) if tax_statement.taxPeriod else ""
+
+    header_style = styles['Header_RIGHT']
+    header_left = styles['Header_LEFT']
     val_left = styles['Val_LEFT']
     val_right = styles['Val_RIGHT']
     val_center = styles['Val_CENTER']
     bold_left = styles['Bold_LEFT']
     bold_right = styles['Bold_RIGHT']
-    period_end_date = data.get('summary', {}).get('period_end_date', '31.12')
-    tax_period = data.get('summary', {}).get('tax_period', '')
-    table_data = [ [Paragraph('Datum', header_style), Paragraph('Bezeichnung<br/>Schulden<br/>Zinsen', header_style), Paragraph('Währung', header_style), Paragraph('Schulden', header_style), Paragraph('Kurs', header_style), Paragraph(f'Schulden<br/>{period_end_date}<br/>in CHF', header_style), Paragraph(f'Schuldzinsen<br/>{tax_period}<br/>in CHF', header_style)] ]
-    total_debt = Decimal(0); total_interest = Decimal(0)
-    for item in data['liabilities']:
-        if 'transactions' in item:
-            for trans in item['transactions']:
-                table_data.append([
-                    Paragraph(trans.get('date', ''), val_left),
-                    Paragraph(trans.get('description', ''), val_left),
-                    Paragraph(item.get('currency', 'CHF'), val_center),
-                    Paragraph(format_currency_2dp(trans.get('amount')), val_right),
-                    Paragraph('', val_right),
-                    Paragraph('', val_right),
-                    Paragraph(format_currency_2dp(trans.get('amount')), val_right)
-                ])
+
+    table_data = [
+        [
+            Paragraph('Datum', header_left),
+            Paragraph('Bezeichnung<br/>Schulden<br/>Zinsen', header_left),
+            Paragraph('Währung', header_style),
+            Paragraph('Schulden<br/>Schuldzinsen', header_style),
+            Paragraph('Kurs', header_style),
+            Paragraph(f'<b>Schulden</b><br/>{period_end_date}<br/>in CHF', header_style),
+            '',
+            '',
+            Paragraph(f'<b>Schuldzinsen</b><br/>{year}<br/>in CHF', header_style),
+        ]
+    ]
+
+    intermediate_total_rows = []
+    current_row = 1  # Start after header
+
+    liabilities.sort(key=lambda a: a.bankAccountName or a.iban or a.bankAccountNumber or '')
+
+    for account in liabilities:
+        # Build the account description with optional opening/closing date lines
+        account_desc = f"<strong>{escape_html_for_paragraph(account.bankAccountName)}</strong>"
+        if (account.iban and account.iban != account.bankAccountName) or account.bankAccountNumber:
+            account_desc += f"<br/>{escape_html_for_paragraph((account.iban if account.iban != account.bankAccountName else account.bankAccountNumber) or '')}"
+        if account.openingDate:
+            account_desc += f"<br/>Eröffnung {account.openingDate.strftime('%d.%m.%Y')}"
+        if account.closingDate:
+            account_desc += f"<br/>Saldierung {account.closingDate.strftime('%d.%m.%Y')}"
+
+        # Add account header row
         table_data.append([
-            Paragraph(item.get('date', period_end_date), val_left),
-            Paragraph(item.get('description', '').replace('\n', '<br/>'), val_left),
-            Paragraph(item.get('currency', 'CHF'), val_center),
-            Paragraph(format_currency_2dp(item.get('amount')), val_right),
-            Paragraph(item.get('rate', ''), val_right),
-            Paragraph(format_currency_2dp(item.get('value_chf')), val_right),
-            Paragraph(format_currency_2dp(item.get('total_interest')), val_right)
+            '',
+            Paragraph(account_desc, val_left),
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
         ])
-        total_debt += Decimal(str(item.get('value_chf', 0))); total_interest += Decimal(str(item.get('total_interest', 0)))
+        current_row += 1
+
+        account.payment.sort(key=lambda p: p.paymentDate or '')
+        for payment in account.payment:
+            table_data.append([
+                Paragraph(payment.paymentDate.strftime("%d.%m.%Y") if payment.paymentDate else '', val_left),
+                Paragraph(escape_html_for_paragraph(payment.name or ''), val_left),
+                Paragraph(payment.amountCurrency or account.bankAccountCurrency or '', val_center),
+                Paragraph(format_currency_2dp(payment.amount), val_right),
+                Paragraph(format_exchange_rate(payment.exchangeRate), val_right),
+                '',
+                '',
+                '',
+                Paragraph(format_currency(payment.grossRevenueB), val_right),
+            ])
+            current_row += 1
+
+        if account.closingDate:
+            date_str = account.closingDate.strftime("%d.%m.%Y")
+        elif account.taxValue and account.taxValue.referenceDate:
+            date_str = account.taxValue.referenceDate.strftime("%d.%m.%Y")
+        else:
+            date_str = ""
+
+        if account.taxValue:
+            balance_str = format_currency_2dp(account.taxValue.balance)
+            exchange_rate_str = format_exchange_rate(account.taxValue.exchangeRate)
+            currency_str = account.taxValue.balanceCurrency or account.bankAccountCurrency or ''
+        else:
+            balance_str = ''
+            exchange_rate_str = ''
+            currency_str = ''
+
+        table_data.append([
+            Paragraph(date_str, bold_left),
+            Paragraph('Schulden' if account.closingDate else 'Steuerwert / Schuldzinsen', bold_left),
+            Paragraph(currency_str, val_center),
+            Paragraph(balance_str, val_right),
+            Paragraph(exchange_rate_str, val_right),
+            Paragraph(format_currency_2dp(account.totalTaxValue), bold_right),
+            '',
+            '',
+            Paragraph(format_currency_2dp(account.totalGrossRevenueB), bold_right),
+        ])
+        intermediate_total_rows.append(current_row)
+        current_row += 1
+
+        # Separator row after each account
+        table_data.append([])
+        current_row += 1
+
+    # Add a final row with totals for the list of liabilities
     table_data.append([
-        Paragraph('', val_left),
-        Paragraph('Total Schulden', bold_left),
-        Paragraph('', val_left),
-        Paragraph('', val_right),
-        Paragraph('', val_right),
-        Paragraph(format_currency_2dp(total_debt), bold_right),
-        Paragraph(format_currency_2dp(total_interest), bold_right)
+        "",
+        Paragraph("Total Schulden", bold_left),
+        '',
+        '',
+        '',
+        Paragraph(format_currency_2dp(tax_statement.listOfLiabilities.totalTaxValue), bold_right),
+        '',
+        '',
+        Paragraph(format_currency_2dp(tax_statement.listOfLiabilities.totalGrossRevenueB), bold_right),
     ])
-    col_widths = [30*mm, 100*mm, 20*mm, 27*mm, 20*mm, 30*mm, 30*mm]
-    assert sum(col_widths) < usable_width
+
+    col_widths = [24*mm, 110*mm, 19*mm, 28*mm, 18*mm, 28*mm, 5*mm, 8, 23*mm]
     liabilities_table = Table(table_data, colWidths=col_widths)
-    liabilities_table.setStyle(TableStyle([
+
+    table_style = [
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 1),
         ('RIGHTPADDING', (0, 0), (-1, -1), 1),
         ('TOPPADDING', (0, 0), (-1, -1), 0),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
         # Header row
-        ('LINEBELOW', (0, 0), (-1, 0), 1, colors.black),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 1),
         ('TOPPADDING', (0, 0), (-1, 0), 1),
+        # First content row
+        ('TOPPADDING', (0, 1), (-1, 1), 5),
         # Footer/total row
-        ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black),
         ('TOPPADDING', (0, -1), (-1, -1), 1),
         ('BOTTOMPADDING', (0, -1), (-1, -1), 1),
-    ]))
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#d3d3d3')),
+        # Final totals
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#d3d3d3')),
+    ]
+
+    # Add even lighter grey background to each intermediate total row (after each account)
+    for idx in intermediate_total_rows:
+        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#f0f0f0')))
+
+    liabilities_table.setStyle(TableStyle(table_style))
     return liabilities_table
 
 # --- Costs Table Function ---
@@ -1939,6 +2026,14 @@ def render_tax_statement(
         story.append(PageBreak())
         story.append(Paragraph("Werte mit Anrechnung ausländischer Quellensteuer / zusätzlicher Steuerrückbehalt USA", title_style))
         story.append(securities_table_da1)
+        story.append(Spacer(1, 0.5*cm))
+
+    # --- Liabilities Section ---
+    liabilities_table = create_liabilities_table(tax_statement, styles, usable_width)
+    if liabilities_table:
+        story.append(PageBreak())
+        story.append(Paragraph("Schulden", title_style))
+        story.append(liabilities_table)
         story.append(Spacer(1, 0.5*cm))
 
     # Optional payment reconciliation pages before notices/barcode

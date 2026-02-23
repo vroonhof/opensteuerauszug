@@ -105,7 +105,6 @@ def create_test_tax_statement() -> TaxStatement:
         bankAccountName=BankAccountName("Test Mortgage"),  # Wrapped in type
         bankAccountCountry=CountryIdISO2Type("CH"),  # Added missing required field
         bankAccountCurrency=CurrencyId("CHF"),  # Added missing required field
-        liabilityCategory="MORTGAGE",  # Assign literal directly
         totalTaxValue=PositiveDecimal("200000.00"),  # Added missing required field, wrapped
         totalGrossRevenueB=PositiveDecimal("2000.00"),  # Added missing required field, wrapped
         taxValue=LiabilityAccountTaxValue(
@@ -893,7 +892,6 @@ class TestTotalCalculator:
             bankAccountName=BankAccountName("Mortgage Account"),
             bankAccountCountry=CountryIdISO2Type("CH"),
             bankAccountCurrency=CurrencyId("CHF"),
-            liabilityCategory="MORTGAGE",
             # Initialize optional totals as None to test FILL mode - total* values are required though
             totalTaxValue=PositiveDecimal("123456.78"),
             totalGrossRevenueB=PositiveDecimal("9999.99"),
