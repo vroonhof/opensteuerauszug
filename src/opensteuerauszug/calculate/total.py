@@ -113,11 +113,12 @@ class TotalCalculator(BaseCalculator):
                             list_additional_withholding_tax_usa += sec_additional_withholding_tax_usa
                             list_non_recoverable_tax += sec_non_recoverable_tax
 
-                            if determine_security_type(security) == "DA1":
+                            security_type = determine_security_type(security)
+                            if security_type == "DA1":
                                 list_tax_value_da1 += sec_tax_value
                                 list_revenue_da1 += sec_revenue_b
                             else:
-                                if sec_revenue_a > 0 or security.country == "CH":
+                                if security_type == "A":
                                     list_tax_value_a_sv += sec_tax_value
                                 else:
                                     list_tax_value_b_sv += sec_tax_value
@@ -132,6 +133,8 @@ class TotalCalculator(BaseCalculator):
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalLumpSumTaxCredit', list_lump_sum_tax_credit, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalAdditionalWithHoldingTaxUSA', list_additional_withholding_tax_usa, "listOfSecurities")
             self._round_and_set_field(tax_statement.listOfSecurities, 'totalNonRecoverableTax', list_non_recoverable_tax, "listOfSecurities")
+            self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueIUP', Decimal('0'), "listOfSecurities")
+            self._round_and_set_field(tax_statement.listOfSecurities, 'totalGrossRevenueConversion', Decimal('0'), "listOfSecurities")
 
             # Accumulate global/internal totals from ROUNDED list subtotals
             self.total_tax_value += self._round_sub_total(list_tax_value)

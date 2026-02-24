@@ -1,8 +1,8 @@
-name: Comment sample PDF link on PR
+name: Comment sample PDF and XML link on PR
 
 on:
   workflow_run:
-    workflows: ["Generate sample PDF for PR"]
+    workflows: ["Generate sample PDF and XML for PR"]
     types: [completed]
 
 permissions:
@@ -51,25 +51,25 @@ jobs:
             const fs = require('fs');
             const prNumber = parseInt(fs.readFileSync('/tmp/pr_number_dir/pr_number.txt', 'utf8').trim(), 10);
 
-            // Find the sample PDF artifact from the triggering run
+            // Find the sample artifact from the triggering run
             const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
               owner: context.repo.owner,
               repo: context.repo.repo,
               run_id: ${{ github.event.workflow_run.id }},
             });
-            const pdfArtifact = artifacts.data.artifacts.find(a => a.name.startsWith('sample-pdf-pr-'));
+            const outputArtifact = artifacts.data.artifacts.find(a => a.name.startsWith('sample-output-pr-'));
 
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${{ github.event.workflow_run.id }}`;
-            const artifactUrl = pdfArtifact
-              ? `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${{ github.event.workflow_run.id }}/artifacts/${pdfArtifact.id}`
+            const artifactUrl = outputArtifact
+              ? `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${{ github.event.workflow_run.id }}/artifacts/${outputArtifact.id}`
               : runUrl;
 
             const body = [
-              '## 📄 Sample PDF Preview',
+              '## 📄 Sample PDF and XML Preview',
               '',
-              'A sample Steuerauszug PDF has been generated from `vtandchill_2025.xml` for this PR.',
+              'A sample Steuerauszug has been generated from `vtandchill_2025.xml` for this PR.',
               '',
-              `**[⬇️ Download sample_output.pdf](${artifactUrl})**`,
+              `**[⬇️ Download](${artifactUrl})**`,
               '',
               `_(Artifact expires in 14 days. Requires GitHub login to download. [View workflow run](${runUrl}))_`,
             ].join('\n');
@@ -81,7 +81,7 @@ jobs:
               issue_number: prNumber,
             });
             const botComment = comments.data.find(c =>
-              c.user.type === 'Bot' && c.body.includes('Sample PDF Preview')
+              c.user.type === 'Bot' && c.body.includes('Sample PDF and XML Preview')
             );
 
             if (botComment) {

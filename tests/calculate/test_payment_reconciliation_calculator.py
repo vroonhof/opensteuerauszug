@@ -357,6 +357,73 @@ def test_broker_above_kursliste_with_allowlisted_sign_is_match():
     assert row.status == "match"
 
 
+def test_broker_above_kursliste_with_allowlisted_broker_keyword_is_match():
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="CH",
+                            currency="CHF",
+                            quotationType="PIECE",
+                            securityCategory="FUND",
+                            securityName="CHSPI",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 7, 17),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("100"),
+                                    amountCurrency="CHF",
+                                    amount=Decimal("44"),
+                                    exchangeRate=Decimal("1"),
+                                    grossRevenueA=Decimal("44"),
+                                    withHoldingTaxClaim=Decimal("15.40"),
+                                    kursliste=True,
+                                )
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 7, 17),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-100"),
+                                    amountCurrency="CHF",
+                                    amount=Decimal("44"),
+                                    name="Ordinary Dividend",
+                                ),
+                                SecurityPayment(
+                                    paymentDate=date(2025, 7, 17),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-100"),
+                                    amountCurrency="CHF",
+                                    amount=Decimal("40"),
+                                    name="Return of Capital",
+                                ),
+                                SecurityPayment(
+                                    paymentDate=date(2025, 7, 17),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-100"),
+                                    amountCurrency="CHF",
+                                    amount=Decimal("-15.40"),
+                                    name="Withholding",
+                                    nonRecoverableTaxAmountOriginal=Decimal("15.40"),
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator().calculate(statement)
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.status == "match"
+
+
 def test_negligible_kursliste_values_allow_missing_broker_entry():
     statement = TaxStatement(
         minorVersion=2,

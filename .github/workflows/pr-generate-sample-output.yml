@@ -1,4 +1,4 @@
-name: Generate sample PDF for PR
+name: Generate sample PDF and XML for PR
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  generate-pdf:
+  generate-sample-output:
     runs-on: ubuntu-latest
 
     steps:
@@ -39,13 +39,16 @@ jobs:
             --importer ibkr \
             --tax-year 2025 \
             --kursliste-dir tests/samples/kursliste \
+            --xml-output sample_output.xml \
             --output sample_output.pdf
 
-      - name: Upload sample PDF artifact
+      - name: Upload sample output artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sample-pdf-pr-${{ github.event.pull_request.number }}
-          path: sample_output.pdf
+          name: sample-output-pr-${{ github.event.pull_request.number }}
+          path: |
+            sample_output.pdf
+            sample_output.xml
           retention-days: 14
 
       - name: Save PR number for downstream workflow

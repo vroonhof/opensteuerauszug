@@ -67,13 +67,13 @@ def tax_statement_with_warnings(sample_warnings):
 
 def test_critical_warnings_flowables_empty_when_no_warnings():
     styles = get_custom_styles()
-    result = create_critical_warnings_flowables([], styles)
+    result = create_critical_warnings_flowables([], styles, 720)
     assert result == []
 
 
 def test_critical_warnings_flowables_returns_flowables(sample_warnings):
     styles = get_custom_styles()
-    result = create_critical_warnings_flowables(sample_warnings, styles)
+    result = create_critical_warnings_flowables(sample_warnings, styles, 720)
     assert len(result) > 0, "Should produce flowables when warnings exist"
 
 

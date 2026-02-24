@@ -46,23 +46,24 @@ jobs:
             --importer ibkr \
             --tax-year 2025 \
             --kursliste-dir tests/samples/kursliste \
+            --xml-output docs/sample_output.xml \
             --output docs/sample_output.pdf
 
       - name: Extract page 1 (Summary) and page 3 (Stock table) as PNG
         run: |
-          mkdir -p docs
           # Page 1 – Summary page (pdftoppm pages are 1-indexed)
-          pdftoppm -r 150 -png -f 1 -l 1 -singlefile \
+          pdftoppm -r 60 -png -f 1 -l 1 -singlefile \
             docs/sample_output.pdf docs/sample_summary_page
           # Page 3 – Stock table example
-          pdftoppm -r 150 -png -f 3 -l 3 -singlefile \
+          pdftoppm -r 60 -png -f 3 -l 3 -singlefile \
             docs/sample_output.pdf docs/sample_stock_table_page
 
       - name: Commit updated previews
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: update sample output previews [skip ci]"
-          file_pattern: |
+          file_pattern: >
             docs/sample_output.pdf
+            docs/sample_output.xml
             docs/sample_summary_page.png
             docs/sample_stock_table_page.png
