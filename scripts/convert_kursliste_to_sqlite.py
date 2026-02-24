@@ -8,6 +8,7 @@ from opensteuerauszug.model.kursliste import (
     Share, Bond, Fund, Derivative, CoinBullion, CurrencyNote, LiborSwap,
     Sign, Da1Rate
 )
+from opensteuerauszug.core.rate_extractor import ImpliedRateManager
 
 def create_schema(conn):
     """Creates the database schema."""
@@ -170,13 +171,15 @@ def process_security_element(cursor, elem, tax_year, source_file_name, namespace
         ) VALUES (?, ?, ?, ?, ?, ?)
     """, (kl_id, valor_number, isin, tax_year, security_type, blob_data))
 
-def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
+def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path, extract_implied_rates=False, insert_implied_rates=False):
     """
     Streaming conversion function that processes XML without loading entire file into memory.
     
     Args:
         xml_file_path: Path to the Kursliste XML file
         db_file_path: Path to the SQLite database file to create
+        extract_implied_rates: If True, extracts implicit exchange rates from payments.
+        insert_implied_rates: If True, inserts extracted implicit rates into database.
     
     Returns:
         True if successful, raises exception if failed
@@ -192,6 +195,11 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
         
         source_file_name = os.path.basename(xml_file_path)
         
+        # Initialize ImpliedRateManager if needed
+        rate_manager = None
+        if extract_implied_rates or insert_implied_rates:
+            rate_manager = ImpliedRateManager()
+
         # Use iterparse for streaming XML processing
         print(f"Starting streaming parse of {xml_file_path}...")
         
@@ -263,6 +271,25 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
                             security_type_identifier, security_object_blob
                         ) VALUES (?, ?, ?, ?, ?, ?)
                     """, (kl_id, valor_number, isin, tax_year, security_type, blob_data))
+
+                # Extract payments for rate manager
+                if rate_manager:
+                    # iterate over child elements of current security element
+                    # Note: namespaces are annoying here.
+                    # We can iterate over all descendants or direct children.
+                    # Direct children are safest to avoid nested structures if any.
+                    for child in elem:
+                        child_tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                        if child_tag == 'payment':
+                            p_date = child.get('paymentDate')
+                            ex_date = child.get('exDate')
+                            if ex_date:
+                                p_date = ex_date
+                            p_currency = child.get('currency')
+                            p_rate = child.get('exchangeRate')
+
+                            if p_date and p_currency and p_rate:
+                                rate_manager.add_payment(p_date, p_currency, p_rate)
                 
                 counts[tag] += 1
                 batch_count += 1
@@ -282,6 +309,9 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
                         currency_code, date, rate, denomination, tax_year, source_file
                     ) VALUES (?, ?, ?, ?, ?, ?)
                 """, (currency, date, rate, denomination, tax_year, source_file_name))
+
+                if rate_manager and date and currency:
+                    rate_manager.add_official_rate(date, currency)
                 
                 counts['exchangeRate'] += 1
                 batch_count += 1
@@ -374,6 +404,36 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
                 print(f"\rProcessed {sum(counts.values())} records...", end='', flush=True)
                 batch_count = 0
         
+        # Handle implied rates reporting and insertion
+        if rate_manager:
+            if extract_implied_rates and tax_year:
+                missing_days = rate_manager.get_missing_days(tax_year)
+                if missing_days:
+                    print("\n--- Uncovered Trading Days Report ---")
+                    for currency, dates in missing_days.items():
+                        print(f"{currency}: {len(dates)} missing days")
+                        # Print missing days for manual inspection
+                        for d in dates:
+                            print(f"  {d}")
+                else:
+                    print("\n--- Uncovered Trading Days Report ---")
+                    print("No missing trading days found for encountered currencies.")
+
+            if insert_implied_rates and tax_year:
+                print("\nInserting implied exchange rates into database...")
+                implied_count = 0
+                for row in rate_manager.generate_db_rows(tax_year, source_file_name):
+                    cursor.execute("""
+                        INSERT INTO exchange_rates_daily (
+                            currency_code, date, rate, denomination, tax_year, source_file
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                    """, row)
+                    implied_count += 1
+                    if implied_count % 1000 == 0:
+                        print(f"\rInserted {implied_count} implied rates...", end='', flush=True)
+
+                print(f"\nInserted {implied_count} total implied rates.")
+
         # Final commit
         conn.commit()
         
@@ -403,21 +463,28 @@ def convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path):
         if conn:
             conn.close()
 
-def convert_kursliste_xml_to_sqlite(xml_file_path, db_file_path, denylist=None):
+def convert_kursliste_xml_to_sqlite(xml_file_path, db_file_path, denylist=None, extract_implied_rates=False, insert_implied_rates=False):
     """
     Legacy wrapper - now uses streaming conversion by default.
     """
-    return convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path)
+    return convert_kursliste_xml_to_sqlite_streaming(xml_file_path, db_file_path, extract_implied_rates, insert_implied_rates)
 
 def main():
     parser = argparse.ArgumentParser(description="Convert Kursliste XML to SQLite database.")
     parser.add_argument("xml_file", help="Path to the Kursliste XML file.")
     parser.add_argument("db_file", help="Path to the SQLite database file.")
+    parser.add_argument("--extract-implied-rates", action="store_true", help="Report missing trading days based on implicit rates in payments.")
+    parser.add_argument("--insert-implied-rates", action="store_true", help="Insert implicit exchange rates from payments into the database.")
     args = parser.parse_args()
 
     try:
         # Call the core conversion function
-        convert_kursliste_xml_to_sqlite(args.xml_file, args.db_file)
+        convert_kursliste_xml_to_sqlite(
+            args.xml_file,
+            args.db_file,
+            extract_implied_rates=args.extract_implied_rates,
+            insert_implied_rates=args.insert_implied_rates
+        )
     except Exception as e:
         print(f"Error: {e}")
         return 1
