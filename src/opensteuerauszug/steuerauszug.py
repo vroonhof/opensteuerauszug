@@ -599,10 +599,16 @@ def main(
                 if not isinstance(org_nr, str) or not org_nr.isdigit() or len(org_nr) != 5:
                     raise ValueError(f"Invalid --org-nr '{org_nr}': Must be a 5-digit string.")
             
+            # Determine the path for the main tax statement PDF
+            # If we are merging, render to a temp file first
+            main_pdf_path = output_file
+            if pre_amble or post_amble:
+                main_pdf_path = output_file.with_suffix(".tmp_main.pdf")
+
             # Use the render_tax_statement function to generate the PDF
             rendered_path = render_tax_statement(
                 statement,
-                output_file,
+                main_pdf_path,
                 override_org_nr=org_nr,
                 minimal_frontpage_placeholder=(
                     (tax_calculation_level == TaxCalculationLevel.MINIMAL)
@@ -637,18 +643,21 @@ def main(
                                 continue
                             merger.append(path)
 
-                    # write to a temp file first to avoid issues if input/output overlap
-                    temp_output = rendered_path.with_suffix(".tmp.pdf")
-                    merger.write(temp_output)
+                    # Write the final merged PDF directly to the output file
+                    merger.write(output_file)
                     merger.close()
-
-                    # replace original file
-                    temp_output.replace(rendered_path)
-                    print(f"Successfully merged pre/post-ambles into {rendered_path}")
+                    print(f"Successfully merged pre/post-ambles into {output_file}")
 
                 except Exception as e:
                     print(f"Error during PDF concatenation: {e}")
                     raise typer.Exit(code=1)
+                finally:
+                    # Cleanup the temporary main PDF
+                    if rendered_path.exists():
+                        try:
+                            rendered_path.unlink()
+                        except Exception as e:
+                            print(f"Warning: Failed to delete temporary file {rendered_path}: {e}")
 
         if final_xml_path:
             try:
