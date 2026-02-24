@@ -566,6 +566,42 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
          ],
     ]
 
+    # Add liabilities row if liabilities total is not 0
+    liabilities_total = summary_data.get('liabilities_total', None)
+    show_liabilities = liabilities_total and liabilities_total != 0
+
+    if show_liabilities:
+        # Row 8: Liabilities Header
+        table_data.append([
+            Paragraph(f'<b>Schulden</b><br/>am {summary_data.get("period_end_date", "31.12")}', header_style),  # Col 0
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            Paragraph('''Werte für zusätzliches Steuererklärungsformular <b>"Schuldenverzeichnis"</b>''', val_left)
+        ])
+        # Row 9: Liabilities Values (left-aligned under total steuerwert)
+        table_data.append([
+            Paragraph(format_currency_rounded(liabilities_total), val_right),
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            ''
+        ])
+
     usable_width = usable_width - 4*10
     base_col_width = usable_width / 7
     col_widths = [base_col_width, # Col 0: Steuerwert
@@ -583,6 +619,9 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
                   ]
 
     row_heights = [15*mm, 6*mm, 2*mm, 15*mm, 6*mm, 2*mm, 20*mm, 6*mm]
+    if show_liabilities:
+        row_heights.extend([15*mm, 6*mm])
+
     summary_table = Table(table_data, colWidths=col_widths, rowHeights=row_heights)
 
     # --- Table Style ---
@@ -641,6 +680,12 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
         ('LINEABOVE', (8, 7), (8, 7), *line_style),
         ('LINEBELOW', (8, 7), (8, 7), *line_style),
     ]
+
+    if show_liabilities:
+        line_commands.extend([
+            ('LINEABOVE', (0, 9), (0, 9), *line_style),
+            ('LINEBELOW', (0, 9), (0, 9), *line_style),
+        ])
 
     # --- Combine all styles ---
     style_commands = [
@@ -1963,7 +2008,12 @@ def render_tax_statement(
         summary_brutto_b = tax_statement.summaryGrossRevenueB or Decimal('0')
         summary_steuerwert_ab = tax_statement.steuerwert_ab or (summary_steuerwert_a + summary_steuerwert_b)
 
+        liabilities_total = Decimal('0')
+        if tax_statement.listOfLiabilities and tax_statement.listOfLiabilities.totalTaxValue:
+            liabilities_total = tax_statement.listOfLiabilities.totalTaxValue
+
         # Create summary data dictionary from model fields
+
         summary_data = {
             "steuerwert_ab": summary_steuerwert_ab,
             "steuerwert_a": summary_steuerwert_a,
@@ -1979,6 +2029,7 @@ def render_tax_statement(
             "total_brutto_mit_vst": tax_statement.totalGrossRevenueA,
             "total_brutto_ohne_vst": tax_statement.totalGrossRevenueB,
             "total_brutto_gesamt": tax_statement.total_brutto_gesamt,
+            "liabilities_total": liabilities_total,
             "tax_period": tax_period,
             "period_end_date": period_end_date
         }
