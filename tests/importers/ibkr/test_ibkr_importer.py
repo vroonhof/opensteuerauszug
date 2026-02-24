@@ -2008,6 +2008,11 @@ SAMPLE_IBKR_FLEX_XML_WHTAX_NO_SECURITY = """
       </CashTransactions>
       <CashReport>
         <CashReportCurrency accountId="U1234567" currency="CHF" endingCash="1000.00" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
 
 def test_withholding_tax_without_security_creates_bank_payment(sample_ibkr_settings):
     """Withholding tax not linked to a security (e.g. yield enhancement) should
