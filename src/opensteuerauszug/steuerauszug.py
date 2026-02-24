@@ -5,6 +5,7 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional
 from datetime import date, datetime
+from pypdf import PdfWriter
 
 from opensteuerauszug.config.models import SchwabAccountSettings, IbkrAccountSettings, GeneralSettings # Added GeneralSettings
 import os # For path construction
@@ -89,6 +90,8 @@ def main(
     kursliste_dir: Path = typer.Option(Path("data/kursliste"), "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste'."),
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
     payment_reconciliation: bool = typer.Option(True, "--payment-reconciliation/--no-payment-reconciliation", help="Run optional payment reconciliation between Kursliste and broker evidence."),
+    pre_amble: Optional[List[Path]] = typer.Option(None, "--pre-amble", help="List of PDF documents to add before the main steuerauszug."),
+    post_amble: Optional[List[Path]] = typer.Option(None, "--post-amble", help="List of PDF documents to add after the main steuerauszug."),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
     logging.basicConfig(level=log_level.value)
@@ -611,6 +614,41 @@ def main(
                 ),
             )
             print(f"Rendering successful to {rendered_path}")
+
+            if pre_amble or post_amble:
+                try:
+                    merger = PdfWriter()
+
+                    if pre_amble:
+                        print(f"Prepending {len(pre_amble)} document(s)...")
+                        for path in pre_amble:
+                            if not path.exists():
+                                print(f"Warning: Pre-amble file not found: {path}")
+                                continue
+                            merger.append(path)
+
+                    merger.append(rendered_path)
+
+                    if post_amble:
+                        print(f"Appending {len(post_amble)} document(s)...")
+                        for path in post_amble:
+                            if not path.exists():
+                                print(f"Warning: Post-amble file not found: {path}")
+                                continue
+                            merger.append(path)
+
+                    # write to a temp file first to avoid issues if input/output overlap
+                    temp_output = rendered_path.with_suffix(".tmp.pdf")
+                    merger.write(temp_output)
+                    merger.close()
+
+                    # replace original file
+                    temp_output.replace(rendered_path)
+                    print(f"Successfully merged pre/post-ambles into {rendered_path}")
+
+                except Exception as e:
+                    print(f"Error during PDF concatenation: {e}")
+                    raise typer.Exit(code=1)
 
         if final_xml_path:
             try:
