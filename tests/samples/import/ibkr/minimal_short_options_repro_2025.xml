@@ -1,7 +1,7 @@
 <FlexQueryResponse queryName="Annual Tax Report" type="AF">
 <FlexStatements count="1">
 <FlexStatement accountId="U9999999" fromDate="2025-01-01" toDate="2025-12-31" period="" whenGenerated="2026-02-01;10:00:00">
-<AccountInformation accountId="U9999999" acctAlias="" model="" currency="CHF" name="Test User" accountType="Individual" customerType="Individual" accountCapabilities="Margin" tradingPermissions="Stocks,Options" accountRepName="" accountRepPhone="" dateOpened="2020-01-01" dateFunded="2020-01-15" dateClosed="" lastTradedDate="2025-12-30" street="Musterstrasse 1" street2="" city="Zurich" state="CH-ZH" country="Switzerland" postalCode="8001" streetResidentialAddress="Musterstrasse 1" street2ResidentialAddress="" cityResidentialAddress="Zurich" stateResidentialAddress="CH-ZH" countryResidentialAddress="Switzerland" postalCodeResidentialAddress="8001" masterName="" ibEntity="IB-UK" primaryEmail="test@example.com" firstName="Test" lastName="User" />
+<AccountInformation accountId="U9999999" acctAlias="" model="" currency="CHF" name="Test User" accountType="Individual" customerType="Individual" accountCapabilities="Margin" tradingPermissions="Stocks,Options" accountRepName="" accountRepPhone="" dateOpened="2020-01-01" dateFunded="2020-01-15" dateClosed="" lastTradedDate="2025-12-30" street="Musterstrasse 1" street2="" city="Zurich" state="CH-ZH" country="Switzerland" postalCode="8001" streetResidentialAddress="Musterstrasse 1" street2ResidentialAddress="" cityResidentialAddress="Zurich" stateResidentialAddress="CH-ZH" countryResidentialAddress="Switzerland" postalCodeResidentialAddress="8001" masterName="" ibEntity="IB-UK" primaryEmail="test@example.com" />
 <EquitySummaryInBase>
 </EquitySummaryInBase>
 <Trades>
