@@ -1,6 +1,5 @@
 import pytest
 import io
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 from opensteuerauszug.kursliste.downloader import download_kursliste
 
@@ -59,10 +58,8 @@ def test_download_kursliste_logic(mock_open, mock_zip, mock_get, mock_post, mock
     mock_post.return_value = mock_response
 
     # Mock responses for GET calls:
-    # 1. HOME_URL
-    # 2. SESSION_URL
-    # 3. Download URL
-    mock_home_resp = MagicMock(status_code=200)
+    # 1. SESSION_URL
+    # 2. Download URL
     mock_session_resp = MagicMock(status_code=200)
     mock_session_resp.json.return_value = {
         "status": "SUCCESS",
@@ -70,7 +67,7 @@ def test_download_kursliste_logic(mock_open, mock_zip, mock_get, mock_post, mock
     }
     mock_dl_resp = MagicMock(status_code=200, content=b"zip_content")
 
-    mock_get.side_effect = [mock_home_resp, mock_session_resp, mock_dl_resp]
+    mock_get.side_effect = [mock_session_resp, mock_dl_resp]
 
     # Mock zip extraction
     mock_zip_instance = mock_zip.return_value.__enter__.return_value
@@ -90,7 +87,7 @@ def test_download_kursliste_logic(mock_open, mock_zip, mock_get, mock_post, mock
     # but requests.Session.post uses session.headers by default.
 
     # Verify that THIRD.INIT.220 was selected (highest version)
-    download_call = mock_get.call_args_list[2]
+    download_call = mock_get.call_args_list[1]
     assert download_call[0][0] == "https://www.ictax.admin.ch/extern/api/download/3586267/21f330db01497a390e5aa71cd5e3e21a/kursliste_2025.zip"
 
     # Verify that we tried to write the file
