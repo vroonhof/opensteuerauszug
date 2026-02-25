@@ -81,6 +81,27 @@ You can explicitly control this feature using:
 *   `--payment-reconciliation`: (Default) Enables the reconciliation phase and reports.
 *   `--no-payment-reconciliation`: Skips the reconciliation step.
 
+### Appending Additional Documents
+
+Often, you may want to include additional supporting documents (e.g., the original broker statement, US 1042-S forms, or other tax forms) in the same PDF as your Steuerauszug for archiving or submission purposes.
+
+OpenSteuerAuszug provides command-line options to prepend or append existing PDF files to the generated tax statement:
+
+*   `--pre-amble <file.pdf>`: Adds the specified PDF **before** the main tax statement.
+*   `--post-amble <file.pdf>`: Adds the specified PDF **after** the main tax statement.
+
+You can specify these options multiple times to add multiple files. The files will be added in the order they appear on the command line.
+
+**Note:** This feature performs a "naive concatenation." The added pages are attached exactly as they are; no page numbers, barcodes, or headers/footers are added or modified on these external documents.
+
+Example:
+```bash
+python -m opensteuerauszug.steuerauszug input.xml --importer ibkr \
+  --post-amble 1042-S_form.pdf \
+  --post-amble broker_statement.pdf \
+  -o final_tax_statement.pdf
+```
+
 ## Disclaimer and User Responsibility
 
 **Important**: OpenSteuerAuszug is provided "as is" without any formal audit or warranty. While it aims to be accurate, it is your responsibility as the taxpayer to:

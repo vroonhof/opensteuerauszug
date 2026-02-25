@@ -20,9 +20,11 @@ After installing, see the [User Guide](docs/user_guide.md) for preparation steps
 
 ### Verifying an Existing Steuerauszug
 
-The tool can also be used to cross check and existing existing Steuerauszug (eCH-0196 XML). See See [verify instructions](docs/verify_existing.mdverify_existing.md).
+The tool can also be used to cross check and existing existing Steuerauszug (eCH-0196 XML). See See [verify instructions](docs/verify_existing.md).
 
+### Appending Additional Documents
 
+You can attach original broker statements or other supporting documents to the generated PDF using `--pre-amble` and `--post-amble` options. See the [User Guide](docs/user_guide.md#appending-additional-documents) for details.
 
 ## Features
 
@@ -30,6 +32,7 @@ The tool can also be used to cross check and existing existing Steuerauszug (eCH
 - Perform simple tax approximations for informational purposes.
 - Cross verify calculations against existing E-Steuerauszug data
 - Create standardized formatted PDF that can be imported into Tax Software. 
+- Append original supporting documents to the final PDF.
 
 ## Sample Output
 
@@ -164,4 +167,3 @@ That said all mistakes, hallucinations etc are probably mine.
 See [LICENSE](LICENSE) file.
 
 Though I am not formally requiring it to keep things simple, I would prefer if you dropped me a line if this package being used or included in other software or other service (e.g. if you are financial service provider).
-

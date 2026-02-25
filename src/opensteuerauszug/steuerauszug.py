@@ -5,6 +5,7 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional
 from datetime import date, datetime
+from pypdf import PdfReader, PdfWriter
 
 from opensteuerauszug.config.models import SchwabAccountSettings, IbkrAccountSettings, GeneralSettings # Added GeneralSettings
 import os # For path construction
@@ -89,6 +90,8 @@ def main(
     kursliste_dir: Path = typer.Option(Path("data/kursliste"), "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste'."),
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
     payment_reconciliation: bool = typer.Option(True, "--payment-reconciliation/--no-payment-reconciliation", help="Run optional payment reconciliation between Kursliste and broker evidence."),
+    pre_amble: Optional[List[Path]] = typer.Option(None, "--pre-amble", help="List of PDF documents to add before the main steuerauszug."),
+    post_amble: Optional[List[Path]] = typer.Option(None, "--post-amble", help="List of PDF documents to add after the main steuerauszug."),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
     logging.basicConfig(level=log_level.value)
@@ -597,10 +600,16 @@ def main(
                 if not isinstance(org_nr, str) or not org_nr.isdigit() or len(org_nr) != 5:
                     raise ValueError(f"Invalid --org-nr '{org_nr}': Must be a 5-digit string.")
             
+            # Determine the path for the main tax statement PDF
+            # If we are merging, render to a temp file first
+            main_pdf_path = output_file
+            if pre_amble or post_amble:
+                main_pdf_path = output_file.with_suffix(".tmp_main.pdf")
+
             # Use the render_tax_statement function to generate the PDF
             rendered_path = render_tax_statement(
                 statement,
-                output_file,
+                main_pdf_path,
                 override_org_nr=org_nr,
                 minimal_frontpage_placeholder=(
                     (tax_calculation_level == TaxCalculationLevel.MINIMAL)
@@ -612,6 +621,50 @@ def main(
                 ),
             )
             print(f"Rendering successful to {rendered_path}")
+
+            if pre_amble or post_amble:
+                # Validate all pre/post amble files before starting the merge
+                all_amble_files = list(pre_amble or []) + list(post_amble or [])
+                for path in all_amble_files:
+                    if not path.exists():
+                        print(f"Error: PDF file not found: {path}")
+                        raise typer.Exit(code=1)
+                    try:
+                        PdfReader(path)
+                    except Exception:
+                        print(f"Error: File is not a valid PDF: {path}")
+                        raise typer.Exit(code=1)
+
+                try:
+                    merger = PdfWriter()
+
+                    if pre_amble:
+                        print(f"Prepending {len(pre_amble)} document(s)...")
+                        for path in pre_amble:
+                            merger.append(path)
+
+                    merger.append(rendered_path)
+
+                    if post_amble:
+                        print(f"Appending {len(post_amble)} document(s)...")
+                        for path in post_amble:
+                            merger.append(path)
+
+                    # Write the final merged PDF directly to the output file
+                    merger.write(output_file)
+                    merger.close()
+                    print(f"Successfully merged pre/post-ambles into {output_file}")
+
+                except Exception as e:
+                    print(f"Error during PDF concatenation: {e}")
+                    raise typer.Exit(code=1)
+                finally:
+                    # Cleanup the temporary main PDF
+                    if rendered_path.exists():
+                        try:
+                            rendered_path.unlink()
+                        except Exception as e:
+                            print(f"Warning: Failed to delete temporary file {rendered_path}: {e}")
 
         if final_xml_path:
             try:
