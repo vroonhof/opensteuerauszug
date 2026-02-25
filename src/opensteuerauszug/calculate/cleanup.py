@@ -34,13 +34,14 @@ class CleanupCalculator:
                  importer_name: str, # Added importer_name parameter
                  identifier_map: Optional[Dict[str, Dict[str, Any]]] = None,
                  enable_filtering: bool = True,
-                 
+                 override_org_nr: Optional[str] = None,
                  config_settings: Optional[GeneralSettings] = None):
         self.period_from = period_from
         self.period_to = period_to
         self.importer_name = importer_name # Store importer_name
         self.identifier_map = identifier_map
         self.enable_filtering = enable_filtering
+        self.override_org_nr = override_org_nr
         self.config_settings = config_settings
         self.modified_fields: List[str] = []
 
@@ -82,7 +83,7 @@ class CleanupCalculator:
 
         # 2. Clearing Number (5 digits, numeric)
         # Use the existing compute_org_nr function which generates fake clearing numbers
-        clearing_number = compute_org_nr(statement, override_org_nr=None)
+        clearing_number = compute_org_nr(statement, override_org_nr=self.override_org_nr)
         # clearing_number is already a 5-digit string
 
         # 3. Customer ID (14 chars, alphanumeric): prefix normalized importer name then account id
@@ -550,4 +551,4 @@ class CleanupCalculator:
             logger.info("Cleanup calculation finished. No data was modified.") # Adjusted log
         return statement
 
-    
+
