@@ -52,10 +52,22 @@ A utility script is provided to convert XML Kurslisten to the SQLite format. Thi
     ```
 4.  **Place the generated `.sqlite` file** into the `data/kursliste/` directory. The `KurslisteManager` will then automatically discover and prioritize it for the corresponding year.
 
-## Manual Data Placement
+## Obtaining the Kursliste
+
+### Automated Download (Recommended)
+
+You can automatically download the latest Kursliste for a given year using:
+
+```bash
+python -m opensteuerauszug.kursliste download --year 2024
+```
+
+This will fetch the official XML file from the ESTV website using its internal API and place it in this directory as `kursliste_2024.xml`.
+
+### Manual Data Placement
 
 If you have pre-existing Kursliste XML or SQLite files:
 1.  Ensure they follow the naming conventions described above.
 2.  Place them directly into the `data/kursliste/` directory.
 
-If you are obtaining new Kursliste XML files from official sources (e.g., ESTV), it is strongly recommended to convert them to the SQLite format using the provided script. This ensures optimal performance and allows the system to leverage the full Pydantic models reconstructed from the database. If you choose to use XML files directly (e.g., if an SQLite database for that year is not available), the system will still process them, but performance may be reduced compared to using the SQLite version. The `KurslisteAccessor` will handle caching in either case, but the initial data parsing from multiple or large XMLs can be slower than querying a pre-built database. If an automated conversion process is not yet integrated into your workflow, please use the manual methods outlined.
+If you are obtaining new Kursliste XML files from official sources (e.g., ESTV), it is strongly recommended to convert them to the SQLite format using the provided script. This ensures optimal performance and allows the system to leverage the full Pydantic models reconstructed from the database. If you choose to use XML files directly (e.g., if an SQLite database for that year is not available), the system will still process them, but performance may be reduced compared to using the SQLite version. The `KurslisteAccessor` will handle caching in either case, but the initial data parsing from multiple or large XMLs can be slower than querying a pre-built database.
