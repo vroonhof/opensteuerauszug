@@ -62,7 +62,7 @@ You can automatically download the latest Kursliste for a given year using:
 python -m opensteuerauszug.kursliste download --year 2024
 ```
 
-This will fetch the official XML file from the ESTV API and place it in this directory as `kursliste_2024.xml`.
+This will fetch the official XML file from the ESTV website using its internal API and place it in this directory as `kursliste_2024.xml`.
 
 ### Manual Data Placement
 
