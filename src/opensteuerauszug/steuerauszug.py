@@ -5,7 +5,7 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional
 from datetime import date, datetime
-from pypdf import PdfWriter
+from pypdf import PdfReader, PdfWriter
 
 from opensteuerauszug.config.models import SchwabAccountSettings, IbkrAccountSettings, GeneralSettings # Added GeneralSettings
 import os # For path construction
@@ -622,15 +622,24 @@ def main(
             print(f"Rendering successful to {rendered_path}")
 
             if pre_amble or post_amble:
+                # Validate all pre/post amble files before starting the merge
+                all_amble_files = list(pre_amble or []) + list(post_amble or [])
+                for path in all_amble_files:
+                    if not path.exists():
+                        print(f"Error: PDF file not found: {path}")
+                        raise typer.Exit(code=1)
+                    try:
+                        PdfReader(path)
+                    except Exception:
+                        print(f"Error: File is not a valid PDF: {path}")
+                        raise typer.Exit(code=1)
+
                 try:
                     merger = PdfWriter()
 
                     if pre_amble:
                         print(f"Prepending {len(pre_amble)} document(s)...")
                         for path in pre_amble:
-                            if not path.exists():
-                                print(f"Warning: Pre-amble file not found: {path}")
-                                continue
                             merger.append(path)
 
                     merger.append(rendered_path)
@@ -638,9 +647,6 @@ def main(
                     if post_amble:
                         print(f"Appending {len(post_amble)} document(s)...")
                         for path in post_amble:
-                            if not path.exists():
-                                print(f"Warning: Post-amble file not found: {path}")
-                                continue
                             merger.append(path)
 
                     # Write the final merged PDF directly to the output file
