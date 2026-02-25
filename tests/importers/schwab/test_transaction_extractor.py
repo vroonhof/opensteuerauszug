@@ -594,6 +594,57 @@ class TestSchwabTransactionExtractor:
         # For this type of cash journal, payments might be None if all info is in SecurityStock
         assert payments is None 
 
+    def test_action_wire_transfer_with_security_symbol(self):
+        """Wire Transfer associated with a security (equity awards style) creates a cash mutation."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "BrokerageTransactions": [{
+                "Date": "08/29/2025", "Action": "Wire Transfer", "Symbol": "GOOG",
+                "Quantity": None, "Description": "Cash Disbursement",
+                "FeesAndCommissions": "", "DisbursementElection": None,
+                "Amount": "-$14,966.35", "TransactionDetails": []
+            }]
+        }
+        # Expect one cash position (the wire transfer creates a cash mutation)
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2025, 8, 29)
+        assert stock.mutation is True
+        assert stock.quantity == Decimal("-14966.35")
+        assert "Wire Transfer" in stock.name
+
+    def test_action_wire_transfer_without_symbol(self):
+        """Wire Transfer without a symbol creates a cash mutation on the generic cash position."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "BrokerageTransactions": [{
+                "Date": "08/29/2025", "Action": "Wire Transfer",
+                "Description": "Cash Disbursement", "Amount": "-$500.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == Decimal("-500.00")
+        assert "Wire Transfer" in stock.name
+
     def test_action_transfer_security_out(self):
         extractor = create_extractor()
         data = {
