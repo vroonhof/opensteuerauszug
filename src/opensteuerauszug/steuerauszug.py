@@ -30,6 +30,11 @@ from .core.exchange_rate_provider import ExchangeRateProvider
 from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from .config import ConfigManager, ConcreteAccountSettings
+from .config.paths import (
+    resolve_config_file,
+    resolve_kursliste_dir,
+    resolve_security_identifiers_file,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,16 +83,16 @@ def main(
     identifiers_csv_path_opt: Optional[str] = typer.Option(
         None,
         "--identifiers-csv-path",
-        help="Path to the security identifiers CSV file (e.g., data/my_identifiers.csv). If not provided, defaults to 'data/security_identifiers.csv' relative to the project root."
+        help="Path to the security identifiers CSV file (e.g., data/my_identifiers.csv). If not provided, defaults to 'data/security_identifiers.csv' in CWD or XDG config home."
     ),
     strict_consistency_flag: bool = typer.Option(True, "--strict-consistency/--no-strict-consistency", help="Enable/disable strict consistency checks in importers (e.g., Schwab). Defaults to strict."),
     filter_to_period_flag: bool = typer.Option(True, "--filter-to-period/--no-filter-to-period", help="Filter transactions and stock events to the tax period (with closing balances). Defaults to enabled."),
     tax_calculation_level: TaxCalculationLevel = typer.Option(TaxCalculationLevel.KURSLISTE, "--tax-calculation-level", help="Specify the level of detail for tax value calculations."),
     log_level: LogLevel = typer.Option(LogLevel.INFO, "--log-level", help="Set the log level for console output."),
-    config_file: Path = typer.Option("config.toml", "--config", "-c", help="Path to the configuration TOML file."),
+    config_file: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to the configuration TOML file. Defaults to config.toml in CWD or XDG config home."),
     broker_name: Optional[str] = typer.Option(None, "--broker", help="Broker name (e.g., 'schwab') from config.toml to use for this run."),
     override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
-    kursliste_dir: Path = typer.Option(Path("data/kursliste"), "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste'."),
+    kursliste_dir: Optional[Path] = typer.Option(None, "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste' in CWD or XDG data home."),
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
     payment_reconciliation: bool = typer.Option(True, "--payment-reconciliation/--no-payment-reconciliation", help="Run optional payment reconciliation between Kursliste and broker evidence."),
     pre_amble: Optional[List[Path]] = typer.Option(None, "--pre-amble", help="List of PDF documents to add before the main steuerauszug."),
@@ -169,7 +174,8 @@ def main(
     # --- Configuration Loading ---
     all_schwab_account_settings_models: List[SchwabAccountSettings] = []
     all_ibkr_account_settings_models: List[IbkrAccountSettings] = [] # New list for IBKR
-    config_manager = ConfigManager(config_file_path=str(config_file))
+    effective_config_file = resolve_config_file(config_file)
+    config_manager = ConfigManager(config_file_path=str(effective_config_file))
     
     # Extract general configuration settings for CleanupCalculator
     general_config_settings: Optional[GeneralSettings] = None
@@ -377,20 +383,11 @@ def main(
             if not parsed_period_from or not parsed_period_to:
                 raise ValueError("Both --period-from and --period-to must be specified for the calculate phase.")
             
-            effective_identifiers_csv_path: str
-            if identifiers_csv_path_opt is None:
-                cli_py_file_path = os.path.abspath(__file__)
-                src_opensteuerauszug_dir = os.path.dirname(cli_py_file_path)
-                src_dir = os.path.dirname(src_opensteuerauszug_dir)
-                project_root_dir = os.path.dirname(src_dir)
-                effective_identifiers_csv_path = os.path.join(project_root_dir, "data", "security_identifiers.csv")
-                logger.debug(f"Using default security identifiers CSV path: {effective_identifiers_csv_path}")
-            else:
-                effective_identifiers_csv_path = identifiers_csv_path_opt
-                logger.debug(f"Using user-provided security identifiers CSV path: {effective_identifiers_csv_path}")
+            effective_identifiers_csv_path = resolve_security_identifiers_file(identifiers_csv_path_opt)
+            logger.debug(f"Using security identifiers CSV path: {effective_identifiers_csv_path}")
 
             print(f"Attempting to load security identifiers from: {effective_identifiers_csv_path}")
-            identifier_loader = SecurityIdentifierMapLoader(effective_identifiers_csv_path)
+            identifier_loader = SecurityIdentifierMapLoader(str(effective_identifiers_csv_path))
             security_identifier_map = identifier_loader.load_map()
 
             if security_identifier_map:
@@ -413,20 +410,21 @@ def main(
             dump_debug_model(current_phase.value + "_after_cleanup", statement) # Optional intermediate dump
 
             exchange_rate_provider: ExchangeRateProvider
-            print(f"Using KurslisteExchangeRateProvider with directory: {kursliste_dir}")
+            effective_kursliste_dir = resolve_kursliste_dir(kursliste_dir)
+            print(f"Using KurslisteExchangeRateProvider with directory: {effective_kursliste_dir}")
             try:
-                if not kursliste_dir.exists():
-                    print(f"Warning: Kursliste directory {kursliste_dir} does not exist")
+                if not effective_kursliste_dir.exists():
+                    print(f"Warning: Kursliste directory {effective_kursliste_dir} does not exist")
                 kursliste_manager = KurslisteManager()
-                kursliste_manager.load_directory(kursliste_dir)
+                kursliste_manager.load_directory(effective_kursliste_dir)
                 
                 # Verify that Kursliste data exists for the required tax year
                 required_tax_year = parsed_period_to.year
-                kursliste_manager.ensure_year_available(required_tax_year, kursliste_dir)
+                kursliste_manager.ensure_year_available(required_tax_year, effective_kursliste_dir)
                 
                 exchange_rate_provider = KurslisteExchangeRateProvider(kursliste_manager)
             except Exception as e:
-                raise ValueError(f"Failed to initialize KurslisteExchangeRateProvider with directory {kursliste_dir}: {e}")
+                raise ValueError(f"Failed to initialize KurslisteExchangeRateProvider with directory {effective_kursliste_dir}: {e}")
             
             tax_value_calculator: Optional[MinimalTaxValueCalculator] = None
             calculator_name = ""
@@ -472,21 +470,22 @@ def main(
             
             print(f"Verifying with tax calculation level: {tax_calculation_level.value}...")
             exchange_rate_provider_verify: ExchangeRateProvider
-            print(f"Using KurslisteExchangeRateProvider with directory: {kursliste_dir} for verification")
+            effective_kursliste_dir = resolve_kursliste_dir(kursliste_dir)
+            print(f"Using KurslisteExchangeRateProvider with directory: {effective_kursliste_dir} for verification")
             try:
-                if not kursliste_dir.exists():
-                    print(f"Warning: Kursliste directory {kursliste_dir} does not exist for verification.")
-                    kursliste_dir.mkdir(parents=True, exist_ok=True)
+                if not effective_kursliste_dir.exists():
+                    print(f"Warning: Kursliste directory {effective_kursliste_dir} does not exist for verification.")
+                    effective_kursliste_dir.mkdir(parents=True, exist_ok=True)
                 kursliste_manager_verify = KurslisteManager()
-                kursliste_manager_verify.load_directory(kursliste_dir)
+                kursliste_manager_verify.load_directory(effective_kursliste_dir)
                 
                 # Verify that Kursliste data exists for the required tax year
                 required_tax_year_verify = statement.taxPeriod if statement.taxPeriod else parsed_period_to.year
-                kursliste_manager_verify.ensure_year_available(required_tax_year_verify, kursliste_dir)
+                kursliste_manager_verify.ensure_year_available(required_tax_year_verify, effective_kursliste_dir)
                 
                 exchange_rate_provider_verify = KurslisteExchangeRateProvider(kursliste_manager_verify)
             except Exception as e:
-                raise ValueError(f"Failed to initialize KurslisteExchangeRateProvider for verification with directory {kursliste_dir}: {e}")
+                raise ValueError(f"Failed to initialize KurslisteExchangeRateProvider for verification with directory {effective_kursliste_dir}: {e}")
             
             tax_value_verifier: Optional[MinimalTaxValueCalculator] = None
             verifier_name = ""

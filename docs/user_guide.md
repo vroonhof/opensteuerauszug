@@ -130,7 +130,7 @@ OpenSteuerAuszug can automatically download and prepare the latest Kursliste for
 python -m opensteuerauszug.kursliste download --year 2024
 ```
 
-This command will fetch the latest "Initial" export in the best available format directly from the ESTV API and place it into `data/kursliste/kursliste_2024.xml`.
+This command will fetch the latest "Initial" export in the best available format directly from the ESTV API and place it into your XDG data directory (e.g., `~/.local/share/opensteuerauszug/kursliste/kursliste_2024.xml`).
 
 #### Manual Download
 
@@ -139,11 +139,11 @@ Alternatively, you can obtain the file manually:
 1. Visit the [ESTV website](https://www.ictax.admin.ch/extern/en.html#/xml).
 2. Download the latest file marked "Initial" for the relevant tax year (usually in the latest format, e.g., V2.2).
 3. Unzip the file. It is typically named something like `kursliste_JJJJ.xml` (e.g., `kursliste_2023.xml`).
-4. Place the XML file into the `data/kursliste/` directory.
+4. Place the XML file into the XDG data directory (e.g., `~/.local/share/opensteuerauszug/kursliste/`) or locally in `data/kursliste/`.
 
 ### Storing the Kursliste
 
-Place the downloaded Kursliste XML file(s) into the `data/kursliste/` directory within your OpenSteuerAuszug project. The application will automatically detect files in this location.
+Place the downloaded Kursliste XML file(s) into the XDG data directory or locally in `data/kursliste/`. The application will automatically detect files in these locations, prioritizing the XDG directory.
 
 For more detailed information on naming conventions and how OpenSteuerAuszug manages these files, please refer to the [Kursliste Data Management Guide](data/kursliste/kursliste.md).
 
@@ -178,14 +178,14 @@ This is the primary use case for OpenSteuerAuszug: generating a PDF Steuerauszug
 To generate a Steuerauszug, you will need to provide the following:
 
 1.  **Broker Statements**: These are the reports or data files you download from your bank or financial institution. The required format varies by broker. See the specific importer documentation (linked under "Importing Data from Brokers" below) for details on what files are needed and how to obtain them.
-2.  **Configuration File (`config.toml`)**: This file tells OpenSteuerAuszug your personal details (name, canton for tax purposes), information about your financial institutions, and specific settings for each account. You can copy `config.template.toml` to `config.toml`. The file is optional.
-3.  **Kursliste**: As described in the "Preparing the Kursliste" section, ensure you have the relevant Kursliste (preferably as an SQLite file in `data/kursliste/`) for the tax year you are processing.
+2.  **Configuration File (`config.toml`)**: This file tells OpenSteuerAuszug your personal details (name, canton for tax purposes), information about your financial institutions, and specific settings for each account. You can copy `config.template.toml` to `~/.config/opensteuerauszug/config.toml` or `config.toml` in the current directory. The file is optional.
+3.  **Kursliste**: As described in the "Preparing the Kursliste" section, ensure you have the relevant Kursliste (preferably as an SQLite file in the XDG data directory or `data/kursliste/`) for the tax year you are processing.
 
 ### Configuring OpenSteuerAuszug (`config.toml`)
 
 The `config.toml` file is optional. It allows tailoring OpenSteuerAuszug to your needs, for example if you want to correct or extend broker exported data. To set it up:
 
-1. Copy the template: `cp config.template.toml config.toml`
+1. Copy the template: `cp config.template.toml ~/.config/opensteuerauszug/config.toml` (or keep it locally as `config.toml`)
 2. Edit the file with your personal information
 
 The configuration uses a hierarchical structure:
