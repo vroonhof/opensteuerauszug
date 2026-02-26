@@ -1204,13 +1204,13 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     # right
     # Overhead:
     #    1  start word
-    #    1 + 2 + 4 macro pdf fields with 4 word file ID
+    #    1 + 2 + 1 macro pdf fields with 1 word file ID
     #    4 for segment count
     #    1 for possible last code marker
     #    32 error correction at level 4
     #    1 for specifying byte encoding
-    # gives 46 words of overhead
-    FIXED_OVERHEAD = 46
+    # gives 43 words of overhead
+    FIXED_OVERHEAD = 43
     # Given in the guidance
     NUM_COLUMNS = 13
     NUM_ROWS = 35
@@ -1218,22 +1218,16 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     file_name_lenght = len(file_name)
     capactity = NUM_COLUMNS * NUM_ROWS - FIXED_OVERHEAD - file_name_lenght
     # Byte encodinge efficency is 6 bytes per 5 codewords
-    segment_size = floor((capactity / 5) * 6)
-    # Official PDF generator uses 4 * 3 digit (<= 255 each) for file ID
-    # Create file ID based on hash of taxstatement id and creation date
-    hash_input = f"{file_name}_{tax_statement.creationDate.timestamp() if tax_statement.creationDate else ''}"
-    digest = hashlib.sha256(hash_input.encode('utf-8')).digest()
-    file_id = [100 + (b % 156) for b in digest[:4]]
+    SEGMENT_SIZE = floor((CAPACTITY / 5) * 6)
 
     # Use encode_macro for proper macro PDF417 generation
     codes = encode_macro(
         data,
-        file_id=file_id,
-        file_name=file_name,
+        file_id=[1],
         columns=NUM_COLUMNS,
         force_rows=NUM_ROWS,
         security_level=4,
-        segment_size=segment_size,
+        segment_size=SEGMENT_SIZE,
         force_binary=True,
     )
     
