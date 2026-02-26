@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<taxStatement xmlns="http://www.ech.ch/xmlns/eCH-0196/2" xmlns:eCH-0097="http://www.ech.ch/xmlns/eCH-0097/4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ech.ch/xmlns/eCH-0196/2 http://www.ech.ch/xmlns/eCH-0196/2.2/eCH-0196-2-2.xsd http://www.ech.ch/xmlns/eCH-0097/4 http://www.ech.ch/xmlns/eCH-0097/4/eCH-0097-4-0.xsd" id="CH19334IBKRU12349876X2025123101" creationDate="2026-02-26T09:44:06.367449" taxPeriod="2025" periodFrom="2025-01-01" periodTo="2025-12-31" country="CH" canton="ZH" totalTaxValue="39351.02" totalGrossRevenueA="0.000" totalGrossRevenueB="137.45" totalWithHoldingTaxClaim="0.000" minorVersion="22">
+  <institution name="Interactive Brokers"/>
+  <client clientNumber="U12349876" firstName="Paula" lastName="Muster"/>
+  <listOfBankAccounts totalTaxValue="17000.06" totalGrossRevenueA="0.000" totalGrossRevenueB="22.936" totalWithHoldingTaxClaim="0.000">
+    <bankAccount bankAccountNumber="U12349876-CHF" bankAccountName="U12349876 CHF position" bankAccountCountry="US" bankAccountCurrency="CHF" totalTaxValue="17000.06" totalGrossRevenueA="0.000" totalGrossRevenueB="0.000" totalWithHoldingTaxClaim="0.000">
+      <taxValue referenceDate="2025-12-31" name="Closing Balance" balanceCurrency="CHF" balance="17000.05854876" exchangeRate="1" value="17000.05854876"/>
+    </bankAccount>
+    <bankAccount bankAccountNumber="U12349876-USD" bankAccountName="U12349876 USD position" bankAccountCountry="US" bankAccountCurrency="USD" totalTaxValue="0.000" totalGrossRevenueA="0.000" totalGrossRevenueB="22.936" totalWithHoldingTaxClaim="0.000">
+      <taxValue referenceDate="2025-12-31" name="Closing Balance" balanceCurrency="USD" balance="0" exchangeRate="0.79225" value="0.00000"/>
+      <payment paymentDate="2025-06-04" name="USD CREDIT INT FOR MAY-2025" amountCurrency="USD" amount="13.52" exchangeRate="0.8138738095" grossRevenueA="0" grossRevenueB="11.003573904440" withHoldingTaxClaim="0"/>
+      <payment paymentDate="2025-07-03" name="USD CREDIT INT FOR JUN-2025" amountCurrency="USD" amount="4.34" exchangeRate="0.7989695652" grossRevenueA="0" grossRevenueB="3.467527912968" withHoldingTaxClaim="0"/>
+      <payment paymentDate="2025-10-03" name="USD CREDIT INT FOR SEP-2025" amountCurrency="USD" amount="10.61" exchangeRate="0.797823913" grossRevenueA="0" grossRevenueB="8.46491171693" withHoldingTaxClaim="0"/>
+    </bankAccount>
+  </listOfBankAccounts>
+  <listOfLiabilities totalTaxValue="0.689" totalGrossRevenueB="0.000">
+    <liabilityAccount bankAccountNumber="U12349876-USD" bankAccountName="U12349876 USD position (Negativ Saldo)" bankAccountCountry="US" bankAccountCurrency="USD" totalTaxValue="0.689" totalGrossRevenueB="0.000">
+      <taxValue referenceDate="2025-12-31" name="Closing Balance" balanceCurrency="USD" balance="0.87" exchangeRate="0.79225" value="0.6892575"/>
+    </liabilityAccount>
+  </listOfLiabilities>
+  <listOfSecurities totalTaxValue="22350.96" totalGrossRevenueA="0.000" totalGrossRevenueB="114.51" totalWithHoldingTaxClaim="0.000" totalLumpSumTaxCredit="34.353" totalNonRecoverableTax="17.176" totalAdditionalWithHoldingTaxUSA="0.000" totalGrossRevenueIUP="0.000" totalGrossRevenueConversion="0.000">
+    <depot depotNumber="U12349876">
+      <security positionId="1" country="US" currency="USD" quotationType="PIECE" securityCategory="SHARE" securityName="VANGUARD TOT WORLD STK ETF (VT)" valorNumber="4354003" isin="US9220427424">
+        <taxValue referenceDate="2025-12-31" quotationType="PIECE" quantity="200" balanceCurrency="CHF" unitPrice="111.754785" exchangeRate="1" value="22350.957000" kursliste="1"/>
+        <payment paymentDate="2025-12-23" quotationType="PIECE" quantity="130" amountCurrency="USD" exDate="2025-12-19" name="Distribution" amountPerUnit="1.115" amount="144.950" exchangeRate="0.78985" grossRevenueA="0" grossRevenueB="114.50920" withHoldingTaxClaim="0" lumpSumTaxCredit="1" lumpSumTaxCreditPercent="30" lumpSumTaxCreditAmount="34.35276" nonRecoverableTaxPercent="15" nonRecoverableTaxAmount="17.17638" additionalWithHoldingTaxUSA="0" kursliste="1" sign="(Q)"/>
+        <stock referenceDate="2025-12-15" mutation="1" quotationType="PIECE" quantity="130" balanceCurrency="USD" name="BUY" unitPrice="141.795"/>
+        <stock referenceDate="2025-12-24" mutation="1" quotationType="PIECE" quantity="70" balanceCurrency="USD" name="BUY" unitPrice="142.035"/>
+      </security>
+    </depot>
+  </listOfSecurities>
+</taxStatement>
