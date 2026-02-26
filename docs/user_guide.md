@@ -122,50 +122,47 @@ The **Kursliste** is an official list published annually by the Swiss Federal Ta
 
 You need the official Kursliste XML file for the relevant tax year.
 
-#### Automated Download (Recommended)
+#### Automated Download and Conversion (Recommended)
 
-OpenSteuerAuszug can automatically download and prepare the latest Kursliste for you:
+OpenSteuerAuszug can automatically download, prepare, and convert the latest Kursliste for you. This is the simplest method.
 
 ```bash
 python -m opensteuerauszug.kursliste download --year 2024
 ```
 
-This command will fetch the latest "Initial" export in the best available format directly from the ESTV API and place it into your XDG data directory (e.g., `~/.local/share/opensteuerauszug/kursliste/kursliste_2024.xml`).
+This command performs the following steps:
+1.  Fetches the latest "Initial" export in the best available format directly from the ESTV API.
+2.  Saves the XML file into your XDG data directory (e.g., `~/.local/share/opensteuerauszug/kursliste/kursliste_2024.xml`) or a directory specified by `--destination`.
+3.  **Automatically converts** the XML file into an optimized SQLite database (`kursliste_2024.sqlite`) in the same directory. This database is used for significantly faster processing.
 
-#### Manual Download
+You can disable the automatic conversion with the `--no-convert` flag if desired.
 
-Alternatively, you can obtain the file manually:
+#### Manual Download and Conversion
 
-1. Visit the [ESTV website](https://www.ictax.admin.ch/extern/en.html#/xml).
-2. Download the latest file marked "Initial" for the relevant tax year (usually in the latest format, e.g., V2.2).
-3. Unzip the file. It is typically named something like `kursliste_JJJJ.xml` (e.g., `kursliste_2023.xml`).
-4. Place the XML file into the XDG data directory (e.g., `~/.local/share/opensteuerauszug/kursliste/`) or locally in `data/kursliste/`.
+If you prefer to obtain the file manually or need to process a specific file:
+
+1.  **Download**:
+    *   Visit the [ESTV website](https://www.ictax.admin.ch/extern/en.html#/xml).
+    *   Download the latest file marked "Initial" for the relevant tax year (usually in the latest format, e.g., V2.2).
+    *   Unzip the file. It is typically named something like `kursliste_JJJJ.xml` (e.g., `kursliste_2023.xml`).
+
+2.  **Store**:
+    *   Place the XML file into the XDG data directory (e.g., `~/.local/share/opensteuerauszug/kursliste/`) or locally in `data/kursliste/`.
+
+3.  **Convert (Recommended)**:
+    *   For performance, convert the XML to SQLite using the integrated command:
+        ```bash
+        python -m opensteuerauszug.kursliste convert path/to/kursliste_2023.xml
+        ```
+    *   This will create `kursliste_2023.sqlite` next to the XML file.
+
+*(Note: A legacy script `scripts/convert_kursliste_to_sqlite.py` is also available but the CLI command is preferred.)*
 
 ### Storing the Kursliste
 
-Place the downloaded Kursliste XML file(s) into the XDG data directory or locally in `data/kursliste/`. The application will automatically detect files in these locations, prioritizing the XDG directory.
+Place the downloaded Kursliste XML file(s) and generated SQLite database(s) into the XDG data directory or locally in `data/kursliste/`. The application will automatically detect files in these locations, prioritizing the XDG directory.
 
 For more detailed information on naming conventions and how OpenSteuerAuszug manages these files, please refer to the [Kursliste Data Management Guide](data/kursliste/kursliste.md).
-
-### Converting Kursliste XML to SQLite (Recommended)
-
-For significantly improved performance, especially with large Kursliste files or frequent use, it is **highly recommended** to convert the Kursliste XML file into an SQLite database. OpenSteuerAuszug includes a script for this purpose.
-
-**How to convert:**
-1.  Navigate to the root directory of the OpenSteuerAuszug project in your terminal.
-2.  Run the conversion script:
-    ```bash
-    python scripts/convert_kursliste_to_sqlite.py path/to/your/downloaded/kursliste_YYYY.xml data/kursliste/kursliste_YYYY.sqlite
-    ```
-    Replace `path/to/your/downloaded/kursliste_YYYY.xml` with the actual path to the XML file you downloaded from ESTV, and `kursliste_YYYY.sqlite` with the desired output name (keeping the year consistent).
-
-    **Example:**
-    ```bash
-    python scripts/convert_kursliste_to_sqlite.py ~/Downloads/kursliste_2023.xml data/kursliste/kursliste_2023.sqlite
-    ```
-3.  Ensure the generated `.sqlite` file is in the `data/kursliste/` directory.
-
-The application will then use this SQLite database for faster access to Kursliste data. For more technical details on the conversion process and database structure, see the [Kursliste Data Management Guide](data/kursliste/kursliste.md).
 
 ---
 
