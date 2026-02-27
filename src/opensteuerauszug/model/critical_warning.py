@@ -15,6 +15,7 @@ class CriticalWarningCategory(str, Enum):
     """Category of a critical warning."""
 
     MISSING_KURSLISTE = "missing_kursliste"
+    STOCK_SPLIT_MISMATCH = "stock_split_mismatch"
     UNMAPPED_SYMBOL = "unmapped_symbol"
     PREVIOUS_YEAR_EXDATE = "previous_year_exdate"
     OTHER = "other"

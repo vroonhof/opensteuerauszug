@@ -21,6 +21,7 @@ from opensteuerauszug.model.ech0196 import (
     TaxStatement,
     ValorNumber,
 )
+from opensteuerauszug.model.critical_warning import CriticalWarningCategory
 from opensteuerauszug.model.kursliste import (
     Fund,
     Kursliste,
@@ -386,8 +387,14 @@ def test_compute_payments_stock_split_requires_mutation():
         ),
     )
 
-    with pytest.raises(ValueError, match="Missing stock split mutation"):
-        calc.calculate(statement)
+    result = calc.calculate(statement)
+    split_warnings = [
+        w for w in result.critical_warnings
+        if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
+    ]
+    assert len(split_warnings) == 1
+    assert "Missing stock split mutation" in split_warnings[0].message
+    assert split_warnings[0].identifier == "US45841N1072"
 
 
 def test_cross_isin_stock_split_succeeds_with_correct_mutations():
@@ -647,8 +654,14 @@ def test_cross_isin_stock_split_error_when_removal_mutation_missing():
         ),
     )
 
-    with pytest.raises(ValueError, match="expected a removal mutation of -5"):
-        calc.calculate(statement)
+    result = calc.calculate(statement)
+    split_warnings = [
+        w for w in result.critical_warnings
+        if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
+    ]
+    assert len(split_warnings) == 1
+    assert "expected a removal mutation of -5" in split_warnings[0].message
+    assert split_warnings[0].identifier == old_isin
 
 
 def test_cross_isin_stock_split_resolves_new_security_by_kursliste_isin_when_valor_not_enriched_yet():
@@ -897,8 +910,14 @@ def test_cross_isin_stock_split_error_when_new_security_missing():
         ),
     )
 
-    with pytest.raises(ValueError, match="no security with that valor number was found"):
-        calc.calculate(statement)
+    result = calc.calculate(statement)
+    split_warnings = [
+        w for w in result.critical_warnings
+        if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
+    ]
+    assert len(split_warnings) == 1
+    assert "no security with that valor number was found" in split_warnings[0].message
+    assert split_warnings[0].identifier == old_isin
 
 
 def test_cross_isin_stock_split_error_when_new_security_addition_wrong():
@@ -1029,8 +1048,14 @@ def test_cross_isin_stock_split_error_when_new_security_addition_wrong():
         ),
     )
 
-    with pytest.raises(ValueError, match="expected an addition of 50"):
-        calc.calculate(statement)
+    result = calc.calculate(statement)
+    split_warnings = [
+        w for w in result.critical_warnings
+        if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
+    ]
+    assert len(split_warnings) == 1
+    assert "expected an addition of 50" in split_warnings[0].message
+    assert split_warnings[0].identifier == old_isin
 
 
 def test_cross_isin_stock_split_error_when_new_security_has_no_mutations():
@@ -1153,8 +1178,14 @@ def test_cross_isin_stock_split_error_when_new_security_has_no_mutations():
         ),
     )
 
-    with pytest.raises(ValueError, match="has no mutations on the split date"):
-        calc.calculate(statement)
+    result = calc.calculate(statement)
+    split_warnings = [
+        w for w in result.critical_warnings
+        if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
+    ]
+    assert len(split_warnings) == 1
+    assert "has no mutations on the split date" in split_warnings[0].message
+    assert split_warnings[0].identifier == old_isin
 
 
 def test_same_isin_stock_split_error_message_is_descriptive():
@@ -1246,11 +1277,17 @@ def test_same_isin_stock_split_error_message_is_descriptive():
         ),
     )
 
-    with pytest.raises(
-        ValueError,
-        match=r"Stock split ratio mismatch.*expected a mutation of 6.*split ratio 4:1.*pre-split position 2",
-    ):
-        calc.calculate(statement)
+    result = calc.calculate(statement)
+    split_warnings = [
+        w for w in result.critical_warnings
+        if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
+    ]
+    assert len(split_warnings) == 1
+    assert "Stock split ratio mismatch" in split_warnings[0].message
+    assert "expected a mutation of 6" in split_warnings[0].message
+    assert "split ratio 4:1" in split_warnings[0].message
+    assert "pre-split position 2" in split_warnings[0].message
+    assert split_warnings[0].identifier == "US45841N1072"
 
 
 def test_same_valor_number_new_treated_as_same_isin_split():
