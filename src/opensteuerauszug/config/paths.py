@@ -1,22 +1,15 @@
 import os
 from pathlib import Path
 from typing import Optional, Union
-
-def get_xdg_config_home() -> Path:
-    """Returns XDG_CONFIG_HOME or defaults to ~/.config"""
-    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-
-def get_xdg_data_home() -> Path:
-    """Returns XDG_DATA_HOME or defaults to ~/.local/share"""
-    return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
+from platformdirs import user_config_path, user_data_path
 
 def get_app_config_dir() -> Path:
     """Returns the application config directory under XDG config home."""
-    return get_xdg_config_home() / "opensteuerauszug"
+    return user_config_path("opensteuerauszug")
 
 def get_app_data_dir() -> Path:
     """Returns the application data directory under XDG data home."""
-    return get_xdg_data_home() / "opensteuerauszug"
+    return user_data_path("opensteuerauszug")
 
 def get_cwd_config_file() -> Path:
     """Returns path to config.toml in current working directory."""

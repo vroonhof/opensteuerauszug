@@ -1,0 +1,5 @@
+Collecting platformdirs
+  Downloading platformdirs-4.9.2-py3-none-any.whl.metadata (4.7 kB)
+Downloading platformdirs-4.9.2-py3-none-any.whl (21 kB)
+Installing collected packages: platformdirs
+Successfully installed platformdirs-4.9.2
