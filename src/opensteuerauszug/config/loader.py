@@ -9,6 +9,7 @@ try:
 except ImportError:
     import tomli as tomllib # Fallback for Python < 3.11
 
+from .paths import resolve_config_file
 from .models import (
     GeneralSettings,
     BrokerSettings,
@@ -22,8 +23,8 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 class ConfigManager:
-    def __init__(self, config_file_path: str = "config.toml"):
-        self.config_file_path = config_file_path
+    def __init__(self, config_file_path: Optional[str] = None):
+        self.config_file_path = str(resolve_config_file(config_file_path))
         self._raw_config: Dict[str, Any] = self._load_raw_config()
 
         self.general_settings: Dict[str, Any] = self._raw_config.get("general", {})

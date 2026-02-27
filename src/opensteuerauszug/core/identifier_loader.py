@@ -35,7 +35,7 @@ class SecurityIdentifierMapLoader:
         identifier_map = {}
 
         if not os.path.exists(self.csv_path):
-            logger.warning(f"Security identifiers file not found at {self.csv_path}. Enrichment will be skipped.")
+            logger.debug(f"Security identifiers file not found at {self.csv_path}. Enrichment will be skipped.")
             return identifier_map
 
         try:
