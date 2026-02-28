@@ -39,7 +39,7 @@ from opensteuerauszug.core.organisation import compute_org_nr
 from opensteuerauszug.core.security import determine_security_type, SecurityType
 
 # --- Import styles utility ---
-from opensteuerauszug.util.styles import get_custom_styles
+from opensteuerauszug.util.styles import get_custom_styles, FONT_REGULAR, FONT_BOLD
 from opensteuerauszug.util import round_accounting
 from opensteuerauszug.render.markdown_renderer import markdown_to_platypus
 
@@ -238,7 +238,7 @@ def create_client_info_table(tax_statement: TaxStatement, styles, box_width: flo
         name='ClientInfoStyle', 
         parent=styles['Normal'], 
         fontSize=8, 
-        fontName='Helvetica',  # Changed from Helvetica-Bold
+        fontName=FONT_REGULAR,
         leading=5,  # Reduced from 10 to save vertical space
         leftIndent=0,
         rightIndent=0
@@ -300,7 +300,7 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
     canvas.saveState()
     page_width = doc.pagesize[0]
     page_height = doc.pagesize[1]
-    canvas.setFont('Helvetica', 9)
+    canvas.setFont(FONT_REGULAR, 9)
     canvas.setFillColor(colors.black)
     header_x = page_width - doc.rightMargin
     
@@ -392,7 +392,7 @@ def draw_page_footer(canvas, doc):
     """Draws the footer content and page number on each page."""
     canvas.saveState()
     page_width = doc.pagesize[0]
-    canvas.setFont('Helvetica', 8)
+    canvas.setFont(FONT_REGULAR, 8)
     footer_y = doc.bottomMargin - 10*mm # Adjust position
 
     # Build footer text: Company name and optional UID
@@ -446,7 +446,7 @@ class NumberedCanvas(canvas.Canvas):
     def _draw_page_number(self, page_count: int) -> None:
         page_num = self.getPageNumber()
         text = f"Seite {page_num} von {page_count}"
-        self.setFont("Helvetica", 8)
+        self.setFont(FONT_REGULAR, 8)
         footer_y = self.bottom_margin - 10 * mm
         page_width = self._pagesize[0]
         self.drawRightString(page_width - self.right_margin, footer_y, text)
@@ -993,7 +993,7 @@ def create_critical_warnings_flowables(warnings: list, styles, usable_width) -> 
         name='CriticalWarningTitle',
         parent=styles['Normal'],
         fontSize=10,
-        fontName='Helvetica-Bold',
+        fontName=FONT_BOLD,
         textColor=_WARNING_TEXT_COLOR,
         leading=14,
         spaceAfter=2 * mm,
@@ -1002,7 +1002,7 @@ def create_critical_warnings_flowables(warnings: list, styles, usable_width) -> 
         name='CriticalWarningItem',
         parent=styles['Normal'],
         fontSize=8,
-        fontName='Helvetica',
+        fontName=FONT_REGULAR,
         textColor=_WARNING_TEXT_COLOR,
         leading=11,
         leftIndent=6 * mm,
@@ -1067,7 +1067,7 @@ def create_critical_warnings_hint(warnings: list, styles) -> list:
         name='CriticalWarningHint',
         parent=styles['Normal'],
         fontSize=9,
-        fontName='Helvetica-Bold',
+        fontName=FONT_BOLD,
         textColor=_WARNING_TEXT_COLOR,
         leading=12,
     )
