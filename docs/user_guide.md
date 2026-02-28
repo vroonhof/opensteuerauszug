@@ -96,7 +96,7 @@ You can specify these options multiple times to add multiple files. The files wi
 
 Example:
 ```bash
-python -m opensteuerauszug.steuerauszug input.xml --importer ibkr \
+opensteuerauszug generate input.xml --importer ibkr \
   --post-amble 1042-S_form.pdf \
   --post-amble broker_statement.pdf \
   -o final_tax_statement.pdf
@@ -127,7 +127,7 @@ You need the official Kursliste XML file for the relevant tax year.
 OpenSteuerAuszug can automatically download, prepare, and convert the latest Kursliste for you. This is the simplest method.
 
 ```bash
-python -m opensteuerauszug.kursliste download --year 2024
+opensteuerauszug kursliste fetch --year 2024
 ```
 
 This command performs the following steps:
@@ -152,7 +152,7 @@ If you prefer to obtain the file manually or need to process a specific file:
 3.  **Convert (Recommended)**:
     *   For performance, convert the XML to SQLite using the integrated command:
         ```bash
-        python -m opensteuerauszug.kursliste convert path/to/kursliste_2023.xml
+        opensteuerauszug kursliste convert path/to/kursliste_2023.xml
         ```
     *   This will create `kursliste_2023.sqlite` next to the XML file.
 
@@ -250,13 +250,13 @@ Neither of the the following options is currently complete and should not be use
 One all the data is setup the Steuerauszug can be generated with
 
 ```console
-python -m opensteuerauszug.steuerauszug {broker data location} --importer {schwab|ibkr} --tax-year {tax year} -o {output filename.pdf} 
+opensteuerauszug generate {broker data location} --importer {schwab|ibkr} --tax-year {tax year} -o {output filename.pdf}
 ```
 
 for minimal mode
 
 ```console
-python -m opensteuerauszug.steuerauszug {broker data location} --importer {schwab|ibkr} --tax-calculation-level minimal --tax-year {tax year} -o {output filename.pdf} 
+opensteuerauszug generate {broker data location} --importer {schwab|ibkr} --tax-calculation-level minimal --tax-year {tax year} -o {output filename.pdf}
 ```
 
 If doing active development it is best to place any real tax data including the generated output outside of the source tree or in the `/private` directory. 

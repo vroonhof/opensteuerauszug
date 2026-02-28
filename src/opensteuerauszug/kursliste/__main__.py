@@ -16,7 +16,7 @@ def main():
     pass
 
 @app.command()
-def download(
+def fetch(
     year: int = typer.Option(..., "--year", help="Tax year to download Kursliste for."),
     destination: Optional[Path] = typer.Option(None, "--destination", "-d", help="Directory to save the Kursliste XML file. Defaults to XDG data home."),
     convert: bool = typer.Option(True, "--convert/--no-convert", help="Automatically convert the downloaded XML to SQLite for faster processing.")
