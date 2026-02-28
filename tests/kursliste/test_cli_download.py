@@ -14,7 +14,7 @@ def test_download_with_convert():
         mock_download.return_value = Path("/tmp/kursliste_2023.xml")
         mock_exists.return_value = True
 
-        result = runner.invoke(app, ["fetch", "--year", "2023"])
+        result = runner.invoke(app, ["download", "--year", "2023"])
 
         assert result.exit_code == 0
         mock_download.assert_called_once()
@@ -29,7 +29,7 @@ def test_download_no_convert():
         mock_download.return_value = Path("/tmp/kursliste_2023.xml")
         mock_exists.return_value = True
 
-        result = runner.invoke(app, ["fetch", "--year", "2023", "--no-convert"])
+        result = runner.invoke(app, ["download", "--year", "2023", "--no-convert"])
 
         assert result.exit_code == 0
         mock_download.assert_called_once()

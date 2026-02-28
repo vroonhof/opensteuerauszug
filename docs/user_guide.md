@@ -127,7 +127,7 @@ You need the official Kursliste XML file for the relevant tax year.
 OpenSteuerAuszug can automatically download, prepare, and convert the latest Kursliste for you. This is the simplest method.
 
 ```bash
-opensteuerauszug kursliste fetch --year 2024
+opensteuerauszug kursliste download --year 2024
 ```
 
 This command performs the following steps:
