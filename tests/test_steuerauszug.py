@@ -125,7 +125,7 @@ def test_main_limit_phases(dummy_input_file: Path):
 def test_main_raw_import(dummy_xml_file: Path):
     """Test the raw import functionality."""
     # Raw import doesn't need validate/calculate/render unless specified
-    result = runner.invoke(app, ["generate", str(dummy_xml_file), "--raw", "--tax-year", "2024"])
+    result = runner.invoke(app, ["generate", str(dummy_xml_file), "--raw-import", "--tax-year", "2024"])
     assert result.exit_code == 0
     assert "Raw importing model from" in result.stdout
     assert "Raw import complete." in result.stdout
@@ -136,7 +136,7 @@ def test_main_raw_import_with_phases(dummy_xml_file: Path, tmp_path: Path):
     """Test raw import followed by other phases."""
     output_path = tmp_path / "output.pdf"
     result = runner.invoke(app, ["--config", "config.template.toml", "generate", str(dummy_xml_file),
-            "--raw",
+            "--raw-import",
             "--tax-year",
             "2024",
             "--phases",
