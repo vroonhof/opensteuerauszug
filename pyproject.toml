@@ -28,6 +28,7 @@ dependencies = [
     "ibflex @ git+https://github.com/vroonhof/ibflex.git",
     "pdf417gen @ git+https://github.com/vroonhof/pdf417-py.git",
     "markdown",
+    "platformdirs>=3.0.0",
     "requests", # actually an undeclared dependecy of ibflex [not as optional as it says on the tin]
     # TODO make these formal dependencies 
     # pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
