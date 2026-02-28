@@ -1,7 +1,7 @@
 import pytest
 from typer.testing import CliRunner
 from pathlib import Path
-from opensteuerauszug.steuerauszug import app
+from opensteuerauszug.cli import app
 import lxml.etree as ET
 
 runner = CliRunner()

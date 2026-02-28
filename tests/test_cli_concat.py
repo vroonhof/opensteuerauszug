@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 from pypdf import PdfReader
 from reportlab.pdfgen import canvas
 
-from opensteuerauszug.steuerauszug import app
+from opensteuerauszug.cli import app
 
 runner = CliRunner()
 

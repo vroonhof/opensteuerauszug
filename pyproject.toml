@@ -35,8 +35,8 @@ dependencies = [
 
 [project.scripts]
 # opensteuerauszug = "opensteuerauszug.cli:app"
-opensteuerauszug = "opensteuerauszug.steuerauszug:app"
-osa = "opensteuerauszug.steuerauszug:app" # Updated entry point
+opensteuerauszug = "opensteuerauszug.cli:app"
+osa = "opensteuerauszug.cli:app" # Updated entry point
 
 [project.urls]
 "Homepage" = "https://github.com/yourusername/opensteuerauszug" # Replace with actual URL
