@@ -1215,11 +1215,11 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     NUM_COLUMNS = 13
     NUM_ROWS = 35
     # reserve enough space for file name (it is actually less because of compression, but be safe)
-    # file_name_lenght = len(file_name)
+    # file_name_length = len(file_name)
     # Issue #239: for now don't include filenames
-    file_name_lenght = 0
-    capacity = NUM_COLUMNS * NUM_ROWS - FIXED_OVERHEAD - file_name_lenght
-    # Byte encodinge efficency is 6 bytes per 5 codewords
+    file_name_length = 0
+    capacity = NUM_COLUMNS * NUM_ROWS - FIXED_OVERHEAD - file_name_length
+    # Byte encoding efficiency is 6 bytes per 5 codewords
     SEGMENT_SIZE = floor((capacity / 5) * 6)
 
     # Use encode_macro for proper macro PDF417 generation

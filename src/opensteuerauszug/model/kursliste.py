@@ -710,7 +710,7 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
     # --- Attributes aligned with XSD ---
     version: Annotated[str, StringConstraints(pattern=r"2\.[02]\.0\.\d")] = attr()
     creationDate: datetime.datetime = attr()
-    referingToDate: Optional[datetime.date] = attr(default=None)
+    referingToDate: Optional[datetime.date] = attr(default=None) # do NOT rename to referringToDate, aligned with XSD
     year: int = attr()
     # --- End Attributes ---
 
