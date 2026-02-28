@@ -34,7 +34,6 @@ dependencies = [
 ]
 
 [project.scripts]
-# opensteuerauszug = "opensteuerauszug.cli:app"
 opensteuerauszug = "opensteuerauszug.cli:app"
 osa = "opensteuerauszug.cli:app" # Updated entry point
 

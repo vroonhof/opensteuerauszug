@@ -88,28 +88,15 @@ def verify(
     global_opts: GlobalOptions = ctx.obj
     run_pipeline(
         input_file=input_file,
-        output_file=None,
         run_phases_input=[Phase.VERIFY],
-        debug_dump_path=None,
-        final_xml_path=None,
         raw_import=True,
-        importer_type=ImporterType.NONE,
-        period_from_str=None,
-        period_to_str=None,
         tax_year=tax_year,
-        identifiers_csv_path_opt=None,
-        strict_consistency_flag=True,
         filter_to_period_flag=False,
         tax_calculation_level=TaxCalculationLevel.NONE,
         log_level=global_opts.log_level,
         config_file=global_opts.config_file,
-        broker_name=None,
         override_configs=global_opts.override_configs,
-        kursliste_dir=None,
-        org_nr=None,
         payment_reconciliation=False,
-        pre_amble=None,
-        post_amble=None,
     )
 
 if __name__ == "__main__":
