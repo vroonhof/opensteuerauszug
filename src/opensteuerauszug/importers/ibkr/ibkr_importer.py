@@ -770,9 +770,14 @@ class IbkrImporter:
                             # Not Tax Relant event
                             continue
                         elif tx_type in [ibflex.CashAction.BROKERINTPAID]:
-                            # TODO: Optionally create a liabilities section.
-                            logger.warning(f"Broker interest paid for {description} is not handled for liabilities.")
-                            continue
+                            # Interst paid due to negative balance: description starting with "<CURRENCY> DEBIT INT FOR"
+                            if description.startswith(f"{currency} DEBIT INT FOR"):
+                                # Tax relevant event. Fall through to create a bank payment.
+                                pass
+                            else:
+                                # TODO: CREDIT INT is charged on positive balance and would belong to fees (not liabilities).
+                                logger.warning(f"Broker credit interest payment {description} with amount {amount} is not handled, would belong to fees.")
+                                continue
                         elif tx_type in [ibflex.CashAction.FEES]:
                             # TODO: Optionally create a costs sections.
                             logger.warning(f"Fees paid for {description} are ignored for statement.")
