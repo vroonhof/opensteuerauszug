@@ -562,12 +562,13 @@ class IbkrImporter:
 
                     direction = transfer.direction
                     direction_val = direction.value.upper() if direction else None
-                    if direction_val == 'OUT' and quantity > 0:
+                    is_cancel = ibflex.Code.CANCEL in (transfer.code or ())
+                    if direction_val == 'OUT' and quantity > 0 and not is_cancel:
                         raise ValueError(
                             f"Transfer direction OUT but quantity {quantity} positive"
                             f" for {symbol}"
                         )
-                    if direction_val == 'IN' and quantity < 0:
+                    if direction_val == 'IN' and quantity < 0 and not is_cancel:
                         raise ValueError(
                             f"Transfer direction IN but quantity {quantity} negative"
                             f" for {symbol}"
@@ -598,7 +599,7 @@ class IbkrImporter:
                         referenceDate=tx_date,
                         mutation=True,
                         quantity=quantity,
-                        name=f"{transfer_type_val} {account}",
+                        name=f"{transfer_type_val} {account}" + (" (Cancelled)" if is_cancel else ""),
                         balanceCurrency=currency,
                         quotationType="PIECE",
                     )
