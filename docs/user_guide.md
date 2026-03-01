@@ -236,7 +236,7 @@ Remember the calculations in this software are not formally audited.
 
 #### Advanced Options
 
-Neither of the the following options is currently complete and should not be used.
+Neither of the following options is currently complete and should not be used.
 
 * In the future a mode will be provided to sanity check the kursliste calculations against reported income and tax withholding with the bank, however this currently must be done manually.
 

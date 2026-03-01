@@ -80,7 +80,7 @@ python -m opensteuerauszug.steuerauszug --importer ibkr <flex query xml file> ..
 
 *   **Flex Query Customization**: It's crucial that your Flex Query includes all necessary data fields. Missing fields might lead to incomplete or inaccurate Steuerauszug generation. The code tries to ensure all required fields are present (even if empty when not applicable) but these scenarios have not been extensively tested.
 
-*   **Fees**: Currently fee information is not propagated to to the Steuerauszug.
+*   **Fees**: Currently fee information is not propagated to the Steuerauszug.
 
 ## Troubleshooting
 

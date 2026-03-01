@@ -58,7 +58,7 @@ So we use the JSON import which looks like this for the brokerage account
 }
 ```
 
-'Amount' is filled for all transactions affecting the cash balance and the 'Quantiy' for everything that affects a non-cash postion with a given 'Symbol'. For "Sale" transactions, the 'Quantity' in the JSON is typically a positive number representing the number of shares sold. The extractor handles this by recording a negative quantity internally.
+'Amount' is filled for all transactions affecting the cash balance and the 'Quantity' for everything that affects a non-cash position with a given 'Symbol'. For "Sale" transactions, the 'Quantity' in the JSON is typically a positive number representing the number of shares sold. The extractor handles this by recording a negative quantity internally.
 
 
 
