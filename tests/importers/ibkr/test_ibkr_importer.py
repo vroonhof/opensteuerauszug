@@ -2341,7 +2341,6 @@ def test_broker_interest_paid_debit_creates_bank_payment(caplog):
             os.remove(xml_file_path)
 
 
-
 def test_cancelled_out_transfer_is_allowed_and_labelled(sample_ibkr_settings):
     """
     Cancelled OUT transfers (code="Ca") have a positive quantity despite direction=OUT.

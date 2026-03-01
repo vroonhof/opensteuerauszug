@@ -3,7 +3,7 @@
 This guide explains how to prepare your data from Charles Schwab for use with OpenSteuerAuszug. 
 
 
-Unfortunately Schwab has put its real export data behind a developer only API where it is only available online via Oauth and even the documentation requires agreeing to scary legalese. Manual export has some silly limitations like not being able to specify a target date for some dumps. Therefor we make do with what we can have, you may need to download multiple files in different formats.
+Unfortunately Schwab has put its real export data behind a developer only API where it is only available online via Oauth and even the documentation requires agreeing to scary legalese. Manual export has some silly limitations like not being able to specify a target date for some dumps. Therefore we make do with what we can have, you may need to download multiple files in different formats.
 
 ## Overview
 

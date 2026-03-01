@@ -568,39 +568,64 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
 
     # Add liabilities row if liabilities total is not 0
     liabilities_total = summary_data.get('liabilities_total', None)
+    liabilities_payments_total = summary_data.get('liabilities_payments_total', None)
     show_liabilities = liabilities_total and liabilities_total != 0
+    show_liability_payments = liabilities_payments_total and liabilities_payments_total != 0
 
-    if show_liabilities:
-        # Row 8: Liabilities Header
-        table_data.append([
-            Paragraph(f'<b>Schulden</b><br/>am {summary_data.get("period_end_date", "31.12")}', header_style),  # Col 0
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            Paragraph('''Werte für zusätzliches Steuererklärungsformular <b>"Schuldenverzeichnis"</b>''', val_left)
-        ])
-        # Row 9: Liabilities Values (left-aligned under total steuerwert)
-        table_data.append([
-            Paragraph(format_currency_rounded(liabilities_total), val_right),
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            ''
-        ])
+    if show_liabilities or show_liability_payments:
+        # Row 8: Liabilities Header(s)
+        # Add "Schulden" header only if there are liabilities
+        if show_liabilities:
+            header_row = [
+                Paragraph(f'<b>Schulden</b><br/>am {summary_data.get("period_end_date", "31.12")}', header_style),  # Col 0
+                '',  # Col 1: blank
+                '',  # Col 2: blank
+            ]
+        else:
+            # Leave space empty if no liabilities
+            header_row = ['', '', '']
+
+        # Add empty space (one column) between "Schulden" and "Schuldzinsen"
+        # Columns 3-5 are blank
+        header_row.extend(['', '', ''])  # Cols 3-5: one empty space
+
+        # Add "Schuldzinsen" header if there are liability payments
+        if show_liability_payments:
+            header_row.append(Paragraph(f'<b>Schuldzinsen</b> {summary_data.get("tax_period", "")}', header_style))  # Col 6
+        else:
+            header_row.append('')
+
+        # Fill remaining columns (Cols 7-10, then Col 11 with description)
+        header_row.extend(['', '', '', '',
+                          Paragraph('''Werte für zusätzliches Steuererklärungsformular <b>"Schuldenverzeichnis"</b>''', val_left)])
+
+        table_data.append(header_row)
+
+        # Row 9: Liabilities Values
+        # Add "Schulden" value only if there are liabilities
+        if show_liabilities:
+            values_row = [
+                Paragraph(format_currency_rounded(liabilities_total), val_right),  # Col 0
+                '',  # Col 1: blank
+                '',  # Col 2: blank
+            ]
+        else:
+            # Leave space empty if no liabilities
+            values_row = ['', '', '']
+
+        # Add empty space between boxes (Cols 3-5)
+        values_row.extend(['', '', ''])
+
+        # Add liability payments value (Col 6)
+        if show_liability_payments:
+            values_row.append(Paragraph(format_currency_rounded(liabilities_payments_total), val_right))
+        else:
+            values_row.append('')
+
+        # Fill remaining columns (Cols 7-11, total 5 columns)
+        values_row.extend(['', '', '', '', ''])
+
+        table_data.append(values_row)
 
     usable_width = usable_width - 4*10
     base_col_width = usable_width / 7
@@ -619,7 +644,7 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
                   ]
 
     row_heights = [15*mm, 6*mm, 2*mm, 15*mm, 6*mm, 2*mm, 20*mm, 6*mm]
-    if show_liabilities:
+    if show_liabilities or show_liability_payments:
         row_heights.extend([15*mm, 6*mm])
 
     summary_table = Table(table_data, colWidths=col_widths, rowHeights=row_heights)
@@ -685,6 +710,12 @@ Wertschriftenverzeichnis einzusetzen.''', val_left)], # Col 5 << SHIFTED
         line_commands.extend([
             ('LINEABOVE', (0, 9), (0, 9), *line_style),
             ('LINEBELOW', (0, 9), (0, 9), *line_style),
+        ])
+
+    if show_liability_payments:
+        line_commands.extend([
+            ('LINEABOVE', (5, 9), (6, 9), *line_style),
+            ('LINEBELOW', (5, 9), (6, 9), *line_style),
         ])
 
     # --- Combine all styles ---
@@ -1215,11 +1246,11 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     NUM_COLUMNS = 13
     NUM_ROWS = 35
     # reserve enough space for file name (it is actually less because of compression, but be safe)
-    # file_name_lenght = len(file_name)
+    # file_name_length = len(file_name)
     # Issue #239: for now don't include filenames
-    file_name_lenght = 0
-    capacity = NUM_COLUMNS * NUM_ROWS - FIXED_OVERHEAD - file_name_lenght
-    # Byte encodinge efficency is 6 bytes per 5 codewords
+    file_name_length = 0
+    capacity = NUM_COLUMNS * NUM_ROWS - FIXED_OVERHEAD - file_name_length
+    # Byte encoding efficiency is 6 bytes per 5 codewords
     SEGMENT_SIZE = floor((capacity / 5) * 6)
 
     # Use encode_macro for proper macro PDF417 generation
@@ -2013,8 +2044,11 @@ def render_tax_statement(
         summary_steuerwert_ab = tax_statement.steuerwert_ab or (summary_steuerwert_a + summary_steuerwert_b)
 
         liabilities_total = Decimal('0')
+        liabilities_payments_total = Decimal('0')
         if tax_statement.listOfLiabilities and tax_statement.listOfLiabilities.totalTaxValue:
             liabilities_total = tax_statement.listOfLiabilities.totalTaxValue
+        if tax_statement.listOfLiabilities and tax_statement.listOfLiabilities.totalGrossRevenueB:
+            liabilities_payments_total = tax_statement.listOfLiabilities.totalGrossRevenueB
 
         # Create summary data dictionary from model fields
 
@@ -2034,6 +2068,7 @@ def render_tax_statement(
             "total_brutto_ohne_vst": tax_statement.totalGrossRevenueB,
             "total_brutto_gesamt": tax_statement.total_brutto_gesamt,
             "liabilities_total": liabilities_total,
+            "liabilities_payments_total": liabilities_payments_total,
             "tax_period": tax_period,
             "period_end_date": period_end_date
         }
