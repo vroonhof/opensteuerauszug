@@ -177,7 +177,7 @@ See the [Configuration Guide](config.md#security-identifier-enrichment) for how 
 ## Running Opensteuerauszug
 
 ```console
-python -m opensteuerauszug.steuerauszug --importer schwab <path to data directory> ...
+opensteuerauszug generate --importer schwab <path to data directory> ...
 ```
 
 

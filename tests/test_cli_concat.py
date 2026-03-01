@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 from pypdf import PdfReader
 from reportlab.pdfgen import canvas
 
-from opensteuerauszug.steuerauszug import app
+from opensteuerauszug.cli import app
 
 runner = CliRunner()
 
@@ -81,7 +81,7 @@ def test_cli_concatenation(tmp_path, dummy_xml, pre_amble_pdf, post_amble_pdf):
 
              MockTotalCalculator.return_value.calculate.side_effect = lambda x: x
 
-             result = runner.invoke(app, [
+             result = runner.invoke(app, ["generate",
                  str(dummy_xml),
                  "--output", str(output_pdf),
                  "--raw-import",
@@ -123,7 +123,7 @@ def test_cli_concatenation_failure_cleanup(tmp_path, dummy_xml, pre_amble_pdf):
              MockConfigManager.return_value.calculate_settings = MagicMock()
              MockTotalCalculator.return_value.calculate.side_effect = lambda x: x
 
-             result = runner.invoke(app, [
+             result = runner.invoke(app, ["generate",
                  str(dummy_xml),
                  "--output", str(output_pdf),
                  "--raw-import",

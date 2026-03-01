@@ -21,7 +21,7 @@ This can be useful for:
 3.  **Configuration**: Your `config.toml` should be set up, although fewer parameters might be strictly necessary compared to generating a new statement from raw broker data. The tool might extract some metadata from the XML itself.
 4.  **Execution**: Run OpenSteuerAuszug telling it to start with the xml as raw input and then run the verify phase:
     ```console
-    python -m opensteuerauszug.steuerauszug {xml file} --tax-year {tax year} --raw-import -p verify 
+    opensteuerauszug verify {xml file} --tax-year {tax year}
     ```
 
 5.  **Output and known issues**:

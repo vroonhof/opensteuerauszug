@@ -71,7 +71,7 @@ Because Interactive Brokers specifies relatively complete data in its exports, t
 ## Running Opensteuerauszug
 
 ```console
-python -m opensteuerauszug.steuerauszug --importer ibkr <flex query xml file> ...
+opensteuerauszug generate --importer ibkr <flex query xml file> ...
 ```
 
 ## Importer Specifics & Known Quirks

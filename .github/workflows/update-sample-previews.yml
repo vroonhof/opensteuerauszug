@@ -41,7 +41,7 @@ jobs:
 
       - name: Generate sample PDF from vtandchill_2025.xml
         run: |
-          opensteuerauszug \
+          opensteuerauszug generate \
             tests/samples/import/ibkr/vtandchill_2025.xml \
             --importer ibkr \
             --tax-year 2025 \
