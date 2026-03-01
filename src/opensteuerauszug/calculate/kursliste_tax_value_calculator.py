@@ -214,6 +214,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     self._set_field_value(sec_tax_value, "balanceCurrency", "CHF", path_prefix)
                     self._set_field_value(sec_tax_value, "kursliste", True, path_prefix)
                     return
+        else:
+            self._set_field_value(sec_tax_value, "undefined", True, path_prefix)
 
         super()._handle_SecurityTaxValue(sec_tax_value, path_prefix)
 
