@@ -2249,6 +2249,98 @@ def test_trade_unit_price_various_nonzero_and_zero_prices(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
+def test_broker_interest_paid_debit_creates_bank_payment(caplog):
+    """Test that negative broker interest payments with '<CURRENCY> DEBIT INT FOR' description create bank payments."""
+    xml_content = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <CashTransactions>
+        <CashTransaction accountId="U1234567" type="Broker Interest Paid" currency="USD" amount="-2.01" description="USD DEBIT INT FOR OCT-2025" conid="" symbol="" dateTime="2025-11-05T00:00:00" assetCategory="" levelOfDetail="DETAIL" />
+        <CashTransaction accountId="U1234567" type="Broker Interest Paid" currency="EUR" amount="-1.50" description="EUR DEBIT INT FOR SEP-2025" conid="" symbol="" dateTime="2025-10-05T00:00:00" assetCategory="" levelOfDetail="DETAIL" />
+        <CashTransaction accountId="U1234567" type="Broker Interest Paid" currency="CHF" amount="-3.19" description="CHF CREDIT INT FOR AUG-2025" conid="" symbol="" dateTime="2025-09-04T00:00:00" assetCategory="" levelOfDetail="DETAIL" />
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" startingCash="100.00" endingCash="97.99" fromDate="2025-01-01" toDate="2025-12-31" />
+        <CashReportCurrency accountId="U1234567" currency="EUR" startingCash="50.00" endingCash="48.50" fromDate="2025-01-01" toDate="2025-12-31" />
+        <CashReportCurrency accountId="U1234567" currency="CHF" startingCash="100.00" endingCash="96.81" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as tmp_file:
+        tmp_file.write(xml_content)
+        xml_file_path = tmp_file.name
+
+    try:
+        settings = [
+            IbkrAccountSettings(
+                account_number="U1234567",
+                broker_name="Interactive Brokers",
+                account_name_alias="Test Account",
+                canton="ZH",
+                full_name="Test User",
+            )
+        ]
+
+        importer = IbkrImporter(
+            period_from=date(2025, 1, 1),
+            period_to=date(2025, 12, 31),
+            account_settings_list=settings
+        )
+
+        import logging
+        caplog.set_level(logging.WARNING)
+
+        tax_statement = importer.import_files([xml_file_path])
+
+        # Check that bank accounts exist
+        assert tax_statement.listOfBankAccounts is not None
+        bank_accounts = tax_statement.listOfBankAccounts.bankAccount
+
+        # Check USD DEBIT INT FOR creates a bank payment
+        usd_account = next((ba for ba in bank_accounts if ba.bankAccountCurrency == "USD"), None)
+        assert usd_account is not None, "USD bank account should exist"
+
+        usd_debit_payment = next(
+            (p for p in usd_account.payment if "USD DEBIT INT FOR OCT-2025" in p.name),
+            None
+        )
+        assert usd_debit_payment is not None, "USD DEBIT INT FOR should create a bank payment"
+        assert usd_debit_payment.amount == Decimal("-2.01")
+
+        # Check EUR DEBIT INT FOR creates a bank payment
+        eur_account = next((ba for ba in bank_accounts if ba.bankAccountCurrency == "EUR"), None)
+        assert eur_account is not None, "EUR bank account should exist"
+
+        eur_debit_payment = next(
+            (p for p in eur_account.payment if "EUR DEBIT INT FOR SEP-2025" in p.name),
+            None
+        )
+        assert eur_debit_payment is not None, "EUR DEBIT INT FOR should create a bank payment"
+        assert eur_debit_payment.amount == Decimal("-1.50")
+
+        # Check that CHF CREDIT INT FOR logs a warning and does NOT create a bank payment
+        chf_account = next((ba for ba in bank_accounts if ba.bankAccountCurrency == "CHF"), None)
+        assert chf_account is not None, "CHF bank account should exist"
+
+        chf_payment = next(
+            (p for p in chf_account.payment if "CHF CREDIT INT FOR" in p.name),
+            None
+        )
+        assert chf_payment is None, "CHF CREDIT INT FOR should NOT create a bank payment"
+
+        # Check that a warning was logged for the CHF transaction
+        assert any("CHF CREDIT INT FOR AUG-2025" in record.message and "is not handled" in record.message
+                   for record in caplog.records), "Warning should be logged for CHF CREDIT INT FOR"
+
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
 
 def test_cancelled_out_transfer_is_allowed_and_labelled(sample_ibkr_settings):
     """
