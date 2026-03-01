@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<taxStatement xmlns="http://www.ech.ch/xmlns/eCH-0196/2" xmlns:eCH-0097="http://www.ech.ch/xmlns/eCH-0097/4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ech.ch/xmlns/eCH-0196/2 http://www.ech.ch/xmlns/eCH-0196/2.2/eCH-0196-2-2.xsd http://www.ech.ch/xmlns/eCH-0097/4 http://www.ech.ch/xmlns/eCH-0097/4/eCH-0097-4-0.xsd" id="CH19334IBKRU12349876X2025123101" creationDate="2026-02-26T09:44:06.367449" taxPeriod="2025" periodFrom="2025-01-01" periodTo="2025-12-31" country="CH" canton="ZH" totalTaxValue="39351.02" totalGrossRevenueA="0.000" totalGrossRevenueB="137.45" totalWithHoldingTaxClaim="0.000" minorVersion="22">
+<taxStatement xmlns="http://www.ech.ch/xmlns/eCH-0196/2" xmlns:eCH-0097="http://www.ech.ch/xmlns/eCH-0097/4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.ech.ch/xmlns/eCH-0196/2 http://www.ech.ch/xmlns/eCH-0196/2.2/eCH-0196-2-2.xsd http://www.ech.ch/xmlns/eCH-0097/4 http://www.ech.ch/xmlns/eCH-0097/4/eCH-0097-4-0.xsd" id="CH19334IBKRU12349876X2025123101" creationDate="2026-03-01T10:50:42.275857" taxPeriod="2025" periodFrom="2025-01-01" periodTo="2025-12-31" country="CH" canton="ZH" totalTaxValue="39351.02" totalGrossRevenueA="0.000" totalGrossRevenueB="137.45" totalWithHoldingTaxClaim="0.000" minorVersion="22">
   <institution name="Interactive Brokers"/>
   <client clientNumber="U12349876" firstName="Paula" lastName="Muster"/>
   <listOfBankAccounts totalTaxValue="17000.06" totalGrossRevenueA="0.000" totalGrossRevenueB="22.936" totalWithHoldingTaxClaim="0.000">
@@ -13,9 +13,10 @@
       <payment paymentDate="2025-10-03" name="USD CREDIT INT FOR SEP-2025" amountCurrency="USD" amount="10.61" exchangeRate="0.797823913" grossRevenueA="0" grossRevenueB="8.46491171693" withHoldingTaxClaim="0"/>
     </bankAccount>
   </listOfBankAccounts>
-  <listOfLiabilities totalTaxValue="0.689" totalGrossRevenueB="0.000">
-    <liabilityAccount bankAccountNumber="U12349876-USD" bankAccountName="U12349876 USD position (Negativ Saldo)" bankAccountCountry="US" bankAccountCurrency="USD" totalTaxValue="0.689" totalGrossRevenueB="0.000">
+  <listOfLiabilities totalTaxValue="0.689" totalGrossRevenueB="1.615">
+    <liabilityAccount bankAccountNumber="U12349876-USD" bankAccountName="U12349876 USD position" bankAccountCountry="US" bankAccountCurrency="USD" totalTaxValue="0.689" totalGrossRevenueB="1.615">
       <taxValue referenceDate="2025-12-31" name="Closing Balance" balanceCurrency="USD" balance="0.87" exchangeRate="0.79225" value="0.6892575"/>
+      <payment paymentDate="2025-11-05" name="USD DEBIT INT FOR OCT-2025" amountCurrency="USD" amount="2.01" exchangeRate="0.803635" grossRevenueB="1.61530635"/>
     </liabilityAccount>
   </listOfLiabilities>
   <listOfSecurities totalTaxValue="22350.96" totalGrossRevenueA="0.000" totalGrossRevenueB="114.51" totalWithHoldingTaxClaim="0.000" totalLumpSumTaxCredit="34.353" totalNonRecoverableTax="17.176" totalAdditionalWithHoldingTaxUSA="0.000" totalGrossRevenueIUP="0.000" totalGrossRevenueConversion="0.000">
