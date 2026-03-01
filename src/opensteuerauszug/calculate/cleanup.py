@@ -505,13 +505,15 @@ class CleanupCalculator:
                                     candidate = security.stock[find_index]
                                     if candidate.referenceDate == period_end_plus_one and not candidate.mutation:
                                         # First balance after the period end is the end balance of the period
-                                        security.taxValue = SecurityTaxValue(
-                                            referenceDate=self.period_to,
-                                            quotationType=candidate.quotationType,
-                                            quantity=candidate.quantity,
-                                            balanceCurrency=candidate.balanceCurrency,
-                                            balance=candidate.balance,
-                                            unitPrice=candidate.unitPrice)
+                                        # Only create taxValue if closing balance is not zero
+                                        if candidate.quantity is not None and candidate.quantity != Decimal('0'):
+                                            security.taxValue = SecurityTaxValue(
+                                                referenceDate=self.period_to,
+                                                quotationType=candidate.quotationType,
+                                                quantity=candidate.quantity,
+                                                balanceCurrency=candidate.balanceCurrency,
+                                                balance=candidate.balance,
+                                                unitPrice=candidate.unitPrice)
 
                             # TODO Should we ensure the balances at the start and end of the period are
                             #       present here instead of in the importers?.
