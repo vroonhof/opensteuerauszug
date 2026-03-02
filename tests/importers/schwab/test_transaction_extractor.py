@@ -896,3 +896,65 @@ class TestSchwabTransactionExtractor:
         assert found_msft_dividend_payment, "MSFT Dividend payment not found or not correctly processed"
         assert found_voo_reinvest_dividend_payment, "VOO Reinvest Dividend payment not found or not correctly processed"
         assert found_zeroq_dividend_payment, "ZEROQ Dividend payment not found or not correctly processed"
+
+    def test_action_sell(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024",
+            "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "12/30/2024 as of 12/29/2024",
+                "Action": "Sell",
+                "Symbol": "MSFT",
+                "Description": "MICROSOFT CORP",
+                "Quantity": "5.678",
+                "Price": "150.00",
+                "Amount": "851.70"
+            }]
+        }
+        result = extractor._extract_transactions_from_dict(data)
+        assert result is not None
+        
+        msft_data = find_position(result, SecurityPosition, "MSFT")
+        cash_data = find_position(result, CashPosition)
+        
+        assert msft_data is not None
+        pos, stocks, payments = msft_data
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == -Decimal("5.678")
+        assert stock.unitPrice == Decimal("150.00")
+        assert stock.name == "Sell"
+        
+        assert cash_data is not None
+        c_pos, c_stocks, c_payments = cash_data
+        assert len(c_stocks) == 1
+        assert c_stocks[0].quantity == Decimal("851.70")
+        assert c_stocks[0].name == "Cash in for Sell MSFT"
+
+    def test_action_stock_plan_activity(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024",
+            "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "12/30/2024",
+                "Action": "Stock Plan Activity",
+                "Symbol": "MSFT",
+                "Description": "MICROSOFT CORP",
+                "Quantity": "15.0",
+                "Price": "",
+                "Amount": ""
+            }]
+        }
+        result = extractor._extract_transactions_from_dict(data)
+        assert result is not None
+        
+        msft_data = find_position(result, SecurityPosition, "MSFT")
+        assert msft_data is not None
+        pos, stocks, payments = msft_data
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == Decimal("15.0")
+        assert stock.unitPrice is None
+        assert stock.name == "Stock Plan Activity"
