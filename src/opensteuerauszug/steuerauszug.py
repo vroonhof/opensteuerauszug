@@ -8,7 +8,7 @@ from datetime import date, datetime
 from pypdf import PdfReader, PdfWriter
 
 from opensteuerauszug.config.models import SchwabAccountSettings, IbkrAccountSettings, GeneralSettings # Added GeneralSettings
-import os # For path construction
+from opensteuerauszug.render.translations import DEFAULT_LANGUAGE
 from .core.identifier_loader import SecurityIdentifierMapLoader
 
 # Use the generated eCH-0196 model
@@ -617,6 +617,11 @@ def main(
                         if general_config_settings
                         else True
                     )
+                ),
+                language=(
+                    general_config_settings.language
+                    if general_config_settings
+                    else DEFAULT_LANGUAGE
                 ),
             )
             print(f"Rendering successful to {rendered_path}")
