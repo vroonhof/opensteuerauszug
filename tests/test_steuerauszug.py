@@ -6,7 +6,7 @@ from pathlib import Path
 # Adjust the import according to your project structure
 # If cli.py is in src/opensteuerauszug/cli.py and tests is at the root
 # from opensteuerauszug.cli import app
-from opensteuerauszug.steuerauszug import app # Updated import
+from opensteuerauszug.cli import app # Updated import
 
 runner = CliRunner()
 KURSLISTE_SAMPLE_DIR = Path(__file__).resolve().parent / "samples" / "kursliste"
@@ -57,8 +57,8 @@ def test_main_help():
     # Strip ANSI escape sequences from the output
     clean_stdout = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', result.stdout)
     assert result.exit_code == 0
-    assert "Usage: main [OPTIONS] INPUT_FILE" in clean_stdout
-    assert "Processes financial data" in clean_stdout
+    assert "Usage: root [OPTIONS] COMMAND [ARGS]..." in clean_stdout
+    assert "OpenSteuerauszug CLI" in clean_stdout
 
 def test_main_missing_input(tmp_path: Path):
     """Test invocation without the required input file argument."""
@@ -70,12 +70,7 @@ def test_main_missing_input(tmp_path: Path):
 
 def test_main_basic_run(dummy_xml_file: Path):
     """Test a basic run with default phases (will hit placeholders)."""
-    result = runner.invoke(
-        app,
-        [
-            str(dummy_xml_file),
-            "--config",
-            "config.template.toml",
+    result = runner.invoke(app, ["--config", "config.template.toml", "generate", str(dummy_xml_file),
             "--tax-year",
             "2024",
             "--kursliste-dir",
@@ -96,7 +91,7 @@ def test_main_basic_run(dummy_xml_file: Path):
 def test_main_specify_output(dummy_input_file: Path, tmp_path: Path):
     """Test specifying an output file (will still hit render placeholder)."""
     output_path = tmp_path / "output.pdf"
-    result = runner.invoke(app, [str(dummy_input_file), "--output", str(output_path)])
+    result = runner.invoke(app, ["generate", str(dummy_input_file), "--output", str(output_path)])
     
     # Check that the command executed successfully
     assert result.exit_code == 0
@@ -119,7 +114,7 @@ def test_main_specify_output(dummy_input_file: Path, tmp_path: Path):
 
 def test_main_limit_phases(dummy_input_file: Path):
     """Test running only the import phase."""
-    result = runner.invoke(app, [str(dummy_input_file), "--phases", "import"])
+    result = runner.invoke(app, ["generate", str(dummy_input_file), "--phases", "import"])
     assert result.exit_code == 0
     assert "Phase: import" in result.stdout
     assert "Phase: validate" not in result.stdout
@@ -130,7 +125,7 @@ def test_main_limit_phases(dummy_input_file: Path):
 def test_main_raw_import(dummy_xml_file: Path):
     """Test the raw import functionality."""
     # Raw import doesn't need validate/calculate/render unless specified
-    result = runner.invoke(app, [str(dummy_xml_file), "--raw-import", "--tax-year", "2024"])
+    result = runner.invoke(app, ["generate", str(dummy_xml_file), "--raw-import", "--tax-year", "2024"])
     assert result.exit_code == 0
     assert "Raw importing model from" in result.stdout
     assert "Raw import complete." in result.stdout
@@ -140,12 +135,7 @@ def test_main_raw_import(dummy_xml_file: Path):
 def test_main_raw_import_with_phases(dummy_xml_file: Path, tmp_path: Path):
     """Test raw import followed by other phases."""
     output_path = tmp_path / "output.pdf"
-    result = runner.invoke(
-        app,
-        [
-            str(dummy_xml_file),
-            "--config",
-            "config.template.toml",
+    result = runner.invoke(app, ["--config", "config.template.toml", "generate", str(dummy_xml_file),
             "--raw-import",
             "--tax-year",
             "2024",
@@ -170,7 +160,7 @@ def test_main_raw_import_with_phases(dummy_xml_file: Path, tmp_path: Path):
 
 def test_main_debug_dump(dummy_input_file: Path, debug_dump_dir: Path):
     """Test the debug dump functionality."""
-    result = runner.invoke(app, [
+    result = runner.invoke(app, ["generate",
         str(dummy_input_file),
         "--phases", "import",
         "--debug-dump", str(debug_dump_dir)
@@ -186,10 +176,7 @@ def test_main_debug_dump(dummy_input_file: Path, debug_dump_dir: Path):
 def test_main_payment_reconciliation_by_default(dummy_input_file: Path):
     """Test that reconcile_payments phase is run by default."""
     # Actually, if we don't specify phases, it should be in there.
-    result = runner.invoke(app, [
-        str(dummy_input_file),
-        "--config",
-        "config.template.toml",
+    result = runner.invoke(app, ["--config", "config.template.toml", "generate", str(dummy_input_file),
         "--tax-year", "2024",
         "--kursliste-dir", str(KURSLISTE_SAMPLE_DIR),
     ])
@@ -197,7 +184,7 @@ def test_main_payment_reconciliation_by_default(dummy_input_file: Path):
 
 def test_main_no_payment_reconciliation(dummy_input_file: Path):
     """Test that reconcile_payments phase is skipped with --no-payment-reconciliation."""
-    result = runner.invoke(app, [
+    result = runner.invoke(app, ["generate",
         str(dummy_input_file),
         "--tax-year", "2024",
         "--kursliste-dir", str(KURSLISTE_SAMPLE_DIR),
@@ -208,7 +195,7 @@ def test_main_no_payment_reconciliation(dummy_input_file: Path):
 def test_main_final_xml_output(dummy_input_file: Path, tmp_path: Path):
     """Test writing the final XML with --xml-output."""
     xml_path = tmp_path / "final.xml"
-    result = runner.invoke(app, [
+    result = runner.invoke(app, ["generate",
         str(dummy_input_file),
         "--phases", "import",
         "--xml-output", str(xml_path)

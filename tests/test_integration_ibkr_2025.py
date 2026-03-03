@@ -1,7 +1,7 @@
 import pytest
 from typer.testing import CliRunner
 from pathlib import Path
-from opensteuerauszug.steuerauszug import app
+from opensteuerauszug.cli import app
 import lxml.etree as ET
 
 runner = CliRunner()
@@ -33,17 +33,13 @@ def test_integration_ibkr_vt_and_chill_2025(tmp_path: Path):
     output_xml = tmp_path / "vtandchill_2025.xml"
     
     # Run the CLI
-    result = runner.invoke(
-        app,
-        [
-            str(input_file),
+    result = runner.invoke(app, ["--log-level", "DEBUG", "generate", str(input_file),
             "--importer", "ibkr",
             "--tax-year", "2025",
             "--kursliste-dir", str(kursliste_dir),
             "--output", str(output_pdf),
             "--xml-output", str(output_xml),
-            "--log-level", "DEBUG",
-        ],
+                    ],
     )
     
     # Check execution success
