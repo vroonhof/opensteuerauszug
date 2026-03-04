@@ -11,6 +11,9 @@ from opensteuerauszug.model.kursliste import (
     Sign, Da1Rate
 )
 
+CONVERTER_SCHEMA_VERSION = "1"
+
+
 def create_schema(conn):
     """Creates the database schema."""
     cursor = conn.cursor()
@@ -98,6 +101,12 @@ def create_schema(conn):
             source_file TEXT
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
     conn.commit()
 
 def get_attr(elem, attr):
@@ -142,7 +151,33 @@ def serialize_element_to_pydantic_json(elem, model_class):
         print(f"Warning: Failed to serialize element to {model_class.__name__}: {e}")
         return None
 
-def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_path: Union[str, Path]) -> bool:
+def read_conversion_metadata(db_file_path: Union[str, Path]) -> dict[str, str]:
+    db_path = Path(db_file_path)
+    if not db_path.exists():
+        return {}
+    conn = None
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='metadata'"
+        )
+        if cursor.fetchone() is None:
+            return {}
+        cursor.execute("SELECT key, value FROM metadata")
+        return {row[0]: row[1] for row in cursor.fetchall()}
+    except Exception:
+        return {}
+    finally:
+        if conn:
+            conn.close()
+
+
+def convert_kursliste_xml_to_sqlite(
+    xml_file_path: Union[str, Path],
+    db_file_path: Union[str, Path],
+    archive_hash: Optional[str] = None
+) -> bool:
     """
     Streaming conversion function that processes XML without loading entire file into memory.
 
@@ -208,6 +243,25 @@ def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_pat
                     tax_year = int(tax_year_str)
                     print(f"Processing kursliste for tax year: {tax_year}")
                 break  # Only process the first kursliste element
+
+        if tax_year is not None:
+            cursor.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+                ("tax_year", str(tax_year)),
+            )
+        cursor.execute(
+            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+            ("converter_schema_version", CONVERTER_SCHEMA_VERSION),
+        )
+        if archive_hash:
+            cursor.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+                ("archive_hash", archive_hash),
+            )
+        cursor.execute(
+            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+            ("source_xml_file", source_file_name),
+        )
 
         # Reset file parsing for main processing
         # Process XML in streaming fashion
