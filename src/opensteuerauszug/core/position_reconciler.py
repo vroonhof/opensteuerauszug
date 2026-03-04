@@ -34,7 +34,12 @@ class PositionReconciler:
         self.identifier = identifier
         self.sorted_stocks: List[SecurityStock] = sort_security_stocks(initial_stocks)
 
-    def check_consistency(self, print_log: bool = False, raise_on_error: bool = False) -> Tuple[bool, List[str]]:
+    def check_consistency(
+        self,
+        print_log: bool = False,
+        raise_on_error: bool = False,
+        assume_zero_if_no_balances: bool = False
+    ) -> Tuple[bool, List[str]]:
         """
         Walks through the sorted stock events, applying mutations and verifying quantities
         against balance statements (mutation=False).
@@ -44,6 +49,9 @@ class PositionReconciler:
         Args:
             print_log: If True, prints log messages to console as they are generated.
             raise_on_error: If True, raises a ValueError if inconsistencies are found.
+            assume_zero_if_no_balances: If True and no balance (mutation=False) exists,
+                                        starts reconciliation at quantity 0 and requires
+                                        that the final quantity also equals 0.
 
         Returns:
             A tuple: (is_consistent, log_messages).
@@ -65,11 +73,69 @@ class PositionReconciler:
                 break
         
         if first_balance_idx == -1:
-            msg = f"{log_prefix} Consistency check failed: No balance statement (mutation=False) found to start reconciliation."
-            logger.error(msg)
-            if raise_on_error:
-                raise ValueError(msg)
-            return False, [msg]
+            if not assume_zero_if_no_balances:
+                msg = f"{log_prefix} Consistency check failed: No balance statement (mutation=False) found to start reconciliation."
+                logger.error(msg)
+                if raise_on_error:
+                    raise ValueError(msg)
+                return False, [msg]
+
+            logger.warning(
+                f"{log_prefix} No balance statement found. "
+                "Assuming initial quantity of 0 for mutation-only consistency check."
+            )
+            current_quantity = Decimal("0")
+            current_date = self.sorted_stocks[0].referenceDate
+            is_consistent = True
+            log_messages = []
+
+            for stock_event in self.sorted_stocks:
+                event_date = stock_event.referenceDate
+                if event_date < current_date:
+                    msg = f"ERROR: {log_prefix} Stock events appear out of order: event on {event_date} after processing {current_date}. Aborting."
+                    logger.error(msg)
+                    log_messages.append(msg)
+                    is_consistent = False
+                    break
+
+                if stock_event.mutation:
+                    delta_quantity = stock_event.quantity
+                    current_quantity += delta_quantity
+                    logger.debug(
+                        f"{log_prefix} Date: {event_date}. Applying mutation: "
+                        f"Name='{stock_event.name or 'N/A'}', Qty Change={delta_quantity}. "
+                        f"New Qty: {current_quantity}."
+                    )
+                else:
+                    # Defensive branch for future sorting/inputs where balances appear unexpectedly.
+                    if current_quantity != stock_event.quantity:
+                        msg = (
+                            f"ERROR: {log_prefix} Mismatch on {event_date}! "
+                            f"Calculated Qty: {current_quantity}, Reported Qty in statement: {stock_event.quantity}."
+                        )
+                        logger.error(msg)
+                        log_messages.append(msg)
+                        is_consistent = False
+                    current_quantity = stock_event.quantity
+
+                current_date = event_date
+
+            if current_quantity != Decimal("0"):
+                msg = (
+                    f"ERROR: {log_prefix} Mutation-only consistency check failed: "
+                    f"final quantity is {current_quantity}, expected 0."
+                )
+                logger.error(msg)
+                log_messages.append(msg)
+                is_consistent = False
+
+            if is_consistent:
+                logger.info(f"{log_prefix} Mutation-only consistency check finished successfully.")
+            elif raise_on_error:
+                error_summary = f"[{self.identifier}] Position reconciliation failed. Log:\n" + "\n".join(log_messages)
+                raise ValueError(error_summary)
+
+            return is_consistent, log_messages
 
         start_balance_event = self.sorted_stocks[first_balance_idx]
         current_quantity = start_balance_event.quantity

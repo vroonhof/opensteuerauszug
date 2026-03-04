@@ -118,21 +118,11 @@ class SchwabImporter:
 
         # 1. Initial Consistency Check
         initial_reconciler = PositionReconciler(list(initial_pos_stocks), identifier=f"{current_identifier}-initial_check")
-        no_balance_guard = "No balance statement (mutation=False) found to start reconciliation."
-        try:
-            is_consistent_initial, _ = initial_reconciler.check_consistency(
-                print_log=True,
-                raise_on_error=self.strict_consistency
-            )
-        except ValueError as exc:
-            if no_balance_guard in str(exc):
-                is_consistent_initial = False
-                logger.warning(
-                    f"[{current_identifier}] No explicit balance snapshots available. "
-                    "Proceeding with synthesized boundaries from mutations."
-                )
-            else:
-                raise
+        is_consistent_initial, _ = initial_reconciler.check_consistency(
+            print_log=True,
+            raise_on_error=self.strict_consistency,
+            assume_zero_if_no_balances=True
+        )
         if not is_consistent_initial and not self.strict_consistency:
             logger.warning(f"[{current_identifier}] Initial consistency check on raw data failed. Review logs. Proceeding with synthesis.")
 
