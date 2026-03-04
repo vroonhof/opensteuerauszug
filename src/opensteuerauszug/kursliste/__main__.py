@@ -5,10 +5,12 @@ from pathlib import Path
 from typing import Optional
 from .downloader import download_kursliste, get_latest_initial_export
 from ..config.paths import resolve_kursliste_dir, get_app_data_dir
+from ..model.kursliste import KurslisteMetadata
 from .converter import (
     CONVERTER_SCHEMA_VERSION,
     convert_kursliste_xml_to_sqlite,
-    read_conversion_metadata,
+    read_kursliste_metadata,
+    read_metadata_value,
 )
 
 app = typer.Typer(help="Manage Kursliste files.")
@@ -40,17 +42,26 @@ def download(
             effective_destination.mkdir(parents=True, exist_ok=True)
 
         latest_export = get_latest_initial_export(year)
+        latest_kursliste_metadata = KurslisteMetadata(
+            newest_file_hash=latest_export["file_hash"],
+            file_id=latest_export["file_id"],
+            file_name=latest_export["file_name"],
+            export_type_short_name=latest_export.get("export_type_short_name"),
+        )
         sqlite_path = effective_destination / f"kursliste_{year}.sqlite"
 
         if convert and sqlite_path.exists():
-            metadata = read_conversion_metadata(sqlite_path)
+            metadata = read_kursliste_metadata(sqlite_path)
+            converter_schema_version = read_metadata_value(
+                sqlite_path, "converter_schema_version"
+            )
             if (
-                metadata.get("archive_hash") == latest_export.get("file_hash")
-                and metadata.get("converter_schema_version")
-                == CONVERTER_SCHEMA_VERSION
+                metadata is not None
+                and metadata.newest_file_hash == latest_kursliste_metadata.newest_file_hash
+                and converter_schema_version == CONVERTER_SCHEMA_VERSION
             ):
                 logging.info(f"Kursliste for {year} is already up-to-date "
-                    f"(archive hash {latest_export.get('file_hash')}). "
+                    f"(archive hash {latest_kursliste_metadata.newest_file_hash}). "
                     "Skipping download and conversion.")
                 return
 
@@ -63,7 +74,7 @@ def download(
                 if sqlite_path.exists():
                     os.remove(sqlite_path)
                 convert_kursliste_xml_to_sqlite(
-                    xml_path, sqlite_path, archive_hash=latest_export.get("file_hash")
+                    xml_path, sqlite_path, kursliste_metadata=latest_kursliste_metadata
                 )
                 logging.info(f"Successfully converted to {sqlite_path}")
             except Exception as ce:

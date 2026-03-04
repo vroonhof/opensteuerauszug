@@ -1,21 +1,22 @@
 import sqlite3
-import json
 import os
 import xml.etree.ElementTree as ET
-from decimal import Decimal
 from typing import Optional, Union
 from pathlib import Path
 
 from opensteuerauszug.model.kursliste import (
     Share, Bond, Fund, Derivative, CoinBullion, CurrencyNote, LiborSwap,
-    Sign, Da1Rate
+    Sign, Da1Rate, KurslisteMetadata
 )
 
 CONVERTER_SCHEMA_VERSION = "1"
+KURSLISTE_METADATA_KEY = "kursliste_metadata"
 
 
 def create_schema(conn):
-    """Creates the database schema."""
+    """Creates the database schema. Every time there are changes to the schema, increment the CONVERTER_SCHEMA_VERSION.
+    This will make sure that old converted databases are not used and the conversion is re-run when the converter code
+    is updated."""
     cursor = conn.cursor()
     # Securities Table - New Schema
     cursor.execute("""
@@ -107,6 +108,10 @@ def create_schema(conn):
             value TEXT
         )
     """)
+    cursor.execute(
+        "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+        ("converter_schema_version", CONVERTER_SCHEMA_VERSION),
+    )
     conn.commit()
 
 def get_attr(elem, attr):
@@ -173,10 +178,48 @@ def read_conversion_metadata(db_file_path: Union[str, Path]) -> dict[str, str]:
             conn.close()
 
 
+def read_metadata_value(db_file_path: Union[str, Path], key: str) -> Optional[str]:
+    db_path = Path(db_file_path)
+    if not db_path.exists():
+        return None
+
+    conn = None
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='metadata'"
+        )
+        if cursor.fetchone() is None:
+            return None
+
+        cursor.execute("SELECT value FROM metadata WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return row[0]
+    except Exception:
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def read_kursliste_metadata(db_file_path: Union[str, Path]) -> Optional[KurslisteMetadata]:
+    metadata_json = read_metadata_value(db_file_path, KURSLISTE_METADATA_KEY)
+    if metadata_json is None:
+        return None
+
+    try:
+        return KurslisteMetadata.model_validate_json(metadata_json)
+    except Exception:
+        return None
+
+
 def convert_kursliste_xml_to_sqlite(
     xml_file_path: Union[str, Path],
     db_file_path: Union[str, Path],
-    archive_hash: Optional[str] = None
+    kursliste_metadata: Optional[KurslisteMetadata] = None
 ) -> bool:
     """
     Streaming conversion function that processes XML without loading entire file into memory.
@@ -249,14 +292,10 @@ def convert_kursliste_xml_to_sqlite(
                 "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
                 ("tax_year", str(tax_year)),
             )
-        cursor.execute(
-            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
-            ("converter_schema_version", CONVERTER_SCHEMA_VERSION),
-        )
-        if archive_hash:
+        if kursliste_metadata is not None:
             cursor.execute(
                 "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
-                ("archive_hash", archive_hash),
+                (KURSLISTE_METADATA_KEY, kursliste_metadata.model_dump_json()),
             )
         cursor.execute(
             "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",

@@ -23,6 +23,15 @@ from pydantic_xml import BaseXmlModel as PydanticXmlModel, attr, element
 
 logger = logging.getLogger(__name__)
 
+
+class KurslisteMetadata(BaseModel):
+    """Metadata for a downloaded Kursliste export."""
+
+    newest_file_hash: str
+    file_id: int
+    file_name: str
+    export_type_short_name: Optional[str] = None
+
 # --- Namespace ---
 KURSLISTE_NS_2_0 = "http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste"
 KURSLISTE_NS_2_2 = "http://xmlns.estv.admin.ch/ictax/2.2.0/kursliste"
@@ -1000,5 +1009,4 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
                 if security.isin == isin:
                     results.append(security)
         return results
-
 
