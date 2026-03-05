@@ -175,7 +175,7 @@ This is the primary use case for OpenSteuerAuszug: generating a PDF Steuerauszug
 To generate a Steuerauszug, you will need to provide the following:
 
 1.  **Broker Statements**: These are the reports or data files you download from your bank or financial institution. The required format varies by broker. See the specific importer documentation (linked under "Importing Data from Brokers" below) for details on what files are needed and how to obtain them.
-2.  **Configuration File (`config.toml`)**: This file tells OpenSteuerAuszug your personal details (name, canton for tax purposes), information about your financial institutions, and specific settings for each account. You can copy `config.template.toml` to `~/.config/opensteuerauszug/config.toml` or `config.toml` in the current directory. The file is optional.
+2.  **Configuration File (`config.toml`)**: This file tells OpenSteuerAuszug your personal details (name, canton for tax purposes), information about your financial institutions, and specific settings for each account. You can copy `config.template.toml` to `~/.config/opensteuerauszug/config.toml` or `config.toml` in the current directory. The file is optional. The document language can be overridden per run with `--language`.
 3.  **Kursliste**: As described in the "Preparing the Kursliste" section, ensure you have the relevant Kursliste (preferably as an SQLite file in the XDG data directory or `data/kursliste/`) for the tax year you are processing.
 
 ### Configuring OpenSteuerAuszug (`config.toml`)

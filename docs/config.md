@@ -37,6 +37,7 @@ canton = "ZH"
 full_name = "Erika Mustermann"
 
 # Example: Default language for generated documents (e.g., "de", "fr", "it")
+# Can also be overridden in CLI with --language.
 language = "de"
 
 # Example: Optional default processing flags

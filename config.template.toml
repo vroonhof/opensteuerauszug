@@ -2,7 +2,7 @@
 [general]
 canton = "ZG" # Required if importer doesn't provide canton. Comment out to use importer data (e.g., IBKR flex report).
 full_name = "Test User Name"
-language = "de" # Default language
+language = "de" # Default language. Can also be overridden in CLI with --language.
 
 [general.processing_flags]
 detect_foreign_income = true

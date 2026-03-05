@@ -94,6 +94,7 @@ def main(
     override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
     kursliste_dir: Optional[Path] = typer.Option(None, "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste' in CWD or XDG data home."),
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
+    language: Optional[str] = typer.Option(None, "--language", help="Override output document language ('de', 'fr', 'it', 'en')."),
     payment_reconciliation: bool = typer.Option(True, "--payment-reconciliation/--no-payment-reconciliation", help="Run optional payment reconciliation between Kursliste and broker evidence."),
     pre_amble: Optional[List[Path]] = typer.Option(None, "--pre-amble", help="List of PDF documents to add before the main steuerauszug."),
     post_amble: Optional[List[Path]] = typer.Option(None, "--post-amble", help="List of PDF documents to add after the main steuerauszug."),
@@ -605,6 +606,12 @@ def main(
             if pre_amble or post_amble:
                 main_pdf_path = output_file.with_suffix(".tmp_main.pdf")
 
+            effective_language = language or (
+                general_config_settings.language
+                if general_config_settings
+                else DEFAULT_LANGUAGE
+            )
+
             # Use the render_tax_statement function to generate the PDF
             rendered_path = render_tax_statement(
                 statement,
@@ -618,11 +625,7 @@ def main(
                         else True
                     )
                 ),
-                language=(
-                    general_config_settings.language
-                    if general_config_settings
-                    else DEFAULT_LANGUAGE
-                ),
+                language=effective_language,
             )
             print(f"Rendering successful to {rendered_path}")
 
