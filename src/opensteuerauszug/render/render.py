@@ -1219,7 +1219,9 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     Returns:
         A list of PIL Image objects containing the barcode images
     """ 
-    from pdf417gen import encode_macro, render_image # Changed back to encode_macro
+    from pdf417gen import encode_macro, render_image
+    from pdf417gen.compaction import compact_text
+    from pdf417gen.encoding import encode_optional_field, MACRO_FILE_NAME
     
     # Use the real XML data for proper macro PDF417 generation
     xml = tax_statement.to_xml_bytes()
@@ -1242,11 +1244,15 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     # Given in the guidance
     NUM_COLUMNS = 13
     NUM_ROWS = 35
-    # reserve enough space for file name (it is actually less because of compression, but be safe)
-    # file_name_length = len(file_name)
-    # Issue #239: for now don't include filenames
-    file_name_length = 0
-    capacity = NUM_COLUMNS * NUM_ROWS - FIXED_OVERHEAD - file_name_length
+    # Reserve space for file name by using same word compaction as py417gen does.
+    file_name_compacted = list(compact_text(bytes(file_name, 'utf-8')))
+    # Check if we are using a fixed version of py417gen that does properly compact the file name.
+    # See https://github.com/vroonhof/opensteuerauszug/issues/240
+    if encode_optional_field(MACRO_FILE_NAME, file_name)[2:] != file_name_compacted:
+        raise ValueError("Using too old version of py417gen. Run to fix: 'pip install git+https://github.com/vroonhof/pdf417-py.git'")
+
+    file_name_compacted_word_count = len(file_name_compacted) + 1
+    capacity = NUM_COLUMNS * NUM_ROWS - FIXED_OVERHEAD - file_name_compacted_word_count
     # Byte encoding efficiency is 6 bytes per 5 codewords
     SEGMENT_SIZE = floor((capacity / 5) * 6)
     # Official PDF generator uses 4 * 3 digit (<= 255 each) for file ID
@@ -1259,6 +1265,7 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     codes = encode_macro(
         data,
         file_id=file_id,
+        file_name=file_name,
         columns=NUM_COLUMNS,
         force_rows=NUM_ROWS,
         security_level=4,
