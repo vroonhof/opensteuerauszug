@@ -63,7 +63,7 @@ TRANSLATIONS = {
     # === BANK ACCOUNTS TABLE ===
     'total_bank_accounts': 'Total Bankkonten',
     'designation_bank_account_interest': 'Bezeichnung<br/>Bankkonto<br/>Zinsen',
-    'total_steuerwert': 'Total Steuerwert',
+    'total_tax_value': 'Total Steuerwert',
     'opening': 'Eröffnung {date}',
     'closing': 'Saldierung {date}',
     'value_header': 'Wert<br/>{date}<br/>in CHF',
@@ -128,9 +128,9 @@ Wertschriftenverzeichnis einzusetzen.''',
     'minimal_placeholder': '''Dies ist kein echter Steuerauszug. Dieses Minimaldokument dient nur dazu, die Bankdaten über Barcodes zu importieren. Da die Totale nicht ermittelt werden, wird auf eine Zusammenfassung verzichtet.''',
 
     # === CRITICAL WARNINGS ===
-    'critical_warnings_title': 'CRITICAL WARNINGS / KRITISCHE WARNUNGEN',
-    'warning': 'warning',
-    'warnings': 'warnings',
-    'critical_warnings_hint': 'This statement has <b>{count}</b> critical {plural}. Please review the information pages at the end of this document.',
+    'critical_warnings_title': 'KRITISCHE WARNUNGEN',
+    'warning': 'Warnung',
+    'warnings': 'Warnungen',
+    'critical_warnings_hint': 'Dieser Steuerauszug enthält <b>{count}</b> kritische {plural}. Bitte überprüfen Sie die Informationsseiten am Ende dieses Dokuments.',
 }
 

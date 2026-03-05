@@ -284,7 +284,7 @@ def create_client_info_table(tax_statement: TaxStatement, styles, box_width: flo
     table_data.append([])
 
     # Create table with single column
-    client_table = Table(table_data, colWidths=[box_width / 4, box_width / 4 * 3])
+    client_table = Table(table_data, colWidths=[box_width / 10 * 3, box_width / 10 * 7])
     
     # Style the table to look like the info box - reduced padding to save space
     client_table.setStyle(TableStyle([
@@ -556,7 +556,7 @@ def create_summary_table(data, styles, usable_width):
          "",
          Paragraph(t('instruction_no_da1'), val_left)], # Col 5 << SHIFTED
          # Row 7: Total Values (** SHIFTED RIGHT **, Indices 1, 2, 5 blank)
-        [Paragraph(format_currency_rounded(summary_data.get('total_steuerwert')), val_right), # Col 0
+        [Paragraph(format_currency_rounded(summary_data.get('total_tax_value')), val_right), # Col 0
          '',
          '',
          Paragraph(format_currency_rounded(summary_data.get('total_brutto_mit_vst')), val_right), # Col 3 << SHIFTED
@@ -952,16 +952,30 @@ def create_minimal_placeholder(styles):
     return Paragraph(text, styles['Normal'])
 
 
+def _select_template_file(templates_path: Path, base_name: str, language: str) -> str:
+    preferred = f"{base_name}.{language}.md"
+    if (templates_path / preferred).exists():
+        return preferred
+
+    fallback = f"{base_name}.{DEFAULT_LANGUAGE}.md"
+    if (templates_path / fallback).exists():
+        return fallback
+
+    raise FileNotFoundError(f"No template found for {base_name} in {language} or {DEFAULT_LANGUAGE}")
+
+
 def create_dual_info_boxes(styles, usable_width, minimal: bool = False):
     """Create two side-by-side information boxes for the first page."""
     templates_path = Path(__file__).parent / 'templates'
 
     if minimal:
-        left_file = 'tax_office_minimal.de.md'
-        right_file = 'tax_payer_minimal.en.md'
+        left_base = 'tax_office_minimal'
+        right_base = 'tax_payer_minimal'
     else:
-        left_file = 'tax_office.de.md'
-        right_file = 'tax_payer.en.md'
+        left_base = 'tax_office'
+        right_base = 'tax_payer'
+    left_file = _select_template_file(templates_path, left_base, _current_language)
+    right_file = _select_template_file(templates_path, right_base, _current_language)
 
     with open(templates_path / left_file, 'r', encoding='utf-8') as f:
         left_markdown = f.read()
@@ -1564,7 +1578,7 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         Paragraph(t('usa_withholding'), header_style),
     ]
     
-    col_widths = [22*mm, 54*mm, 20*mm, 18*mm, 18*mm, 14*mm, 18*mm, 22*mm, 8, 22*mm, 8, 22*mm, 25*mm, 25*mm]
+    col_widths = [22*mm, 54*mm, 20*mm, 16*mm, 20*mm, 14*mm, 18*mm, 22*mm, 8, 22*mm, 8, 22*mm, 25*mm, 25*mm]
     col_widths = [1.0*w for w in col_widths]
     assert len(col_widths) == len(table_header)
     # Hide columns not used in this table
@@ -2151,11 +2165,13 @@ def render_tax_statement(
     # Info pages before the barcode
     templates_path = Path(__file__).parent / 'templates'
     if use_minimal_frontpage:
-        tax_office_file = 'tax_office_minimal.de.md'
-        tax_payer_file = 'tax_payer_minimal.en.md'
+        left_base = 'tax_office_minimal'
+        right_base = 'tax_payer_minimal'
     else:
-        tax_office_file = 'tax_office.de.md'
-        tax_payer_file = 'tax_payer.en.md'
+        left_base = 'tax_office'
+        right_base = 'tax_payer'
+    tax_office_file = _select_template_file(templates_path, left_base, _current_language)
+    tax_payer_file = _select_template_file(templates_path, right_base, _current_language)
     with open(templates_path / tax_office_file, 'r', encoding='utf-8') as f:
         tax_office_markdown = f.read()
     with open(templates_path / tax_payer_file, 'r', encoding='utf-8') as f:
