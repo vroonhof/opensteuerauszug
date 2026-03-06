@@ -1,6 +1,7 @@
 from decimal import Decimal
-from typing import Optional, List, Set
+from typing import Optional, List, Set, Protocol, Any, cast
 import logging
+from datetime import date
 
 from ..core.exchange_rate_provider import ExchangeRateProvider
 from ..core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
@@ -55,6 +56,32 @@ NON_TAXABLE_SIGNS: Set[str] = {
     "(KR)",  # Return of Capital
 }
 
+class BaseKurslistePayment(Protocol):
+    paymentDate: Optional[date]
+    currency: str
+    paymentValue: Optional[Decimal]
+    paymentValueCHF: Optional[Decimal]
+    exchangeRate: Optional[Decimal]
+    paymentType: Optional[PaymentTypeESTV]
+    taxEvent: Optional[bool]
+    withHoldingTax: Optional[bool]
+    undefined: Optional[bool]
+    deleted: Optional[bool]
+
+class PaymentWithSign(Protocol):
+    sign: Optional[str]
+
+class PaymentWithExDate(Protocol):
+    exDate: Optional[date]
+
+class PaymentWithGratis(Protocol):
+    gratis: Optional[bool]
+
+class PaymentWithCapitalGain(Protocol):
+    capitalGain: Optional[bool]
+
+class PaymentWithLegend(Protocol):
+    legend: List[Any]
 
 class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
     """
@@ -427,7 +454,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             super().computePayments(security, path_prefix)
             return
 
-        payments = [p for p in kl_sec.payment if not p.deleted]
+        payments: List[BaseKurslistePayment] = [p for p in getattr(kl_sec, "payment", []) if not getattr(p, "deleted", False)]
 
         result: List[SecurityPayment] = []
 
@@ -446,20 +473,21 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 continue
 
             # Capital gains are not relevant for personal income tax and can be omitted.
-            if hasattr(pay, "capitalGain") and pay.capitalGain:
+            if hasattr(pay, "capitalGain") and cast(PaymentWithCapitalGain, pay).capitalGain:
                 continue
 
-            reconciliation_date = pay.exDate or pay.paymentDate
+            ex_date = cast(PaymentWithExDate, pay).exDate if hasattr(pay, "exDate") else None
+            reconciliation_date = ex_date or pay.paymentDate
 
             # Warn if exDate is in the previous year (before the tax period)
-            if pay.exDate and security.taxValue and security.taxValue.referenceDate:
+            if ex_date and security.taxValue and security.taxValue.referenceDate:
                 tax_year = security.taxValue.referenceDate.year
-                if pay.exDate.year < tax_year:
+                if ex_date.year < tax_year:
                     sec_ident = security.isin or security.securityName
                     warning_msg = (
                         f"Payment '{pay.paymentDate}' for security "
                         f"'{sec_ident}' has an ex-date "
-                        f"({pay.exDate}) in the previous year. "
+                        f"({ex_date}) in the previous year. "
                         f"The dividend amount is based on the "
                         f"opening position of the period because "
                         f"mutations from the previous year are not "
@@ -489,7 +517,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 continue
 
             if pay.taxEvent:
-                legends = getattr(pay, "legend", [])
+                legends = cast(PaymentWithLegend, pay).legend if hasattr(pay, "legend") else []
                 split_legend = next(
                     (
                         legend
@@ -520,7 +548,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                         continue
 
             # Validate sign type if present
-            current_sign = pay.sign if hasattr(pay, "sign") else None
+            current_sign = cast(PaymentWithSign, pay).sign if hasattr(pay, "sign") else None
             if current_sign is not None and current_sign not in KNOWN_SIGN_TYPES:
                 raise ValueError(
                     f"Unknown sign type '{current_sign}' for payment on {pay.paymentDate} "
@@ -563,7 +591,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             if pay.undefined:
                 sec_payment = SecurityPayment(
                     paymentDate=pay.paymentDate,
-                    exDate=pay.exDate,
+                    exDate=ex_date,
                     name=payment_name,
                     quotationType=security.quotationType,
                     quantity=quantity,
@@ -572,10 +600,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     payment_type_original=payment_type_original,
                 )
                 sec_payment.undefined = True
-                if pay.sign is not None:
-                    sec_payment.sign = pay.sign
-                if hasattr(pay, "gratis") and pay.gratis is not None:
-                    sec_payment.gratis = pay.gratis
+                if hasattr(pay, "sign") and cast(PaymentWithSign, pay).sign is not None:
+                    sec_payment.sign = cast(PaymentWithSign, pay).sign
+                if hasattr(pay, "gratis") and cast(PaymentWithGratis, pay).gratis is not None:
+                    sec_payment.gratis = cast(PaymentWithGratis, pay).gratis
                 result.append(sec_payment)
                 continue
 
@@ -604,7 +632,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             sec_payment = SecurityPayment(
                 paymentDate=pay.paymentDate,
-                exDate=pay.exDate,
+                exDate=ex_date,
                 name=payment_name,
                 quotationType=security.quotationType,
                 quantity=quantity,
@@ -616,9 +644,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 payment_type_original=payment_type_original,
             )
 
-            # Not all payment subtypes have these fields
-            # TODO: Should the typing be smarter?
-            effective_sign = pay.sign if hasattr(pay, "sign") and pay.sign is not None else None
+            effective_sign = cast(PaymentWithSign, pay).sign if hasattr(pay, "sign") and cast(PaymentWithSign, pay).sign is not None else None
             if self.flag_override_provider and security.isin:
                 override_flag = self.flag_override_provider.get_flag(security.isin)
                 if override_flag:
@@ -630,8 +656,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             sec_payment.sign = effective_sign
 
-            if hasattr(pay, "gratis") and pay.gratis:
-                sec_payment.gratis = pay.gratis
+            if hasattr(pay, "gratis") and cast(PaymentWithGratis, pay).gratis:
+                sec_payment.gratis = cast(PaymentWithGratis, pay).gratis
 
             # Reality vs spec: Real-world files seem to have all three fields set when at least one is set,
             # possibly with zero values, even though our reading of the spec suggests they should be mutually exclusive
