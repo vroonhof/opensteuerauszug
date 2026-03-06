@@ -182,8 +182,10 @@ class TotalCalculator(BaseCalculator):
                         if payment.grossRevenueB is not None: acc_revenue_b += payment.grossRevenueB
                         if payment.withHoldingTaxClaim is not None: acc_withholding += payment.withHoldingTaxClaim
 
-                # Round per-account totals first; list total is sum of rounded account totals
-                # so that the list total equals the sum of values shown in the individual accounts.
+                # Round per-account totals; list total accumulates these same rounded values
+                # so that round_accounting(sum(account.totalX)) == listOf*.totalX.
+                # When round_sub_total is False the raw values are used for accumulation instead,
+                # preserving the alternative rounding behaviour for institutions that require it.
                 rounded_acc_tax_value = round_accounting(acc_tax_value)
                 rounded_acc_revenue_a = round_accounting(acc_revenue_a)
                 rounded_acc_revenue_b = round_accounting(acc_revenue_b)
@@ -195,17 +197,17 @@ class TotalCalculator(BaseCalculator):
                     self._set_field_value(account, 'totalGrossRevenueB', rounded_acc_revenue_b, path)
                     self._set_field_value(account, 'totalWithHoldingTaxClaim', rounded_acc_withholding, path)
 
-                list_tax_value += rounded_acc_tax_value
-                list_revenue_a += rounded_acc_revenue_a
-                list_revenue_b += rounded_acc_revenue_b
-                list_withholding += rounded_acc_withholding
+                list_tax_value += self._round_sub_total(acc_tax_value)
+                list_revenue_a += self._round_sub_total(acc_revenue_a)
+                list_revenue_b += self._round_sub_total(acc_revenue_b)
+                list_withholding += self._round_sub_total(acc_withholding)
 
                 if acc_revenue_a > 0:
-                    list_tax_value_a_summary += rounded_acc_tax_value
+                    list_tax_value_a_summary += self._round_sub_total(acc_tax_value)
                 else:
-                    list_tax_value_b_summary += rounded_acc_tax_value
-                list_revenue_a_summary += rounded_acc_revenue_a
-                list_revenue_b_summary += rounded_acc_revenue_b
+                    list_tax_value_b_summary += self._round_sub_total(acc_tax_value)
+                list_revenue_a_summary += self._round_sub_total(acc_revenue_a)
+                list_revenue_b_summary += self._round_sub_total(acc_revenue_b)
 
             self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalTaxValue', list_tax_value, "listOfBankAccounts")
             self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalGrossRevenueA', list_revenue_a, "listOfBankAccounts")
@@ -236,8 +238,6 @@ class TotalCalculator(BaseCalculator):
                     for payment in account.payment:
                         if payment.grossRevenueB is not None: liab_revenue_b += payment.grossRevenueB
 
-                # Round per-account totals first; list total is sum of rounded account totals
-                # so that the list total equals the sum of values shown in the individual accounts.
                 rounded_liab_value = round_accounting(liab_value)
                 rounded_liab_revenue_b = round_accounting(liab_revenue_b)
 
@@ -245,8 +245,8 @@ class TotalCalculator(BaseCalculator):
                 self._set_field_value(account, 'totalTaxValue', rounded_liab_value, path)
                 self._set_field_value(account, 'totalGrossRevenueB', rounded_liab_revenue_b, path)
 
-                list_tax_value += rounded_liab_value
-                list_revenue_b += rounded_liab_revenue_b
+                list_tax_value += self._round_sub_total(liab_value)
+                list_revenue_b += self._round_sub_total(liab_revenue_b)
 
             # Always set list-level liability totals
             self._round_and_set_field(tax_statement.listOfLiabilities, 'totalTaxValue', list_tax_value, "listOfLiabilities")
