@@ -984,6 +984,230 @@ class TestTotalCalculator:
         missing_fields = expected_modified - calculator.modified_fields
         assert not missing_fields, f"Fields missing from modified_fields: {missing_fields}"
 
+
+class TestRoundingIssue273:
+    """Tests for issue #273: list total must equal round_accounting(sum(account totals)).
+
+    The key invariant: round_accounting(sum(account.totalX)) == listOf*.totalX
+    """
+
+    def _make_bank_account(self, number: str, tax_value: Decimal, revenue_a: Decimal) -> BankAccount:
+        return BankAccount(
+            bankAccountNumber=BankAccountNumber(number),
+            bankAccountName=BankAccountName(f"Account {number}"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("USD"),
+            taxValue=BankAccountTaxValue(
+                referenceDate="2023-12-31",
+                balanceCurrency="USD",
+                balance=tax_value,
+                exchangeRate=Decimal("0.90625"),
+                value=tax_value,
+            ),
+            payment=[
+                BankAccountPayment(
+                    paymentDate="2023-12-31",
+                    name="Interest",
+                    amountCurrency=CurrencyId("USD"),
+                    amount=revenue_a,
+                    exchangeRate=Decimal("1.0"),
+                    grossRevenueA=revenue_a,
+                )
+            ],
+        )
+
+    def _make_tax_statement(self, accounts: list) -> TaxStatement:
+        return TaxStatement(
+            minorVersion=2,
+            id="test-rounding-273",
+            creationDate="2024-01-15T10:00:00",
+            taxPeriod=2023,
+            periodFrom="2023-01-01",
+            periodTo="2023-12-31",
+            canton="ZH",
+            institution={"name": "Test Bank AG"},
+            client=[{
+                "clientNumber": ClientNumber("C001"),
+                "firstName": "Jane",
+                "lastName": "Doe",
+                "salutation": "2",
+            }],
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=accounts),
+            totalTaxValue=None,
+            totalGrossRevenueA=None,
+            totalGrossRevenueB=None,
+            totalWithHoldingTaxClaim=None,
+        )
+
+    def test_bank_account_list_total_consistent_with_rounded_account_totals(self):
+        """Issue #273: list totalTaxValue must be round_accounting(sum(account.totalTaxValue)).
+
+        Per-account tax values from issue #273 (all < 100, rounded to 3 dp by spec):
+          49.9187500 -> 49.919,  6.4500000 -> 6.450,  81.4753125 -> 81.475
+        Sum of rounded: 137.844 -> round_accounting -> 137.84 (>= 100, 2 dp)
+        """
+        from opensteuerauszug.util import round_accounting as ra
+        accounts = [
+            self._make_bank_account("ACC1", Decimal("49.9187500"), Decimal("1.00")),
+            self._make_bank_account("ACC2", Decimal("6.4500000"), Decimal("1.00")),
+            self._make_bank_account("ACC3", Decimal("81.4753125"), Decimal("1.00")),
+        ]
+        tax_statement = self._make_tax_statement(accounts)
+
+        calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
+        result = calculator.calculate(tax_statement)
+
+        acc_totals = [a.totalTaxValue for a in result.listOfBankAccounts.bankAccount]
+        list_total = result.listOfBankAccounts.totalTaxValue
+
+        # The invariant: list_total == round_accounting(sum(account_totals))
+        expected = ra(sum(acc_totals))
+        assert list_total == expected, (
+            f"List totalTaxValue ({list_total}) != round_accounting(sum(account totals)) "
+            f"(round_accounting({sum(acc_totals)}) = {expected})"
+        )
+
+    def test_bank_account_rounding_threshold_crossing(self):
+        """Issue #273: list total is correct when rounded per-account values cross the 100 threshold.
+
+        raw per-account: 49.9995 each
+          round_accounting(49.9995) = 50.000  (< 100, 3 dp, ROUND_HALF_UP)
+          sum(rounded) = 100.000 -> round_accounting = 100.00  (>= 100, 2 dp)
+        """
+        from opensteuerauszug.util import round_accounting as ra
+        accounts = [
+            self._make_bank_account("ACC1", Decimal("49.9995"), Decimal("1.00")),
+            self._make_bank_account("ACC2", Decimal("49.9995"), Decimal("1.00")),
+        ]
+        tax_statement = self._make_tax_statement(accounts)
+
+        calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
+        result = calculator.calculate(tax_statement)
+
+        acc_totals = [a.totalTaxValue for a in result.listOfBankAccounts.bankAccount]
+        list_total = result.listOfBankAccounts.totalTaxValue
+
+        # Each account rounds from 49.9995 -> 50.000 (ROUND_HALF_UP at 3 dp)
+        assert acc_totals[0] == Decimal("50.000")
+        assert acc_totals[1] == Decimal("50.000")
+
+        expected = ra(sum(acc_totals))   # round_accounting(100.000) = 100.00
+        assert list_total == expected, (
+            f"List totalTaxValue ({list_total}) != round_accounting(sum(acc_totals)) (= {expected})"
+        )
+        assert list_total == Decimal("100.00"), f"Expected 100.00 but got {list_total}"
+
+    def test_bank_account_list_revenue_consistent_with_rounded_account_revenues(self):
+        """Issue #273: list totalGrossRevenueA == round_accounting(sum(account revenues))."""
+        from opensteuerauszug.util import round_accounting as ra
+        accounts = [
+            self._make_bank_account("ACC1", Decimal("10.00"), Decimal("0.3333333")),
+            self._make_bank_account("ACC2", Decimal("10.00"), Decimal("0.3333333")),
+            self._make_bank_account("ACC3", Decimal("10.00"), Decimal("0.3333334")),
+        ]
+        tax_statement = self._make_tax_statement(accounts)
+
+        calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
+        result = calculator.calculate(tax_statement)
+
+        acc_revenues = [a.totalGrossRevenueA for a in result.listOfBankAccounts.bankAccount]
+        list_revenue = result.listOfBankAccounts.totalGrossRevenueA
+
+        expected = ra(sum(acc_revenues))
+        assert list_revenue == expected, (
+            f"List totalGrossRevenueA ({list_revenue}) != round_accounting(sum(account revenues)) "
+            f"({acc_revenues} -> sum={sum(acc_revenues)} -> rounded={expected})"
+        )
+
+    def test_liability_list_total_consistent_with_rounded_account_totals(self):
+        """Issue #273: listOfLiabilities.totalTaxValue == round_accounting(sum(liability totals))."""
+        from opensteuerauszug.util import round_accounting as ra
+        liability1 = LiabilityAccount(
+            bankAccountNumber=BankAccountNumber("L001"),
+            bankAccountName=BankAccountName("Mortgage 1"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            totalTaxValue=PositiveDecimal("1.00"),   # placeholder; OVERWRITE will replace
+            totalGrossRevenueB=PositiveDecimal("0.00"),
+            taxValue=LiabilityAccountTaxValue(
+                referenceDate="2023-12-31",
+                balanceCurrency="CHF",
+                balance=Decimal("49999.6187500"),
+                exchangeRate=Decimal("1.0"),
+                value=Decimal("49999.6187500"),
+            ),
+            payment=[],
+        )
+        liability2 = LiabilityAccount(
+            bankAccountNumber=BankAccountNumber("L002"),
+            bankAccountName=BankAccountName("Mortgage 2"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            totalTaxValue=PositiveDecimal("1.00"),   # placeholder; OVERWRITE will replace
+            totalGrossRevenueB=PositiveDecimal("0.00"),
+            taxValue=LiabilityAccountTaxValue(
+                referenceDate="2023-12-31",
+                balanceCurrency="CHF",
+                balance=Decimal("50000.3875000"),
+                exchangeRate=Decimal("1.0"),
+                value=Decimal("50000.3875000"),
+            ),
+            payment=[],
+        )
+
+        tax_statement = TaxStatement(
+            minorVersion=2,
+            id="test-rounding-liabilities-273",
+            creationDate="2024-01-15T10:00:00",
+            taxPeriod=2023,
+            periodFrom="2023-01-01",
+            periodTo="2023-12-31",
+            canton="ZH",
+            institution={"name": "Test Bank AG"},
+            client=[{
+                "clientNumber": ClientNumber("C001"),
+                "firstName": "Jane",
+                "lastName": "Doe",
+                "salutation": "2",
+            }],
+            listOfLiabilities=ListOfLiabilities(liabilityAccount=[liability1, liability2]),
+            totalTaxValue=None,
+            totalGrossRevenueA=None,
+            totalGrossRevenueB=None,
+            totalWithHoldingTaxClaim=None,
+        )
+
+        calculator = TotalCalculator(mode=CalculationMode.OVERWRITE)
+        result = calculator.calculate(tax_statement)
+
+        liab_totals = [a.totalTaxValue for a in result.listOfLiabilities.liabilityAccount]
+        list_total = result.listOfLiabilities.totalTaxValue
+
+        expected = ra(sum(liab_totals))
+        assert list_total == expected, (
+            f"List totalTaxValue ({list_total}) != round_accounting(sum(liability totals)) "
+            f"({liab_totals} -> sum={sum(liab_totals)} -> rounded={expected})"
+        )
+
+    def test_verify_mode_consistent_with_overwrite(self):
+        """Issue #273: VERIFY mode should pass for a statement produced by OVERWRITE mode."""
+        accounts = [
+            self._make_bank_account("ACC1", Decimal("49.9995"), Decimal("1.00")),
+            self._make_bank_account("ACC2", Decimal("49.9995"), Decimal("1.00")),
+        ]
+        tax_statement = self._make_tax_statement(accounts)
+
+        overwrite_calc = TotalCalculator(mode=CalculationMode.OVERWRITE)
+        overwrite_calc.calculate(tax_statement)
+
+        verify_calc = TotalCalculator(mode=CalculationMode.VERIFY)
+        verify_calc.calculate(tax_statement)
+
+        assert not verify_calc.errors, (
+            f"VERIFY mode found errors after OVERWRITE: {[str(e) for e in verify_calc.errors]}"
+        )
+
+
 # Integration tests using real sample files
 class TestTotalCalculatorIntegration:
     
