@@ -42,4 +42,4 @@ correggere e/o completare i calcoli fiscali rilevanti.
 ## Richieste / suggerimenti di miglioramento
 
 L'autore spera di facilitare il lavoro di tutte le parti. Richieste /
-suggerimenti di miglioramento sono accettati tramite Github.
+suggerimenti di miglioramento sono accettati tramite GitHub.

@@ -63,7 +63,6 @@ TRANSLATIONS = {
     # === BANK ACCOUNTS TABLE ===
     "total_bank_accounts": "Totale conti bancari",
     "designation_bank_account_interest": "Descrizione<br/>Conto bancario<br/>Interessi",
-    "total_tax_value": "Totale valore fiscale",
     "opening": "Apertura {date}",
     "closing": "Chiusura {date}",
     "value_header": "Valore<br/>{date}<br/>in CHF",
@@ -83,8 +82,8 @@ TRANSLATIONS = {
     "tax_value_revenue_header": "Valore fiscale<br/>Reddito",
     "gross_revenue_with_vst_header": "<b>Reddito lordo</b><br/>{year} con IP<br/>in CHF",
     "gross_revenue_without_vst_header": "<b>Reddito lordo</b><br/>{year} senza IP<br/>in CHF",
-    "gross_revenue_with_vst_year": "<b>Reddito lordo</b> {year} con IP<br/> in CHF",
-    "gross_revenue_without_vst_year": "<b>Reddito lordo</b> {year} senza IP<br/> in CHF",
+    "gross_revenue_with_vst_year": "<b>Reddito lordo</b> {year} con IP<br/>in CHF",
+    "gross_revenue_without_vst_year": "<b>Reddito lordo</b> {year} senza IP<br/>in CHF",
     "depot": "<b>Deposito {number}</b>",
     "balance": "Saldo",
     "stock_tax_value_revenue": "Saldo / valore fiscale / Reddito lordo",
@@ -96,7 +95,7 @@ TRANSLATIONS = {
 
     # === LIABILITIES TABLE ===
     "designation_liabilities_interest": "Descrizione<br/>Debiti<br/>Interessi",
-    "liabilities_amount_interest_header": "Debiti<br/>Interessi<br/> passivi",
+    "liabilities_amount_interest_header": "Debiti<br/>Interessi<br/>passivi",
     "liabilities_amount_header": "<b>Debiti</b><br/>{date}<br/>in CHF",
     "liabilities_interest_header": "<b>Interessi passivi</b><br/>{year}<br/>in CHF",
     "tax_value_liabilities_interest": "Debito / Interessi passivi",

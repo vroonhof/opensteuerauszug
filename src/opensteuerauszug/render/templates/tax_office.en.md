@@ -42,4 +42,4 @@ correct and/or complete the tax-relevant calculations.
 ## Requests / suggestions for improvement
 
 The author hopes to make the work of all parties easier. Requests /
-suggestions for improvement are accepted via Github.
+suggestions for improvement are accepted via GitHub.
