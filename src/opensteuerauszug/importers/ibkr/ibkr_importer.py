@@ -893,7 +893,7 @@ class IbkrImporter:
                     )
                 else:
                     raise ValueError(
-                        f"Negative balance computed for security {sec_pos_obj.symbol}. In case you expect short positions, please report this to the developers for further investigation."
+                        f"Negative balance computed for security {sec_pos_obj.symbol} with {asset_cat}/{sub_category}. In case you expect short positions, please report this to the developers for further investigation."
                         f" (start {opening_balance}, end {closing_balance})"
                     )
 
