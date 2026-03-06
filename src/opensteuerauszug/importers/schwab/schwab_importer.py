@@ -120,7 +120,8 @@ class SchwabImporter:
         initial_reconciler = PositionReconciler(list(initial_pos_stocks), identifier=f"{current_identifier}-initial_check")
         is_consistent_initial, _ = initial_reconciler.check_consistency(
             print_log=True,
-            raise_on_error=self.strict_consistency
+            raise_on_error=self.strict_consistency,
+            assume_zero_if_no_balances=True
         )
         if not is_consistent_initial and not self.strict_consistency:
             logger.warning(f"[{current_identifier}] Initial consistency check on raw data failed. Review logs. Proceeding with synthesis.")
@@ -129,7 +130,9 @@ class SchwabImporter:
 
         # 2. Ensure start-of-period balance
         reconciler_for_start = PositionReconciler(list(live_stocks_list), identifier=f"{current_identifier}-start_synth")
-        start_pos_synth = reconciler_for_start.synthesize_position_at_date(self.period_from)
+        start_pos_synth = reconciler_for_start.synthesize_position_at_date(
+            self.period_from, assume_zero_if_no_balances=True
+        )
         has_start_balance = any(not s.mutation and s.referenceDate == self.period_from for s in live_stocks_list)
 
         if not has_start_balance:
@@ -162,7 +165,9 @@ class SchwabImporter:
         # 3. Ensure end-of-period balance
         effective_period_end_date = self.period_to + timedelta(days=1)
         reconciler_for_end = PositionReconciler(list(live_stocks_list), identifier=f"{current_identifier}-end_synth")
-        end_pos_synth = reconciler_for_end.synthesize_position_at_date(effective_period_end_date)
+        end_pos_synth = reconciler_for_end.synthesize_position_at_date(
+            effective_period_end_date, assume_zero_if_no_balances=True
+        )
         has_end_balance = any(not s.mutation and s.referenceDate == effective_period_end_date for s in live_stocks_list)
 
         if not has_end_balance and end_pos_synth:

@@ -49,6 +49,28 @@ class TestPositionReconciler(unittest.TestCase):
             reconciler.check_consistency(raise_on_error=True)
         self.assertIn("No balance statement (mutation=False) found", str(context.exception))
 
+    def test_no_balance_statement_can_assume_zero_when_mutations_net_to_zero(self):
+        stocks = [
+            create_stock("2023-01-01", "5", True, name="Buy"),
+            create_stock("2023-01-10", "-5", True, name="Sell"),
+        ]
+        reconciler = PositionReconciler(stocks, identifier="NO_BALANCE_ASSUME_ZERO_OK")
+        is_consistent, _ = reconciler.check_consistency(
+            raise_on_error=True,
+            assume_zero_if_no_balances=True,
+        )
+        self.assertTrue(is_consistent)
+
+    def test_no_balance_statement_assume_zero_requires_zero_final_quantity(self):
+        stocks = [create_stock("2023-01-01", "5", True, name="Buy")]
+        reconciler = PositionReconciler(stocks, identifier="NO_BALANCE_ASSUME_ZERO_FAIL")
+        with self.assertRaises(ValueError) as context:
+            reconciler.check_consistency(
+                raise_on_error=True,
+                assume_zero_if_no_balances=True,
+            )
+        self.assertIn("final quantity is", str(context.exception))
+
     def test_simple_consistency_ok(self):
         stocks = [
             create_stock("2023-01-01", "100", False, name="Opening Balance"),

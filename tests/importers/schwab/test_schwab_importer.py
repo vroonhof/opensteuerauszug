@@ -527,6 +527,73 @@ class TestSchwabImporterProcessing(unittest.TestCase):
                 tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
                 self.assertIsNotNone(tax_statement)
 
+    def test_mutation_only_security_history_does_not_fail_initial_reconciliation(self):
+        test_depot_str = "DP3"
+        period_from_date = date(2025, 1, 1)
+        period_to_date = date(2025, 12, 31)
+
+        vt_pos = SecurityPosition(depot=test_depot_str, symbol="VT", type="security")
+        vt_buy = SecurityStock(
+            referenceDate=date(2025, 11, 19),
+            mutation=True,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("10"),
+            name="Buy",
+        )
+        vt_transfer_out = SecurityStock(
+            referenceDate=date(2025, 12, 1),
+            mutation=True,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("-10"),
+            name="Transfer (Shares)",
+        )
+        mock_transaction_data = [
+            (vt_pos, [vt_buy, vt_transfer_out], None, test_depot_str, (period_from_date, period_to_date))
+        ]
+
+        # Provide at least one statement date in range for depot coverage validation,
+        # without providing a VT balance snapshot.
+        statement_pos = SecurityPosition(depot=test_depot_str, symbol="QQQ", type="security")
+        statement_stock = SecurityStock(
+            referenceDate=period_from_date,
+            mutation=False,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("1"),
+            name="Opening Balance",
+        )
+        statement_result = ([(statement_pos, statement_stock)], period_from_date, period_from_date, test_depot_str)
+
+        with patch('opensteuerauszug.importers.schwab.schwab_importer.TransactionExtractor') as MockTransactionExtractor:
+            mock_extractor_instance = MockTransactionExtractor.return_value
+            mock_extractor_instance.extract_transactions.return_value = mock_transaction_data
+
+            with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
+                mock_statement_instance = MockStatementExtractor.return_value
+                mock_statement_instance.extract_positions.return_value = statement_result
+
+                importer_settings = [
+                    SchwabAccountSettings(account_number="DP3", account_name_alias="dp3_alias", broker_name="schwab", canton="ZH", full_name="Test User")
+                ]
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=importer_settings, strict_consistency=True)
+                tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
+
+        self.assertIsNotNone(tax_statement)
+        self.assertIsNotNone(tax_statement.listOfSecurities)
+        assert tax_statement.listOfSecurities is not None
+
+        vt_securities = [
+            sec
+            for depot in tax_statement.listOfSecurities.depot
+            for sec in depot.security
+            if sec.symbol == "VT"
+        ]
+        self.assertEqual(len(vt_securities), 1)
+        vt_stock_quantities = [stock.quantity for stock in vt_securities[0].stock]
+        self.assertIn(Decimal("-10"), vt_stock_quantities)
+
 class TestSchwabImporterBankAccountNames(unittest.TestCase):
     """Test that bank account names are always set for all bank accounts."""
 
