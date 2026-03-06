@@ -986,12 +986,7 @@ class TestTotalCalculator:
 
 
 class TestRoundingIssue273:
-    """Tests for issue #273: list total must equal round_accounting(sum(rounded account totals)).
-
-    The spec requires rounding only after summing. When individual account totals are rounded
-    (per the spec's decimal-place rules), the list-level total must be derived from those
-    rounded values - not from the raw (unrounded) values - so that the computed list total
-    is consistent with the stored account-level totals.
+    """Tests for issue #273: list total must equal round_accounting(sum(account totals)).
 
     The key invariant: round_accounting(sum(account.totalX)) == listOf*.totalX
     """
@@ -1047,14 +1042,9 @@ class TestRoundingIssue273:
     def test_bank_account_list_total_consistent_with_rounded_account_totals(self):
         """Issue #273: list totalTaxValue must be round_accounting(sum(account.totalTaxValue)).
 
-        Raw per-account tax values (from issue #273):
-          49.9187500, 6.4500000, 81.4753125  (all < 100 -> 3 dp by spec)
-        Each rounded: 49.919, 6.450, 81.475
-        Sum of rounded: 137.844  -> round_accounting -> 137.84  (>= 100, 2 dp)
-
-        The list total must be round_accounting applied to the sum of the stored
-        (already-rounded) account totals, NOT round_accounting of the sum of raw values.
-        Both coincide here but the invariant must hold for all inputs.
+        Per-account tax values from issue #273 (all < 100, rounded to 3 dp by spec):
+          49.9187500 -> 49.919,  6.4500000 -> 6.450,  81.4753125 -> 81.475
+        Sum of rounded: 137.844 -> round_accounting -> 137.84 (>= 100, 2 dp)
         """
         from opensteuerauszug.util import round_accounting as ra
         accounts = [
@@ -1078,19 +1068,11 @@ class TestRoundingIssue273:
         )
 
     def test_bank_account_rounding_threshold_crossing(self):
-        """Issue #273: critical case where rounding raw sum vs rounded sum differ.
-
-        When individual values (< 100, rounded to 3 dp) each round UP and their raw sum
-        stays < 100 while their rounded sum crosses 100, the two approaches give different
-        list totals.  The correct result uses the rounded per-account values.
+        """Issue #273: list total is correct when rounded per-account values cross the 100 threshold.
 
         raw per-account: 49.9995 each
-          round_accounting(49.9995) = 50.000  (< 100, 3 dp, rounds up at 4th decimal)
-          sum(raw) = 99.999  -> round_accounting = 99.999  (< 100, 3 dp)  [OLD, WRONG]
-          sum(rounded) = 100.000 -> round_accounting = 100.00  (>= 100, 2 dp) [NEW, CORRECT]
-
-        The old code would set list_total=99.999 while account totals are each 50.000,
-        causing the invariant round_accounting(sum(acc_totals)) != list_total to fail.
+          round_accounting(49.9995) = 50.000  (< 100, 3 dp, ROUND_HALF_UP)
+          sum(rounded) = 100.000 -> round_accounting = 100.00  (>= 100, 2 dp)
         """
         from opensteuerauszug.util import round_accounting as ra
         accounts = [
@@ -1109,22 +1091,15 @@ class TestRoundingIssue273:
         assert acc_totals[0] == Decimal("50.000")
         assert acc_totals[1] == Decimal("50.000")
 
-        # List total must be round_accounting(50.000 + 50.000) = round_accounting(100.000) = 100.00
-        # NOT round_accounting(49.9995 + 49.9995) = round_accounting(99.999) = 99.999
         expected = ra(sum(acc_totals))   # round_accounting(100.000) = 100.00
         assert list_total == expected, (
-            f"List totalTaxValue ({list_total}) != round_accounting(sum(acc_totals)) "
-            f"(= {expected}). This is the issue #273 rounding bug."
+            f"List totalTaxValue ({list_total}) != round_accounting(sum(acc_totals)) (= {expected})"
         )
-        # Explicit check: must be 100.00, not 99.999
-        assert list_total == Decimal("100.00"), (
-            f"Expected 100.00 but got {list_total}"
-        )
+        assert list_total == Decimal("100.00"), f"Expected 100.00 but got {list_total}"
 
     def test_bank_account_list_revenue_consistent_with_rounded_account_revenues(self):
         """Issue #273: list totalGrossRevenueA == round_accounting(sum(account revenues))."""
         from opensteuerauszug.util import round_accounting as ra
-        # 0.3333333 * 3 rounds differently depending on order of operations
         accounts = [
             self._make_bank_account("ACC1", Decimal("10.00"), Decimal("0.3333333")),
             self._make_bank_account("ACC2", Decimal("10.00"), Decimal("0.3333333")),
