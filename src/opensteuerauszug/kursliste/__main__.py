@@ -1,10 +1,17 @@
 import typer
 import logging
+import os
 from pathlib import Path
 from typing import Optional
-from .downloader import download_kursliste
+from .downloader import download_kursliste, get_latest_initial_export
 from ..config.paths import resolve_kursliste_dir, get_app_data_dir
-from .converter import convert_kursliste_xml_to_sqlite
+from ..model.kursliste import KurslisteMetadata
+from .converter import (
+    CONVERTER_SCHEMA_VERSION,
+    convert_kursliste_xml_to_sqlite,
+    read_kursliste_metadata,
+    read_metadata_value,
+)
 
 app = typer.Typer(help="Manage Kursliste files.")
 
@@ -34,20 +41,47 @@ def download(
         if not effective_destination.exists():
             effective_destination.mkdir(parents=True, exist_ok=True)
 
-        xml_path = download_kursliste(year, effective_destination)
-        print(f"Successfully downloaded Kursliste for {year} to {xml_path}")
+        latest_export = get_latest_initial_export(year)
+        latest_kursliste_metadata = KurslisteMetadata(
+            newest_file_hash=latest_export["file_hash"],
+            file_id=latest_export["file_id"],
+            file_name=latest_export["file_name"],
+            export_type_short_name=latest_export.get("export_type_short_name"),
+        )
+        sqlite_path = effective_destination / f"kursliste_{year}.sqlite"
+
+        if convert and sqlite_path.exists():
+            metadata = read_kursliste_metadata(sqlite_path)
+            converter_schema_version = read_metadata_value(
+                sqlite_path, "converter_schema_version"
+            )
+            if (
+                metadata is not None
+                and metadata.newest_file_hash == latest_kursliste_metadata.newest_file_hash
+                and converter_schema_version == CONVERTER_SCHEMA_VERSION
+            ):
+                logging.info(f"Kursliste for {year} is already up-to-date "
+                    f"(archive hash {latest_kursliste_metadata.newest_file_hash}). "
+                    "Skipping download and conversion.")
+                return
+
+        xml_path = download_kursliste(year, effective_destination, export_info=latest_export)
+        logging.info(f"Successfully downloaded Kursliste for {year} to {xml_path}")
 
         if convert:
-            sqlite_path = xml_path.with_suffix(".sqlite")
-            print(f"Converting {xml_path.name} to {sqlite_path.name}...")
+            logging.info(f"Converting {xml_path.name} to {sqlite_path.name}...")
             try:
-                convert_kursliste_xml_to_sqlite(xml_path, sqlite_path)
-                print(f"Successfully converted to {sqlite_path}")
+                if sqlite_path.exists():
+                    os.remove(sqlite_path)
+                convert_kursliste_xml_to_sqlite(
+                    xml_path, sqlite_path, kursliste_metadata=latest_kursliste_metadata
+                )
+                logging.info(f"Successfully converted to {sqlite_path}")
             except Exception as ce:
-                print(f"Warning: Failed to convert Kursliste to SQLite: {ce}")
+                logging.error(f"Failed to convert Kursliste to SQLite: {ce}")
 
     except Exception as e:
-        print(f"Error downloading Kursliste: {e}")
+        logging.error(f"Error downloading Kursliste: {e}")
         raise typer.Exit(code=1)
 
 @app.command()
@@ -64,11 +98,11 @@ def convert(
         output_sqlite = input_xml.with_suffix(".sqlite")
 
     try:
-        print(f"Converting {input_xml} to {output_sqlite}...")
+        logging.info(f"Converting {input_xml} to {output_sqlite}...")
         convert_kursliste_xml_to_sqlite(input_xml, output_sqlite)
-        print(f"Successfully converted to {output_sqlite}")
+        logging.info(f"Successfully converted to {output_sqlite}")
     except Exception as e:
-        print(f"Error converting Kursliste: {e}")
+        logging.error(f"Error converting Kursliste: {e}")
         raise typer.Exit(code=1)
 
 if __name__ == "__main__":
