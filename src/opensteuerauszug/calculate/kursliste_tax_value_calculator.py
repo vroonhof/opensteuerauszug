@@ -82,6 +82,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             self.kursliste_manager = exchange_rate_provider.kursliste_manager
         self.flag_override_provider = flag_override_provider
         self._current_kursliste_security = None
+        self._current_security_is_zero_balance_option = False
         self._missing_kursliste_entries = []
         self._stock_split_warnings: List[dict] = []
         self._previous_year_exdate_warnings = []
@@ -136,6 +137,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
     def _handle_Security(self, security: Security, path_prefix: str) -> None:
         self._current_kursliste_security = None
+        self._current_security_is_zero_balance_option = False
 
         if not self.kursliste_manager:
             super()._handle_Security(security, path_prefix)
@@ -180,8 +182,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 else security.securityName
             )
 
-            # Check if this is a rights issue that we should ignore if not found
+            # Check if this is a rights issue or zero-balance option that we should ignore if not found
             is_rights = security.is_rights_issue
+            is_option = security.securityCategory == "OPTION"
             closing_balance = Decimal("0")
 
             if security.taxValue:
@@ -192,6 +195,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     "Suppressing missing Kursliste warning for rights issue %s with zero balance.",
                     ident,
                 )
+            elif is_option and closing_balance == 0:
+                logger.debug(
+                    "Suppressing missing Kursliste warning for option %s with zero balance.",
+                    ident,
+                )
+                self._current_security_is_zero_balance_option = True
             else:
                 self._missing_kursliste_entries.append(ident)
 
@@ -214,6 +223,17 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     self._set_field_value(sec_tax_value, "balanceCurrency", "CHF", path_prefix)
                     self._set_field_value(sec_tax_value, "kursliste", True, path_prefix)
                     return
+        elif self._current_security_is_zero_balance_option:
+            # The option position was fully closed before year-end: value is definitively 0.
+            # Compute the exchange rate for the currency so the report shows a proper CHF value.
+            if sec_tax_value.balanceCurrency and sec_tax_value.referenceDate:
+                _, rate = self._convert_to_chf(
+                    None, sec_tax_value.balanceCurrency, path_prefix, sec_tax_value.referenceDate
+                )
+                self._set_field_value(sec_tax_value, "unitPrice", Decimal("0"), path_prefix)
+                self._set_field_value(sec_tax_value, "value", Decimal("0"), path_prefix)
+                self._set_field_value(sec_tax_value, "exchangeRate", rate, path_prefix)
+            return
         else:
             self._set_field_value(sec_tax_value, "undefined", True, path_prefix)
 
