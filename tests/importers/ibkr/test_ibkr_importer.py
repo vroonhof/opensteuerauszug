@@ -174,6 +174,24 @@ SAMPLE_IBKR_FLEX_XML_TRANSFER_WRONG_SIGN = """
 </FlexQueryResponse>
 """
 
+# Cancelled OUT transfer (code="Ca") with positive quantity, plus the original and a later successful transfer
+SAMPLE_IBKR_FLEX_XML_TRANSFER_CANCELLED_OUT = """
+<FlexQueryResponse queryName="TransferCancelledQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <Transfers>
+        <Transfer accountId="U1234567" acctAlias="" model="" currency="USD" fxRateToBase="0.83785" assetCategory="STK" subCategory="ETF" symbol="VWO" description="VANGUARD FTSE EMERGING MARKE" conid="11111111" securityID="US9220428588" securityIDType="ISIN" cusip="922042858" isin="US9220428588" figi="BBG000HT88C8" listingExchange="ARCA" underlyingConid="" underlyingSymbol="VWO" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" reportDate="20250516" date="20250512" dateTime="20250512" settleDate="20250516" type="FOP" direction="OUT" company="--" account="222222" accountName="" deliveringBroker="0908" quantity="58" transferPrice="0" positionAmount="2682.5" positionAmountInBase="2247.532625" pnlAmount="0" pnlAmountInBase="0" cashTransfer="0" code="Ca" clientReference="" transactionID="32922449542" levelOfDetail="TRANSFER" positionInstructionID="" positionInstructionSetID="" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+        <Transfer accountId="U1234567" acctAlias="" model="" currency="USD" fxRateToBase="0.8358" assetCategory="STK" subCategory="ETF" symbol="VWO" description="VANGUARD FTSE EMERGING MARKE" conid="11111111" securityID="US9220428588" securityIDType="ISIN" cusip="922042858" isin="US9220428588" figi="BBG000HT88C8" listingExchange="ARCA" underlyingConid="" underlyingSymbol="VWO" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" reportDate="20250515" date="20250512" dateTime="20250512" settleDate="20250516" type="FOP" direction="OUT" company="--" account="222222" accountName="" deliveringBroker="0908" quantity="-58" transferPrice="0" positionAmount="-2682.5" positionAmountInBase="-2242.0335" pnlAmount="0" pnlAmountInBase="0" cashTransfer="0" code="" clientReference="" transactionID="32898112287" levelOfDetail="TRANSFER" positionInstructionID="" positionInstructionSetID="" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+        <Transfer accountId="U1234567" acctAlias="" model="" currency="USD" fxRateToBase="0.83785" assetCategory="STK" subCategory="ETF" symbol="VWO" description="VANGUARD FTSE EMERGING MARKE" conid="11111111" securityID="US9220428588" securityIDType="ISIN" cusip="922042858" isin="US9220428588" figi="BBG000HT88C8" listingExchange="ARCA" underlyingConid="" underlyingSymbol="VWO" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" reportDate="20250516" date="20250516" dateTime="20250516" settleDate="20250516" type="FOP" direction="OUT" company="--" account="222222" accountName="" deliveringBroker="0908" quantity="-58" transferPrice="0" positionAmount="-2765.44" positionAmountInBase="-2317.023904" pnlAmount="0" pnlAmountInBase="0" cashTransfer="0" code="" clientReference="" transactionID="32922449578" levelOfDetail="TRANSFER" positionInstructionID="" positionInstructionSetID="" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+      </Transfers>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
 # Inbound position transfer with no other transactions - just Transfer + OpenPosition
 SAMPLE_IBKR_FLEX_XML_TRANSFER_ONLY_WITH_OPEN_POSITION = """
 <FlexQueryResponse queryName="TransferOnlyQuery" type="AF">
@@ -2230,3 +2248,136 @@ def test_trade_unit_price_various_nonzero_and_zero_prices(sample_ibkr_settings):
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
 
+
+def test_broker_interest_paid_debit_creates_bank_payment(caplog):
+    """Test that negative broker interest payments with '<CURRENCY> DEBIT INT FOR' description create bank payments."""
+    xml_content = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <CashTransactions>
+        <CashTransaction accountId="U1234567" type="Broker Interest Paid" currency="USD" amount="-2.01" description="USD DEBIT INT FOR OCT-2025" conid="" symbol="" dateTime="2025-11-05T00:00:00" assetCategory="" levelOfDetail="DETAIL" />
+        <CashTransaction accountId="U1234567" type="Broker Interest Paid" currency="EUR" amount="-1.50" description="EUR DEBIT INT FOR SEP-2025" conid="" symbol="" dateTime="2025-10-05T00:00:00" assetCategory="" levelOfDetail="DETAIL" />
+        <CashTransaction accountId="U1234567" type="Broker Interest Paid" currency="CHF" amount="-3.19" description="CHF CREDIT INT FOR AUG-2025" conid="" symbol="" dateTime="2025-09-04T00:00:00" assetCategory="" levelOfDetail="DETAIL" />
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" startingCash="100.00" endingCash="97.99" fromDate="2025-01-01" toDate="2025-12-31" />
+        <CashReportCurrency accountId="U1234567" currency="EUR" startingCash="50.00" endingCash="48.50" fromDate="2025-01-01" toDate="2025-12-31" />
+        <CashReportCurrency accountId="U1234567" currency="CHF" startingCash="100.00" endingCash="96.81" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as tmp_file:
+        tmp_file.write(xml_content)
+        xml_file_path = tmp_file.name
+
+    try:
+        settings = [
+            IbkrAccountSettings(
+                account_number="U1234567",
+                broker_name="Interactive Brokers",
+                account_name_alias="Test Account",
+                canton="ZH",
+                full_name="Test User",
+            )
+        ]
+
+        importer = IbkrImporter(
+            period_from=date(2025, 1, 1),
+            period_to=date(2025, 12, 31),
+            account_settings_list=settings
+        )
+
+        import logging
+        caplog.set_level(logging.WARNING)
+
+        tax_statement = importer.import_files([xml_file_path])
+
+        # Check that bank accounts exist
+        assert tax_statement.listOfBankAccounts is not None
+        bank_accounts = tax_statement.listOfBankAccounts.bankAccount
+
+        # Check USD DEBIT INT FOR creates a bank payment
+        usd_account = next((ba for ba in bank_accounts if ba.bankAccountCurrency == "USD"), None)
+        assert usd_account is not None, "USD bank account should exist"
+
+        usd_debit_payment = next(
+            (p for p in usd_account.payment if "USD DEBIT INT FOR OCT-2025" in p.name),
+            None
+        )
+        assert usd_debit_payment is not None, "USD DEBIT INT FOR should create a bank payment"
+        assert usd_debit_payment.amount == Decimal("-2.01")
+
+        # Check EUR DEBIT INT FOR creates a bank payment
+        eur_account = next((ba for ba in bank_accounts if ba.bankAccountCurrency == "EUR"), None)
+        assert eur_account is not None, "EUR bank account should exist"
+
+        eur_debit_payment = next(
+            (p for p in eur_account.payment if "EUR DEBIT INT FOR SEP-2025" in p.name),
+            None
+        )
+        assert eur_debit_payment is not None, "EUR DEBIT INT FOR should create a bank payment"
+        assert eur_debit_payment.amount == Decimal("-1.50")
+
+        # Check that CHF CREDIT INT FOR logs a warning and does NOT create a bank payment
+        chf_account = next((ba for ba in bank_accounts if ba.bankAccountCurrency == "CHF"), None)
+        assert chf_account is not None, "CHF bank account should exist"
+
+        chf_payment = next(
+            (p for p in chf_account.payment if "CHF CREDIT INT FOR" in p.name),
+            None
+        )
+        assert chf_payment is None, "CHF CREDIT INT FOR should NOT create a bank payment"
+
+        # Check that a warning was logged for the CHF transaction
+        assert any("CHF CREDIT INT FOR AUG-2025" in record.message and "is not handled" in record.message
+                   for record in caplog.records), "Warning should be logged for CHF CREDIT INT FOR"
+
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_cancelled_out_transfer_is_allowed_and_labelled(sample_ibkr_settings):
+    """
+    Cancelled OUT transfers (code="Ca") have a positive quantity despite direction=OUT.
+    They should not raise a ValueError and should have "(Cancelled)" appended to the mutation name.
+    """
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_TRANSFER_CANCELLED_OUT)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        depot = tax_statement.listOfSecurities.depot[0]
+        vwo_sec = next(
+            (s for s in depot.security if "VWO" in s.securityName),
+            None,
+        )
+        assert vwo_sec is not None
+        mutations = [s for s in vwo_sec.stock if s.mutation]
+        assert len(mutations) == 3
+
+        cancelled_mutation = next((m for m in mutations if "(Cancelled)" in (m.name or "")), None)
+        assert cancelled_mutation is not None
+        assert cancelled_mutation.quantity == Decimal("58")
+
+        non_cancelled_mutations = [m for m in mutations if "(Cancelled)" not in (m.name or "")]
+        assert len(non_cancelled_mutations) == 2
+        assert all(m.quantity == Decimal("-58") for m in non_cancelled_mutations)
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)

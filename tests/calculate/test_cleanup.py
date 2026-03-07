@@ -1187,6 +1187,693 @@ class TestCleanupCalculatorSecurityPaymentQuantity:
         assert security.payment[0].quantity == UNINITIALIZED_QUANTITY
 
 
+class TestMoveNegativePaymentsToLiabilities:
+    """Test cases for moving negative bank account payments to liability accounts."""
+
+    def _create_test_statement(self, bank_payments: List[BankAccountPayment]) -> TaxStatement:
+        """Helper to create a test statement with bank account payments."""
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("TEST-CHF"),
+            bankAccountName=BankAccountName("Test Account"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=DEFAULT_TEST_PERIOD_TO,
+                name="Test Balance",
+                balanceCurrency=CurrencyId("CHF"),
+                balance=Decimal("1000.00")
+            ),
+            payment=bank_payments
+        )
+
+        statement = TaxStatement(
+            canton="ZH",
+            id="TEST-ID",
+            creationDate=datetime.now(),
+            taxPeriod=DEFAULT_TEST_PERIOD_TO.year,
+            periodFrom=DEFAULT_TEST_PERIOD_FROM,
+            periodTo=DEFAULT_TEST_PERIOD_TO,
+            country="CH",
+            minorVersion=22,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+        return statement
+
+    def test_move_single_negative_payment_to_new_liability(self):
+        """Test moving a single negative payment to a newly created liability account."""
+        # Create bank account with one negative payment
+        payments = [
+            BankAccountPayment(
+                paymentDate=date(2023, 6, 15),
+                name="Interest Paid",
+                amountCurrency=CurrencyId("CHF"),
+                amount=Decimal("-50.00")
+            )
+        ]
+
+        statement = self._create_test_statement(payments)
+        calculator = CleanupCalculator(
+            period_from=DEFAULT_TEST_PERIOD_FROM,
+            period_to=DEFAULT_TEST_PERIOD_TO,
+            importer_name="TEST",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Check that negative payment was moved to liability
+        assert result.listOfLiabilities is not None
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+
+        liability = result.listOfLiabilities.liabilityAccount[0]
+        assert liability.bankAccountNumber == "TEST-CHF"
+        assert len(liability.payment) == 1
+        assert liability.payment[0].amount == Decimal("50.00")  # Stored as positive
+
+        # Check that negative payment was removed from bank account
+        assert len(result.listOfBankAccounts.bankAccount[0].payment) == 0
+
+    def test_move_multiple_negative_payments_to_new_liability(self):
+        """Test moving multiple negative payments to a newly created liability account."""
+        payments = [
+            BankAccountPayment(
+                paymentDate=date(2023, 3, 10),
+                name="Interest 1",
+                amountCurrency=CurrencyId("CHF"),
+                amount=Decimal("-30.00")
+            ),
+            BankAccountPayment(
+                paymentDate=date(2023, 9, 20),
+                name="Interest 2",
+                amountCurrency=CurrencyId("CHF"),
+                amount=Decimal("-25.50")
+            )
+        ]
+
+        statement = self._create_test_statement(payments)
+        calculator = CleanupCalculator(
+            period_from=DEFAULT_TEST_PERIOD_FROM,
+            period_to=DEFAULT_TEST_PERIOD_TO,
+            importer_name="TEST",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Check that both negative payments were moved
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+        liability = result.listOfLiabilities.liabilityAccount[0]
+        assert len(liability.payment) == 2
+        assert liability.payment[0].amount == Decimal("30.00")
+        assert liability.payment[1].amount == Decimal("25.50")
+
+        # Bank account should have no payments
+        assert len(result.listOfBankAccounts.bankAccount[0].payment) == 0
+
+    def test_move_negative_payments_mixed_with_positive(self):
+        """Test that only negative payments are moved, positive payments remain."""
+        payments = [
+            BankAccountPayment(
+                paymentDate=date(2023, 2, 1),
+                name="Positive Payment",
+                amountCurrency=CurrencyId("CHF"),
+                amount=Decimal("100.00")
+            ),
+            BankAccountPayment(
+                paymentDate=date(2023, 6, 15),
+                name="Negative Payment",
+                amountCurrency=CurrencyId("CHF"),
+                amount=Decimal("-40.00")
+            ),
+            BankAccountPayment(
+                paymentDate=date(2023, 11, 30),
+                name="Another Positive",
+                amountCurrency=CurrencyId("CHF"),
+                amount=Decimal("75.50")
+            )
+        ]
+
+        statement = self._create_test_statement(payments)
+        calculator = CleanupCalculator(
+            period_from=DEFAULT_TEST_PERIOD_FROM,
+            period_to=DEFAULT_TEST_PERIOD_TO,
+            importer_name="TEST",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Check liability account
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+        liability = result.listOfLiabilities.liabilityAccount[0]
+        assert len(liability.payment) == 1
+        assert liability.payment[0].amount == Decimal("40.00")
+
+        # Check bank account still has positive payments
+        bank_payments = result.listOfBankAccounts.bankAccount[0].payment
+        assert len(bank_payments) == 2
+        assert bank_payments[0].amount == Decimal("100.00")
+        assert bank_payments[1].amount == Decimal("75.50")
+
+    def test_append_negative_payments_to_existing_liability(self):
+        """Test appending negative payments to an existing liability account."""
+        # Create a statement with an existing liability from negative balance
+        negative_balance_liability = LiabilityAccount(
+            bankAccountNumber=BankAccountNumber("TEST-CHF"),
+            bankAccountName=BankAccountName("Test Account"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            taxValue=LiabilityAccountTaxValue(
+                referenceDate=DEFAULT_TEST_PERIOD_TO,
+                name="Negative Balance",
+                balanceCurrency=CurrencyId("CHF"),
+                balance=Decimal("500.00")
+            ),
+            totalTaxValue=Decimal("500.00"),
+            totalGrossRevenueB=Decimal("0")
+        )
+
+        # Create bank account with negative payments
+        payments = [
+            BankAccountPayment(
+                paymentDate=date(2023, 5, 15),
+                name="Interest Payment",
+                amountCurrency=CurrencyId("CHF"),
+                amount=Decimal("-60.00")
+            )
+        ]
+
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("TEST-CHF"),
+            bankAccountName=BankAccountName("Test Account"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=DEFAULT_TEST_PERIOD_TO,
+                name="Balance",
+                balanceCurrency=CurrencyId("CHF"),
+                balance=Decimal("1000.00")
+            ),
+            payment=payments
+        )
+
+        statement = TaxStatement(
+            canton="ZH",
+            id="TEST-ID",
+            creationDate=datetime.now(),
+            taxPeriod=DEFAULT_TEST_PERIOD_TO.year,
+            periodFrom=DEFAULT_TEST_PERIOD_FROM,
+            periodTo=DEFAULT_TEST_PERIOD_TO,
+            country="CH",
+            minorVersion=22,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account]),
+            listOfLiabilities=ListOfLiabilities(liabilityAccount=[negative_balance_liability])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=DEFAULT_TEST_PERIOD_FROM,
+            period_to=DEFAULT_TEST_PERIOD_TO,
+            importer_name="TEST",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Check that negative payment was appended to existing liability
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+        liability = result.listOfLiabilities.liabilityAccount[0]
+        assert len(liability.payment) == 1
+        assert liability.payment[0].amount == Decimal("60.00")
+
+    def test_no_negative_payments_no_liability_created(self):
+        """Test that no liability account is created when all payments are positive."""
+        payments = [
+            BankAccountPayment(
+                paymentDate=date(2023, 3, 1),
+                name="Payment 1",
+                amountCurrency=CurrencyId("CHF"),
+                amount=Decimal("100.00")
+            ),
+            BankAccountPayment(
+                paymentDate=date(2023, 9, 1),
+                name="Payment 2",
+                amountCurrency=CurrencyId("CHF"),
+                amount=Decimal("200.00")
+            )
+        ]
+
+        statement = self._create_test_statement(payments)
+        calculator = CleanupCalculator(
+            period_from=DEFAULT_TEST_PERIOD_FROM,
+            period_to=DEFAULT_TEST_PERIOD_TO,
+            importer_name="TEST",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Check that no liability account was created for negative payments
+        # (might have liabilities from negative balances, but not from negative payments)
+        if result.listOfLiabilities:
+            # If liabilities exist, verify they're not from negative payments
+            for liability in result.listOfLiabilities.liabilityAccount:
+                # Liabilities from negative balances have taxValue.name = "Negative Balance"
+                # or from negative payments have name = "Interest Payments"
+                assert liability.taxValue.name != "Interest Payments"
+
+        # Bank account should keep all positive payments
+        assert len(result.listOfBankAccounts.bankAccount[0].payment) == 2
+
+    def test_negative_payment_totals_calculated_correctly(self):
+        """Test that totalGrossRevenueB is calculated correctly for negative payments."""
+        payments = [
+            BankAccountPayment(
+                paymentDate=date(2023, 4, 10),
+                name="Interest 1",
+                amountCurrency=CurrencyId("CHF"),
+                amount=Decimal("-25.50")
+            ),
+            BankAccountPayment(
+                paymentDate=date(2023, 8, 20),
+                name="Interest 2",
+                amountCurrency=CurrencyId("CHF"),
+                amount=Decimal("-34.75")
+            )
+        ]
+
+        statement = self._create_test_statement(payments)
+        calculator = CleanupCalculator(
+            period_from=DEFAULT_TEST_PERIOD_FROM,
+            period_to=DEFAULT_TEST_PERIOD_TO,
+            importer_name="TEST",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        liability = result.listOfLiabilities.liabilityAccount[0]
+        # totalGrossRevenueB should be sum of absolute amounts
+        expected_total = Decimal("25.50") + Decimal("34.75")
+        assert liability.totalGrossRevenueB == expected_total
+
+
+class TestMergeLiabilityAccounts:
+    """Test merging of liability accounts from negative balances and negative payments."""
+
+    def test_negative_balance_and_payment_merged_to_single_liability(self):
+        """Test that a bank account with both negative balance and negative payment creates a single merged liability."""
+        # Create a bank account with negative balance and negative payment
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("MERGED001"),
+            bankAccountName=BankAccountName("Merged Liability Account"),
+            bankAccountCountry=CountryIdISO2Type("US"),
+            bankAccountCurrency=CurrencyId("USD"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2025, 12, 31),
+                name="Closing Balance",
+                balanceCurrency="USD",
+                balance=Decimal("-0.87"),
+                value=Decimal("-0.87")
+            ),
+            payment=[
+                BankAccountPayment(
+                    paymentDate=date(2025, 11, 5),
+                    name="USD DEBIT INT FOR OCT-2025",
+                    amountCurrency=CurrencyId("USD"),
+                    amount=Decimal("-2.01")
+                )
+            ]
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2025, 12, 31),
+            taxPeriod=2025,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2025, 1, 1),
+            period_to=date(2025, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Verify bank account balance was set to 0
+        assert bank_account.taxValue.balance == Decimal("0")
+        assert bank_account.taxValue.value == Decimal("0")
+
+        # Verify all negative payments removed from bank account
+        assert len(bank_account.payment) == 0
+
+        # Verify only ONE liability account was created
+        assert result.listOfLiabilities is not None
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+
+        liability = result.listOfLiabilities.liabilityAccount[0]
+
+        # Verify liability has the balance from negative bank balance
+        assert liability.taxValue.balance == Decimal("0.87")
+        assert liability.taxValue.name == "Closing Balance"
+
+        # Verify liability has the payment from negative bank payment
+        assert len(liability.payment) == 1
+        assert liability.payment[0].amount == Decimal("2.01")
+        assert liability.payment[0].name == "USD DEBIT INT FOR OCT-2025"
+
+        # Verify totals are calculated correctly
+        # totalTaxValue should be from the balance
+        assert liability.totalTaxValue == Decimal("0.87")
+        # totalGrossRevenueB should be from the payment
+        assert liability.totalGrossRevenueB == Decimal("2.01")
+
+        # Verify account details match
+        assert liability.bankAccountNumber == bank_account.bankAccountNumber
+        assert liability.bankAccountCurrency == bank_account.bankAccountCurrency
+
+    def test_multiple_negative_payments_with_negative_balance_merged(self):
+        """Test that multiple negative payments and negative balance are all merged to single liability."""
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("MULTMERGE001"),
+            bankAccountName=BankAccountName("Multi Merge Account"),
+            bankAccountCountry=CountryIdISO2Type("US"),
+            bankAccountCurrency=CurrencyId("EUR"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2025, 12, 31),
+                name="Year End Balance",
+                balanceCurrency="EUR",
+                balance=Decimal("-5.50"),
+                value=Decimal("-5.50")
+            ),
+            payment=[
+                BankAccountPayment(
+                    paymentDate=date(2025, 3, 10),
+                    name="EUR DEBIT INT FOR FEB-2025",
+                    amountCurrency=CurrencyId("EUR"),
+                    amount=Decimal("-1.25")
+                ),
+                BankAccountPayment(
+                    paymentDate=date(2025, 7, 15),
+                    name="EUR DEBIT INT FOR JUN-2025",
+                    amountCurrency=CurrencyId("EUR"),
+                    amount=Decimal("-3.75")
+                ),
+                BankAccountPayment(
+                    paymentDate=date(2025, 10, 20),
+                    name="Positive Payment",
+                    amountCurrency=CurrencyId("EUR"),
+                    amount=Decimal("100.00")
+                )
+            ]
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2025, 12, 31),
+            taxPeriod=2025,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2025, 1, 1),
+            period_to=date(2025, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Verify only ONE liability account was created
+        assert result.listOfLiabilities is not None
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+
+        liability = result.listOfLiabilities.liabilityAccount[0]
+
+        # Verify liability has the balance
+        assert liability.taxValue.balance == Decimal("5.50")
+
+        # Verify liability has both negative payments (2 total)
+        assert len(liability.payment) == 2
+        payment_amounts = [p.amount for p in liability.payment]
+        assert Decimal("1.25") in payment_amounts
+        assert Decimal("3.75") in payment_amounts
+
+        # Verify totalGrossRevenueB includes all payments
+        expected_revenue = Decimal("1.25") + Decimal("3.75")
+        assert liability.totalGrossRevenueB == expected_revenue
+
+        # Verify positive payment stays in bank account
+        assert len(bank_account.payment) == 1
+        assert bank_account.payment[0].amount == Decimal("100.00")
+
+    def test_negative_balance_processed_before_payments(self):
+        """Test that negative balance creates liability first, then payments are appended."""
+        # This test verifies the order of processing - important for the merge logic
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("ORDER001"),
+            bankAccountName=BankAccountName("Order Test Account"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2025, 12, 31),
+                name="Balance",
+                balanceCurrency="CHF",
+                balance=Decimal("-10.00"),
+                value=Decimal("-10.00")
+            ),
+            payment=[
+                BankAccountPayment(
+                    paymentDate=date(2025, 6, 1),
+                    name="CHF DEBIT INT FOR MAY-2025",
+                    amountCurrency=CurrencyId("CHF"),
+                    amount=Decimal("-2.50")
+                )
+            ]
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2025, 12, 31),
+            taxPeriod=2025,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2025, 1, 1),
+            period_to=date(2025, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Should have exactly one merged liability
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+
+        liability = result.listOfLiabilities.liabilityAccount[0]
+
+        # Both balance and payment should be present
+        assert liability.taxValue.balance == Decimal("10.00")
+        assert len(liability.payment) == 1
+        assert liability.payment[0].amount == Decimal("2.50")
+
+    def test_multiple_currencies_create_separate_liabilities(self):
+        """Test that negative balances/payments in different currencies create separate liabilities."""
+        usd_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("MULTICURR-USD"),
+            bankAccountName=BankAccountName("USD Account"),
+            bankAccountCountry=CountryIdISO2Type("US"),
+            bankAccountCurrency=CurrencyId("USD"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2025, 12, 31),
+                name="Balance",
+                balanceCurrency="USD",
+                balance=Decimal("-1.00"),
+                value=Decimal("-1.00")
+            ),
+            payment=[
+                BankAccountPayment(
+                    paymentDate=date(2025, 5, 1),
+                    name="USD Interest",
+                    amountCurrency=CurrencyId("USD"),
+                    amount=Decimal("-0.50")
+                )
+            ]
+        )
+
+        eur_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("MULTICURR-EUR"),
+            bankAccountName=BankAccountName("EUR Account"),
+            bankAccountCountry=CountryIdISO2Type("US"),
+            bankAccountCurrency=CurrencyId("EUR"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2025, 12, 31),
+                name="Balance",
+                balanceCurrency="EUR",
+                balance=Decimal("-2.00"),
+                value=Decimal("-2.00")
+            ),
+            payment=[
+                BankAccountPayment(
+                    paymentDate=date(2025, 5, 1),
+                    name="EUR Interest",
+                    amountCurrency=CurrencyId("EUR"),
+                    amount=Decimal("-0.75")
+                )
+            ]
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2025, 12, 31),
+            taxPeriod=2025,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[usd_account, eur_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2025, 1, 1),
+            period_to=date(2025, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Should have 2 separate liability accounts (one per currency)
+        assert len(result.listOfLiabilities.liabilityAccount) == 2
+
+        # Verify USD liability
+        usd_liability = next(
+            (l for l in result.listOfLiabilities.liabilityAccount
+             if l.bankAccountCurrency == CurrencyId("USD")),
+            None
+        )
+        assert usd_liability is not None
+        assert usd_liability.taxValue.balance == Decimal("1.00")
+        assert len(usd_liability.payment) == 1
+        assert usd_liability.payment[0].amount == Decimal("0.50")
+
+        # Verify EUR liability
+        eur_liability = next(
+            (l for l in result.listOfLiabilities.liabilityAccount
+             if l.bankAccountCurrency == CurrencyId("EUR")),
+            None
+        )
+        assert eur_liability is not None
+        assert eur_liability.taxValue.balance == Decimal("2.00")
+        assert len(eur_liability.payment) == 1
+        assert eur_liability.payment[0].amount == Decimal("0.75")
+
+    def test_only_negative_balance_no_merge_needed(self):
+        """Test that only negative balance (no payments) still works correctly."""
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("BALONLY001"),
+            bankAccountName=BankAccountName("Balance Only Account"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2025, 12, 31),
+                name="Balance",
+                balanceCurrency="CHF",
+                balance=Decimal("-15.00"),
+                value=Decimal("-15.00")
+            )
+            # No payments
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2025, 12, 31),
+            taxPeriod=2025,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2025, 1, 1),
+            period_to=date(2025, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Should have exactly one liability
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+
+        liability = result.listOfLiabilities.liabilityAccount[0]
+        assert liability.taxValue.balance == Decimal("15.00")
+        assert liability.payment is None or len(liability.payment) == 0
+        assert liability.totalGrossRevenueB == Decimal("0")
+
+    def test_only_negative_payments_no_merge_needed(self):
+        """Test that only negative payments (no negative balance) still works correctly."""
+        bank_account = BankAccount(
+            bankAccountNumber=BankAccountNumber("PAYONLY001"),
+            bankAccountName=BankAccountName("Payment Only Account"),
+            bankAccountCountry=CountryIdISO2Type("CH"),
+            bankAccountCurrency=CurrencyId("CHF"),
+            taxValue=BankAccountTaxValue(
+                referenceDate=date(2025, 12, 31),
+                name="Balance",
+                balanceCurrency="CHF",
+                balance=Decimal("100.00")  # Positive balance
+            ),
+            payment=[
+                BankAccountPayment(
+                    paymentDate=date(2025, 6, 1),
+                    name="Interest Payment",
+                    amountCurrency=CurrencyId("CHF"),
+                    amount=Decimal("-5.00")
+                )
+            ]
+        )
+
+        statement = TaxStatement(
+            minorVersion=22,
+            canton="ZH",
+            country="CH",
+            periodTo=date(2025, 12, 31),
+            taxPeriod=2025,
+            listOfBankAccounts=ListOfBankAccounts(bankAccount=[bank_account])
+        )
+
+        calculator = CleanupCalculator(
+            period_from=date(2025, 1, 1),
+            period_to=date(2025, 12, 31),
+            importer_name="TestImporter",
+            enable_filtering=False
+        )
+
+        result = calculator.calculate(statement)
+
+        # Should have exactly one liability
+        assert len(result.listOfLiabilities.liabilityAccount) == 1
+
+        liability = result.listOfLiabilities.liabilityAccount[0]
+        # No balance in taxValue (only from payments)
+        assert liability.taxValue.balance == Decimal("0")
+        assert liability.taxValue.name == "Interest Payments"
+        assert len(liability.payment) == 1
+        assert liability.payment[0].amount == Decimal("5.00")
+        assert liability.totalGrossRevenueB == Decimal("5.00")
+        assert liability.totalTaxValue == Decimal("0")
+
+        # Bank account keeps positive balance
+        assert bank_account.taxValue.balance == Decimal("100.00")
+
+
 class TestNegativeBankAccountBalance:
     """Test handling of negative bank account balances."""
 

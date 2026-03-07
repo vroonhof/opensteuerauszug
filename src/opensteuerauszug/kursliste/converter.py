@@ -1,18 +1,22 @@
 import sqlite3
-import json
 import os
 import xml.etree.ElementTree as ET
-from decimal import Decimal
 from typing import Optional, Union
 from pathlib import Path
 
 from opensteuerauszug.model.kursliste import (
     Share, Bond, Fund, Derivative, CoinBullion, CurrencyNote, LiborSwap,
-    Sign, Da1Rate
+    Sign, Da1Rate, KurslisteMetadata
 )
 
+CONVERTER_SCHEMA_VERSION = "1"
+KURSLISTE_METADATA_KEY = "kursliste_metadata"
+
+
 def create_schema(conn):
-    """Creates the database schema."""
+    """Creates the database schema. Every time there are changes to the schema, increment the CONVERTER_SCHEMA_VERSION.
+    This will make sure that old converted databases are not used and the conversion is re-run when the converter code
+    is updated."""
     cursor = conn.cursor()
     # Securities Table - New Schema
     cursor.execute("""
@@ -98,6 +102,16 @@ def create_schema(conn):
             source_file TEXT
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+    cursor.execute(
+        "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+        ("converter_schema_version", CONVERTER_SCHEMA_VERSION),
+    )
     conn.commit()
 
 def get_attr(elem, attr):
@@ -142,7 +156,71 @@ def serialize_element_to_pydantic_json(elem, model_class):
         print(f"Warning: Failed to serialize element to {model_class.__name__}: {e}")
         return None
 
-def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_path: Union[str, Path]) -> bool:
+def read_conversion_metadata(db_file_path: Union[str, Path]) -> dict[str, str]:
+    db_path = Path(db_file_path)
+    if not db_path.exists():
+        return {}
+    conn = None
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='metadata'"
+        )
+        if cursor.fetchone() is None:
+            return {}
+        cursor.execute("SELECT key, value FROM metadata")
+        return {row[0]: row[1] for row in cursor.fetchall()}
+    except Exception:
+        return {}
+    finally:
+        if conn:
+            conn.close()
+
+
+def read_metadata_value(db_file_path: Union[str, Path], key: str) -> Optional[str]:
+    db_path = Path(db_file_path)
+    if not db_path.exists():
+        return None
+
+    conn = None
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='metadata'"
+        )
+        if cursor.fetchone() is None:
+            return None
+
+        cursor.execute("SELECT value FROM metadata WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return row[0]
+    except Exception:
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def read_kursliste_metadata(db_file_path: Union[str, Path]) -> Optional[KurslisteMetadata]:
+    metadata_json = read_metadata_value(db_file_path, KURSLISTE_METADATA_KEY)
+    if metadata_json is None:
+        return None
+
+    try:
+        return KurslisteMetadata.model_validate_json(metadata_json)
+    except Exception:
+        return None
+
+
+def convert_kursliste_xml_to_sqlite(
+    xml_file_path: Union[str, Path],
+    db_file_path: Union[str, Path],
+    kursliste_metadata: Optional[KurslisteMetadata] = None
+) -> bool:
     """
     Streaming conversion function that processes XML without loading entire file into memory.
 
@@ -198,6 +276,59 @@ def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_pat
         batch_size = 1000
         batch_count = 0
 
+        # Batch lists for executemany
+        securities_batch = []
+        exchange_rates_daily_batch = []
+        exchange_rates_monthly_batch = []
+        exchange_rates_year_end_batch = []
+        signs_batch = []
+        da1_rates_batch = []
+
+        def flush_batches():
+            if securities_batch:
+                cursor.executemany("""
+                    INSERT INTO securities (
+                        kl_id, valor_number, isin, tax_year,
+                        security_type_identifier, security_object_blob
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, securities_batch)
+                securities_batch.clear()
+            if exchange_rates_daily_batch:
+                cursor.executemany("""
+                    INSERT INTO exchange_rates_daily (
+                        currency_code, date, rate, denomination, tax_year, source_file
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, exchange_rates_daily_batch)
+                exchange_rates_daily_batch.clear()
+            if exchange_rates_monthly_batch:
+                cursor.executemany("""
+                    INSERT INTO exchange_rates_monthly (
+                        currency_code, year, month, rate, denomination, tax_year, source_file
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, exchange_rates_monthly_batch)
+                exchange_rates_monthly_batch.clear()
+            if exchange_rates_year_end_batch:
+                cursor.executemany("""
+                    INSERT INTO exchange_rates_year_end (
+                        currency_code, year, rate, rate_middle, denomination, tax_year, source_file
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, exchange_rates_year_end_batch)
+                exchange_rates_year_end_batch.clear()
+            if signs_batch:
+                cursor.executemany("""
+                    INSERT INTO signs (
+                        kl_id, sign_value, tax_year, source_file, sign_object_blob
+                    ) VALUES (?, ?, ?, ?, ?)
+                """, signs_batch)
+                signs_batch.clear()
+            if da1_rates_batch:
+                cursor.executemany("""
+                    INSERT INTO da1_rates (
+                        kl_id, country, security_group, tax_year, source_file, da1_rate_object_blob
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, da1_rates_batch)
+                da1_rates_batch.clear()
+
         # First pass to get tax year from the root element attribute
         for event, elem in ET.iterparse(str(xml_file_path), events=('start',)):
             tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
@@ -208,6 +339,21 @@ def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_pat
                     tax_year = int(tax_year_str)
                     print(f"Processing kursliste for tax year: {tax_year}")
                 break  # Only process the first kursliste element
+
+        if tax_year is not None:
+            cursor.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+                ("tax_year", str(tax_year)),
+            )
+        if kursliste_metadata is not None:
+            cursor.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+                (KURSLISTE_METADATA_KEY, kursliste_metadata.model_dump_json()),
+            )
+        cursor.execute(
+            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+            ("source_xml_file", source_file_name),
+        )
 
         # Reset file parsing for main processing
         # Process XML in streaming fashion
@@ -227,13 +373,7 @@ def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_pat
 
                 if json_str:  # Only insert if parsing succeeded
                     blob_data = json_str.encode('utf-8')
-
-                    cursor.execute("""
-                        INSERT INTO securities (
-                            kl_id, valor_number, isin, tax_year,
-                            security_type_identifier, security_object_blob
-                        ) VALUES (?, ?, ?, ?, ?, ?)
-                    """, (kl_id, valor_number, isin, tax_year, security_type, blob_data))
+                    securities_batch.append((kl_id, valor_number, isin, tax_year, security_type, blob_data))
 
                 counts[tag] += 1
                 batch_count += 1
@@ -248,11 +388,7 @@ def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_pat
                 rate = get_attr(elem, 'value')
                 denomination = get_attr(elem, 'denomination')
 
-                cursor.execute("""
-                    INSERT INTO exchange_rates_daily (
-                        currency_code, date, rate, denomination, tax_year, source_file
-                    ) VALUES (?, ?, ?, ?, ?, ?)
-                """, (currency, date, rate, denomination, tax_year, source_file_name))
+                exchange_rates_daily_batch.append((currency, date, rate, denomination, tax_year, source_file_name))
 
                 counts['exchangeRate'] += 1
                 batch_count += 1
@@ -266,11 +402,7 @@ def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_pat
                 rate = get_attr(elem, 'value')
                 denomination = get_attr(elem, 'denomination')
 
-                cursor.execute("""
-                    INSERT INTO exchange_rates_monthly (
-                        currency_code, year, month, rate, denomination, tax_year, source_file
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (currency, year, month, rate, denomination, tax_year, source_file_name))
+                exchange_rates_monthly_batch.append((currency, year, month, rate, denomination, tax_year, source_file_name))
 
                 counts['exchangeRateMonthly'] += 1
                 batch_count += 1
@@ -284,11 +416,7 @@ def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_pat
                 rate_middle = get_attr(elem, 'valueMiddle')
                 denomination = get_attr(elem, 'denomination')
 
-                cursor.execute("""
-                    INSERT INTO exchange_rates_year_end (
-                        currency_code, year, rate, rate_middle, denomination, tax_year, source_file
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (currency, year, rate, rate_middle, denomination, tax_year, source_file_name))
+                exchange_rates_year_end_batch.append((currency, year, rate, rate_middle, denomination, tax_year, source_file_name))
 
                 counts['exchangeRateYearEnd'] += 1
                 batch_count += 1
@@ -305,11 +433,7 @@ def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_pat
                 if json_str:  # Only insert if parsing succeeded
                     blob_data = json_str.encode('utf-8')
 
-                    cursor.execute("""
-                        INSERT INTO signs (
-                            kl_id, sign_value, tax_year, source_file, sign_object_blob
-                        ) VALUES (?, ?, ?, ?, ?)
-                    """, (kl_id, sign_value, tax_year, source_file_name, blob_data))
+                    signs_batch.append((kl_id, sign_value, tax_year, source_file_name, blob_data))
 
                     counts['sign'] += 1
                     batch_count += 1
@@ -328,11 +452,7 @@ def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_pat
                 if json_str:  # Only insert if parsing succeeded
                     blob_data = json_str.encode('utf-8')
 
-                    cursor.execute("""
-                        INSERT INTO da1_rates (
-                            kl_id, country, security_group, tax_year, source_file, da1_rate_object_blob
-                        ) VALUES (?, ?, ?, ?, ?, ?)
-                    """, (kl_id, country, security_group, tax_year, source_file_name, blob_data))
+                    da1_rates_batch.append((kl_id, country, security_group, tax_year, source_file_name, blob_data))
 
                     counts['da1Rate'] += 1
                     batch_count += 1
@@ -341,11 +461,13 @@ def convert_kursliste_xml_to_sqlite(xml_file_path: Union[str, Path], db_file_pat
 
             # Commit in batches to improve performance
             if batch_count >= batch_size:
+                flush_batches()
                 conn.commit()
                 print(f"\rProcessed {sum(counts.values())} records...", end='', flush=True)
                 batch_count = 0
 
         # Final commit
+        flush_batches()
         conn.commit()
 
         # Print summary

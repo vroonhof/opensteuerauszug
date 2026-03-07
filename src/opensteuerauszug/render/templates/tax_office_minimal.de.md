@@ -39,5 +39,5 @@ korrigieren und/oder zu vervollständigen.
 ## Anliegen / Verbesserungsvorschläge
 
 Der Autor hofft, die Arbeit aller Parteien zu
-erleichtern. Anliegen / Verbesserungsvorschläge werden über Github
+erleichtern. Anliegen / Verbesserungsvorschläge werden über GitHub
 entgegen genommen.

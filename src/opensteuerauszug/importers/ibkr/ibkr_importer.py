@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Final, List, Any, Dict, Literal, get_args, cast
+from typing import Final, List, Any, Dict, Literal, Optional, get_args, cast
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
@@ -297,6 +297,9 @@ class IbkrImporter:
         processed_cash_positions: defaultdict[tuple, Dict[str, list]] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
         security_country_map: Dict[SecurityPosition, str] = {}
+
+        # Map to store assetCategory and subCategory for each security
+        security_asset_category_map: Dict[SecurityPosition, tuple[str, Optional[str]]] = {}
         rights_issue_positions: set[SecurityPosition] = set()
 
         def _update_security_name_metadata(
@@ -403,6 +406,11 @@ class IbkrImporter:
                     # Update name metadata (Priority: 8 for Trades)
                     _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 8)
 
+                    # Store assetCategory and subCategory
+                    sub_category = getattr(trade, 'subCategory', None)
+                    if sec_pos not in security_asset_category_map:
+                        security_asset_category_map[sec_pos] = (asset_category, sub_category)
+
                     trade_country = self._normalize_country_code(
                         getattr(trade, 'issuerCountryCode', None)
                     )
@@ -490,6 +498,11 @@ class IbkrImporter:
                     # Update name metadata (Priority: 10 for OpenPositions)
                     _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 10)
 
+                    # Store assetCategory and subCategory
+                    sub_category = getattr(open_pos, 'subCategory', None)
+                    if sec_pos not in security_asset_category_map:
+                        security_asset_category_map[sec_pos] = (asset_category, sub_category)
+
                     position_country = self._normalize_country_code(
                         getattr(open_pos, 'issuerCountryCode', None)
                     )
@@ -549,12 +562,13 @@ class IbkrImporter:
 
                     direction = transfer.direction
                     direction_val = direction.value.upper() if direction else None
-                    if direction_val == 'OUT' and quantity > 0:
+                    is_cancel = ibflex.Code.CANCEL in (transfer.code or ())
+                    if direction_val == 'OUT' and quantity > 0 and not is_cancel:
                         raise ValueError(
                             f"Transfer direction OUT but quantity {quantity} positive"
                             f" for {symbol}"
                         )
-                    if direction_val == 'IN' and quantity < 0:
+                    if direction_val == 'IN' and quantity < 0 and not is_cancel:
                         raise ValueError(
                             f"Transfer direction IN but quantity {quantity} negative"
                             f" for {symbol}"
@@ -585,7 +599,7 @@ class IbkrImporter:
                         referenceDate=tx_date,
                         mutation=True,
                         quantity=quantity,
-                        name=f"{transfer_type_val} {account}",
+                        name=f"{transfer_type_val} {account}" + (" (Cancelled)" if is_cancel else ""),
                         balanceCurrency=currency,
                         quotationType="PIECE",
                     )
@@ -770,9 +784,14 @@ class IbkrImporter:
                             # Not Tax Relant event
                             continue
                         elif tx_type in [ibflex.CashAction.BROKERINTPAID]:
-                            # TODO: Optionally create a liabilities section.
-                            logger.warning(f"Broker interest paid for {description} is not handled for liabilities.")
-                            continue
+                            # Interst paid due to negative balance: description starting with "<CURRENCY> DEBIT INT FOR"
+                            if description.startswith(f"{currency} DEBIT INT FOR"):
+                                # Tax relevant event. Fall through to create a bank payment.
+                                pass
+                            else:
+                                # TODO: CREDIT INT is charged on positive balance and would belong to fees (not liabilities).
+                                logger.warning(f"Broker credit interest payment {description} with amount {amount} is not handled, would belong to fees.")
+                                continue
                         elif tx_type in [ibflex.CashAction.FEES]:
                             # TODO: Optionally create a costs sections.
                             logger.warning(f"Fees paid for {description} are ignored for statement.")
@@ -839,17 +858,11 @@ class IbkrImporter:
                     )
 
             # TODO: Map assetCategory to eCH-0196 SecurityCategory
-            # Attempt to get assetCategory, default to "STK"
-            asset_cat_source = None
-            if sorted_stocks and hasattr(sorted_stocks[0], 'assetCategory'):
-                asset_cat_source = sorted_stocks[0]
-            # Payments don't usually have assetCategory
-            elif sorted_payments and hasattr(sorted_payments[0], 'assetCategory'):
-                asset_cat_source = sorted_payments[0]
-
-            asset_cat = (
-                asset_cat_source.assetCategory if asset_cat_source else 'STK'
-            )
+            # Get assetCategory and subCategory from the map, default to "STK"
+            asset_cat = 'STK'
+            sub_category = None
+            if sec_pos_obj in security_asset_category_map:
+                asset_cat, sub_category = security_asset_category_map[sec_pos_obj]
 
             sec_category = IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY.get(asset_cat)
             if not sec_category:
@@ -873,10 +886,16 @@ class IbkrImporter:
                 opening_balance = tentative_opening if tentative_opening >= 0 else Decimal("0")
 
             if opening_balance < 0 or closing_balance < 0:
-                raise ValueError(
-                    f"Negative balance computed for security {sec_pos_obj.symbol}"
-                    f" (start {opening_balance}, end {closing_balance})"
-                )
+                if asset_cat == "OPT" and sub_category == "C":
+                    logger.warning(
+                        f"Negative balance computed for security {sec_pos_obj.symbol} with OPT/C. In case you expect short positions, this is fine. Otherwise, please report this to the developers for further investigation."
+                        f" (start {opening_balance}, end {closing_balance})"
+                    )
+                else:
+                    raise ValueError(
+                        f"Negative balance computed for security {sec_pos_obj.symbol} with {asset_cat}/{sub_category}. In case you expect short positions, please report this to the developers for further investigation."
+                        f" (start {opening_balance}, end {closing_balance})"
+                    )
 
             # Check if this is a rights issue and if we should skip it
             is_rights_issue = sec_pos_obj in rights_issue_positions

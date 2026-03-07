@@ -374,6 +374,46 @@ class TestSchwabTransactionExtractor:
         assert cash_stock_entry.referenceDate == date(2024, 7, 1), "Reference date should match transaction date"
         assert cash_stock_entry.mutation is True, "Cash stock entry should be a mutation"
         assert cash_stock_entry.quantity == Decimal("555.65")
+
+    def test_action_qual_div_reinvest(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "BrokerageTransactions": [{
+                "Date": "02/13/2025", "Action": "Qual Div Reinvest", "Symbol": "AAPL",
+                "Description": "APPLE INC", "Amount": "$10.18"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 2)
+        assert result is not None
+
+        aapl_data = find_position(result, SecurityPosition, "AAPL")
+        cash_data = find_position(result, CashPosition)
+        assert aapl_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = aapl_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "AAPL"
+        assert stocks is not None
+        assert len(stocks) == 0
+        assert payments is not None
+        assert len(payments) == 1
+        payment = payments[0]
+        assert payment.name == "Dividend"
+        assert payment.grossRevenueB == Decimal("10.18")
+        assert payment.amount == Decimal("10.18")
+
+        cash_pos, cash_stocks, cash_payments = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert cash_payments is None
+        assert cash_stocks is not None
+        assert len(cash_stocks) == 1
+        cash_stock_entry = cash_stocks[0]
+        assert cash_stock_entry.referenceDate == date(2025, 2, 13)
+        assert cash_stock_entry.mutation is True
+        assert cash_stock_entry.quantity == Decimal("10.18")
+        assert cash_stock_entry.name == "Cash in for Dividend AAPL"
  
     def test_action_stock_split(self):
         extractor = create_extractor()
@@ -668,6 +708,29 @@ class TestSchwabTransactionExtractor:
         assert stock.quantity == -Decimal("5.0")
         assert stock.name is not None
         assert stock.name == "Transfer (Shares)"
+
+    def test_action_security_transfer_negative_quantity_stays_outflow(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "BrokerageTransactions": [{
+                "Date": "12/01/2025", "Action": "Security Transfer", "Symbol": "VT",
+                "Description": "VANGUARD TOTAL WORLD STOCK ETF",
+                "Quantity": "-42", "Amount": ""
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        vt_data = find_position(result, SecurityPosition, "VT")
+        assert vt_data is not None
+
+        pos, stocks, payments = vt_data
+        assert isinstance(pos, SecurityPosition)
+        assert payments is None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == Decimal("-42")
+        assert stock.name == "Transfer (Shares)"
  
     def test_action_transfer_cash_in(self):
         extractor = create_extractor()
@@ -896,3 +959,65 @@ class TestSchwabTransactionExtractor:
         assert found_msft_dividend_payment, "MSFT Dividend payment not found or not correctly processed"
         assert found_voo_reinvest_dividend_payment, "VOO Reinvest Dividend payment not found or not correctly processed"
         assert found_zeroq_dividend_payment, "ZEROQ Dividend payment not found or not correctly processed"
+
+    def test_action_sell(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024",
+            "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "12/30/2024 as of 12/29/2024",
+                "Action": "Sell",
+                "Symbol": "MSFT",
+                "Description": "MICROSOFT CORP",
+                "Quantity": "5.678",
+                "Price": "150.00",
+                "Amount": "851.70"
+            }]
+        }
+        result = extractor._extract_transactions_from_dict(data)
+        assert result is not None
+        
+        msft_data = find_position(result, SecurityPosition, "MSFT")
+        cash_data = find_position(result, CashPosition)
+        
+        assert msft_data is not None
+        pos, stocks, payments = msft_data
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == -Decimal("5.678")
+        assert stock.unitPrice == Decimal("150.00")
+        assert stock.name == "Sell"
+        
+        assert cash_data is not None
+        c_pos, c_stocks, c_payments = cash_data
+        assert len(c_stocks) == 1
+        assert c_stocks[0].quantity == Decimal("851.70")
+        assert c_stocks[0].name == "Cash in for Sell MSFT"
+
+    def test_action_stock_plan_activity(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024",
+            "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "12/30/2024",
+                "Action": "Stock Plan Activity",
+                "Symbol": "MSFT",
+                "Description": "MICROSOFT CORP",
+                "Quantity": "15.0",
+                "Price": "",
+                "Amount": ""
+            }]
+        }
+        result = extractor._extract_transactions_from_dict(data)
+        assert result is not None
+        
+        msft_data = find_position(result, SecurityPosition, "MSFT")
+        assert msft_data is not None
+        pos, stocks, payments = msft_data
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == Decimal("15.0")
+        assert stock.unitPrice is None
+        assert stock.name == "Stock Plan Activity"

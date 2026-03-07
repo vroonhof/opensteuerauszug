@@ -12,20 +12,7 @@ SESSION_URL = "https://www.ictax.admin.ch/extern/api/authentication/session.json
 DOWNLOAD_BASE_URL = "https://www.ictax.admin.ch/extern/api/download"
 
 
-def download_kursliste(year: int, destination_dir: Path) -> Path:
-    """
-    Downloads the Kursliste for the given year from the ICTax website.
-
-    Args:
-        year: The tax year to download.
-        destination_dir: The directory where the XML file should be stored.
-
-    Returns:
-        Path to the downloaded XML file.
-    """
-    session = requests.Session()
-
-    # First, hit the session endpoint to get cookies and CSRF token
+def _initialize_session(session: requests.Session) -> None:
     logger.info("Initializing session...")
     try:
         session_response = session.get(SESSION_URL, timeout=10)
@@ -39,15 +26,18 @@ def download_kursliste(year: int, destination_dir: Path) -> Path:
     except Exception as e:
         logger.warning(f"Session initialization failed: {e}")
 
+
+def get_latest_initial_export(
+    year: int, session: requests.Session | None = None
+) -> Dict[str, Any]:
+    own_session = session is None
+    session = session or requests.Session()
+    if own_session:
+        _initialize_session(session)
+
     logger.info(f"Fetching Kursliste metadata for year {year}...")
 
-    payload = {
-        "from": 0,
-        "size": 100,
-        "sort": [],
-        "year": year
-    }
-
+    payload = {"from": 0, "size": 100, "sort": [], "year": year}
     response = session.post(API_URL, json=payload, timeout=30)
     if response.status_code == 403:
         logger.error(
@@ -64,16 +54,15 @@ def download_kursliste(year: int, destination_dir: Path) -> Path:
     if not data:
         raise ValueError(f"No Kursliste data found for year {year}")
 
-    # Filter for Initial exports
     initial_exports = [
-        item for item in data
+        item
+        for item in data
         if item.get("exportType", {}).get("shortName", "").startswith("THIRD.INIT.")
     ]
 
     if not initial_exports:
         raise ValueError(f"No 'Initial' Kursliste export found for year {year}")
 
-    # Find the latest format (highest version suffix)
     def get_version(item: Dict[str, Any]) -> int:
         short_name = item.get("exportType", {}).get("shortName", "")
         try:
@@ -82,17 +71,11 @@ def download_kursliste(year: int, destination_dir: Path) -> Path:
             return -1
 
     latest_version = max(get_version(item) for item in initial_exports)
-    candidates = [
-        item for item in initial_exports if get_version(item) == latest_version
-    ]
-
+    candidates = [item for item in initial_exports if get_version(item) == latest_version]
     candidates.sort(key=lambda x: x.get("exportDate", 0), reverse=True)
     selected = candidates[0]
 
-    export_file = selected.get("exportFile")
-    if not export_file:
-        raise ValueError(f"No export file information found for the selected export")
-
+    export_file = selected.get("exportFile") or {}
     file_id = export_file.get("id")
     file_hash = export_file.get("fileHash")
     file_name = export_file.get("fileName")
@@ -102,6 +85,34 @@ def download_kursliste(year: int, destination_dir: Path) -> Path:
             "Incomplete export file information: "
             f"id={file_id}, hash={file_hash}, name={file_name}"
         )
+
+    return {
+        "file_id": file_id,
+        "file_hash": file_hash,
+        "file_name": file_name,
+        "export_type_short_name": selected.get("exportType", {}).get("shortName"),
+    }
+
+
+def download_kursliste(
+    year: int, destination_dir: Path, export_info: Dict[str, Any] | None = None
+) -> Path:
+    """
+    Downloads the Kursliste for the given year from the ICTax website.
+
+    Args:
+        year: The tax year to download.
+        destination_dir: The directory where the XML file should be stored.
+
+    Returns:
+        Path to the downloaded XML file.
+    """
+    session = requests.Session()
+    _initialize_session(session)
+    export_info = export_info or get_latest_initial_export(year, session=session)
+    file_id = export_info["file_id"]
+    file_hash = export_info["file_hash"]
+    file_name = export_info["file_name"]
 
     download_url = f"{DOWNLOAD_BASE_URL}/{file_id}/{file_hash}/{file_name}"
 

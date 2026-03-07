@@ -66,7 +66,7 @@ def test_ibkr_import_from_sample_file(xml_file_path_str: str, default_ibkr_setti
             pass # Not a valid year
     
     # Skip files that are known to require a code-level fix before they can be imported
-    SKIPPED_FILENAMES = {"minimal_short_options_repro_2025.xml", "eTax_report_anonymised_2025.xml"}
+    SKIPPED_FILENAMES = {}
     if xml_file_path.name in SKIPPED_FILENAMES:
         pytest.skip(f"{xml_file_path.name!r} is excluded from the general parametrized test — short options not yet supported (issue #218)")
 

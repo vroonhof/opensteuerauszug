@@ -1,11 +1,13 @@
 from typing import Dict, Any, Union, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
+from opensteuerauszug.render.translations import DEFAULT_LANGUAGE
+
 class GeneralSettings(BaseModel):
     '''General settings applicable globally.'''
     canton: Optional[str] = Field(default=None, description="Your canton (e.g., 'ZH', 'BE'). If not provided, will be extracted from importer data (e.g., IBKR flex report).")
     full_name: str = Field(description="Your full name for tax documents.")
-    language: str = Field(default="de", description="Default language for documents (e.g., 'de', 'fr', 'it').")
+    language: str = Field(default=DEFAULT_LANGUAGE, description="Default language for documents (e.g., 'de', 'fr', 'it').")
     processing_flags: Dict[str, bool] = Field(default_factory=dict, description="Default processing flags.")
     minimal_uses_placeholder_frontpage: bool = Field(
         default=True,

@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 # Known actions from formats.md
 KNOWN_ACTIONS = {
     "Buy", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
-    "NRA Tax Adj", "Reinvest Dividend", "Reinvest Shares", "Sale", "Stock Split",
-    "Tax Withholding", "Transfer", "Wire Transfer"
+    "NRA Tax Adj", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell", "Stock Plan Activity", "Stock Split",
+    "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
 }
 
 class TransactionExtractor:
@@ -295,10 +295,10 @@ class TransactionExtractor:
                 if cash_flow:
                      cash_stock = create_cash_stock(cash_flow, f"Cash out for {action} {pos_object.symbol}")
 
-        elif action == "Sale":
+        elif action == "Sale" or action == "Sell":
              if schwab_qty and isinstance(pos_object, SecurityPosition):
                 if schwab_qty < 0:
-                    raise ValueError(f"Invalid negative quantity ({schwab_qty}) for 'Sale' action for symbol {pos_object.symbol}. Sales should have positive quantities representing shares sold.")
+                    raise ValueError(f"Invalid negative quantity ({schwab_qty}) for '{action}' action for symbol {pos_object.symbol}. Sales should have positive quantities representing shares sold.")
                 
                 # Quantity should be negative for a sale in our system
                 final_qty = -schwab_qty 
@@ -319,10 +319,20 @@ class TransactionExtractor:
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
                     quantity=final_qty, balanceCurrency=currency, # Use currency string
-                    unitPrice=schwab_price, name="Sale",
+                    unitPrice=schwab_price, name=action,
                 )
                 if cash_flow:
-                     cash_stock = create_cash_stock(cash_flow, f"Cash in for Sale {pos_object.symbol}")
+                     cash_stock = create_cash_stock(cash_flow, f"Cash in for {action} {pos_object.symbol}")
+
+        elif action == "Stock Plan Activity":
+            if schwab_qty and schwab_qty > 0 and isinstance(pos_object, SecurityPosition):
+                sec_stock = SecurityStock(
+                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
+                    quantity=schwab_qty, balanceCurrency=currency, # Use currency string
+                    unitPrice=None, name=action,
+                )
+                # Stock Plan Activity usually has no direct cash flow in the brokerage account (it's the vesting)
+                # Any cash flow (taxes) is usually handled by separate Journal or Tax Withholding entries.
 
         elif action == "Credit Interest":
             # Generates a Payment for the cash account AND a cash stock mutation
@@ -338,7 +348,7 @@ class TransactionExtractor:
                 # Cash stock mutation
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Credit Interest")
 
-        elif action == "Dividend" or action == "Reinvest Dividend":
+        elif action == "Dividend" or action == "Reinvest Dividend" or action == "Qual Div Reinvest":
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
                 if schwab_qty is not None and schwab_qty != Decimal(0):
                     print(f"Warning: Ignoring non-zero quantity ({schwab_qty}) for action '{action}' on symbol {pos_object.symbol}. Payment quantity will be uninitialized.")
@@ -451,15 +461,14 @@ class TransactionExtractor:
             if schwab_amount:
                 cash_stock = create_cash_stock(schwab_amount, f"Wire Transfer{' ' + pos_object.symbol if isinstance(pos_object, SecurityPosition) else ''}")
 
-        elif action == "Transfer":
+        elif action == "Transfer" or action == "Security Transfer":
             if schwab_qty and schwab_tx.get("Symbol") and isinstance(pos_object, SecurityPosition): # Share transfer
-                # No cash flow for transfer
-                assert not schwab_amount
-                assert schwab_qty > 0
+                # Schwab transfer rows represent shares moving out of this account.
+                final_qty = -abs(schwab_qty)
 
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                    quantity=-schwab_qty, balanceCurrency=currency, # Use currency string
+                    quantity=final_qty, balanceCurrency=currency, # Use currency string
                     unitPrice=schwab_price, name="Transfer (Shares)",
                 )
 

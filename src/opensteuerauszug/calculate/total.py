@@ -182,23 +182,32 @@ class TotalCalculator(BaseCalculator):
                         if payment.grossRevenueB is not None: acc_revenue_b += payment.grossRevenueB
                         if payment.withHoldingTaxClaim is not None: acc_withholding += payment.withHoldingTaxClaim
 
-                if self.mode in [CalculationMode.FILL, CalculationMode.OVERWRITE]:
-                    self._round_and_set_field(account, 'totalTaxValue', acc_tax_value, path)
-                    self._round_and_set_field(account, 'totalGrossRevenueA', acc_revenue_a, path)
-                    self._round_and_set_field(account, 'totalGrossRevenueB', acc_revenue_b, path)
-                    self._round_and_set_field(account, 'totalWithHoldingTaxClaim', acc_withholding, path)
+                # Round per-account totals; list total accumulates these same rounded values
+                # so that round_accounting(sum(account.totalX)) == listOf*.totalX.
+                # When round_sub_total is False the raw values are used for accumulation instead,
+                # preserving the alternative rounding behaviour for institutions that require it.
+                rounded_acc_tax_value = round_accounting(acc_tax_value)
+                rounded_acc_revenue_a = round_accounting(acc_revenue_a)
+                rounded_acc_revenue_b = round_accounting(acc_revenue_b)
+                rounded_acc_withholding = round_accounting(acc_withholding)
 
-                list_tax_value += acc_tax_value
-                list_revenue_a += acc_revenue_a
-                list_revenue_b += acc_revenue_b
-                list_withholding += acc_withholding
+                if self.mode in [CalculationMode.FILL, CalculationMode.OVERWRITE]:
+                    self._set_field_value(account, 'totalTaxValue', rounded_acc_tax_value, path)
+                    self._set_field_value(account, 'totalGrossRevenueA', rounded_acc_revenue_a, path)
+                    self._set_field_value(account, 'totalGrossRevenueB', rounded_acc_revenue_b, path)
+                    self._set_field_value(account, 'totalWithHoldingTaxClaim', rounded_acc_withholding, path)
+
+                list_tax_value += self._round_sub_total(acc_tax_value)
+                list_revenue_a += self._round_sub_total(acc_revenue_a)
+                list_revenue_b += self._round_sub_total(acc_revenue_b)
+                list_withholding += self._round_sub_total(acc_withholding)
 
                 if acc_revenue_a > 0:
-                    list_tax_value_a_summary += acc_tax_value
+                    list_tax_value_a_summary += self._round_sub_total(acc_tax_value)
                 else:
-                    list_tax_value_b_summary += acc_tax_value
-                list_revenue_a_summary += acc_revenue_a
-                list_revenue_b_summary += acc_revenue_b
+                    list_tax_value_b_summary += self._round_sub_total(acc_tax_value)
+                list_revenue_a_summary += self._round_sub_total(acc_revenue_a)
+                list_revenue_b_summary += self._round_sub_total(acc_revenue_b)
 
             self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalTaxValue', list_tax_value, "listOfBankAccounts")
             self._round_and_set_field(tax_statement.listOfBankAccounts, 'totalGrossRevenueA', list_revenue_a, "listOfBankAccounts")
@@ -229,12 +238,15 @@ class TotalCalculator(BaseCalculator):
                     for payment in account.payment:
                         if payment.grossRevenueB is not None: liab_revenue_b += payment.grossRevenueB
 
-                # Always set liability totals as they are required by the standard
-                self._round_and_set_field(account, 'totalTaxValue', liab_value, path)
-                self._round_and_set_field(account, 'totalGrossRevenueB', liab_revenue_b, path)
+                rounded_liab_value = round_accounting(liab_value)
+                rounded_liab_revenue_b = round_accounting(liab_revenue_b)
 
-                list_tax_value += liab_value
-                list_revenue_b += liab_revenue_b
+                # Always set liability totals as they are required by the standard
+                self._set_field_value(account, 'totalTaxValue', rounded_liab_value, path)
+                self._set_field_value(account, 'totalGrossRevenueB', rounded_liab_revenue_b, path)
+
+                list_tax_value += self._round_sub_total(liab_value)
+                list_revenue_b += self._round_sub_total(liab_revenue_b)
 
             # Always set list-level liability totals
             self._round_and_set_field(tax_statement.listOfLiabilities, 'totalTaxValue', list_tax_value, "listOfLiabilities")
