@@ -2023,3 +2023,156 @@ def test_compute_payments_sets_additional_withholding_tax_usa(kursliste_manager)
 
     # Assert additionalWithHoldingTaxUSA is set to 0
     assert payment.additionalWithHoldingTaxUSA == Decimal("0")
+
+
+def test_no_missing_kursliste_warning_for_rights_issue_with_no_tax_value():
+    """A rights issue that was fully exercised/expired (no taxValue, zero balance)
+    should NOT emit a MISSING_KURSLISTE warning even when absent from the Kursliste."""
+    sale_date = date(2024, 6, 20)
+
+    other_share = Share(
+        id=1,
+        isin="CH0012032048",
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="Roche",
+        institutionId=1,
+        institutionName="Roche",
+        country="CH",
+        currency="CHF",
+        nominalValue=Decimal("1"),
+        payment=[],
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2024, 1, 1),
+        year=2024,
+        shares=[other_share],
+    )
+    mgr = KurslisteManager()
+    mgr.kurslisten[2024] = KurslisteAccessor([kursliste], 2024)
+
+    provider = KurslisteExchangeRateProvider(mgr)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    security = Security(
+        country="US",
+        securityName="Rights Issue Security",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("US9999999999"),
+        is_rights_issue=True,
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 3, 15),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("50"),
+                balanceCurrency="USD",
+            ),
+            SecurityStock(
+                referenceDate=sale_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("-50"),
+                balanceCurrency="USD",
+            ),
+        ],
+    )
+
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2024,
+        periodFrom=date(2024, 1, 1),
+        periodTo=date(2024, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[Depot(depotNumber=DepotNumber("U1234567"), security=[security])]
+        ),
+    )
+
+    result = calc.calculate(statement)
+
+    missing_warnings = [
+        w for w in result.critical_warnings
+        if w.category == CriticalWarningCategory.MISSING_KURSLISTE
+    ]
+    assert missing_warnings == []
+
+
+def test_missing_kursliste_warning_for_security_with_no_tax_value_but_stock_transactions():
+    """A security that was fully sold during the year (no taxValue) but had stock
+    transactions should still emit a MISSING_KURSLISTE warning when the security
+    is not found in the Kursliste."""
+    sale_date = date(2024, 6, 20)
+
+    # Kursliste exists for 2024 but does NOT contain our test security
+    other_share = Share(
+        id=1,
+        isin="CH0012032048",
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="Roche",
+        institutionId=1,
+        institutionName="Roche",
+        country="CH",
+        currency="CHF",
+        nominalValue=Decimal("1"),
+        payment=[],
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2024, 1, 1),
+        year=2024,
+        shares=[other_share],
+    )
+    mgr = KurslisteManager()
+    mgr.kurslisten[2024] = KurslisteAccessor([kursliste], 2024)
+
+    provider = KurslisteExchangeRateProvider(mgr)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    # Security with no taxValue: fully sold during the year
+    security = Security(
+        country="US",
+        securityName="Fully Sold Security",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("US1234567890"),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 3, 15),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="USD",
+            ),
+            SecurityStock(
+                referenceDate=sale_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("-100"),
+                balanceCurrency="USD",
+            ),
+        ],
+    )
+
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2024,
+        periodFrom=date(2024, 1, 1),
+        periodTo=date(2024, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[Depot(depotNumber=DepotNumber("U1234567"), security=[security])]
+        ),
+    )
+
+    result = calc.calculate(statement)
+
+    missing_warnings = [
+        w for w in result.critical_warnings
+        if w.category == CriticalWarningCategory.MISSING_KURSLISTE
+    ]
+    assert len(missing_warnings) == 1
+    assert missing_warnings[0].identifier == "US1234567890"

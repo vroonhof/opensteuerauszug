@@ -300,6 +300,12 @@ class CleanupCalculator:
                         bank_account.taxValue.value = Decimal("0")
                         self.modified_fields.append(f"{account_id}.taxValue.balance (set to 0)")
 
+                # Clear taxValue entirely when balance is zero (covers both pre-existing
+                # zero balances and those just zeroed out by the negative-balance conversion)
+                if bank_account.taxValue and bank_account.taxValue.balance == Decimal("0"):
+                    bank_account.taxValue = None
+                    self.modified_fields.append(f"{account_id}.taxValue (cleared, zero balance)")
+
                 if bank_account.payment:
                     original_payment_count = len(bank_account.payment)
 
@@ -415,6 +421,14 @@ class CleanupCalculator:
             logger.info(f"Added {len(liabilities_to_add)} liability account(s) from negative bank account balances.")
             self.modified_fields.append(f"listOfLiabilities (added {len(liabilities_to_add)} accounts from negative balances)")
 
+        # Clear zero-balance taxValues on existing liability accounts
+        if statement.listOfLiabilities and statement.listOfLiabilities.liabilityAccount:
+            for liability in statement.listOfLiabilities.liabilityAccount:
+                if liability.taxValue and liability.taxValue.balance == Decimal("0"):
+                    liability_id = str(liability.iban or liability.bankAccountNumber or liability.bankAccountName or "?")
+                    liability.taxValue = None
+                    self.modified_fields.append(f"liability {liability_id}.taxValue (cleared, zero balance)")
+
         # Process Securities Accounts
         if statement.listOfSecurities and statement.listOfSecurities.depot:
             for depot_idx, depot in enumerate(statement.listOfSecurities.depot):
@@ -504,14 +518,18 @@ class CleanupCalculator:
                                 if find_index < len(security.stock):
                                     candidate = security.stock[find_index]
                                     if candidate.referenceDate == period_end_plus_one and not candidate.mutation:
-                                        # First balance after the period end is the end balance of the period
-                                        security.taxValue = SecurityTaxValue(
-                                            referenceDate=self.period_to,
-                                            quotationType=candidate.quotationType,
-                                            quantity=candidate.quantity,
-                                            balanceCurrency=candidate.balanceCurrency,
-                                            balance=candidate.balance,
-                                            unitPrice=candidate.unitPrice)
+                                        # First balance after the period end is the end balance of the period.
+                                        # Omit taxValue for zero closing balances; also clear any pre-existing one.
+                                        if candidate.quantity is not None and candidate.quantity != Decimal('0'):
+                                            security.taxValue = SecurityTaxValue(
+                                                referenceDate=self.period_to,
+                                                quotationType=candidate.quotationType,
+                                                quantity=candidate.quantity,
+                                                balanceCurrency=candidate.balanceCurrency,
+                                                balance=candidate.balance,
+                                                unitPrice=candidate.unitPrice)
+                                        else:
+                                            security.taxValue = None
 
                             # TODO Should we ensure the balances at the start and end of the period are
                             #       present here instead of in the importers?.

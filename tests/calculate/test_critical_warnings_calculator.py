@@ -110,8 +110,8 @@ def test_missing_kursliste_entry_generates_critical_warning():
     assert len(result.critical_warnings) == 1
     warning = result.critical_warnings[0]
     assert warning.category == CriticalWarningCategory.MISSING_KURSLISTE
-    assert "Unknown Corp" in warning.message
-    assert warning.identifier == "Unknown Corp"
+    assert "US0000000000" in warning.message
+    assert warning.identifier == "US0000000000"
     assert warning.source == "KurslisteTaxValueCalculator"
 
 

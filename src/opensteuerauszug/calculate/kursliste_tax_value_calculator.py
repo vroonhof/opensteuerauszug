@@ -147,6 +147,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         if security.taxValue and security.taxValue.referenceDate:
             lookup_year = security.taxValue.referenceDate.year
 
+        if lookup_year is None and security.stock and security.stock[-1].referenceDate:
+            # Infer the year from the last stock entry for securities with no end-of-period
+            # position (e.g. fully sold during the year) so that we can still check
+            # whether the security is listed in the Kursliste and emit a warning if not.
+            lookup_year = security.stock[-1].referenceDate.year
+
         if lookup_year is None:
             super()._handle_Security(security, path_prefix)
             return
@@ -177,9 +183,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 self._set_field_value(security, "valorNumber", valor_int, path_prefix)
         else:
             ident = (
-                security.isin or f"Valor {security.valorNumber}"
-                if security.valorNumber
-                else security.securityName
+                security.isin
+                or (f"Valor {security.valorNumber}" if security.valorNumber else None)
+                or security.securityName
             )
 
             # Check if this is a rights issue or zero-balance option that we should ignore if not found
@@ -457,9 +463,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
         reconciler = PositionReconciler(stock, identifier=f"{security.isin or 'SEC'}-payments")
 
-        accessor = self.kursliste_manager.get_kurslisten_for_year(
+        ref_year = (
             security.taxValue.referenceDate.year
+            if security.taxValue and security.taxValue.referenceDate
+            else security.stock[-1].referenceDate.year
         )
+        accessor = self.kursliste_manager.get_kurslisten_for_year(ref_year)
 
         for pay in payments:
             if not pay.paymentDate:
