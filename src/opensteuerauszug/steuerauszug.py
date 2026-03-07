@@ -188,13 +188,13 @@ def main(
             if override_configs:
                 # Create a temporary dict to apply overrides to general settings
                 temp_config = {"general": config_manager.general_settings.copy()}
-                config_manager._apply_cli_overrides(temp_config, override_configs)
+                temp_config = config_manager._apply_cli_overrides(temp_config, override_configs)
                 temp_general_settings = temp_config.get("general", {})
             
             # Create the GeneralSettings Pydantic model
             general_config_settings = GeneralSettings(**temp_general_settings)
             
-            print(f"Loaded general configuration settings: canton={general_config_settings.canton}, full_name={general_config_settings.full_name}")
+            print(f"Loaded general configuration settings: canton={general_config_settings.canton}, full_name={general_config_settings.full_name}, language={general_config_settings.language}")
         else:
             print("No general configuration settings found.")
     except Exception as e:
