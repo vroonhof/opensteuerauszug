@@ -1523,9 +1523,8 @@ class TestMergeLiabilityAccounts:
 
         result = calculator.calculate(statement)
 
-        # Verify bank account balance was set to 0
-        assert bank_account.taxValue.balance == Decimal("0")
-        assert bank_account.taxValue.value == Decimal("0")
+        # Verify bank account taxValue was cleared (zero balance)
+        assert bank_account.taxValue is None
 
         # Verify all negative payments removed from bank account
         assert len(bank_account.payment) == 0
@@ -1862,9 +1861,8 @@ class TestMergeLiabilityAccounts:
         assert len(result.listOfLiabilities.liabilityAccount) == 1
 
         liability = result.listOfLiabilities.liabilityAccount[0]
-        # No balance in taxValue (only from payments)
-        assert liability.taxValue.balance == Decimal("0")
-        assert liability.taxValue.name == "Interest Payments"
+        # taxValue is cleared since balance is zero (liability from payments only)
+        assert liability.taxValue is None
         assert len(liability.payment) == 1
         assert liability.payment[0].amount == Decimal("5.00")
         assert liability.totalGrossRevenueB == Decimal("5.00")
@@ -1911,9 +1909,8 @@ class TestNegativeBankAccountBalance:
 
         result = calculator.calculate(statement)
 
-        # Verify bank account balance was set to 0
-        assert bank_account.taxValue.balance == Decimal("0")
-        assert bank_account.taxValue.value == Decimal("0")
+        # Verify bank account taxValue was cleared (zero balance)
+        assert bank_account.taxValue is None
 
         # Verify liability was created
         assert result.listOfLiabilities is not None
@@ -2000,8 +1997,8 @@ class TestNegativeBankAccountBalance:
 
         result = calculator.calculate(statement)
 
-        # Verify bank account balance remains 0
-        assert bank_account.taxValue.balance == Decimal("0.00")
+        # Verify bank account taxValue was cleared (zero balance)
+        assert bank_account.taxValue is None
 
         # Verify no liability was created
         assert result.listOfLiabilities is None or len(result.listOfLiabilities.liabilityAccount) == 0
@@ -2068,11 +2065,11 @@ class TestNegativeBankAccountBalance:
         # Verify positive account unchanged
         assert bank_accounts[0].taxValue.balance == Decimal("2000.00")
 
-        # Verify negative account converted
-        assert bank_accounts[1].taxValue.balance == Decimal("0")
+        # Verify negative account converted and taxValue cleared (zero balance)
+        assert bank_accounts[1].taxValue is None
 
-        # Verify zero account unchanged
-        assert bank_accounts[2].taxValue.balance == Decimal("0.00")
+        # Verify zero account taxValue also cleared
+        assert bank_accounts[2].taxValue is None
 
         # Verify only one liability created (from the negative account)
         assert result.listOfLiabilities is not None
@@ -2122,8 +2119,8 @@ class TestNegativeBankAccountBalance:
 
         result = calculator.calculate(statement)
 
-        # Verify bank account balance was set to 0
-        assert bank_account.taxValue.balance == Decimal("0")
+        # Verify bank account taxValue was cleared (zero balance)
+        assert bank_account.taxValue is None
 
         # Verify liability was created (but the payments are not copied over)
         assert result.listOfLiabilities is not None
