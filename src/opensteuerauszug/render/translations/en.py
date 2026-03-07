@@ -47,8 +47,8 @@ TRANSLATIONS = {
     # === SUMMARY TABLE HEADERS ===
     "tax_value_ab_header": "<b>Tax value</b> of<br/><b>A</b>- and <b>B</b>-values<br/>at {date}",
     "gross_revenue_values_with_vst": "<b>Gross revenue</b><br/>{period} values <b>with</b><br/>WHT-deduction",
-    "gross_revenue_values_without_vst": "<b>Gross revenue</b><br/>{period} <b>without</b><br/>WHT-deduction",
-    "withholding_tax_claim": "Withholding<br/> tax claim",
+    "gross_revenue_values_without_vst": "<b>Gross revenue</b><br/>{period} values <b>without</b><br/>WHT-deduction",
+    "withholding_tax_claim": "Withholding<br/>tax claim",
     "tax_value_da1_usa_header": "<b>Tax value</b> of<br/><b>DA-1</b> and <b>USA</b>-values<br/>at {date}",
     "gross_revenue_da1_usa_header": "<b>Gross revenue</b> {period}<br/><b>DA-1</b> and <b>USA</b>-values",
     "withholding_usa": "Withholding<br/>tax USA",
@@ -58,12 +58,11 @@ TRANSLATIONS = {
     "total_gross_revenue_b_da1_usa_without_vst": "<b>Total gross revenue</b> {period} <b>B, DA-1</b> and <b>USA</b>-values <b>without</b> WHT-deduction",
     "total_gross_revenue_all_values": "<b>Total gross revenue</b> {period}<br/><b>A, B, DA-1</b> and <b>USA</b>-values",
     "liabilities_header": "<b>Liabilities</b><br/>at {date}",
-    "liabilities_interest_summary_header": "<b>Debt<br/> interests</b> {period}",
+    "liabilities_interest_summary_header": "<b>Debt<br/>interests</b> {period}",
 
     # === BANK ACCOUNTS TABLE ===
     "total_bank_accounts": "Total bank accounts",
     "designation_bank_account_interest": "Description<br/>Bank account<br/>Interests",
-    "total_tax_value": "Total tax value",
     "opening": "Opening {date}",
     "closing": "Closing {date}",
     "value_header": "Value<br/>{date}<br/>in CHF",
@@ -96,7 +95,7 @@ TRANSLATIONS = {
 
     # === LIABILITIES TABLE ===
     "designation_liabilities_interest": "Description<br/>Debts<br/>Interests",
-    "liabilities_amount_interest_header": "Debts<br/>Debt<br/> interests",
+    "liabilities_amount_interest_header": "Debts<br/>Debt<br/>interests",
     "liabilities_amount_header": "<b>Debts</b><br/>{date}<br/>in CHF",
     "liabilities_interest_header": "<b>Debt interests</b><br/>{year}<br/>in CHF",
     "tax_value_liabilities_interest": "Debts / Debt interests",

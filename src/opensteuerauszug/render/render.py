@@ -556,7 +556,7 @@ def create_summary_table(data, styles, usable_width):
          "",
          Paragraph(t('instruction_no_da1'), val_left)], # Col 5 << SHIFTED
          # Row 7: Total Values (** SHIFTED RIGHT **, Indices 1, 2, 5 blank)
-        [Paragraph(format_currency_rounded(summary_data.get('total_tax_value')), val_right), # Col 0
+        [Paragraph(format_currency_rounded(summary_data.get('total_steuerwert')), val_right), # Col 0
          '',
          '',
          Paragraph(format_currency_rounded(summary_data.get('total_brutto_mit_vst')), val_right), # Col 3 << SHIFTED

@@ -63,7 +63,6 @@ TRANSLATIONS = {
     # === BANK ACCOUNTS TABLE ===
     'total_bank_accounts': 'Total Bankkonten',
     'designation_bank_account_interest': 'Bezeichnung<br/>Bankkonto<br/>Zinsen',
-    'total_tax_value': 'Total Steuerwert',
     'opening': 'Eröffnung {date}',
     'closing': 'Saldierung {date}',
     'value_header': 'Wert<br/>{date}<br/>in CHF',

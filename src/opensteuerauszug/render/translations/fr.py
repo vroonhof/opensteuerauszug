@@ -63,7 +63,6 @@ TRANSLATIONS = {
     # === BANK ACCOUNTS TABLE ===
     "total_bank_accounts": "Total comptes bancaires",
     "designation_bank_account_interest": "Description<br/>Compte bancaire<br/>Intérêts",
-    "total_tax_value": "Total valeur fiscale",
     "opening": "Ouverture {date}",
     "closing": "Clôture {date}",
     "value_header": "Valeur<br/>{date}<br/>en CHF",
@@ -83,8 +82,8 @@ TRANSLATIONS = {
     "tax_value_revenue_header": "Valeur fiscale<br/>Revenu",
     "gross_revenue_with_vst_header": "<b>Revenu brut</b><br/>{year} avec IA<br/>en CHF",
     "gross_revenue_without_vst_header": "<b>Revenu brut</b><br/>{year} sans IA<br/>en CHF",
-    "gross_revenue_with_vst_year": "<b>Revenu brut</b> {year} avec IA<br/> en CHF",
-    "gross_revenue_without_vst_year": "<b>Revenu brut</b> {year} sans IA<br/> en CHF",
+    "gross_revenue_with_vst_year": "<b>Revenu brut</b> {year} avec IA<br/>en CHF",
+    "gross_revenue_without_vst_year": "<b>Revenu brut</b> {year} sans IA<br/>en CHF",
     "depot": "<b>Dépôt {number}</b>",
     "balance": "Solde",
     "stock_tax_value_revenue": "Position / Valeur fiscale / Revenu brut",
