@@ -886,9 +886,9 @@ class IbkrImporter:
                 opening_balance = tentative_opening if tentative_opening >= 0 else Decimal("0")
 
             if opening_balance < 0 or closing_balance < 0:
-                if asset_cat == "OPT" and sub_category == "C":
+                if asset_cat == "OPT" and (sub_category == "C" or sub_category == "P"):
                     logger.warning(
-                        f"Negative balance computed for security {sec_pos_obj.symbol} with OPT/C. In case you expect short positions, this is fine. Otherwise, please report this to the developers for further investigation."
+                        f"Negative balance computed for security {sec_pos_obj.symbol} with {asset_cat}/{sub_category}. In case you expect short positions, this is fine. Otherwise, please report this to the developers for further investigation."
                         f" (start {opening_balance}, end {closing_balance})"
                     )
                 else:
