@@ -2381,3 +2381,217 @@ def test_cancelled_out_transfer_is_allowed_and_labelled(sample_ibkr_settings):
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+
+# Short position: AAPL was sold short (sell first, buy back later).
+# At year-end the open position is negative (-5 shares).
+SAMPLE_IBKR_FLEX_XML_SHORT_POSITION = """
+<FlexQueryResponse queryName="ShortPositionQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <Trades>
+        <Trade transactionID="9001" accountId="U1234567" assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" issuerCountryCode="IE" currency="USD" quantity="-5" tradeDate="2025-06-10" settleDateTarget="2025-06-12" tradePrice="200.00" tradeMoney="-1000.00" buySell="SELL" ibCommission="-0.50" ibCommissionCurrency="USD" netCash="999.50" />
+      </Trades>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="AAPL" description="APPLE INC" conid="265598" isin="US0378331005" issuerCountryCode="IE" currency="USD" position="-5" markPrice="210.00" positionValue="-1050.00" reportDate="2025-12-31" side="Short" levelOfDetail="SUMMARY" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="999.50" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+
+def test_short_stock_position_negative_balance_raises(sample_ibkr_settings):
+    """
+    A short stock position (negative OpenPosition) must raise a ValueError.
+    """
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_SHORT_POSITION)
+        xml_file_path = tmp_file.name
+
+    try:
+        with pytest.raises(ValueError, match="Negative balance computed"):
+            importer.import_files([xml_file_path])
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+# OPT/C call-spread: both legs expire/close intra-year (2025-01-22, expiry 2025-01-24).
+# BE 24JAN25 26 C (conid 746386368): two BUY executions (same orderId → aggregated to +2).
+#   No OpenPosition → closing=0.  tentative_opening = 0 - 2 = -2 → capped at 0 with warning.
+# BE 24JAN25 29 C (conid 746386727): two SELL executions (same orderId → aggregated to -2).
+#   No OpenPosition → closing=0.  tentative_opening = 0 - (-2) = +2 → clean.
+SAMPLE_IBKR_FLEX_XML_OPT_C_SPREAD = """
+<FlexQueryResponse queryName="OptCSpreadQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <Trades>
+        <Trade accountId="U1234567" currency="USD" assetCategory="OPT" subCategory="C" symbol="BE    250124C00026000" description="BE 24JAN25 26 C" conid="746386368" securityID="" isin="" issuerCountryCode="" tradeID="7167389262" multiplier="100" strike="26" expiry="20250124" putCall="C" tradeDate="20250122" settleDateTarget="20250123" quantity="1" tradePrice="0.7" tradeMoney="70" buySell="BUY" ibCommission="-0.30525" ibCommissionCurrency="USD" netCash="-70.30525" ibOrderID="3758992887" transactionID="31001044544" levelOfDetail="EXECUTION" />
+        <Trade accountId="U1234567" currency="USD" assetCategory="OPT" subCategory="C" symbol="BE    250124C00026000" description="BE 24JAN25 26 C" conid="746386368" securityID="" isin="" issuerCountryCode="" tradeID="7167390223" multiplier="100" strike="26" expiry="20250124" putCall="C" tradeDate="20250122" settleDateTarget="20250123" quantity="1" tradePrice="0.7" tradeMoney="70" buySell="BUY" ibCommission="-0.35525" ibCommissionCurrency="USD" netCash="-70.35525" ibOrderID="3758992887" transactionID="31001045134" levelOfDetail="EXECUTION" />
+        <Trade accountId="U1234567" currency="USD" assetCategory="OPT" subCategory="C" symbol="BE    250124C00029000" description="BE 24JAN25 29 C" conid="746386727" securityID="" isin="" issuerCountryCode="" tradeID="7167565511" multiplier="100" strike="29" expiry="20250124" putCall="C" tradeDate="20250122" settleDateTarget="20250123" quantity="-1" tradePrice="0.06" tradeMoney="-6" buySell="SELL" ibCommission="-0.3082068" ibCommissionCurrency="USD" netCash="5.6917932" ibOrderID="3759103819" transactionID="31001303208" levelOfDetail="EXECUTION" />
+        <Trade accountId="U1234567" currency="USD" assetCategory="OPT" subCategory="C" symbol="BE    250124C00029000" description="BE 24JAN25 29 C" conid="746386727" securityID="" isin="" issuerCountryCode="" tradeID="7167567743" multiplier="100" strike="29" expiry="20250124" putCall="C" tradeDate="20250122" settleDateTarget="20250123" quantity="-1" tradePrice="0.06" tradeMoney="-6" buySell="SELL" ibCommission="-0.0582068" ibCommissionCurrency="USD" netCash="5.9417932" ibOrderID="3759103819" transactionID="31001303708" levelOfDetail="EXECUTION" />
+      </Trades>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+# OPT/P still open at year-end: bought 2025-02-27, expires 2026-01-16.
+# CBOE 16JAN26 150 P (conid 666235415): BUY +1 → OpenPosition +1 at 2025-12-31.
+# opening=0, mutation=+1, closing=+1 → no negative balance.
+SAMPLE_IBKR_FLEX_XML_OPT_P_OPEN = """
+<FlexQueryResponse queryName="OptPOpenQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <Trades>
+        <Trade accountId="U1234567" currency="USD" assetCategory="OPT" subCategory="P" symbol="CBOE  260116P00150000" description="CBOE 16JAN26 150 P" conid="666235415" securityID="" isin="" issuerCountryCode="" tradeID="7327996184" multiplier="100" strike="150" expiry="20260116" putCall="P" tradeDate="20250227" settleDateTarget="20250228" quantity="1" tradePrice="2.2" tradeMoney="220" buySell="BUY" ibCommission="-1.05525" ibCommissionCurrency="USD" netCash="-221.05525" ibOrderID="3856460807" transactionID="31600220491" levelOfDetail="EXECUTION" />
+      </Trades>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="OPT" subCategory="P" symbol="CBOE  260116P00150000" description="CBOE 16JAN26 150 P" conid="666235415" isin="" issuerCountryCode="" currency="USD" position="1" markPrice="2.1781" positionValue="217.81" reportDate="2025-12-31" levelOfDetail="SUMMARY" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+
+def test_opt_c_spread_closes_intra_year(sample_ibkr_settings):
+    """
+    OPT/C call spread where both legs open and close within the year.
+
+    BE 24JAN25 26 C (long leg): two BUY executions on the same orderId are
+    aggregated into a single +2 mutation.  No OpenPosition → closing balance 0.
+    The tentative opening (0 - 2 = -2) is capped to 0 silently; no error is
+    raised because asset category is OPT/C.  No opening balance entry is
+    written (opening == 0).
+
+    BE 24JAN25 29 C (short leg): two SELL executions on the same orderId are
+    aggregated into -2.  No OpenPosition → closing balance 0; tentative
+    opening = 0 - (-2) = +2.  Opening balance entry written at period start.
+    """
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+    end_plus_one = period_to + timedelta(days=1)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_OPT_C_SPREAD)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        assert tax_statement is not None
+        depot = tax_statement.listOfSecurities.depot[0]
+        security_names = {s.securityName for s in depot.security}
+        assert "BE 24JAN25 26 C (BE    250124C00026000)" in security_names
+        assert "BE 24JAN25 29 C (BE    250124C00029000)" in security_names
+
+        # Long leg: two BUY executions with same orderId → aggregated to +2
+        long_leg = next(s for s in depot.security if "26 C" in s.securityName)
+        assert long_leg.securityCategory == "OPTION"
+        mutations = [s for s in long_leg.stock if s.mutation]
+        assert len(mutations) == 1
+        assert mutations[0].quantity == Decimal("2")
+        assert mutations[0].referenceDate == date(2025, 1, 22)
+        # Opening capped to 0 → no opening balance entry at period start
+
+        assert not any(not s.mutation and s.referenceDate == period_from for s in long_leg.stock)
+        # Closing balance of 0 written at end+1
+        closing_long = next(s for s in long_leg.stock if not s.mutation and s.referenceDate == end_plus_one)
+        assert closing_long.quantity == Decimal("0")
+
+        # Short leg: two SELL executions with same orderId → aggregated to -2
+        short_leg = next(s for s in depot.security if "29 C" in s.securityName)
+        assert short_leg.securityCategory == "OPTION"
+        mutations_short = [s for s in short_leg.stock if s.mutation]
+        assert len(mutations_short) == 1
+        assert mutations_short[0].quantity == Decimal("-2")
+        assert mutations_short[0].referenceDate == date(2025, 1, 22)
+        # Opening balance inferred as +2 → written at period start
+        opening = next(s for s in short_leg.stock if not s.mutation and s.referenceDate == period_from)
+        assert opening.quantity == Decimal("2")
+        # Closing balance of 0 written at end+1
+        closing_short = next(s for s in short_leg.stock if not s.mutation and s.referenceDate == end_plus_one)
+        assert closing_short.quantity == Decimal("0")
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_opt_p_open_at_year_end(sample_ibkr_settings):
+    """
+    OPT/P put option bought intra-year and still open at year-end.
+
+    CBOE 16JAN26 150 P: BUY +1 on 2025-02-27, expires 2026-01-16.
+    OpenPosition reports position=+1 at 2025-12-31.
+    Expected: opening balance 0, one +1 mutation, closing balance +1.
+    No negative balance at any point.
+    """
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_OPT_P_OPEN)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        assert tax_statement is not None
+        depot = tax_statement.listOfSecurities.depot[0]
+        assert len(depot.security) == 1
+
+        put_opt = depot.security[0]
+        assert "CBOE 16JAN26 150 P" in put_opt.securityName
+        assert put_opt.securityCategory == "OPTION"
+        assert put_opt.currency == "USD"
+
+        mutations = [s for s in put_opt.stock if s.mutation]
+        assert len(mutations) == 1
+        assert mutations[0].quantity == Decimal("1")
+        assert mutations[0].referenceDate == date(2025, 2, 27)
+
+        end_plus_one = period_to + timedelta(days=1)
+        closing = next(s for s in put_opt.stock if not s.mutation and s.referenceDate == end_plus_one)
+        assert closing.quantity == Decimal("1")
+
+        # No opening balance entry needed (position was 0 at period start)
+        assert not any(
+            not s.mutation and s.referenceDate == period_from
+            for s in put_opt.stock
+        )
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
