@@ -164,6 +164,37 @@ Place the downloaded Kursliste XML file(s) and generated SQLite database(s) into
 
 For more detailed information on naming conventions and how OpenSteuerAuszug manages these files, please refer to the [Kursliste Data Management Guide](data/kursliste/kursliste.md).
 
+### Stock not found in the Kursliste
+
+If a stock cannot be found in the Kursliste you can request the addition of the security directly from the Swiss Federal Tax Administration.
+
+Send an email with the ISIN and company name to:
+
+- wefin.dvs@estv.admin.ch  
+- evestv.admin@zh.ch  
+- dvs@estv.admin.ch  
+
+Example email:
+
+        
+        Sehr geehrte Damen und Herren,
+        
+        ich möchte höflich anfragen, ob die folgenden Wertpapiere in die Kursliste aufgenommen werden können, da sie derzeit in der Steuer-Software nicht gefunden werden.
+        
+        ISIN: US0123456789 – Company ABC Inc. (ABC)
+        
+        Vielen Dank für Ihre Unterstützung.
+        
+        Freundliche Grüße
+        [Your Name]
+        
+The securities may appear on the ESTV website quite quickly after the request by email.  
+The XML Kursliste is updated regularly:
+
+- Weekly on Friday until calendar week (CW) 14
+- Every two weeks afterwards
+- Every four weeks starting from CW 28        
+
 ---
 
 ## Generating a Steuerauszug
