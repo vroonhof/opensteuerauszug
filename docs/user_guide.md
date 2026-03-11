@@ -170,9 +170,7 @@ If a stock cannot be found in the Kursliste you can request the addition of the 
 
 Send an email with the ISIN and company name to:
 
-- wefin.dvs@estv.admin.ch  
-- evestv.admin@zh.ch  
-- dvs@estv.admin.ch  
+- dvs at estv.admin.ch  
 
 Example email:
 
