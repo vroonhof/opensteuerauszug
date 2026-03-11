@@ -4,8 +4,8 @@ import sqlite3
 import sys
 from pathlib import Path
 from decimal import Decimal
-import json # Added for model_validate_json
-from typing import Dict, Type # Added for type map
+import json
+from typing import Dict, Type
 
 # Import Pydantic models needed for deserialization and type map
 from opensteuerauszug.model.kursliste import (
@@ -14,7 +14,6 @@ from opensteuerauszug.model.kursliste import (
 )
 
 
-# Updated Sample XML with a Fund and consistent structure
 SAMPLE_XML_CONTENT = """<?xml version="1.0" encoding="UTF-8"?>
 <kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste"
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"

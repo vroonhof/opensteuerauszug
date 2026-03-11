@@ -3,10 +3,7 @@ import re
 from typer.testing import CliRunner
 from pathlib import Path
 
-# Adjust the import according to your project structure
-# If cli.py is in src/opensteuerauszug/cli.py and tests is at the root
-# from opensteuerauszug.cli import app
-from opensteuerauszug.steuerauszug import app # Updated import
+from opensteuerauszug.steuerauszug import app
 
 runner = CliRunner()
 KURSLISTE_SAMPLE_DIR = Path(__file__).resolve().parent / "samples" / "kursliste"
