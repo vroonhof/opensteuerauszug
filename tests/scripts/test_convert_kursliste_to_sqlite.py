@@ -1,6 +1,7 @@
 import pytest
 import subprocess
 import sqlite3
+import sys
 from pathlib import Path
 from decimal import Decimal
 import json # Added for model_validate_json
@@ -75,7 +76,7 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     # If this test file is in tests/scripts/, then SCRIPT_PATH needs to be adjusted.
     # Assuming SCRIPT_PATH is correctly defined relative to where pytest is run.
     cmd = [
-        "python", str(SCRIPT_PATH),
+        sys.executable, str(SCRIPT_PATH),
         str(sample_xml_file),
         str(output_db_file)
     ]
