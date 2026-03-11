@@ -101,12 +101,12 @@ def create_test_tax_statement() -> TaxStatement:
     
     # Create a liability with tax value
     liability1 = LiabilityAccount(
-        bankAccountNumber=BankAccountNumber("L123456"),  # Wrapped in type, field renamed
-        bankAccountName=BankAccountName("Test Mortgage"),  # Wrapped in type
-        bankAccountCountry=CountryIdISO2Type("CH"),  # Added missing required field
-        bankAccountCurrency=CurrencyId("CHF"),  # Added missing required field
-        totalTaxValue=PositiveDecimal("200000.00"),  # Added missing required field, wrapped
-        totalGrossRevenueB=PositiveDecimal("2000.00"),  # Added missing required field, wrapped
+        bankAccountNumber=BankAccountNumber("L123456"),
+        bankAccountName=BankAccountName("Test Mortgage"),
+        bankAccountCountry=CountryIdISO2Type("CH"),
+        bankAccountCurrency=CurrencyId("CHF"),
+        totalTaxValue=PositiveDecimal("200000.00"),
+        totalGrossRevenueB=PositiveDecimal("2000.00"),
         taxValue=LiabilityAccountTaxValue(
             referenceDate="2023-12-31",
             balanceCurrency="CHF",
@@ -300,7 +300,7 @@ class TestTotalCalculator:
             periodFrom="2023-01-01",
             periodTo="2023-12-31",
             canton="ZH",
-            institution={"name": "Test Bank AG"},  # Added missing institution
+            institution={"name": "Test Bank AG"},
             client=[{
                 "clientNumber": ClientNumber("C1"), 
                 "firstName": "Max", 

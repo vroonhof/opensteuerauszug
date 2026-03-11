@@ -1,8 +1,6 @@
-import re # Added for sanitization
+import re
 from datetime import date, datetime, timedelta
-from typing import List, Optional, Dict, Any, cast, get_args # Added get_args import
-# import os # Removed os import
-# Removed pandas import
+from typing import List, Optional, Dict, Any, cast, get_args
 from decimal import Decimal
 import logging
 from opensteuerauszug.model.ech0196 import (
@@ -16,7 +14,6 @@ from opensteuerauszug.config.models import GeneralSettings
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 from opensteuerauszug.core.organisation import compute_org_nr
-# from opensteuerauszug.core.identifier_loader import SecurityIdentifierMapLoader # Removed loader import
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +28,7 @@ class CleanupCalculator:
     def __init__(self,
                  period_from: date,
                  period_to: date,
-                 importer_name: str, # Added importer_name parameter
+                 importer_name: str,
                  identifier_map: Optional[Dict[str, Dict[str, Any]]] = None,
                  enable_filtering: bool = True,
                  override_org_nr: Optional[str] = None,

@@ -158,10 +158,9 @@ class TestCleanupCalculatorSorting:
             periodFrom=date(default_period_to.year,1,1), periodTo=default_period_to, 
             country="CH", canton="ZH", minorVersion=0, 
             client=[Client(clientNumber=ClientNumber("SortingClient"))], institution=Institution(lei=LEIType("SORTINGLEI12300000000")),
-            # importer_name="SortingImporter", # Removed
             listOfSecurities=ListOfSecurities(depot=[depot]))
 
-        calculator = CleanupCalculator(DEFAULT_TEST_PERIOD_FROM, default_period_to, "SortingImporter", enable_filtering=False) # Added importer_name
+        calculator = CleanupCalculator(DEFAULT_TEST_PERIOD_FROM, default_period_to, "SortingImporter", enable_filtering=False)
         result_statement = calculator.calculate(statement)
 
         assert result_statement.listOfSecurities

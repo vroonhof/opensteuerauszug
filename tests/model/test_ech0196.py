@@ -24,7 +24,7 @@ from opensteuerauszug.model.ech0196 import (
     BaseXmlModel,
     NS_MAP,
     ns_tag,
-    Security, # Added Security import
+    Security,
     SecurityPayment,
     SecurityStock
 )
