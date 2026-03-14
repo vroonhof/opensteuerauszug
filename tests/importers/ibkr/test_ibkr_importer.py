@@ -627,14 +627,16 @@ def test_withholding_tax_reversal_nets_against_withholding(sample_ibkr_settings)
   </FlexStatements>
 </FlexQueryResponse>
 """
-    xml_file_path = "test_whtax_reversal.xml"
+    xml_file_path = None
     try:
-        with open(xml_file_path, "w") as f:
-            f.write(xml_content)
+        with tempfile.NamedTemporaryFile("w", suffix=".xml", delete=False) as tmp:
+            tmp.write(xml_content)
+            xml_file_path = tmp.name
 
         tax_statement = importer.import_files([xml_file_path])
         depot = tax_statement.listOfSecurities.depot[0]
-        vt = next(s for s in depot.security if s.isin == "US9220427424")
+        vt = next((s for s in depot.security if s.isin == "US9220427424"), None)
+        assert vt is not None, 'Security with ISIN "US9220427424" not found in depot'
 
         assert len(vt.payment) == 4
 
@@ -659,7 +661,7 @@ def test_withholding_tax_reversal_nets_against_withholding(sample_ibkr_settings)
         assert wht_corrected.nonRecoverableTaxAmountOriginal == Decimal("5.20")
 
     finally:
-        if os.path.exists(xml_file_path):
+        if xml_file_path is not None and os.path.exists(xml_file_path):
             os.remove(xml_file_path)
 
 
