@@ -201,12 +201,13 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     "Suppressing missing Kursliste warning for rights issue %s with zero balance.",
                     ident,
                 )
-            elif is_option and closing_balance == 0:
+            elif is_option:
                 logger.debug(
-                    "Suppressing missing Kursliste warning for option %s with zero balance.",
+                    "Suppressing missing Kursliste warning for option %s.",
                     ident,
                 )
-                self._current_security_is_zero_balance_option = True
+                if closing_balance == 0:
+                    self._current_security_is_zero_balance_option = True
             else:
                 self._missing_kursliste_entries.append(ident)
 
