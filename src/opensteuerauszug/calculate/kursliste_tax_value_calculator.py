@@ -225,6 +225,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     self._set_field_value(sec_tax_value, "unitPrice", price, path_prefix)
                     value = price * sec_tax_value.quantity
                     self._set_field_value(sec_tax_value, "value", value, path_prefix)
+                    # The Kursliste price is in CHF, so if balance was previously set
+                    # (e.g. from the broker's position value), it must be updated to the CHF value.
+                    self._set_field_value(sec_tax_value, "balance", value, path_prefix)
                     self._set_field_value(sec_tax_value, "exchangeRate", Decimal("1"), path_prefix)
                     self._set_field_value(sec_tax_value, "balanceCurrency", "CHF", path_prefix)
                     self._set_field_value(sec_tax_value, "kursliste", True, path_prefix)

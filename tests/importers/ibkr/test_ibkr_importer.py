@@ -377,6 +377,8 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert msft_sec.stock[1].mutation is False
         assert msft_sec.stock[1].referenceDate == date(2024, 1, 1)
         assert msft_sec.stock[1].quantity == Decimal("10")
+        assert msft_sec.stock[1].unitPrice == Decimal("300.00")
+        assert msft_sec.stock[1].balance == Decimal("3000.00")
         assert all(s.referenceDate != date(2023, 12, 31) for s in msft_sec.stock)
 
         # Divdend fom cash transaction should be mapped to SecurityPayment
@@ -779,6 +781,8 @@ def test_open_position_only_no_mutations(sample_ibkr_settings):
         )
         assert closing_balance is not None, "Closing balance entry should exist"
         assert closing_balance.quantity == Decimal("13"), f"Closing balance should be 13, got {closing_balance.quantity}"
+        assert closing_balance.unitPrice == Decimal("111.53")
+        assert closing_balance.balance == Decimal("1449.89")
         
     finally:
         if os.path.exists(xml_file_path):
