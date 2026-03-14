@@ -11,6 +11,14 @@ from opensteuerauszug.util.sorting import sort_security_stocks
 logger = logging.getLogger(__name__)
 
 @dataclass
+class ReconciliationMismatch:
+    """Structured data about a quantity mismatch found during reconciliation."""
+    event_date: date
+    calculated_quantity: Decimal
+    reported_quantity: Decimal
+    discrepancy: Decimal  # reported - calculated
+
+@dataclass
 class ReconciledQuantity:
     """Represents a reconciled quantity at a specific date."""
     reference_date: date
@@ -39,7 +47,7 @@ class PositionReconciler:
         print_log: bool = False,
         raise_on_error: bool = False,
         assume_zero_if_no_balances: bool = False
-    ) -> Tuple[bool, List[str]]:
+    ) -> Tuple[bool, List[ReconciliationMismatch]]:
         """
         Walks through the sorted stock events, applying mutations and verifying quantities
         against balance statements (mutation=False).
@@ -54,8 +62,9 @@ class PositionReconciler:
                                         that the final quantity also equals 0.
 
         Returns:
-            A tuple: (is_consistent, log_messages).
+            A tuple: (is_consistent, mismatches).
             is_consistent is True if all balances match calculated quantities, False otherwise.
+            mismatches is a list of ReconciliationMismatch objects for each discrepancy found.
         
         Raises:
             ValueError: If raise_on_error is True and inconsistencies are found.
@@ -78,7 +87,7 @@ class PositionReconciler:
                 logger.error(msg)
                 if raise_on_error:
                     raise ValueError(msg)
-                return False, [msg]
+                return False, []
 
             logger.warning(
                 f"{log_prefix} No balance statement found. "
@@ -88,24 +97,31 @@ class PositionReconciler:
             current_date = self.sorted_stocks[0].referenceDate
             start_idx = 0
         else:
-            start_balance_event = self.sorted_stocks[first_balance_idx]
-            current_quantity = start_balance_event.quantity
-            current_date = start_balance_event.referenceDate
-            start_idx = first_balance_idx + 1
-            logger.debug(f"{log_prefix} Starting consistency check from initial balance on {current_date}. Initial Qty: {current_quantity} ({start_balance_event.balanceCurrency}).")
+            if first_balance_idx > 0:
+                current_quantity = Decimal("0")
+                current_date = self.sorted_stocks[0].referenceDate
+                start_idx = 0
+                logger.debug(f"{log_prefix} Starting consistency check from 0 on {current_date} to verify first balance at index {first_balance_idx}.")
+            else:
+                start_balance_event = self.sorted_stocks[first_balance_idx]
+                current_quantity = start_balance_event.quantity
+                current_date = start_balance_event.referenceDate
+                start_idx = first_balance_idx + 1
+                logger.debug(f"{log_prefix} Starting consistency check from initial balance on {current_date}. Initial Qty: {current_quantity} ({start_balance_event.balanceCurrency}).")
 
         is_consistent = True
-        log_messages = []
+        mismatches: List[ReconciliationMismatch] = []
 
         for i in range(start_idx, len(self.sorted_stocks)):
             stock_event = self.sorted_stocks[i]
             event_date = stock_event.referenceDate
 
             if event_date < current_date:
-                msg = f"ERROR: {log_prefix} Stock events appear out of order: event on {event_date} after processing {current_date}. Aborting."
-                logger.error(msg)
-                log_messages.append(msg)
+                msg = f"Stock events appear out of order: event on {event_date} after processing {current_date}. Aborting."
+                logger.error(f"ERROR: {log_prefix} {msg}")
                 is_consistent = False
+                if raise_on_error:
+                    raise ValueError(f"[{self.identifier}] {msg}")
                 break
 
             if stock_event.mutation:
@@ -119,9 +135,13 @@ class PositionReconciler:
                 if current_quantity != reported_quantity:
                     is_consistent = False
                     discrepancy = reported_quantity - current_quantity
-                    msg = f"ERROR: {log_prefix} Mismatch on {event_date}! Calculated Qty: {current_quantity}, Reported Qty in statement: {reported_quantity}. Discrepancy: {discrepancy}."
-                    logger.error(msg)
-                    log_messages.append(msg)
+                    mismatches.append(ReconciliationMismatch(
+                        event_date=event_date,
+                        calculated_quantity=current_quantity,
+                        reported_quantity=reported_quantity,
+                        discrepancy=discrepancy
+                    ))
+                    logger.error(f"ERROR: {log_prefix} Mismatch on {event_date}! Calculated Qty: {current_quantity}, Reported Qty in statement: {reported_quantity}. Discrepancy: {discrepancy}.")
                 else:
                     logger.debug(f"{log_prefix} Match on {event_date}: Calculated Qty {current_quantity} == Reported Qty {reported_quantity}.")
                 current_quantity = reported_quantity
@@ -130,22 +150,27 @@ class PositionReconciler:
 
         if is_consistent and first_balance_idx == -1 and current_quantity != Decimal("0"):
             msg = (
-                f"ERROR: {log_prefix} Mutation-only consistency check failed: "
+                f"Mutation-only consistency check failed: "
                 f"final quantity is {current_quantity}, expected 0."
             )
-            logger.error(msg)
-            log_messages.append(msg)
+            logger.error(f"ERROR: {log_prefix} {msg}")
             is_consistent = False
+            if raise_on_error:
+                raise ValueError(f"[{self.identifier}] {msg}")
 
         if is_consistent:
             logger.info(f"{log_prefix} Consistency check finished successfully.")
         else:
             logger.error(f"{log_prefix} Consistency check finished with errors.")
             if raise_on_error:
-                error_summary = f"[{self.identifier}] Position reconciliation failed. Log:\n" + "\n".join(log_messages)
+                mismatch_details = "; ".join(
+                    f"{m.event_date}: calc={m.calculated_quantity} vs reported={m.reported_quantity}"
+                    for m in mismatches
+                )
+                error_summary = f"[{self.identifier}] Position reconciliation failed. Mismatches: {mismatch_details}"
                 raise ValueError(error_summary)
 
-        return is_consistent, log_messages
+        return is_consistent, mismatches
 
     def synthesize_position_at_date(self, target_date: date, print_log: bool = False, assume_zero_if_no_balances: bool = False) -> Optional[ReconciledQuantity]:
         """

@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
 from opensteuerauszug.model.ech0196 import SecurityStock, QuotationType, CurrencyId
-from opensteuerauszug.core.position_reconciler import PositionReconciler, ReconciledQuantity
+from opensteuerauszug.core.position_reconciler import PositionReconciler, ReconciledQuantity, ReconciliationMismatch
 
 # Helper to create SecurityStock instances easily
 def create_stock(ref_date: str, qty: str, mutation: bool, currency: CurrencyId = "CHF", name: Optional[str] = None, q_type: QuotationType = "PIECE") -> SecurityStock:
@@ -21,7 +21,7 @@ class TestPositionReconciler(unittest.TestCase):
     def test_empty_stocks(self):
         reconciler = PositionReconciler([], identifier="EMPTY_TEST")
         self.assertEqual(reconciler.sorted_stocks, [])
-        is_consistent = reconciler.check_consistency()
+        is_consistent, mismatches = reconciler.check_consistency()
         self.assertTrue(is_consistent)
         pos = reconciler.synthesize_position_at_date(date(2023,1,1))
         self.assertIsNone(pos)
@@ -55,7 +55,7 @@ class TestPositionReconciler(unittest.TestCase):
             create_stock("2023-01-10", "-5", True, name="Sell"),
         ]
         reconciler = PositionReconciler(stocks, identifier="NO_BALANCE_ASSUME_ZERO_OK")
-        is_consistent, _ = reconciler.check_consistency(
+        is_consistent, mismatches = reconciler.check_consistency(
             raise_on_error=True,
             assume_zero_if_no_balances=True,
         )
@@ -79,7 +79,7 @@ class TestPositionReconciler(unittest.TestCase):
             create_stock("2023-01-15", "105", False, name="Closing Balance")
         ]
         reconciler = PositionReconciler(stocks, identifier="CONSIST_OK")
-        is_consistent = reconciler.check_consistency(raise_on_error=False)
+        is_consistent, mismatches = reconciler.check_consistency(raise_on_error=False)
         self.assertTrue(is_consistent)
         # Also test that it doesn't raise when consistent and raise_on_error=True
         try:
@@ -97,6 +97,22 @@ class TestPositionReconciler(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             reconciler.check_consistency(raise_on_error=True)
         
+    def test_mismatch_returns_structured_data(self):
+        stocks = [
+            create_stock("2023-01-01", "100", False, name="Opening"),
+            create_stock("2023-01-05", "10", True, name="Buy"),
+            create_stock("2023-01-15", "109", False, name="Wrong Closing")
+        ]
+        reconciler = PositionReconciler(stocks, identifier="STRUCT_MISMATCH")
+        is_consistent, mismatches = reconciler.check_consistency(raise_on_error=False)
+        self.assertFalse(is_consistent)
+        self.assertEqual(len(mismatches), 1)
+        m = mismatches[0]
+        self.assertEqual(m.event_date, date(2023, 1, 15))
+        self.assertEqual(m.calculated_quantity, Decimal("110"))
+        self.assertEqual(m.reported_quantity, Decimal("109"))
+        self.assertEqual(m.discrepancy, Decimal("-1"))
+
     def test_multiple_mutations(self):
         stocks = [
             create_stock("2023-01-01", "50", False),
@@ -106,7 +122,7 @@ class TestPositionReconciler(unittest.TestCase):
             create_stock("2023-01-04", "45", False) # Check
         ]
         reconciler = PositionReconciler(stocks, identifier="MULTI_MUTATION")
-        is_consistent = reconciler.check_consistency(raise_on_error=False)
+        is_consistent, mismatches = reconciler.check_consistency(raise_on_error=False)
         self.assertTrue(is_consistent)
         # Test it doesn't raise when consistent
         try:
@@ -201,7 +217,7 @@ class TestPositionReconciler(unittest.TestCase):
             create_stock("2023-01-02", "110", False, name="Next Day Balance") 
         ]
         reconciler = PositionReconciler(stocks, identifier="SAME_DAY_CONSIST")
-        is_consistent = reconciler.check_consistency()
+        is_consistent, mismatches = reconciler.check_consistency()
         self.assertTrue(is_consistent)
 
         stocks_mismatch = [
@@ -350,6 +366,20 @@ class TestPositionReconciler(unittest.TestCase):
         if pos is not None:
             self.assertEqual(pos.quantity, Decimal("110"))
             self.assertEqual(pos.currency, "CHF")
+
+    def test_mismatch_error_message_details(self):
+        """Verify that the error message contains 'calc=... vs reported=...'."""
+        stocks = [
+            create_stock("2023-01-01", "100", False, name="Opening"),
+            create_stock("2023-01-15", "105", False, name="Mismatch") # Calc 100
+        ]
+        reconciler = PositionReconciler(stocks, identifier="MSG_DETAILS")
+        with self.assertRaises(ValueError) as context:
+            reconciler.check_consistency(raise_on_error=True)
+        
+        msg = str(context.exception)
+        self.assertIn("calc=100", msg)
+        self.assertIn("reported=105", msg)
 
 if __name__ == '__main__':
     unittest.main() 
