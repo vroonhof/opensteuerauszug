@@ -775,7 +775,7 @@ class IbkrImporter:
                                 else:
                                     sec_payment.nonRecoverableTaxAmountOriginal = abs(amount)
                             elif amount > 0:
-                                sec_payment.grossRevenueB = amount
+                                sec_payment.nonRecoverableTaxAmountOriginal = -amount
                         processed_security_positions[sec_pos_key]['payments'].append(
                             sec_payment
                         )
