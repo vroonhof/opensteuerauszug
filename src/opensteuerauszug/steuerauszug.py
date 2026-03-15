@@ -36,10 +36,17 @@ from .config.paths import (
     resolve_security_identifiers_file,
 )
 from .kursliste.__main__ import app as kursliste_app
+from typer.main import TyperGroup
 
 logger = logging.getLogger(__name__)
 
-app = typer.Typer()
+class DefaultToProcess(TyperGroup):
+    def parse_args(self, ctx, args):
+        if args and args[0] not in self.commands and not args[0].startswith('-'):
+            args.insert(0, 'process')
+        return super().parse_args(ctx, args)
+
+app = typer.Typer(cls=DefaultToProcess)
 app.add_typer(kursliste_app, name="kursliste")
 
 class Phase(str, Enum):
