@@ -40,10 +40,17 @@ from typer.main import TyperGroup
 
 logger = logging.getLogger(__name__)
 
+_COMMAND_DEFAULT_PHASES = {
+    'verify': ['--phases', 'verify'],
+}
+
 class DefaultToProcess(TyperGroup):
     def parse_args(self, ctx, args):
         if args and args[0] not in self.commands and not args[0].startswith('-'):
             args.insert(0, 'process')
+        cmd = args[0] if args else None
+        if cmd in _COMMAND_DEFAULT_PHASES and '--phases' not in args and '-p' not in args:
+            args[1:1] = _COMMAND_DEFAULT_PHASES[cmd]
         return super().parse_args(ctx, args)
 
 app = typer.Typer(cls=DefaultToProcess)
@@ -77,7 +84,7 @@ class LogLevel(str, Enum):
 
 default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RECONCILE_PAYMENTS, Phase.RENDER]
 
-@app.command()
+@app.command("process")
 def process(
     input_file: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=True, readable=True, help="Input file (specific format depends on importer, or XML for raw) or directory (for Schwab importer)."),
     output_file: Path = typer.Option(None, "--output", "-o", help="Output PDF file path."),
@@ -701,6 +708,8 @@ def process(
             except Exception as dump_e:
                 print(f"Failed to dump debug model after error: {dump_e}")
         raise typer.Exit(code=1)
+
+app.command("verify")(process)
 
 if __name__ == "__main__":
     app()
