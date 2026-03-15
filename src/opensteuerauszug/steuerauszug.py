@@ -124,12 +124,8 @@ def process(
         run_phases = run_phases_input
     else:
         run_phases = _COMMAND_DEFAULT_PHASES.get(ctx.info_name, default_phases[:])
-
-    if payment_reconciliation and Phase.RECONCILE_PAYMENTS not in run_phases:
-        render_idx = run_phases.index(Phase.RENDER) if Phase.RENDER in run_phases else len(run_phases)
-        run_phases.insert(render_idx, Phase.RECONCILE_PAYMENTS)
-    elif not payment_reconciliation and Phase.RECONCILE_PAYMENTS in run_phases:
-        run_phases.remove(Phase.RECONCILE_PAYMENTS)
+        if not payment_reconciliation and Phase.RECONCILE_PAYMENTS in run_phases:
+            run_phases.remove(Phase.RECONCILE_PAYMENTS)
 
     print(f"Starting OpenSteuerauszug processing...")
     print(f"Input file: {input_file}")
