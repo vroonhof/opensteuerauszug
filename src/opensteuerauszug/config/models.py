@@ -66,6 +66,15 @@ class IbkrAccountSettings(AccountSettingsBase):
 
 # Add other broker-specific account settings here if needed, e.g.:
 # class UBSAccountSettings(AccountSettingsBase):
+
+class SwissquoteAccountSettings(AccountSettingsBase):
+    """
+    Settings for a single Swissquote account.
+    account_number should be set to your Swissquote account/depot number.
+    """
+    pass
+
+
 #     ubs_specific_feature_enabled: bool = False
 
 class CalculateSettings(BaseModel):
@@ -73,7 +82,8 @@ class CalculateSettings(BaseModel):
     keep_existing_payments: bool = Field(default=False, description="If True, keep existing payments when calculating tax values.")
 
 # A type union for all possible specific account settings models
-SpecificAccountSettingsUnion = Union[SchwabAccountSettings, IbkrAccountSettings] # Add other types like UBSAccountSettings here
+SpecificAccountSettingsUnion = Union[SchwabAccountSettings, IbkrAccountSettings, SwissquoteAccountSettings]
+
 
 class ConcreteAccountSettings(BaseModel):
     '''
@@ -82,7 +92,7 @@ class ConcreteAccountSettings(BaseModel):
     The 'settings' field will contain an instance of SchwabAccountSettings,
     or other specific types in the future.
     '''
-    kind: Literal["schwab", "ibkr"] # Add other literals like "ubs" when more types are supported
+    kind: Literal["schwab", "ibkr", "swissquote"] # Add other literals like "ubs" when more types are supported
     settings: SpecificAccountSettingsUnion
     
     # Delegate attribute access to the underlying specific settings model

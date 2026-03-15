@@ -7,7 +7,7 @@ from typing import List, Optional
 from datetime import date, datetime
 from pypdf import PdfReader, PdfWriter
 
-from opensteuerauszug.config.models import SchwabAccountSettings, IbkrAccountSettings, GeneralSettings # Added GeneralSettings
+from opensteuerauszug.config.models import SchwabAccountSettings, IbkrAccountSettings, SwissquoteAccountSettings, GeneralSettings # Added GeneralSettings
 from opensteuerauszug.render.translations import DEFAULT_LANGUAGE
 from .core.identifier_loader import SecurityIdentifierMapLoader
 
@@ -26,6 +26,7 @@ from .calculate.payment_reconciliation_calculator import PaymentReconciliationCa
 from .util.known_issues import is_known_issue
 from .importers.schwab.schwab_importer import SchwabImporter
 from .importers.ibkr.ibkr_importer import IbkrImporter # Added IbkrImporter
+from .importers.swissquote.swissquote_importer import SwissquoteImporter
 from .core.exchange_rate_provider import ExchangeRateProvider
 from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
@@ -51,6 +52,7 @@ class Phase(str, Enum):
 class ImporterType(str, Enum):
     SCHWAB = "schwab"
     IBKR = "ibkr" # Added IBKR
+    SWISSQUOTE = "swissquote"
     NONE = "none"
 
 class TaxCalculationLevel(str, Enum):
@@ -174,6 +176,7 @@ def main(
     # --- Configuration Loading ---
     all_schwab_account_settings_models: List[SchwabAccountSettings] = []
     all_ibkr_account_settings_models: List[IbkrAccountSettings] = [] # New list for IBKR
+    all_swissquote_account_settings_models: List[SwissquoteAccountSettings] = []
     effective_config_file = resolve_config_file(config_file)
     config_manager = ConfigManager(config_file_path=str(effective_config_file))
     
@@ -206,6 +209,8 @@ def main(
         target_broker_kind_for_config_loading = "schwab"
     elif importer_type == ImporterType.IBKR:
         target_broker_kind_for_config_loading = "ibkr"
+    elif importer_type == ImporterType.SWISSQUOTE:
+        target_broker_kind_for_config_loading = "swissquote"
     elif broker_name:
         target_broker_kind_for_config_loading = broker_name.lower()
         print(f"Warning: --broker '{broker_name}' used with importer '{importer_type.value}'. Account settings will be loaded for '{target_broker_kind_for_config_loading}', ensure this is intended.")
@@ -229,6 +234,8 @@ def main(
                     all_schwab_account_settings_models.append(acc_settings.settings)
                 elif acc_settings.kind == "ibkr":
                     all_ibkr_account_settings_models.append(acc_settings.settings)
+                elif acc_settings.kind == "swissquote":
+                    all_swissquote_account_settings_models.append(acc_settings.settings)
                 else:
                     print(f"Warning: Received unhandled account configuration kind '{acc_settings.kind}' for broker '{target_broker_kind_for_config_loading}'. Skipping.")
             
@@ -236,12 +243,16 @@ def main(
                 raise ValueError(f"No valid Schwab account configurations found for broker 'schwab', though other configurations might exist.")
             if target_broker_kind_for_config_loading == "ibkr" and not all_ibkr_account_settings_models and concrete_accounts_list:
                 logger.debug(f"Warning: No valid IBKR account configurations loaded for broker 'ibkr', though other configurations might exist.")
+            if target_broker_kind_for_config_loading == "swissquote" and not all_swissquote_account_settings_models and concrete_accounts_list:
+                logger.debug(f"Warning: No valid Swissquote account configurations loaded for broker 'swissquote', though other configurations might exist.")
 
             if all_schwab_account_settings_models:
                 print(f"Successfully loaded {len(all_schwab_account_settings_models)} Schwab account(s).")
             if all_ibkr_account_settings_models:
                 print(f"Successfully loaded {len(all_ibkr_account_settings_models)} IBKR account(s).")
-
+            if all_swissquote_account_settings_models:
+                print(f"Successfully loaded {len(all_swissquote_account_settings_models)} Swissquote account(s).")
+                
         except ValueError as e:
             print(f"Error loading configuration: {e}")
             raise typer.Exit(code=1)
@@ -349,8 +360,28 @@ def main(
                     account_settings_list=all_ibkr_account_settings_models
                 )
                 statement = ibkr_importer.import_files([str(input_file)])
-                print(f"IBKR import complete.")
-
+                print(f"IBKR import complete.")   
+            
+            elif importer_type == ImporterType.SWISSQUOTE:
+                if not input_file.is_file():
+                    raise typer.BadParameter(
+                        f"Input for Swissquote importer must be a CSV file, "
+                        f"but got: {input_file}"
+                    )
+                print(
+                    f"Initializing SwissquoteImporter with "
+                    f"{len(all_swissquote_account_settings_models)} "
+                    f"Swissquote account configuration(s) (if any)."
+                )
+                swissquote_importer = SwissquoteImporter(
+                    period_from=parsed_period_from,
+                    period_to=parsed_period_to,
+                    account_settings_list=all_swissquote_account_settings_models,
+                    general_settings=general_config_settings,
+                )
+                statement = swissquote_importer.import_file(str(input_file))
+                print("Swissquote import complete.")
+            
             elif importer_type == ImporterType.NONE and not raw_import:
                 print("No specific importer selected, creating an empty TaxStatement for further processing.")
                 # Create a minimal valid statement with required elements per eCH-0196 XSD
