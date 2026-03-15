@@ -201,9 +201,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     "Suppressing missing Kursliste warning for rights issue %s with zero balance.",
                     ident,
                 )
-            elif is_option:
+            elif is_option and closing_balance == 0:
+                # TODO come up with a a plan for to have a relatively safe intermediate version
+                # of fill-in mode that allows keeping the brokers valuaton for security types
+                # that have no tax effects other than due to their end of year value.
                 logger.debug(
-                    "Suppressing missing Kursliste warning for option %s.",
+                    "Suppressing missing Kursliste warning for option %s with zero balance.",
                     ident,
                 )
                 if closing_balance == 0:
