@@ -107,6 +107,22 @@ TRANSACTION_TYPE_MAP: dict[str, str] = {
     "Auszahlung":              "withdrawal",
     "Twint":                   "twint_payment",
     "Zahlung":                 "payment",
+    "Einzahlung":              "deposit",
+
+    # FX compound
+    "Forex-Gutschrift":        "fx_credit",
+    "Fx-Gutschrift Comp.":     "fx_credit",
+    "Fx-Belastung Comp.":      "fx_debit",
+
+    # Corporate actions
+    "Interne Titelumbuchung":  "corporate_action",
+    "Reverse Split":           "corporate_action",
+    "Fusion":                  "corporate_action",
+    "Ausgabe von Anrechten":   "corporate_action",
+    "Vorrechtszeichungsangebot": "corporate_action",
+
+    # Crypto
+    "Crypto Deposit":          "deposit",
 }
 
 SECURITY_TRANSACTION_TYPES = {
@@ -493,8 +509,20 @@ class SwissquoteImporter:
             # We don't have explicit opening/closing balance rows from SQ CSV,
             # so we synthesise them.  Opening = 0 is the safe default;
             # the CleanupCalculator will correct this if needed.
-            opening_qty = Decimal("0")
-            closing_qty = opening_qty + net_quantity
+            # Compute opening balance from all mutations BEFORE the period start,
+            # and closing balance from ALL mutations (pre-period + in-period).
+            pre_period_qty = sum(
+                (s.quantity for s in stocks
+                 if s.mutation and s.referenceDate < period_from),
+                Decimal("0"),
+            )
+            in_period_qty = sum(
+                (s.quantity for s in stocks
+                 if s.mutation and s.referenceDate >= period_from),
+                Decimal("0"),
+            )
+            opening_qty = pre_period_qty
+            closing_qty = pre_period_qty + in_period_qty
 
             # Add opening balance stock entry
             stocks.append(SecurityStock(
