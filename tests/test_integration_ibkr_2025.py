@@ -36,6 +36,7 @@ def test_integration_ibkr_vt_and_chill_2025(tmp_path: Path):
     result = runner.invoke(
         app,
         [
+            "process",
             str(input_file),
             "--importer", "ibkr",
             "--tax-year", "2025",

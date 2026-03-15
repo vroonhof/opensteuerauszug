@@ -35,10 +35,12 @@ from .config.paths import (
     resolve_kursliste_dir,
     resolve_security_identifiers_file,
 )
+from .kursliste.__main__ import app as kursliste_app
 
 logger = logging.getLogger(__name__)
 
 app = typer.Typer()
+app.add_typer(kursliste_app, name="kursliste")
 
 class Phase(str, Enum):
     IMPORT = "import"
@@ -69,7 +71,7 @@ class LogLevel(str, Enum):
 default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RECONCILE_PAYMENTS, Phase.RENDER]
 
 @app.command()
-def main(
+def process(
     input_file: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=True, readable=True, help="Input file (specific format depends on importer, or XML for raw) or directory (for Schwab importer)."),
     output_file: Path = typer.Option(None, "--output", "-o", help="Output PDF file path."),
     run_phases_input: List[Phase] = typer.Option(None, "--phases", "-p", help="Phases to run (default: all). Specify multiple times or comma-separated."),
