@@ -202,11 +202,15 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     ident,
                 )
             elif is_option and closing_balance == 0:
+                # TODO come up with a a plan for to have a relatively safe intermediate version
+                # of fill-in mode that allows keeping the brokers valuaton for security types
+                # that have no tax effects other than due to their end of year value.
                 logger.debug(
                     "Suppressing missing Kursliste warning for option %s with zero balance.",
                     ident,
                 )
-                self._current_security_is_zero_balance_option = True
+                if closing_balance == 0:
+                    self._current_security_is_zero_balance_option = True
             else:
                 self._missing_kursliste_entries.append(ident)
 
@@ -225,6 +229,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     self._set_field_value(sec_tax_value, "unitPrice", price, path_prefix)
                     value = price * sec_tax_value.quantity
                     self._set_field_value(sec_tax_value, "value", value, path_prefix)
+                    # The Kursliste price is in CHF, so if balance was previously set
+                    # (e.g. from the broker's position value), it must be updated to the CHF value.
+                    self._set_field_value(sec_tax_value, "balance", value, path_prefix)
                     self._set_field_value(sec_tax_value, "exchangeRate", Decimal("1"), path_prefix)
                     self._set_field_value(sec_tax_value, "balanceCurrency", "CHF", path_prefix)
                     self._set_field_value(sec_tax_value, "kursliste", True, path_prefix)

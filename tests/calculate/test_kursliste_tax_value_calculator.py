@@ -164,7 +164,45 @@ def test_handle_security_tax_value_from_kursliste(kursliste_manager):
     assert stv.exchangeRate == Decimal("1")
     assert stv.kursliste is True
     assert stv.balanceCurrency == "CHF"
+    assert stv.balance == Decimal("127750")
 
+def test_handle_security_tax_value_updates_foreign_balance(kursliste_manager):
+    """
+    Test that when a security's tax value is updated from Kursliste,
+    both the value and the balance are updated to match the CHF value
+    if the original balance was in a foreign currency.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider)
+    sec = Security(
+        country="CH",
+        securityName="Roche",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("CH0012032048"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("500"),
+            balanceCurrency="USD", # Intentionally using foreign currency to test behavior
+            balance=Decimal("150000"), # Random USD balance from a broker
+        ),
+        stock=[],
+    )
+    
+    calc._handle_Security(sec, "sec")
+    stv = sec.taxValue
+    calc._handle_SecurityTaxValue(stv, "sec.taxValue")
+    
+    assert stv.unitPrice == Decimal("255.5")
+    assert stv.value == Decimal("127750")
+    assert stv.exchangeRate == Decimal("1")
+    assert stv.kursliste is True
+    assert stv.balanceCurrency == "CHF"
+    # Balance should equal value because Kursliste forced currency to CHF.
+    assert stv.balance == Decimal("127750")
 
 def test_handle_security_tax_value_sets_undefined_when_not_in_kursliste(kursliste_manager):
     """Test that SecurityTaxValue.undefined is set to True when security is not found in Kursliste."""
