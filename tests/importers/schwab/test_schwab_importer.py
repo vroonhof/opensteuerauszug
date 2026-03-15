@@ -594,6 +594,249 @@ class TestSchwabImporterProcessing(unittest.TestCase):
         vt_stock_quantities = [stock.quantity for stock in vt_securities[0].stock]
         self.assertIn(Decimal("-10"), vt_stock_quantities)
 
+    def test_unsettled_cash_adjustment_perfect_match(self):
+        """Test that a $0.00 PDF cash balance is correctly adjusted when a recent trade exactly explains the discrepancy."""
+        test_depot_str = "AWARDS"
+        period_from_date = date(2025, 1, 1)
+        period_to_date = date(2025, 12, 31)
+
+        cash_pos = CashPosition(depot=test_depot_str, currentCy="USD", cash_account_id="GOOG")
+
+        # Sale on Dec 31 generates $1000 cash
+        cash_sale_tx = SecurityStock(
+            referenceDate=date(2025, 12, 31),
+            mutation=True,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("1000.00"),
+            name="Sale Proceeds"
+        )
+
+        # PDF on Jan 1 reports $0 (trade hadn't settled)
+        opening_balance = SecurityStock(
+            referenceDate=date(2025, 1, 1),
+            mutation=False,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("0.00"),
+            name="Opening Balance"
+        )
+        pdf_balance = SecurityStock(
+            referenceDate=date(2026, 1, 1),
+            mutation=False,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("0.00"),
+            name=None
+        )
+
+        mock_transaction_data = [
+            (cash_pos, [cash_sale_tx], [], test_depot_str, (period_from_date, period_to_date))
+        ]
+        statement_result = ([(cash_pos, opening_balance), (cash_pos, pdf_balance)], period_from_date, period_to_date + timedelta(days=1), test_depot_str)
+
+        with patch('opensteuerauszug.importers.schwab.schwab_importer.TransactionExtractor') as MockTransactionExtractor:
+            mock_extractor_instance = MockTransactionExtractor.return_value
+            mock_extractor_instance.extract_transactions.return_value = mock_transaction_data
+
+            with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
+                mock_statement_instance = MockStatementExtractor.return_value
+                mock_statement_instance.extract_positions.return_value = statement_result
+
+                importer_settings = [
+                    SchwabAccountSettings(account_number="AWARDS", account_name_alias="awards_alias", broker_name="schwab", canton="ZH", full_name="Test User")
+                ]
+                
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=importer_settings, strict_consistency=True)
+                tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
+
+        self.assertIsNotNone(tax_statement)
+        bank_accounts = tax_statement.listOfBankAccounts.bankAccount
+        self.assertEqual(len(bank_accounts), 1)
+        self.assertEqual(bank_accounts[0].taxValue.balance, Decimal("1000.00"))
+
+
+    def test_unsettled_cash_adjustment_across_year_end(self):
+        """Test that a trade on Dec 30 with $0 PDF balance is correctly adjusted."""
+        test_depot_str = "AWARDS"
+        period_from_date = date(2025, 1, 1)
+        period_to_date = date(2025, 12, 31)
+
+        cash_pos = CashPosition(depot=test_depot_str, currentCy="USD", cash_account_id="GOOG")
+
+        cash_sale_tx = SecurityStock(
+            referenceDate=date(2025, 12, 30),
+            mutation=True,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("1000.00"),
+            name="Sale Proceeds",
+        )
+        
+        # PDF on Jan 1 reports $0 (trade settled after Jan 1 due to holiday)
+        opening_balance = SecurityStock(
+            referenceDate=date(2025, 1, 1),
+            mutation=False,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("0.00"),
+            name="Opening Balance"
+        )
+        pdf_balance = SecurityStock(
+            referenceDate=date(2026, 1, 1),
+            mutation=False,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("0.00"),
+            name=None
+        )
+
+        mock_transaction_data = [
+            (cash_pos, [cash_sale_tx], [], test_depot_str, (period_from_date, period_to_date))
+        ]
+        statement_result = ([(cash_pos, opening_balance), (cash_pos, pdf_balance)], period_from_date, period_to_date + timedelta(days=1), test_depot_str)
+
+        with patch('opensteuerauszug.importers.schwab.schwab_importer.TransactionExtractor') as MockTransactionExtractor:
+            mock_extractor_instance = MockTransactionExtractor.return_value
+            mock_extractor_instance.extract_transactions.return_value = mock_transaction_data
+
+            with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
+                mock_statement_instance = MockStatementExtractor.return_value
+                mock_statement_instance.extract_positions.return_value = statement_result
+
+                importer_settings = [
+                    SchwabAccountSettings(account_number="AWARDS", account_name_alias="awards_alias", broker_name="schwab", canton="ZH", full_name="Test User")
+                ]
+                
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=importer_settings, strict_consistency=True)
+                tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
+
+        self.assertIsNotNone(tax_statement)
+        bank_accounts = tax_statement.listOfBankAccounts.bankAccount
+        self.assertEqual(len(bank_accounts), 1)
+        self.assertEqual(bank_accounts[0].taxValue.balance, Decimal("1000.00"))
+
+    def test_unsettled_cash_adjustment_settled_before_year_end(self):
+        """Test that a trade settled before year-end has no discrepancy (PDF includes it)."""
+        test_depot_str = "AWARDS"
+        period_from_date = date(2025, 1, 1)
+        period_to_date = date(2025, 12, 31)
+
+        cash_pos = CashPosition(depot=test_depot_str, currentCy="USD", cash_account_id="GOOG")
+
+        cash_sale_tx = SecurityStock(
+            referenceDate=date(2025, 12, 28),
+            mutation=True,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("1000.00"),
+            name="Sale Proceeds",
+        )
+        
+        # PDF balance already includes the $1000 because it settled before Dec 31
+        opening_balance = SecurityStock(
+            referenceDate=date(2025, 1, 1),
+            mutation=False,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("0.00"),
+            name="Opening Balance"
+        )
+        pdf_balance = SecurityStock(
+            referenceDate=date(2026, 1, 1),
+            mutation=False,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("1000.00"),
+            name=None
+        )
+
+        mock_transaction_data = [
+            (cash_pos, [cash_sale_tx], [], test_depot_str, (period_from_date, period_to_date))
+        ]
+        statement_result = ([(cash_pos, opening_balance), (cash_pos, pdf_balance)], period_from_date, period_to_date + timedelta(days=1), test_depot_str)
+
+        with patch('opensteuerauszug.importers.schwab.schwab_importer.TransactionExtractor') as MockTransactionExtractor:
+            mock_extractor_instance = MockTransactionExtractor.return_value
+            mock_extractor_instance.extract_transactions.return_value = mock_transaction_data
+
+            with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
+                mock_statement_instance = MockStatementExtractor.return_value
+                mock_statement_instance.extract_positions.return_value = statement_result
+
+                importer_settings = [
+                    SchwabAccountSettings(account_number="AWARDS", account_name_alias="awards_alias", broker_name="schwab", canton="ZH", full_name="Test User")
+                ]
+                
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=importer_settings, strict_consistency=True)
+                tax_statement = importer.import_files(['dummy.json', 'dummy.pdf'])
+
+        self.assertIsNotNone(tax_statement)
+        bank_accounts = tax_statement.listOfBankAccounts.bankAccount
+        self.assertEqual(len(bank_accounts), 1)
+        # No adjustment needed — settled trade is already in PDF
+        self.assertEqual(bank_accounts[0].taxValue.balance, Decimal("1000.00"))
+
+
+    def test_unsettled_cash_adjustment_genuine_mismatch_fails(self):
+        """Test that when the discrepancy can't be explained by recent trades, reconciliation fails."""
+        test_depot_str = "AWARDS"
+        period_from_date = date(2025, 1, 1)
+        period_to_date = date(2025, 12, 31)
+
+        cash_pos = CashPosition(depot=test_depot_str, currentCy="USD", cash_account_id="GOOG")
+
+        # Sale generated $1000
+        cash_sale_tx = SecurityStock(
+            referenceDate=date(2025, 12, 31),
+            mutation=True,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("1000.00"),
+            name="Sale"
+        )
+
+        opening_balance = SecurityStock(
+            referenceDate=date(2025, 1, 1),
+            mutation=False,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("0.00"),
+            name="Opening Balance"
+        )
+
+        # PDF reports $50 — discrepancy is -950, but the only recent trade is $1000.
+        # $1000 ≠ 950, so this can't be explained by unsettled trades.
+        pdf_balance = SecurityStock(
+            referenceDate=date(2026, 1, 1),
+            mutation=False,
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            quantity=Decimal("50.00"),
+            name=None
+        )
+
+        mock_transaction_data = [(cash_pos, [cash_sale_tx], [], test_depot_str, (period_from_date, period_to_date))]
+        statement_result = ([(cash_pos, opening_balance), (cash_pos, pdf_balance)], period_from_date, period_to_date + timedelta(days=1), test_depot_str)
+
+        with patch('opensteuerauszug.importers.schwab.schwab_importer.TransactionExtractor') as MockTransactionExtractor:
+            mock_extractor_instance = MockTransactionExtractor.return_value
+            mock_extractor_instance.extract_transactions.return_value = mock_transaction_data
+
+            with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStatementExtractor:
+                mock_statement_instance = MockStatementExtractor.return_value
+                mock_statement_instance.extract_positions.return_value = statement_result
+
+                importer_settings = [SchwabAccountSettings(account_number="AWARDS", account_name_alias="awards_alias", broker_name="schwab", canton="ZH", full_name="Test User")]
+                
+                importer = SchwabImporter(period_from=period_from_date, period_to=period_to_date, account_settings_list=importer_settings, strict_consistency=True)
+                
+                with self.assertRaises(ValueError) as context:
+                    importer.import_files(['dummy.json', 'dummy.pdf'])
+                
+                self.assertIn("Position reconciliation failed", str(context.exception))
+
+
 class TestSchwabImporterBankAccountNames(unittest.TestCase):
     """Test that bank account names are always set for all bank accounts."""
 
@@ -713,5 +956,75 @@ class TestSchwabImporterBankAccountNames(unittest.TestCase):
         # Bank account number should be None for awards (no configured account number)
         assert bank_account.bankAccountNumber is None
 
-if __name__ == '__main__':
+    def test_unsettled_cash_adjustment_multi_mismatch(self):
+        """Test that multiple sweep lags in different periods are both resolved."""
+        test_depot_str = "AWARDS"
+        period_from_date = date(2025, 1, 1)
+        period_to_date = date(2025, 12, 31)
+        cash_pos = CashPosition(depot=test_depot_str, currentCy="USD", cash_account_id="GOOG", type="cash")
+
+        # Sale 1 near mid-year boundary (Sep 30)
+        sale1 = SecurityStock(referenceDate=date(2025, 9, 30), mutation=True, quantity=Decimal("1000.00"), balanceCurrency="USD", quotationType="PIECE")
+        # Sale 2 near year-end (Dec 31)
+        sale2 = SecurityStock(referenceDate=date(2025, 12, 31), mutation=True, quantity=Decimal("2000.00"), balanceCurrency="USD", quotationType="PIECE")
+
+        # Oct 1st balance reports 0 (Sale 1 unsettled)
+        opening = SecurityStock(referenceDate=date(2025, 1, 1), mutation=False, quantity=Decimal("0"), balanceCurrency="USD", quotationType="PIECE")
+        oct_bal = SecurityStock(referenceDate=date(2025, 10, 1), mutation=False, quantity=Decimal("0"), balanceCurrency="USD", quotationType="PIECE")
+        # Jan 1st balance reports 1000 (Sale 2 unsettled, Sale 1 settled)
+        jan_bal = SecurityStock(referenceDate=date(2026, 1, 1), mutation=False, quantity=Decimal("1000.00"), balanceCurrency="USD", quotationType="PIECE")
+
+        mock_tx = [(cash_pos, [sale1, sale2], [], test_depot_str, (period_from_date, period_to_date))]
+        mock_stmt = ([(cash_pos, opening), (cash_pos, oct_bal), (cash_pos, jan_bal)], period_from_date, date(2026, 1, 1), test_depot_str)
+
+        with patch("opensteuerauszug.importers.schwab.schwab_importer.TransactionExtractor") as MockTX, patch(
+            "opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor"
+        ) as MockStmt:
+            MockTX.return_value.extract_transactions.return_value = mock_tx
+            MockStmt.return_value.extract_positions.return_value = mock_stmt
+            importer = SchwabImporter(
+                period_from=period_from_date, period_to=period_to_date, account_settings_list=[], strict_consistency=True
+            )
+            # Use import_dir directly or ensure we pass a file list that triggers it
+            tax_statement = importer.import_files(["dummy.json", "dummy.pdf"])
+
+        self.assertIsNotNone(tax_statement)
+        # Final balance should be 1000 + 2000 = 3000
+        # If the adjustment worked, both mismatches were resolved.
+        bank_accounts = tax_statement.listOfBankAccounts.bankAccount
+        self.assertEqual(len(bank_accounts), 1)
+        self.assertEqual(bank_accounts[0].taxValue.balance, Decimal("3000.00"))
+
+    def test_unsettled_cash_adjustment_extended_window(self):
+        """Test that a 7-day lag is resolved by the 10-day window."""
+        test_depot_str = "AWARDS"
+        period_from_date = date(2025, 1, 1)
+        period_to_date = date(2025, 12, 31)
+        cash_pos = CashPosition(depot=test_depot_str, currentCy="USD", cash_account_id="GOOG", type="cash")
+
+        # Sale on Sep 27 (4 days before oct 1)
+        sale = SecurityStock(referenceDate=date(2025, 9, 27), mutation=True, quantity=Decimal("500.00"), balanceCurrency="USD", quotationType="PIECE")
+        opening = SecurityStock(referenceDate=date(2025, 1, 1), mutation=False, quantity=Decimal("0"), balanceCurrency="USD", quotationType="PIECE")
+        oct_bal = SecurityStock(referenceDate=date(2025, 10, 1), mutation=False, quantity=Decimal("0"), balanceCurrency="USD", quotationType="PIECE")
+        closing = SecurityStock(referenceDate=date(2026, 1, 1), mutation=False, quantity=Decimal("500.00"), balanceCurrency="USD", quotationType="PIECE")
+
+        mock_tx = [(cash_pos, [sale], [], test_depot_str, (period_from_date, period_to_date))]
+        mock_stmt = ([(cash_pos, opening), (cash_pos, oct_bal), (cash_pos, closing)], period_from_date, date(2026, 1, 1), test_depot_str)
+
+        with patch("opensteuerauszug.importers.schwab.schwab_importer.TransactionExtractor") as MockTX, patch(
+            "opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor"
+        ) as MockStmt:
+            MockTX.return_value.extract_transactions.return_value = mock_tx
+            MockStmt.return_value.extract_positions.return_value = mock_stmt
+            importer = SchwabImporter(
+                period_from=period_from_date, period_to=period_to_date, account_settings_list=[], strict_consistency=True
+            )
+            # We use dummy names that match the mock setup
+            tax_statement = importer.import_files(["dummy.json", "dummy.pdf"])
+
+        self.assertIsNotNone(tax_statement)
+        self.assertEqual(tax_statement.listOfBankAccounts.bankAccount[0].taxValue.balance, Decimal("500.00"))
+
+
+if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,5 @@
 import logging
+import re
 import pprint
 from typing import List, Dict, Any, Optional, Tuple
 import os
@@ -14,10 +15,12 @@ from .position_extractor import PositionExtractor
 from .transaction_extractor import TransactionExtractor
 from opensteuerauszug.util.date_coverage import DateRangeCoverage
 from collections import defaultdict
-from opensteuerauszug.core.position_reconciler import PositionReconciler, ReconciledQuantity
+from opensteuerauszug.core.position_reconciler import PositionReconciler, ReconciledQuantity, ReconciliationMismatch
 from opensteuerauszug.config.models import SchwabAccountSettings # Add this
 
 logger = logging.getLogger(__name__)
+
+UNSETTLED_WINDOW_DAYS = 5
 
 # Placeholder import for TransactionExtractor (to be implemented)
 # from .TransactionExtractor import TransactionExtractor
@@ -106,6 +109,71 @@ class SchwabImporter:
             return pos_obj.currentCy if pos_obj.currentCy else "USD"
         return "USD"  # Ultimate fallback
 
+    def _try_adjust_for_unsettled_cash(
+        self,
+        stocks: List[SecurityStock],
+        mismatches: List["ReconciliationMismatch"],
+        window_days: int,
+        identifier: str,
+    ) -> Optional[List[SecurityStock]]:
+        """Schwab-specific: attempt to explain cash discrepancies using recent trades.
+
+        Schwab's PDF/JSON balances reflect settled cash. Trades near period-end
+        may not have settled (T+1 for US equities). This checks if recent trades
+        within `window_days` exactly account for the mismatch.
+
+        Returns adjusted stock list if successful, None otherwise.
+        """
+        if not mismatches:
+            return None
+
+        # Build a map of stocks for efficient updates
+        adjusted_stocks = [s.model_copy() for s in stocks]
+        any_adjusted = False
+
+        for mismatch in mismatches:
+            balance_date = mismatch.event_date
+            discrepancy = mismatch.discrepancy
+
+            # Collect mutations within the settlement window
+            cutoff_date = balance_date - timedelta(days=window_days)
+            recent_mutations = [
+                s
+                for s in adjusted_stocks
+                if s.mutation and s.referenceDate > cutoff_date and s.referenceDate <= balance_date
+            ]
+
+            if not recent_mutations:
+                continue
+
+            recent_sum = sum(s.quantity for s in recent_mutations)
+
+            if recent_sum == -discrepancy:
+                logger.info(
+                    f"[{identifier}] Unsettled cash detected: reported {mismatch.reported_quantity} "
+                    f"on {balance_date}, calculated {mismatch.calculated_quantity}. "
+                    f"Explained by {len(recent_mutations)} recent trade(s) summing to {recent_sum}. "
+                    f"Adjusting reported balance to {mismatch.calculated_quantity}."
+                )
+                # Find the balance statement in adjusted_stocks to fix it
+                found = False
+                for s in adjusted_stocks:
+                    if not s.mutation and s.referenceDate == balance_date:
+                        s.quantity = mismatch.calculated_quantity
+                        found = True
+
+                if found:
+                    # Return immediately with the first adjustment made, so the caller can re-reconcile
+                    return adjusted_stocks
+            else:
+                logger.debug(
+                    f"[{identifier}] Cash discrepancy {abs(discrepancy)} on {balance_date} "
+                    f"could not be explained by recent trades (sum={recent_sum} from "
+                    f"{len(recent_mutations)} trade(s) in last {window_days} days)."
+                )
+
+        return None
+
     def _reconcile_and_ensure_boundary_stocks_for_position(
         self,
         pos_obj: BasePosition,
@@ -118,15 +186,54 @@ class SchwabImporter:
 
         # 1. Initial Consistency Check
         initial_reconciler = PositionReconciler(list(initial_pos_stocks), identifier=f"{current_identifier}-initial_check")
-        is_consistent_initial, _ = initial_reconciler.check_consistency(
+        is_consistent, mismatches = initial_reconciler.check_consistency(
             print_log=True,
-            raise_on_error=self.strict_consistency,
+            raise_on_error=False,
             assume_zero_if_no_balances=True
         )
-        if not is_consistent_initial and not self.strict_consistency:
-            logger.warning(f"[{current_identifier}] Initial consistency check on raw data failed. Review logs. Proceeding with synthesis.")
 
-        live_stocks_list = list(initial_pos_stocks) # Use a distinct name for the list being modified
+        # 2. Schwab-specific: if CashPosition has mismatches, try unsettled cash adjustment
+        if not is_consistent and isinstance(pos_obj, CashPosition) and mismatches:
+            # Iteratively try to adjust for unsettled cash. We adjustment one mismatch
+            # at a time and re-reconcile because each adjustment may change the
+            # calculated discrepancy for subsequent dates (un-poisoning the calculation).
+            while not is_consistent and mismatches:
+                adjusted_stocks = self._try_adjust_for_unsettled_cash(
+                    initial_pos_stocks, mismatches, UNSETTLED_WINDOW_DAYS, current_identifier
+                )
+                if adjusted_stocks is None:
+                    # No more mismatches can be explained by recent trades
+                    break
+                
+                initial_pos_stocks = adjusted_stocks
+                # Re-run reconciliation with adjusted balances
+                initial_reconciler = PositionReconciler(
+                    list(initial_pos_stocks), identifier=f"{current_identifier}-initial_check_adjusted"
+                )
+                is_consistent, mismatches = initial_reconciler.check_consistency(
+                    print_log=True,
+                    raise_on_error=False,
+                    assume_zero_if_no_balances=True
+                )
+            
+            # Final check if we still have mismatches after all attempts
+            if not is_consistent and self.strict_consistency:
+                mismatch_details = "; ".join(
+                    f"{m.event_date}: calc={m.calculated_quantity} vs reported={m.reported_quantity}"
+                    for m in mismatches
+                )
+                raise ValueError(f"[{current_identifier}] Position reconciliation failed. Mismatches: {mismatch_details}")
+        elif not is_consistent and self.strict_consistency:
+            mismatch_details = "; ".join(
+                f"{m.event_date}: calc={m.calculated_quantity} vs reported={m.reported_quantity}"
+                for m in mismatches
+            )
+            raise ValueError(f"[{current_identifier}] Position reconciliation failed. Mismatches: {mismatch_details}")
+
+        if not is_consistent and not self.strict_consistency:
+            logger.warning(f"[{current_identifier}] Consistency check failed. Review logs. Proceeding with synthesis.")
+
+        live_stocks_list = list(initial_pos_stocks)
 
         # 2. Ensure start-of-period balance
         reconciler_for_start = PositionReconciler(list(live_stocks_list), identifier=f"{current_identifier}-start_synth")
@@ -271,7 +378,6 @@ class SchwabImporter:
                         filtered_stocks = []
                         if stocks:
                             for stock_item in stocks:
-                                # Corrected attribute: referenceDate instead of balanceDate
                                 if stock_item.referenceDate is not None and \
                                    any(seg_start <= stock_item.referenceDate <= seg_end \
                                        for seg_start, seg_end in newly_covered_segments[depot]):
@@ -356,13 +462,13 @@ class SchwabImporter:
         # Post-process: aggregate stocks/payments per unique Position
         position_map = defaultdict(lambda: ([], []))  # Position -> (list of SecurityStock, list of SecurityPayment)
         
-        for pos, stock, payments in all_positions:
-            if stock:
-                if not is_date_in_valid_transaction_range(stock.referenceDate, max_ranges[pos.depot]):
-                    print(f"WARNING: Skipping stock {stock} for position {pos} because its referenceDate {stock.referenceDate} is not in the valid transaction range {max_ranges[pos.depot]}.")
+        for pos, stock_data, payments in all_positions:
+            if stock_data:
+                if not is_date_in_valid_transaction_range(stock_data.referenceDate, max_ranges[pos.depot]):
+                    print(f"WARNING: Skipping stock {stock_data} for position {pos} because its referenceDate {stock_data.referenceDate} is not in the valid transaction range {max_ranges[pos.depot]}.")
                     continue
             
-            if not stock and payments:
+            if not stock_data and payments:
                 # Filter payments by valid transaction range if they are not associated with a stock
                 valid_payments = []
                 for p in payments:
@@ -379,8 +485,8 @@ class SchwabImporter:
                 raise TypeError(f"Unknown position type: {type(pos)}")
 
             current_stocks, current_payments = position_map[pos]
-            if stock:
-                current_stocks.append(stock)
+            if stock_data:
+                current_stocks.append(stock_data)
             if payments: # payments can be a list or a single item
                 if isinstance(payments, list):
                     current_payments.extend(payments)
