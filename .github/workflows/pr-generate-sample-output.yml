@@ -25,7 +25,6 @@ jobs:
           pip install flake8
           pip install -e ".[dev]"
           pip install git+https://github.com/vroonhof/pdf417-py.git
-          pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
 
       - name: Install poppler-utils
         run: |
@@ -35,6 +34,7 @@ jobs:
       - name: Generate sample PDF from vtandchill_2025.xml
         run: |
           opensteuerauszug \
+            process \
             tests/samples/import/ibkr/vtandchill_2025.xml \
             --importer ibkr \
             --tax-year 2025 \
