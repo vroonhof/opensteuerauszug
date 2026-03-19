@@ -513,6 +513,14 @@ class IbkrImporter:
                         "OpenPosition",
                     )
 
+                    mark_price = None
+                    if getattr(open_pos, 'markPrice', None) is not None:
+                        mark_price = self._to_decimal(open_pos.markPrice, 'markPrice', f"OpenPosition {symbol}")
+                    
+                    pos_value = None
+                    if getattr(open_pos, 'positionValue', None) is not None:
+                        pos_value = self._to_decimal(open_pos.positionValue, 'positionValue', f"OpenPosition {symbol}")
+
                     balance_stock = SecurityStock(
                         # Balance as of the period end + 1
                         referenceDate=end_plus_one,
@@ -520,7 +528,9 @@ class IbkrImporter:
                         quantity=quantity,
                         name=f"End of Period Balance {symbol}",
                         balanceCurrency=currency,
-                        quotationType="PIECE"
+                        quotationType="PIECE",
+                        unitPrice=mark_price,
+                        balance=pos_value,
                     )
                     processed_security_positions[sec_pos]['stocks'].append(
                         balance_stock
@@ -775,7 +785,7 @@ class IbkrImporter:
                                 else:
                                     sec_payment.nonRecoverableTaxAmountOriginal = abs(amount)
                             elif amount > 0:
-                                sec_payment.grossRevenueB = amount
+                                sec_payment.nonRecoverableTaxAmountOriginal = -amount
                         processed_security_positions[sec_pos_key]['payments'].append(
                             sec_payment
                         )

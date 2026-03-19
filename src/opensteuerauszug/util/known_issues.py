@@ -54,7 +54,7 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
         if error.field_path.endswith("exchangeRate"):
             if error.expected == Decimal("1") and error.actual == Decimal("0"):
                 return True
-        elif error.field_path.endswith("taxValue.value") or error.field_path.endswith("amount"):
+        elif error.field_path.endswith("taxValue.value") or error.field_path.endswith("taxValue.balance") or error.field_path.endswith("amount"):
             # UBS rounds to two places (though the spec says not to round)
             if error.expected is not None and error.actual is not None:
                 if abs(error.expected - error.actual) < Decimal("0.005"):

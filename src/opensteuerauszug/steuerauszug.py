@@ -36,10 +36,19 @@ from .config.paths import (
     resolve_kursliste_dir,
     resolve_security_identifiers_file,
 )
+from .kursliste.__main__ import app as kursliste_app
+from typer.main import TyperGroup
 
 logger = logging.getLogger(__name__)
 
-app = typer.Typer()
+class DefaultToProcess(TyperGroup):
+    def parse_args(self, ctx, args):
+        if args and args[0] not in self.commands and not args[0].startswith('-'):
+            args.insert(0, 'process')
+        return super().parse_args(ctx, args)
+
+app = typer.Typer(cls=DefaultToProcess)
+app.add_typer(kursliste_app, name="kursliste")
 
 class Phase(str, Enum):
     IMPORT = "import"
@@ -70,8 +79,13 @@ class LogLevel(str, Enum):
 
 default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RECONCILE_PAYMENTS, Phase.RENDER]
 
-@app.command()
-def main(
+_COMMAND_DEFAULT_PHASES = {
+    'verify': [Phase.VERIFY],
+}
+
+@app.command("process")
+def process(
+    ctx: typer.Context,
     input_file: Path = typer.Argument(..., exists=True, file_okay=True, dir_okay=True, readable=True, help="Input file (specific format depends on importer, or XML for raw) or directory (for Schwab importer)."),
     output_file: Path = typer.Option(None, "--output", "-o", help="Output PDF file path."),
     run_phases_input: List[Phase] = typer.Option(None, "--phases", "-p", help="Phases to run (default: all). Specify multiple times or comma-separated."),
@@ -107,14 +121,13 @@ def main(
     logging.getLogger('pypdf').setLevel(logging.ERROR)
     sys.stdout.reconfigure(line_buffering=True)  # Ensure stdout is line-buffered for mixing with logging
     
-    phases_specified_by_user = run_phases_input is not None
-    run_phases = run_phases_input if phases_specified_by_user else default_phases[:]
-
-    if payment_reconciliation and Phase.RECONCILE_PAYMENTS not in run_phases:
-        render_idx = run_phases.index(Phase.RENDER) if Phase.RENDER in run_phases else len(run_phases)
-        run_phases.insert(render_idx, Phase.RECONCILE_PAYMENTS)
-    elif not payment_reconciliation and Phase.RECONCILE_PAYMENTS in run_phases:
-        run_phases.remove(Phase.RECONCILE_PAYMENTS)
+    phases_specified_by_user = run_phases_input is not None or ctx.info_name in _COMMAND_DEFAULT_PHASES
+    if run_phases_input is not None:
+        run_phases = run_phases_input
+    else:
+        run_phases = _COMMAND_DEFAULT_PHASES.get(ctx.info_name, default_phases[:])
+        if not payment_reconciliation and Phase.RECONCILE_PAYMENTS in run_phases:
+            run_phases.remove(Phase.RECONCILE_PAYMENTS)
 
     print(f"Starting OpenSteuerauszug processing...")
     print(f"Input file: {input_file}")
@@ -723,6 +736,8 @@ def main(
             except Exception as dump_e:
                 print(f"Failed to dump debug model after error: {dump_e}")
         raise typer.Exit(code=1)
+
+app.command("verify")(process)
 
 if __name__ == "__main__":
     app()

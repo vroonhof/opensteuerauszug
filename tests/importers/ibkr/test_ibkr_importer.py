@@ -377,6 +377,8 @@ def test_ibkr_import_valid_xml(sample_ibkr_settings):
         assert msft_sec.stock[1].mutation is False
         assert msft_sec.stock[1].referenceDate == date(2024, 1, 1)
         assert msft_sec.stock[1].quantity == Decimal("10")
+        assert msft_sec.stock[1].unitPrice == Decimal("300.00")
+        assert msft_sec.stock[1].balance == Decimal("3000.00")
         assert all(s.referenceDate != date(2023, 12, 31) for s in msft_sec.stock)
 
         # Divdend fom cash transaction should be mapped to SecurityPayment
@@ -594,6 +596,77 @@ def test_security_payment_quantity_is_minus_one(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
+def test_withholding_tax_reversal_nets_against_withholding(sample_ibkr_settings):
+    """A positive 'Withholding Tax' entry (reversal/correction) should reduce the withholding
+    total, not be added to dividend income. Reproduces the 30%->15% correction scenario."""
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=sample_ibkr_settings
+    )
+
+    xml_content = """
+<FlexQueryResponse queryName="WhtaxReversalTest" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <Trades>
+        <Trade transactionID="9001" accountId="U1234567" assetCategory="STK" symbol="VT" description="VANGUARD TOTAL WORLD STOCK ETF" conid="123456" isin="US9220427424" currency="USD" quantity="90" tradeDate="2024-01-15" settleDateTarget="2024-01-17" tradePrice="100.00" tradeMoney="9000.00" buySell="BUY" ibCommission="-1.00" netCash="-9001.00" />
+      </Trades>
+      <CashTransactions>
+        <CashTransaction accountId="U1234567" type="Dividends" currency="USD" amount="34.67" description="VT(US9220427424) Cash Dividend USD 0.3852 per Share (Ordinary Dividend)" conid="123456" symbol="VT" isin="US9220427424" dateTime="20250325;202000" assetCategory="STK" />
+        <CashTransaction accountId="U1234567" type="Withholding Tax" currency="USD" amount="-10.40" description="VT(US9220427424) Cash Dividend USD 0.3852 per Share - US Tax" conid="123456" symbol="VT" isin="US9220427424" dateTime="20250325;202000" assetCategory="STK" />
+        <CashTransaction accountId="U1234567" type="Withholding Tax" currency="USD" amount="10.40" description="VT(US9220427424) Cash Dividend USD 0.3852 per Share - US Tax" conid="123456" symbol="VT" isin="US9220427424" dateTime="20250325;202000" assetCategory="STK" />
+        <CashTransaction accountId="U1234567" type="Withholding Tax" currency="USD" amount="-5.20" description="VT(US9220427424) Cash Dividend USD 0.3852 per Share - US Tax" conid="123456" symbol="VT" isin="US9220427424" dateTime="20250325;202000" assetCategory="STK" />
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="19.07" />
+      </CashReport>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="VT" description="VANGUARD TOTAL WORLD STOCK ETF" conid="123456" isin="US9220427424" currency="USD" position="90" markPrice="110.00" positionValue="9900.00" reportDate="2025-12-31" />
+      </OpenPositions>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+    xml_file_path = None
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".xml", delete=False) as tmp:
+            tmp.write(xml_content)
+            xml_file_path = tmp.name
+
+        tax_statement = importer.import_files([xml_file_path])
+        depot = tax_statement.listOfSecurities.depot[0]
+        vt = next((s for s in depot.security if s.isin == "US9220427424"), None)
+        assert vt is not None, 'Security with ISIN "US9220427424" not found in depot'
+
+        assert len(vt.payment) == 4
+
+        payments_by_amount = {p.amount: p for p in vt.payment}
+
+        # Dividend entry: amount set, no withholding fields
+        div = payments_by_amount[Decimal("34.67")]
+        assert div.nonRecoverableTaxAmountOriginal is None
+        assert div.withHoldingTaxClaim is None
+
+        # Initial withholding (-10.40): nonRecoverableTaxAmountOriginal = +10.40
+        wht_initial = payments_by_amount[Decimal("-10.40")]
+        assert wht_initial.nonRecoverableTaxAmountOriginal == Decimal("10.40")
+
+        # Withholding reversal (+10.40): nonRecoverableTaxAmountOriginal = -10.40 (reduces withholding)
+        wht_reversal = payments_by_amount[Decimal("10.40")]
+        assert wht_reversal.nonRecoverableTaxAmountOriginal == Decimal("-10.40")
+        assert wht_reversal.grossRevenueB is None
+
+        # Corrected withholding (-5.20): nonRecoverableTaxAmountOriginal = +5.20
+        wht_corrected = payments_by_amount[Decimal("-5.20")]
+        assert wht_corrected.nonRecoverableTaxAmountOriginal == Decimal("5.20")
+
+    finally:
+        if xml_file_path is not None and os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
 def test_transfer_to_stock(sample_ibkr_settings):
     period_from = date(2023, 1, 1)
     period_to = date(2023, 12, 31)
@@ -779,6 +852,8 @@ def test_open_position_only_no_mutations(sample_ibkr_settings):
         )
         assert closing_balance is not None, "Closing balance entry should exist"
         assert closing_balance.quantity == Decimal("13"), f"Closing balance should be 13, got {closing_balance.quantity}"
+        assert closing_balance.unitPrice == Decimal("111.53")
+        assert closing_balance.balance == Decimal("1449.89")
         
     finally:
         if os.path.exists(xml_file_path):
