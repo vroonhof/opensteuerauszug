@@ -1,6 +1,35 @@
 from lxml import etree as ET
 import re
-from typing import Union
+from decimal import Decimal, InvalidOperation
+
+
+_DECIMAL_LEXEME_RE = re.compile(r"^[+-]?(?:\d+\.\d*|\.\d+)$")
+
+
+def _normalize_decimal_lexeme(value: str) -> str:
+    """Normalize decimal lexical forms like 1.20/.30 to 1.2/0.3 for robust XML comparisons."""
+    if not _DECIMAL_LEXEME_RE.match(value):
+        return value
+    try:
+        return format(Decimal(value).normalize(), "f")
+    except (InvalidOperation, ValueError):
+        return value
+
+
+def _normalize_decimal_values(element: ET._Element) -> None:
+    """Normalize decimal-looking attribute and text values recursively."""
+    for attr_name, attr_value in list(element.attrib.items()):
+        element.attrib[attr_name] = _normalize_decimal_lexeme(attr_value)
+
+    if element.text:
+        stripped = element.text.strip()
+        if stripped:
+            normalized = _normalize_decimal_lexeme(stripped)
+            if normalized != stripped:
+                element.text = normalized
+
+    for child in element:
+        _normalize_decimal_values(child)
 
 def normalize_xml(xml_bytes: bytes, remove_xmlns: bool = False) -> str:
     """Normalize XML string by parsing and re-serializing it.
@@ -16,9 +45,9 @@ def normalize_xml(xml_bytes: bytes, remove_xmlns: bool = False) -> str:
     
     # Re-parse and pretty print
     tree = ET.fromstring(normalized_bytes, parser=parser) 
+    _normalize_decimal_values(tree)
     normalized = ET.tostring(tree, pretty_print=True).decode().replace('=".', '="0.')  # type: ignore
     if remove_xmlns:
-        import re
         # Remove xmlns declarations
         normalized = re.sub(r'\s+xmlns(?::[^=]*)?="[^"]*"', '', normalized)
         # Remove schemaLocation and noNamespaceSchemaLocation attributes
