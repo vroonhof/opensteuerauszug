@@ -43,22 +43,17 @@ Replace `ZH` with your canton abbreviation and set your full name. This informat
 
 Copy `config.template.toml` from the repo as a starting point.
 
-Optionally, add a Swissquote account section to set your depot number:
+Optionally, add a Swissquote account section to set your depot number (inherits `full_name` and `canton` from `[general]`):
 
 ```toml
-[[accounts]]
-kind = "swissquote"
+[brokers.swissquote.accounts.main]
 account_number = "1234567"
-broker_name = "swissquote"
-account_name_alias = "Swissquote"
-full_name = "Vorname Nachname"
-canton = "ZH"
 ```
 
 ## Running OpenSteuerAuszug
 
 ```console
-opensteuerauszug process --importer swissquote <path/to/transactions.csv> --tax-year 2025
+python -m opensteuerauszug.steuerauszug --importer swissquote <path/to/transactions.csv> --tax-year 2025
 ```
 
 For example:
