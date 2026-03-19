@@ -81,48 +81,43 @@ COL_CURRENCY         = "Währung"
 
 TRANSACTION_TYPE_MAP: dict[str, str] = {
     # Trades
-    "Kauf":                    "buy",
-    "Verkauf":                 "sell",
+    "Kauf":                      "buy",
+    "Verkauf":                   "sell",
     # Income from securities
-    "Dividende":               "dividend",
-    "Stockdividende":          "stock_dividend",
-    "Capital Gain":            "capital_gain_distribution",
-    "Wertpapierleihe":         "securities_lending_income",
+    "Dividende":                 "dividend",
+    "Stockdividende":            "stock_dividend",
+    "Capital Gain":              "capital_gain_distribution",
+    "Wertpapierleihe":           "securities_lending_income",
     # Interest
-    "Zinsen auf Einlagen":     "credit_interest",
-    "Zinsen auf Belastungen":  "debit_interest",
+    "Zinsen auf Einlagen":       "credit_interest",
+    "Zinsen auf Belastungen":    "debit_interest",
     # Tax / withholding
-    "Verrechnungssteuer":      "withholding_tax",
-    "Quellensteuer":           "withholding_tax",
+    "Verrechnungssteuer":        "withholding_tax",
+    "Quellensteuer":             "withholding_tax",
     # Bond / product redemption
-    "Rückzahlung":             "redemption",
+    "Rückzahlung":               "redemption",
     # Fees & corrections
-    "Depotgebühren":           "custody_fee",
-    "Berichtigung Börsengeb.": "exchange_fee_correction",
-    "Spesen Steuerauszug":      "tax_statement_fee",
+    "Depotgebühren":             "custody_fee",
+    "Berichtigung Börsengeb.":   "exchange_fee_correction",
+    "Spesen Steuerauszug":       "tax_statement_fee",
     # FX
-    "Forex-Belastung":         "fx_debit",
-    "Forex-Gutschrift":	       "fx_credit",
+    "Forex-Belastung":           "fx_debit",
+    "Forex-Gutschrift":          "fx_credit",
+    "Fx-Gutschrift Comp.":       "fx_credit",
+    "Fx-Belastung Comp.":        "fx_debit",
     # Cash movements
-    "Auszahlung":              "withdrawal",
-    "Twint":                   "twint_payment",
-    "Zahlung":                 "payment",
-    "Einzahlung":              "deposit",
-
-    # FX compound
-    "Forex-Gutschrift":        "fx_credit",
-    "Fx-Gutschrift Comp.":     "fx_credit",
-    "Fx-Belastung Comp.":      "fx_debit",
-
+    "Auszahlung":                "withdrawal",
+    "Einzahlung":                "deposit",
+    "Twint":                     "twint_payment",
+    "Zahlung":                   "payment",
     # Corporate actions
-    "Interne Titelumbuchung":  "corporate_action",
-    "Reverse Split":           "corporate_action",
-    "Fusion":                  "corporate_action",
-    "Ausgabe von Anrechten":   "corporate_action",
+    "Interne Titelumbuchung":    "corporate_action",
+    "Reverse Split":             "corporate_action",
+    "Fusion":                    "corporate_action",
+    "Ausgabe von Anrechten":     "corporate_action",
     "Vorrechtszeichungsangebot": "corporate_action",
-
     # Crypto
-    "Crypto Deposit":          "deposit",
+    "Crypto Deposit":            "deposit",
 }
 
 SECURITY_TRANSACTION_TYPES = {
@@ -134,7 +129,8 @@ SECURITY_TRANSACTION_TYPES = {
 CASH_TRANSACTION_TYPES = {
     "credit_interest", "debit_interest", "custody_fee",
     "exchange_fee_correction", "tax_statement_fee",
-    "fx_debit", "withdrawal", "twint_payment", "payment",
+    "fx_debit", "fx_credit", "withdrawal", "deposit",
+    "twint_payment", "payment",
 }
 
 INCOME_TRANSACTION_TYPES = {
@@ -142,7 +138,12 @@ INCOME_TRANSACTION_TYPES = {
     "securities_lending_income", "credit_interest",
 }
 
-_DATE_FORMATS = ("%d-%m-%Y %H:%M:%S", "%d-%m-%Y", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d.%m.%Y", "%Y/%m/%d")
+_DATE_FORMATS = (
+    "%d-%m-%Y %H:%M:%S", "%d-%m-%Y",
+    "%Y-%m-%d %H:%M:%S", "%Y-%m-%d",
+    "%d.%m.%Y", "%Y/%m/%d",
+)
+
 # ---------------------------------------------------------------------------
 # Data class for a single parsed row
 # ---------------------------------------------------------------------------
@@ -219,6 +220,12 @@ def _detect_delimiter(filepath: Path) -> str:
 # ---------------------------------------------------------------------------
 
 def parse_swissquote_csv(filepath: Path) -> Iterator[SwissquoteTransaction]:
+    """
+    Parse a Swissquote German CSV export and yield SwissquoteTransaction
+    objects one per row.  Raises ValueError on unrecognised transaction
+    types — add the label to TRANSACTION_TYPE_MAP in swissquote_importer.py
+    to handle it.
+    """
     filepath  = Path(filepath)
     delimiter = _detect_delimiter(filepath)
     logger.info("Parsing Swissquote CSV: %s  (delimiter=%r)", filepath, delimiter)
@@ -229,12 +236,11 @@ def parse_swissquote_csv(filepath: Path) -> Iterator[SwissquoteTransaction]:
             raw_type      = (row.get(COL_TRANSACTION) or "").strip()
             internal_type = TRANSACTION_TYPE_MAP.get(raw_type)
             if internal_type is None:
-                logger.warning(
-                    "Line %d: unknown Transaktionen value %r -- skipping. "
-                    "Add it to TRANSACTION_TYPE_MAP if needed.",
-                    lineno, raw_type,
+                raise ValueError(
+                    f"Line {lineno}: unknown Transaktionen value {raw_type!r}. "
+                    f"Add it to TRANSACTION_TYPE_MAP in swissquote_importer.py "
+                    f"to handle this transaction type."
                 )
-                continue
 
             raw_date = (row.get(COL_DATE) or "").strip()
             try:
@@ -291,17 +297,12 @@ class SwissquoteImporter:
         self.account_settings_list = account_settings_list or []
         self.general_settings      = general_settings
 
-        # Derive a depot / account identifier from config or use a default
         if self.account_settings_list:
             self._account_id = getattr(
                 self.account_settings_list[0], "account_number", "SQ"
             )
         else:
             self._account_id = "SQ"
-
-    # ------------------------------------------------------------------
-    # Public entry point
-    # ------------------------------------------------------------------
 
     def import_file(self, filename: str) -> TaxStatement:
         """
@@ -333,15 +334,9 @@ class SwissquoteImporter:
                 "capital_gain_distribution", "withholding_tax")),
         )
 
-        # Determine reporting period from CLI args or from the data itself
         period_from, period_to = self._resolve_period(transactions)
-
         statement = self._build_tax_statement(transactions, period_from, period_to)
         return statement
-
-    # ------------------------------------------------------------------
-    # Period resolution
-    # ------------------------------------------------------------------
 
     def _resolve_period(
         self, transactions: List[SwissquoteTransaction]
@@ -354,18 +349,14 @@ class SwissquoteImporter:
             today = date.today()
             return date(today.year, 1, 1), date(today.year, 12, 31)
 
-        dates      = [t.date for t in transactions]
-        data_from  = self.period_from or min(dates)
-        data_to    = self.period_to   or max(dates)
+        dates     = [t.date for t in transactions]
+        data_from = self.period_from or min(dates)
+        data_to   = self.period_to   or max(dates)
         logger.info(
             "Period not fully specified — using data range: %s to %s",
             data_from, data_to,
         )
         return data_from, data_to
-
-    # ------------------------------------------------------------------
-    # TaxStatement builder
-    # ------------------------------------------------------------------
 
     def _build_tax_statement(
         self,
@@ -375,46 +366,37 @@ class SwissquoteImporter:
     ) -> TaxStatement:
         """Convert parsed transactions into a TaxStatement."""
 
-        # ── Group by ISIN (security rows) ─────────────────────────────
-        # key: isin  →  {"stocks": [...], "payments": [...], "name": str, "symbol": str}
         security_data: Dict[str, dict] = defaultdict(
             lambda: {"stocks": [], "payments": [], "name": "", "symbol": ""}
         )
-
-        # key: currency  →  {"payments": [], "closing_balance": Decimal}
         cash_data: Dict[str, dict] = defaultdict(
             lambda: {"payments": [], "closing_balance": Decimal("0")}
         )
-
-        # Track last balance per currency for the closing balance entry
         last_balance: Dict[str, Decimal] = {}
 
         for tx in transactions:
-            # Always track the running cash balance
             last_balance[tx.currency] = tx.balance
 
             if tx.is_security_row and tx.isin:
                 sd = security_data[tx.isin]
-                # Keep the longest / most descriptive name seen
                 if len(tx.name) > len(sd["name"]):
                     sd["name"]   = tx.name
                     sd["symbol"] = tx.symbol
 
                 if tx.transaction_type in ("buy", "sell"):
                     sd["stocks"].append(SecurityStock(
-                        referenceDate = tx.date,
-                        mutation      = True,
-                        quantity      = tx.quantity if tx.transaction_type == "buy"
-                                        else -tx.quantity,
-                        unitPrice     = tx.unit_price if tx.unit_price else None,
-                        name          = tx.transaction_type_raw,
-                        orderId       = tx.order_nr or None,
+                        referenceDate   = tx.date,
+                        mutation        = True,
+                        quantity        = tx.quantity if tx.transaction_type == "buy"
+                                          else -tx.quantity,
+                        unitPrice       = tx.unit_price if tx.unit_price else None,
+                        name            = tx.transaction_type_raw,
+                        orderId         = tx.order_nr or None,
                         balanceCurrency = tx.currency,
-                        quotationType = "PIECE",
+                        quotationType   = "PIECE",
                     ))
 
                 elif tx.transaction_type == "redemption":
-                    # Treat redemption as a full sell-out at par
                     sd["stocks"].append(SecurityStock(
                         referenceDate   = tx.date,
                         mutation        = True,
@@ -429,19 +411,17 @@ class SwissquoteImporter:
                     "securities_lending_income",
                 ):
                     payment = SecurityPayment(
-                        paymentDate   = tx.date,
-                        name          = tx.transaction_type_raw,
-                        amountCurrency = tx.currency,
-                        amount        = tx.net_amount,
-                        quotationType = "PIECE",
-                        quantity      = UNINITIALIZED_QUANTITY,
+                        paymentDate          = tx.date,
+                        name                 = tx.transaction_type_raw,
+                        amountCurrency       = tx.currency,
+                        amount               = tx.net_amount,
+                        quotationType        = "PIECE",
+                        quantity             = UNINITIALIZED_QUANTITY,
                         broker_label_original = tx.transaction_type_raw,
                     )
                     sd["payments"].append(payment)
 
                 elif tx.transaction_type == "withholding_tax":
-                    # Attach withholding tax to the most recently added payment
-                    # for this security, or create a standalone payment entry.
                     wht_amount = abs(tx.net_amount)
                     if sd["payments"]:
                         last_payment = sd["payments"][-1]
@@ -450,19 +430,18 @@ class SwissquoteImporter:
                         else:
                             last_payment.nonRecoverableTaxAmountOriginal = wht_amount
                     else:
-                        # Orphaned withholding tax — no prior dividend for this ISIN
                         logger.warning(
                             "Withholding tax on %s for ISIN %s has no "
                             "prior dividend payment to attach to.",
                             tx.date, tx.isin,
                         )
                         payment = SecurityPayment(
-                            paymentDate   = tx.date,
-                            name          = tx.transaction_type_raw,
+                            paymentDate    = tx.date,
+                            name           = tx.transaction_type_raw,
                             amountCurrency = tx.currency,
-                            amount        = Decimal("0"),
-                            quotationType = "PIECE",
-                            quantity      = UNINITIALIZED_QUANTITY,
+                            amount         = Decimal("0"),
+                            quotationType  = "PIECE",
+                            quantity       = UNINITIALIZED_QUANTITY,
                         )
                         if tx.currency == "CHF":
                             payment.withHoldingTaxClaim = wht_amount
@@ -471,7 +450,6 @@ class SwissquoteImporter:
                         sd["payments"].append(payment)
 
             elif tx.is_cash_row:
-                # Only income-relevant cash events go into the bank account payments
                 if tx.transaction_type in ("credit_interest", "debit_interest"):
                     cash_data[tx.currency]["payments"].append(
                         BankAccountPayment(
@@ -481,19 +459,15 @@ class SwissquoteImporter:
                             amount         = tx.net_amount,
                         )
                     )
-                # Other cash rows (fees, withdrawals, FX) are not tax-relevant
-                # for the Steuerauszug — log at debug level and skip.
                 else:
                     logger.debug(
                         "Skipping non-income cash row: %s %s %s",
                         tx.date, tx.transaction_type_raw, tx.net_amount,
                     )
 
-        # ── Set closing cash balances ──────────────────────────────────
         for currency, balance in last_balance.items():
             cash_data[currency]["closing_balance"] = balance
 
-        # ── Build ListOfSecurities ─────────────────────────────────────
         end_plus_one = period_to + timedelta(days=1)
         securities: List[Security] = []
         pos_id = 0
@@ -502,15 +476,6 @@ class SwissquoteImporter:
             pos_id += 1
             stocks: List[SecurityStock] = sd["stocks"]
 
-            # Compute opening and closing quantities from mutation stocks
-            net_quantity = sum(
-                (s.quantity for s in stocks if s.mutation), Decimal("0")
-            )
-            # We don't have explicit opening/closing balance rows from SQ CSV,
-            # so we synthesise them.  Opening = 0 is the safe default;
-            # the CleanupCalculator will correct this if needed.
-            # Compute opening balance from all mutations BEFORE the period start,
-            # and closing balance from ALL mutations (pre-period + in-period).
             pre_period_qty = sum(
                 (s.quantity for s in stocks
                  if s.mutation and s.referenceDate < period_from),
@@ -524,7 +489,6 @@ class SwissquoteImporter:
             opening_qty = pre_period_qty
             closing_qty = pre_period_qty + in_period_qty
 
-            # Add opening balance stock entry
             stocks.append(SecurityStock(
                 referenceDate   = period_from,
                 mutation        = False,
@@ -533,7 +497,6 @@ class SwissquoteImporter:
                 quotationType   = "PIECE",
                 name            = "Opening balance",
             ))
-            # Add closing balance stock entry
             stocks.append(SecurityStock(
                 referenceDate   = end_plus_one,
                 mutation        = False,
@@ -543,24 +506,20 @@ class SwissquoteImporter:
                 name            = "Closing balance",
             ))
 
-            stocks_sorted = sorted(
-                stocks, key=lambda s: (s.referenceDate, s.mutation)
-            )
-            payments_sorted = sorted(
-                sd["payments"], key=lambda p: p.paymentDate
-            )
+            stocks_sorted   = sorted(stocks,          key=lambda s: (s.referenceDate, s.mutation))
+            payments_sorted = sorted(sd["payments"],   key=lambda p: p.paymentDate)
 
             sec = Security(
-                positionId      = pos_id,
-                currency        = "CHF",
-                quotationType   = "PIECE",
-                securityCategory = "SHARE",   # CleanupCalculator will refine
-                securityName    = sd["name"] or sd["symbol"] or isin,
-                isin            = ISINType(isin),
-                valorNumber     = None,
-                country         = "CH",       # CleanupCalculator will refine
-                stock           = stocks_sorted,
-                payment         = payments_sorted,
+                positionId       = pos_id,
+                currency         = "CHF",
+                quotationType    = "PIECE",
+                securityCategory = "SHARE",
+                securityName     = sd["name"] or sd["symbol"] or isin,
+                isin             = ISINType(isin),
+                valorNumber      = None,
+                country          = "CH",
+                stock            = stocks_sorted,
+                payment          = payments_sorted,
             )
             securities.append(sec)
 
@@ -569,24 +528,15 @@ class SwissquoteImporter:
             security    = securities,
         ) if securities else None
 
-        list_of_securities = (
-            ListOfSecurities(depot=[depot]) if depot else None
-        )
+        list_of_securities = ListOfSecurities(depot=[depot]) if depot else None
 
-        # ── Build ListOfBankAccounts ───────────────────────────────────
         bank_accounts: List[BankAccount] = []
         for currency, cd in cash_data.items():
-            closing = cd["closing_balance"]
-            payments_sorted = sorted(
-                cd["payments"], key=lambda p: p.paymentDate
-            )
+            closing         = cd["closing_balance"]
+            payments_sorted = sorted(cd["payments"], key=lambda p: p.paymentDate)
             ba = BankAccount(
-                bankAccountName    = BankAccountName(
-                    f"{self._account_id} {currency}"
-                ),
-                bankAccountNumber  = BankAccountNumber(
-                    f"{self._account_id}-{currency}"
-                ),
+                bankAccountName     = BankAccountName(f"{self._account_id} {currency}"),
+                bankAccountNumber   = BankAccountNumber(f"{self._account_id}-{currency}"),
                 bankAccountCountry  = "CH",
                 bankAccountCurrency = currency,
                 payment             = payments_sorted,
@@ -600,24 +550,20 @@ class SwissquoteImporter:
             bank_accounts.append(ba)
 
         list_of_bank_accounts = (
-            ListOfBankAccounts(bankAccount=bank_accounts)
-            if bank_accounts else None
+            ListOfBankAccounts(bankAccount=bank_accounts) if bank_accounts else None
         )
 
-        # ── Assemble TaxStatement ──────────────────────────────────────
         statement = TaxStatement(
-            minorVersion        = 1,
-            periodFrom          = period_from,
-            periodTo            = period_to,
-            taxPeriod           = period_from.year,
-            listOfSecurities    = list_of_securities,
-            listOfBankAccounts  = list_of_bank_accounts,
+            minorVersion       = 1,
+            periodFrom         = period_from,
+            periodTo           = period_to,
+            taxPeriod          = period_from.year,
+            listOfSecurities   = list_of_securities,
+            listOfBankAccounts = list_of_bank_accounts,
         )
 
-        # Institution — Swissquote Bank AG, BLZ 8480
         statement.institution = Institution(name="Swissquote Bank AG")
 
-        # Client — populate from general_settings if available
         client_last_name  = None
         client_first_name = None
         if self.general_settings:
