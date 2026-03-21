@@ -1,5 +1,6 @@
 from decimal import Decimal
 from typing import Optional, List, Set
+from datetime import date, timedelta
 import logging
 
 from ..core.exchange_rate_provider import ExchangeRateProvider
@@ -450,6 +451,56 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 valor_number_new,
             )
 
+    def _has_actual_broker_withholding(self, security: Security, payment_date: date) -> bool:
+        """
+        Check if the broker actually withheld tax for a payment on or around the given date.
+
+        This looks for broker payments with nonRecoverableTaxAmountOriginal set, which indicates
+        actual withholding tax deducted by the broker. Returns True if any such payment exists
+        within a reasonable time window around the payment date.
+
+        Args:
+            security: The security to check
+            payment_date: The payment date from the Kursliste
+
+        Returns:
+            True if actual broker withholding was found, False otherwise
+        """
+        if not security.broker_payments:
+            return False
+
+        # Check for any broker payment within +/- 30 days with actual withholding
+        # This tolerance accounts for differences in payment vs ex-date timing
+        date_tolerance = timedelta(days=30)
+
+        for broker_payment in security.broker_payments:
+            if broker_payment.paymentDate is None:
+                continue
+
+            # Check if payment is within the time window
+            date_diff = abs((broker_payment.paymentDate - payment_date).days)
+            if date_diff > date_tolerance.days:
+                continue
+
+            # Check if this broker payment has actual withholding
+            if (broker_payment.nonRecoverableTaxAmountOriginal and
+                broker_payment.nonRecoverableTaxAmountOriginal > Decimal("0")):
+                logger.debug(
+                    "Found actual broker withholding of %s %s on %s for payment date %s",
+                    broker_payment.nonRecoverableTaxAmountOriginal,
+                    broker_payment.amountCurrency,
+                    broker_payment.paymentDate,
+                    payment_date
+                )
+                return True
+
+        logger.debug(
+            "No actual broker withholding found for payment date %s (checked %d broker payments)",
+            payment_date,
+            len(security.broker_payments)
+        )
+        return False
+
     def computePayments(self, security: Security, path_prefix: str) -> None:
         """Compute payments for a security using the Kursliste."""
         if not self.kursliste_manager:
@@ -682,30 +733,47 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 sec_payment.grossRevenueB = chf_amount
                 sec_payment.withHoldingTaxClaim = Decimal("0")
 
+            # Check if DA-1 treatment should be applied
+            # DA-1 rates are only applied when there's actual withholding by the broker
+            # OR when the sign is NOT (Q) (Q flag means "withholding expected but not required")
+            should_apply_da1 = False
             da1_security_group = kl_sec.securityGroup
             da1_security_type = kl_sec.securityType
+
             if effective_sign == "(Q)":
+                # For (Q) sign, only apply DA-1 if broker actually withheld tax
+                # This prevents incorrect DA-1 classification when no tax was withheld
                 da1_security_group = SecurityGroupESTV.SHARE
                 da1_security_type = None
+                should_apply_da1 = self._has_actual_broker_withholding(security, pay.paymentDate)
+                if not should_apply_da1:
+                    logger.debug(
+                        "Skipping DA-1 for (Q) payment on %s: no actual broker withholding found",
+                        pay.paymentDate
+                    )
+            else:
+                # For non-(Q) payments, always check for DA-1 rates
+                should_apply_da1 = True
 
-            da1_rate = accessor.get_da1_rate(
-                kl_sec.country,
-                da1_security_group,
-                da1_security_type,
-                reference_date=pay.paymentDate,
-            )
+            if should_apply_da1:
+                da1_rate = accessor.get_da1_rate(
+                    kl_sec.country,
+                    da1_security_group,
+                    da1_security_type,
+                    reference_date=pay.paymentDate,
+                )
 
-            if da1_rate:
-                lump_sum_amount = chf_amount * da1_rate.value / Decimal(100)
-                non_recoverable_amount = chf_amount * da1_rate.nonRecoverable / Decimal(100)
-                if lump_sum_amount > 0 or non_recoverable_amount > 0:
-                    sec_payment.lumpSumTaxCreditPercent = da1_rate.value
-                    sec_payment.lumpSumTaxCreditAmount = lump_sum_amount
-                    sec_payment.nonRecoverableTaxPercent = da1_rate.nonRecoverable
-                    sec_payment.nonRecoverableTaxAmount = non_recoverable_amount
-                    if kl_sec.country == "US":
-                        sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
-                    sec_payment.lumpSumTaxCredit = True
+                if da1_rate:
+                    lump_sum_amount = chf_amount * da1_rate.value / Decimal(100)
+                    non_recoverable_amount = chf_amount * da1_rate.nonRecoverable / Decimal(100)
+                    if lump_sum_amount > 0 or non_recoverable_amount > 0:
+                        sec_payment.lumpSumTaxCreditPercent = da1_rate.value
+                        sec_payment.lumpSumTaxCreditAmount = lump_sum_amount
+                        sec_payment.nonRecoverableTaxPercent = da1_rate.nonRecoverable
+                        sec_payment.nonRecoverableTaxAmount = non_recoverable_amount
+                        if kl_sec.country == "US":
+                            sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
+                        sec_payment.lumpSumTaxCredit = True
 
             if effective_sign == "(V)":
                 raise NotImplementedError(
