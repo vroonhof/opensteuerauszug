@@ -697,7 +697,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 reference_date=pay.paymentDate,
             )
 
-            if da1_rate:
+            if da1_rate and effective_sign != "(Z)":
                 lump_sum_amount = chf_amount * da1_rate.value / Decimal(100)
                 non_recoverable_amount = chf_amount * da1_rate.nonRecoverable / Decimal(100)
                 if lump_sum_amount > 0 or non_recoverable_amount > 0:
