@@ -2670,3 +2670,70 @@ def test_opt_p_open_at_year_end(sample_ibkr_settings):
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
 
+# ADR Fee transaction - should be ignored even though it has a security conid
+SAMPLE_IBKR_FLEX_XML_ADR_FEE = """
+<FlexQueryResponse queryName="ADRFeeQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" subCategory="ADR" symbol="XNET" description="XNET INC" conid="157874416" isin="US98419E1082" currency="USD" position="5714" markPrice="2.00" positionValue="11428.00" reportDate="2025-12-31" />
+      </OpenPositions>
+      <CashTransactions>
+        <CashTransaction currency="USD" symbol="XNET" description="XNET(98419E108) ADR Fee USD 0.02 PER SHARE - FEE" conid="157874416" isin="US98419E1082" dateTime="20250909;202000" amount="-114.36" type="Other Fees" accountId="U1234567" acctAlias="" model="Independent" fxRateToBase="1" assetCategory="STK" subCategory="ADR" securityID="US98419E1082" securityIDType="ISIN" cusip="98419E108" figi="BBG001QWYTJ7" listingExchange="NASDAQ" underlyingConid="" underlyingSymbol="XNET" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="CN" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" settleDate="20250909" availableForTradingDate="" tradeID="" code="" transactionID="34926756516" reportDate="20250912" exDate="" clientReference="" actionID="" levelOfDetail="DETAIL" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+
+def test_security_linked_adr_fee_is_ignored(sample_ibkr_settings):
+    """
+    ADR fees are security-linked fees (have a conid) but should be ignored
+    like other fees. This test verifies that fees associated with securities
+    do not create SecurityPayment objects that would cause reconciliation mismatches.
+
+    See issue: "Payment reconciliation: IBKR ADR Fee shown as mismatch"
+    """
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_ADR_FEE)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        assert tax_statement is not None
+        depot = tax_statement.listOfSecurities.depot[0]
+        assert len(depot.security) == 1
+
+        # Security should exist due to OpenPosition
+        xnet_sec = depot.security[0]
+        assert "XNET" in xnet_sec.securityName
+        assert xnet_sec.isin == "US98419E1082"
+
+        # ADR fee should NOT create a SecurityPayment
+        assert len(xnet_sec.payment) == 0, "ADR fee should not create a SecurityPayment"
+
+        # Verify closing balance exists from OpenPosition
+        end_plus_one = period_to + timedelta(days=1)
+        closing = next(
+            (s for s in xnet_sec.stock if not s.mutation and s.referenceDate == end_plus_one),
+            None
+        )
+        assert closing is not None
+        assert closing.quantity == Decimal("5714")
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)

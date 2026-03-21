@@ -733,6 +733,11 @@ class IbkrImporter:
                     if tx_type is None:
                         raise ValueError(f"CashTransaction type is missing for {description}")
 
+                    # Skip fees even if they are associated with a security (e.g., ADR fees)
+                    if tx_type in [ibflex.CashAction.FEES, ibflex.CashAction.ADVISORFEES]:
+                        logger.warning(f"Fees paid for {description} are ignored for statement.")
+                        continue
+
                     if security_id:
                         tx_type_str = tx_type.value
                         tx_type_str_lower = str(tx_type_str).lower()
