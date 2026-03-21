@@ -685,6 +685,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             da1_security_group = kl_sec.securityGroup
             da1_security_type = kl_sec.securityType
             if effective_sign == "(Q)":
+                # Q sign forces treatment like shares for DA-1 purposes,
+                # e.g. for an ETF which would be FUND.DISTRIBUTING.
                 da1_security_group = SecurityGroupESTV.SHARE
                 da1_security_type = None
 
