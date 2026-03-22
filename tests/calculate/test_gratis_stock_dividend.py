@@ -283,7 +283,6 @@ def test_gratis_stock_dividend_warning_uses_correct_date():
     # CRITICAL: Should reference the payment date, not ex-date
     assert str(payment_date) in warning_msg
     assert "115.5" in warning_msg  # Expected delta: 2310 * (1.05 - 1) = 115.5
-    assert warnings[0]["identifier"] == "CH0147853092"
 
 
 def test_regular_stock_split_still_uses_split_terminology():

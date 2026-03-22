@@ -288,10 +288,10 @@ def test_compute_payments_from_kursliste_missing_ex_date(kursliste_manager):
     assert payment.amountPerUnit == Decimal("1.5312762338")
     assert payment.amount == Decimal("153.12762338")
     assert payment.exchangeRate == Decimal("0.90405")
-    # Reality vs spec: All three fields should be set when at least one is set
-    assert payment.grossRevenueA == Decimal("0")
-    assert payment.grossRevenueB == Decimal("138.400")
-    assert payment.withHoldingTaxClaim == Decimal("0")
+    # FUND_ACCUMULATION payment type does not compute withholding since it doesn't involve cash
+    assert payment.grossRevenueA is None
+    assert payment.grossRevenueB is None
+    assert payment.withHoldingTaxClaim is None
 
 
 def test_compute_payments_skips_stock_split_payment():

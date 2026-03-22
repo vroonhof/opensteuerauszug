@@ -686,10 +686,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             # Reality vs spec: Real-world files seem to have all three fields set when at least one is set,
             # possibly with zero values, even though our reading of the spec suggests they should be mutually exclusive
-            # Only compute withholding and DA-1 for payment types that involve cash distributions.
-            # GRATIS (stock dividends) don't involve cash withholding, but other non-STANDARD types
-            # like FUND_ACCUMULATION do involve taxable cash income.
-            if pay.paymentType != PaymentTypeESTV.GRATIS:
+            # Only compute withholding and DA-1 for STANDARD payment types (regular cash dividends).
+            # Non-STANDARD types like GRATIS (stock dividends) and FUND_ACCUMULATION don't involve
+            # cash withholding.
+            if pay.paymentType is None or pay.paymentType == PaymentTypeESTV.STANDARD:
                 if pay.withHoldingTax:
                     sec_payment.grossRevenueA = chf_amount
                     sec_payment.grossRevenueB = Decimal("0")
