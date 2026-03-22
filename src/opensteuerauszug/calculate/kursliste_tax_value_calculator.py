@@ -686,19 +686,24 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             # Reality vs spec: Real-world files seem to have all three fields set when at least one is set,
             # possibly with zero values, even though our reading of the spec suggests they should be mutually exclusive
-            # Only compute withholding and DA-1 for STANDARD payment types (regular cash dividends).
-            # Non-STANDARD types like GRATIS (stock dividends) and FUND_ACCUMULATION don't involve
-            # cash withholding.
+            # All payments have taxable revenue (grossRevenueA/B).
+            # Only STANDARD payment types involve withholding tax and DA-1 reclaim.
+            # Non-STANDARD types like GRATIS (stock dividends) and FUND_ACCUMULATION have
+            # taxable revenue but no withholding claim.
+            if pay.withHoldingTax:
+                sec_payment.grossRevenueA = chf_amount
+                sec_payment.grossRevenueB = Decimal("0")
+            else:
+                sec_payment.grossRevenueA = Decimal("0")
+                sec_payment.grossRevenueB = chf_amount
+
+            # withHoldingTaxClaim is only computed for STANDARD payment types
             if pay.paymentType is None or pay.paymentType == PaymentTypeESTV.STANDARD:
                 if pay.withHoldingTax:
-                    sec_payment.grossRevenueA = chf_amount
-                    sec_payment.grossRevenueB = Decimal("0")
                     sec_payment.withHoldingTaxClaim = (chf_amount * WITHHOLDING_TAX_RATE).quantize(
                         Decimal("0.01")
                     )
                 else:
-                    sec_payment.grossRevenueA = Decimal("0")
-                    sec_payment.grossRevenueB = chf_amount
                     sec_payment.withHoldingTaxClaim = Decimal("0")
 
                 da1_security_group = kl_sec.securityGroup
@@ -727,6 +732,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                         if kl_sec.country == "US":
                             sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
                         sec_payment.lumpSumTaxCredit = True
+            else:
+                # Non-STANDARD payments have no withholding claim
+                sec_payment.withHoldingTaxClaim = Decimal("0")
 
             if effective_sign == "(V)":
                 raise NotImplementedError(

@@ -157,8 +157,10 @@ def test_gratis_stock_dividend_has_no_da1_withholding():
     assert payment_result.paymentDate == payment_date
     assert payment_result.exDate == ex_date
 
-    # CRITICAL: No DA-1 withholding should be calculated for GRATIS payments
-    assert payment_result.withHoldingTaxClaim is None or payment_result.withHoldingTaxClaim == Decimal("0")
+    # GRATIS payments have taxable revenue but no withholding claim or DA-1
+    assert payment_result.grossRevenueA == Decimal("0")
+    assert payment_result.grossRevenueB == Decimal("231.0")  # 2310 * 0.1
+    assert payment_result.withHoldingTaxClaim == Decimal("0")
     assert payment_result.lumpSumTaxCreditAmount is None
     assert payment_result.lumpSumTaxCreditPercent is None
     assert payment_result.nonRecoverableTaxAmount is None
