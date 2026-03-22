@@ -260,6 +260,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         ratio_present: Decimal,
         ratio_new: Decimal,
         valor_number_new: Optional[int],
+        is_gratis: bool = False,
+        payment_date=None,
     ) -> None:
         """Validate that a stock split is correctly reflected in the imported mutations.
 
@@ -279,6 +281,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
           - a negative mutation on the *old* (current) security of ``-quantity``
           - a positive mutation on a *new* security (identified by
             ``valor_number_new``) of ``quantity * ratio_new / ratio_present``
+
+        For stock dividends (gratis=True), the mutation typically occurs on the
+        payment date rather than the effective date.
         """
         sec_ident = security.isin or security.securityName
 
@@ -291,19 +296,25 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         ):
             valor_number_new = None
 
+        # For stock dividends (gratis), the mutation typically occurs on the payment
+        # date rather than the effective date (ex-date).
+        mutation_date = payment_date if is_gratis and payment_date else reconciliation_date
+
         mutations_on_date = [
             stock
             for stock in security.stock
-            if stock.mutation and stock.referenceDate == reconciliation_date
+            if stock.mutation and stock.referenceDate == mutation_date
         ]
+
+        event_type = "stock dividend" if is_gratis else "stock split"
 
         if valor_number_new is None:
             # ---- Same-ISIN split: look for a single delta on this security ----
             expected_delta = quantity * (ratio_new / ratio_present - Decimal("1"))
             if not mutations_on_date:
                 msg = (
-                    f"Missing stock split mutation for {sec_ident} on "
-                    f"{reconciliation_date}: expected a mutation of "
+                    f"Missing {event_type} mutation for {sec_ident} on "
+                    f"{mutation_date}: expected a mutation of "
                     f"{expected_delta} shares (split ratio "
                     f"{ratio_new}:{ratio_present}, pre-split position "
                     f"{quantity}), but no mutations were found on that date. "
@@ -317,8 +328,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             mutation_quantities = {m.quantity for m in mutations_on_date}
             if expected_delta not in mutation_quantities:
                 msg = (
-                    f"Stock split ratio mismatch for {sec_ident} on "
-                    f"{reconciliation_date}: expected a mutation of "
+                    f"{event_type.capitalize()} ratio mismatch for {sec_ident} on "
+                    f"{mutation_date}: expected a mutation of "
                     f"{expected_delta} shares (split ratio "
                     f"{ratio_new}:{ratio_present}, pre-split position "
                     f"{quantity}), but the mutations found on that date "
@@ -339,8 +350,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             mutation_quantities = {m.quantity for m in mutations_on_date}
             if expected_removal not in mutation_quantities:
                 msg = (
-                    f"Stock split with ISIN change for {sec_ident} on "
-                    f"{reconciliation_date}: expected a removal mutation of "
+                    f"{event_type.capitalize()} with ISIN change for {sec_ident} on "
+                    f"{mutation_date}: expected a removal mutation of "
                     f"{expected_removal} shares on the old security (split "
                     f"ratio {ratio_new}:{ratio_present}, pre-split position "
                     f"{quantity}, new valor {valor_number_new}), but the "
@@ -380,8 +391,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             if new_security is None:
                 msg = (
-                    f"Stock split with ISIN change for {sec_ident} on "
-                    f"{reconciliation_date}: the Kursliste split legend "
+                    f"{event_type.capitalize()} with ISIN change for {sec_ident} on "
+                    f"{mutation_date}: the Kursliste split legend "
                     f"references new valor number {valor_number_new}, but no "
                     f"security with that valor number was found in the tax "
                     f"statement. This typically means the broker's corporate "
@@ -401,12 +412,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             new_mutations_on_date = [
                 stock
                 for stock in new_security.stock
-                if stock.mutation and stock.referenceDate == reconciliation_date
+                if stock.mutation and stock.referenceDate == mutation_date
             ]
             if not new_mutations_on_date:
                 msg = (
-                    f"Stock split with ISIN change for {sec_ident} on "
-                    f"{reconciliation_date}: the new security "
+                    f"{event_type.capitalize()} with ISIN change for {sec_ident} on "
+                    f"{mutation_date}: the new security "
                     f"{new_sec_ident} (valor {valor_number_new}) has no "
                     f"mutations on the split date. Expected an addition of "
                     f"{expected_addition} shares (split ratio "
@@ -422,8 +433,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             new_mutation_quantities = {m.quantity for m in new_mutations_on_date}
             if expected_addition not in new_mutation_quantities:
                 msg = (
-                    f"Stock split with ISIN change for {sec_ident} on "
-                    f"{reconciliation_date}: the new security "
+                    f"{event_type.capitalize()} with ISIN change for {sec_ident} on "
+                    f"{mutation_date}: the new security "
                     f"{new_sec_ident} (valor {valor_number_new}) has "
                     f"mutations with quantities "
                     f"{sorted(new_mutation_quantities)} on the split date, "
@@ -439,11 +450,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 return
 
             logger.info(
-                "Validated cross-ISIN stock split for %s on %s: "
+                "Validated cross-ISIN %s for %s on %s: "
                 "removed %s shares from old security, added %s shares "
                 "to new security %s (valor %s).",
+                event_type,
                 sec_ident,
-                reconciliation_date,
+                mutation_date,
                 expected_removal,
                 expected_addition,
                 new_sec_ident,
@@ -539,6 +551,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     ratio_present = split_legend.exchangeRatioPresent
                     ratio_new = split_legend.exchangeRatioNew
                     valor_number_new = split_legend.valorNumberNew
+                    is_gratis = hasattr(pay, "gratis") and pay.gratis
                     if ratio_present:
                         self._validate_stock_split(
                             security=security,
@@ -547,6 +560,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                             ratio_present=ratio_present,
                             ratio_new=ratio_new,
                             valor_number_new=valor_number_new,
+                            is_gratis=is_gratis,
+                            payment_date=pay.paymentDate,
                         )
 
                     if pay.paymentValueCHF in (None, Decimal("0")) and pay.paymentValue in (
@@ -671,43 +686,47 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             # Reality vs spec: Real-world files seem to have all three fields set when at least one is set,
             # possibly with zero values, even though our reading of the spec suggests they should be mutually exclusive
-            if pay.withHoldingTax:
-                sec_payment.grossRevenueA = chf_amount
-                sec_payment.grossRevenueB = Decimal("0")
-                sec_payment.withHoldingTaxClaim = (chf_amount * WITHHOLDING_TAX_RATE).quantize(
-                    Decimal("0.01")
+            # Only compute withholding and DA-1 for payment types that involve cash distributions.
+            # GRATIS (stock dividends) don't involve cash withholding, but other non-STANDARD types
+            # like FUND_ACCUMULATION do involve taxable cash income.
+            if pay.paymentType != PaymentTypeESTV.GRATIS:
+                if pay.withHoldingTax:
+                    sec_payment.grossRevenueA = chf_amount
+                    sec_payment.grossRevenueB = Decimal("0")
+                    sec_payment.withHoldingTaxClaim = (chf_amount * WITHHOLDING_TAX_RATE).quantize(
+                        Decimal("0.01")
+                    )
+                else:
+                    sec_payment.grossRevenueA = Decimal("0")
+                    sec_payment.grossRevenueB = chf_amount
+                    sec_payment.withHoldingTaxClaim = Decimal("0")
+
+                da1_security_group = kl_sec.securityGroup
+                da1_security_type = kl_sec.securityType
+                if effective_sign == "(Q)":
+                    # Q sign forces treatment like shares for DA-1 purposes,
+                    # e.g. for an ETF which would be FUND.DISTRIBUTING.
+                    da1_security_group = SecurityGroupESTV.SHARE
+                    da1_security_type = None
+
+                da1_rate = accessor.get_da1_rate(
+                    kl_sec.country,
+                    da1_security_group,
+                    da1_security_type,
+                    reference_date=pay.paymentDate,
                 )
-            else:
-                sec_payment.grossRevenueA = Decimal("0")
-                sec_payment.grossRevenueB = chf_amount
-                sec_payment.withHoldingTaxClaim = Decimal("0")
 
-            da1_security_group = kl_sec.securityGroup
-            da1_security_type = kl_sec.securityType
-            if effective_sign == "(Q)":
-                # Q sign forces treatment like shares for DA-1 purposes,
-                # e.g. for an ETF which would be FUND.DISTRIBUTING.
-                da1_security_group = SecurityGroupESTV.SHARE
-                da1_security_type = None
-
-            da1_rate = accessor.get_da1_rate(
-                kl_sec.country,
-                da1_security_group,
-                da1_security_type,
-                reference_date=pay.paymentDate,
-            )
-
-            if da1_rate and effective_sign != "(Z)":
-                lump_sum_amount = chf_amount * da1_rate.value / Decimal(100)
-                non_recoverable_amount = chf_amount * da1_rate.nonRecoverable / Decimal(100)
-                if lump_sum_amount > 0 or non_recoverable_amount > 0:
-                    sec_payment.lumpSumTaxCreditPercent = da1_rate.value
-                    sec_payment.lumpSumTaxCreditAmount = lump_sum_amount
-                    sec_payment.nonRecoverableTaxPercent = da1_rate.nonRecoverable
-                    sec_payment.nonRecoverableTaxAmount = non_recoverable_amount
-                    if kl_sec.country == "US":
-                        sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
-                    sec_payment.lumpSumTaxCredit = True
+                if da1_rate and effective_sign != "(Z)":
+                    lump_sum_amount = chf_amount * da1_rate.value / Decimal(100)
+                    non_recoverable_amount = chf_amount * da1_rate.nonRecoverable / Decimal(100)
+                    if lump_sum_amount > 0 or non_recoverable_amount > 0:
+                        sec_payment.lumpSumTaxCreditPercent = da1_rate.value
+                        sec_payment.lumpSumTaxCreditAmount = lump_sum_amount
+                        sec_payment.nonRecoverableTaxPercent = da1_rate.nonRecoverable
+                        sec_payment.nonRecoverableTaxAmount = non_recoverable_amount
+                        if kl_sec.country == "US":
+                            sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
+                        sec_payment.lumpSumTaxCredit = True
 
             if effective_sign == "(V)":
                 raise NotImplementedError(
