@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date
 from typing import Optional, List, Set
 import logging
 
@@ -461,6 +462,24 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             return
 
         payments = [p for p in kl_sec.payment if not p.deleted]
+
+        # Detect payments with multiple variants for the same event.
+        # The variant attribute on a payment means that only ONE of the distinct variant
+        # numbers should be applied (OR-choice, e.g. cash dividend vs. stock dividend).
+        # We have no mechanical way to make this choice, so we raise an error.
+        _variants_by_event: dict[date | None, set[int]] = {}
+        for _pay in payments:
+            if _pay.variant is None:
+                continue
+            _event_key = _pay.exDate or _pay.paymentDate
+            _variants_by_event.setdefault(_event_key, set()).add(_pay.variant)
+        for _event_key, _variants in _variants_by_event.items():
+            if len(_variants) > 1:
+                sec_ident = security.isin or security.securityName
+                raise NotImplementedError(
+                    f"Payment on {_event_key} for '{sec_ident}' has multiple variants "
+                    f"({sorted(_variants)}). Manual selection of a variant is required."
+                )
 
         result: List[SecurityPayment] = []
 
