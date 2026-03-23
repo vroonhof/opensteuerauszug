@@ -686,26 +686,22 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             # Reality vs spec: Real-world files seem to have all three fields set when at least one is set,
             # possibly with zero values, even though our reading of the spec suggests they should be mutually exclusive
-            # All payments have taxable revenue (grossRevenueA/B).
-            # Only STANDARD payment types involve withholding tax and DA-1 reclaim.
-            # Non-STANDARD types like GRATIS (stock dividends) and FUND_ACCUMULATION have
-            # taxable revenue but no withholding claim.
+            # All payments have taxable revenue (grossRevenueA/B) and withholding tax claim.
+            # The withHoldingTax flag from Kursliste is authoritative.
+            # Only STANDARD payment types get DA-1 reclaim calculation.
             if pay.withHoldingTax:
                 sec_payment.grossRevenueA = chf_amount
                 sec_payment.grossRevenueB = Decimal("0")
+                sec_payment.withHoldingTaxClaim = (chf_amount * WITHHOLDING_TAX_RATE).quantize(
+                    Decimal("0.01")
+                )
             else:
                 sec_payment.grossRevenueA = Decimal("0")
                 sec_payment.grossRevenueB = chf_amount
+                sec_payment.withHoldingTaxClaim = Decimal("0")
 
-            # withHoldingTaxClaim is only computed for STANDARD payment types
+            # DA-1 reclaim is only computed for STANDARD payment types
             if pay.paymentType is None or pay.paymentType == PaymentTypeESTV.STANDARD:
-                if pay.withHoldingTax:
-                    sec_payment.withHoldingTaxClaim = (chf_amount * WITHHOLDING_TAX_RATE).quantize(
-                        Decimal("0.01")
-                    )
-                else:
-                    sec_payment.withHoldingTaxClaim = Decimal("0")
-
                 da1_security_group = kl_sec.securityGroup
                 da1_security_type = kl_sec.securityType
                 if effective_sign == "(Q)":
@@ -732,9 +728,6 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                         if kl_sec.country == "US":
                             sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
                         sec_payment.lumpSumTaxCredit = True
-            else:
-                # Non-STANDARD payments have no withholding claim
-                sec_payment.withHoldingTaxClaim = Decimal("0")
 
             if effective_sign == "(V)":
                 raise NotImplementedError(
