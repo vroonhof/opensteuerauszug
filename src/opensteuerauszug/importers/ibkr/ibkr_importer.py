@@ -783,6 +783,9 @@ class IbkrImporter:
                             broker_label_original=tx_type_str,
                         )
 
+                        if tx_type == ibflex.CashAction.PAYMENTINLIEU:
+                            sec_payment.securitiesLending = True
+
                         if "withholding" in tx_type_str_lower:
                             if amount < 0:
                                 if currency == "CHF":

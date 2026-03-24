@@ -2737,3 +2737,70 @@ def test_security_linked_adr_fee_is_ignored(sample_ibkr_settings):
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+
+SAMPLE_IBKR_FLEX_XML_PAYMENT_IN_LIEU = """
+<FlexQueryResponse queryName="TestQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="AIRC" description="APARTMENT INCOME REIT CORP" conid="456398961" isin="US03938L2034" issuerCountryCode="US" currency="USD" position="100" markPrice="30.00" positionValue="3000.00" reportDate="2025-12-31" />
+      </OpenPositions>
+      <CashTransactions>
+        <CashTransaction accountId="U1234567" type="Payment In Lieu Of Dividends" currency="USD" amount="35.00" description="AIRC(US03938L2034) Payment in Lieu of Dividend" conid="456398961" symbol="AIRC" isin="US03938L2034" dateTime="20250606;202000" assetCategory="STK" levelOfDetail="DETAIL" />
+        <CashTransaction accountId="U1234567" type="Dividends" currency="USD" amount="65.00" description="AIRC(US03938L2034) Cash Dividend USD 0.45 per Share (Ordinary Dividend)" conid="456398961" symbol="AIRC" isin="US03938L2034" dateTime="20250904;202000" assetCategory="STK" levelOfDetail="DETAIL" />
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="100" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+
+def test_payment_in_lieu_of_dividends_is_marked_as_securities_lending(sample_ibkr_settings):
+    """
+    'Payment In Lieu Of Dividends' cash transactions must have securitiesLending=True
+    on the resulting SecurityPayment so that DA-1 withholding is not wrongly claimed
+    for payments where no withholding was actually deducted by the broker.
+
+    See issue: "IBKR: Position with Payment In Lieu Of Dividends payments deduction
+    wrongly classified as DA-1"
+    """
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_PAYMENT_IN_LIEU)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        assert tax_statement is not None
+        depot = tax_statement.listOfSecurities.depot[0]
+        assert len(depot.security) == 1
+
+        airc = depot.security[0]
+        assert airc.isin == "US03938L2034"
+        assert len(airc.payment) == 2
+
+        # Find each payment by description keyword
+        pil_payment = next(p for p in airc.payment if "Lieu" in p.name)
+        div_payment = next(p for p in airc.payment if "Dividend" in p.name and "Lieu" not in p.name)
+
+        # Payment In Lieu must be flagged as securitiesLending
+        assert pil_payment.securitiesLending is True
+
+        # Ordinary dividend must NOT be flagged as securitiesLending
+        assert div_payment.securitiesLending is None
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
