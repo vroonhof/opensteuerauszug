@@ -1,15 +1,14 @@
 """Cap Kursliste withholding tax at the broker's effective level.
 
-When the Kursliste sign is ``(Q)`` the standard 15 % foreign withholding rate
-is assumed.  After IBKR's 1042-S reclassification, interest-related dividends
-from a RIC are exempt from US tax, so the broker reverses the withholding.
+After IBKR's 1042-S reclassification, interest-related dividends from a RIC
+are exempt from US tax, so the broker reverses the withholding.
 
 This calculator compares the broker's net withholding against the Kursliste
 value and, when the broker's effective withholding is lower, adjusts the
 payment:
 
 * Broker WHT ≈ 0  →  full reversal: all income moves to ``grossRevenueB``,
-  WHT is zeroed, ``(Q)`` sign is cleared.
+  WHT is zeroed, sign is cleared.
 * Broker WHT ≈ Kursliste WHT  →  no change.
 * Anything in between  →  error (fractional capping is not supported).
 
@@ -36,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 class WithholdingCapCalculator:
-    """Cap ``(Q)`` Kursliste withholding to the broker's effective level."""
+    """Cap Kursliste withholding to the broker's effective level."""
 
     def __init__(self, tolerance_chf: Decimal = Decimal("0.05")):
         self.tolerance_chf = tolerance_chf
@@ -63,18 +62,21 @@ class WithholdingCapCalculator:
         if not broker_payments or not kursliste_payments:
             return
 
-        # Only relevant when at least one Kursliste payment has sign (Q).
-        q_payments = [p for p in kursliste_payments if p.sign == "(Q)"]
-        if not q_payments:
+        # Only consider Kursliste payments that carry withholding.
+        wht_payments = [
+            p for p in kursliste_payments
+            if (p.withHoldingTaxClaim or Decimal("0")) + (p.nonRecoverableTaxAmount or Decimal("0")) > Decimal("0")
+        ]
+        if not wht_payments:
             return
 
-        # Error if multiple (Q) payments share the same date – we cannot
-        # reliably apportion the broker withholding across them.
-        q_dates = [p.paymentDate for p in q_payments]
-        if len(q_dates) != len(set(q_dates)):
+        # Error if multiple withholding payments share the same date – we
+        # cannot reliably apportion the broker withholding across them.
+        wht_dates = [p.paymentDate for p in wht_payments]
+        if len(wht_dates) != len(set(wht_dates)):
             raise ValueError(
-                f"Multiple (Q) Kursliste payments on the same date for "
-                f"{security.securityName}. Cannot apply withholding cap."
+                f"Multiple Kursliste payments with withholding on the same "
+                f"date for {security.securityName}. Cannot apply withholding cap."
             )
 
         # Aggregate broker withholding by payment date.
@@ -89,7 +91,7 @@ class WithholdingCapCalculator:
             if p.paymentDate not in kurs_rate_by_date and p.exchangeRate is not None:
                 kurs_rate_by_date[p.paymentDate] = p.exchangeRate
 
-        for kl_payment in q_payments:
+        for kl_payment in wht_payments:
             d = kl_payment.paymentDate
             broker_agg = broker_wht_by_date.get(d)
             if broker_agg is None or broker_agg.currency is None:
@@ -158,7 +160,7 @@ class WithholdingCapCalculator:
         # Move everything to grossRevenueB (no WHT).
         kl_payment.grossRevenueA = Decimal("0.00")
         kl_payment.grossRevenueB = total_gross
-        kl_payment.sign = None  # Clear (Q) – see issue #308
+        kl_payment.sign = None  # Clear sign if present – see issue #308
 
         # Track for logging / reporting.
         sec_name = security.securityName
@@ -166,7 +168,7 @@ class WithholdingCapCalculator:
 
         logger.info(
             "Capped withholding for %s on %s: Kursliste %.2f CHF → 0.00 CHF "
-            "(full reversal, sign (Q) cleared)",
+            "(full reversal, sign cleared)",
             sec_name,
             d,
             original_wht_chf,

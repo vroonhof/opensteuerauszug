@@ -657,8 +657,8 @@ def test_withholding_cap_fractional_raises_error():
         calculator.calculate(statement)
 
 
-def test_withholding_cap_multiple_q_same_date_raises_error():
-    """Multiple (Q) Kursliste payments on the same date should raise an error."""
+def test_withholding_cap_multiple_wht_same_date_raises_error():
+    """Multiple Kursliste payments with WHT on the same date should raise an error."""
     statement = TaxStatement(
         minorVersion=2,
         listOfSecurities=ListOfSecurities(
@@ -744,3 +744,68 @@ def test_withholding_cap_reconciliation_shows_capped_status():
     capped_rows = [r for r in report.rows if r.status == "capped"]
     assert len(capped_rows) == 1
     assert "original Kursliste WHT: 4.50 CHF" in capped_rows[0].note
+
+
+def test_withholding_cap_applies_to_payments_without_q_sign():
+    """Cap should apply to all Kursliste payments with WHT, not just (Q)."""
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="FUND",
+                            securityName="TEST NO-Q FUND",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 6, 15),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("100"),
+                                    amountCurrency="USD",
+                                    exchangeRate=Decimal("0.90"),
+                                    grossRevenueA=Decimal("20.00"),
+                                    grossRevenueB=Decimal("0"),
+                                    withHoldingTaxClaim=Decimal("3.00"),
+                                    kursliste=True,
+                                    sign=None,  # No (Q) sign
+                                ),
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 6, 15),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    nonRecoverableTaxAmountOriginal=Decimal("5.00"),
+                                ),
+                                SecurityPayment(
+                                    paymentDate=date(2025, 6, 15),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    nonRecoverableTaxAmountOriginal=Decimal("-5.00"),
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    calculator = WithholdingCapCalculator()
+    result = calculator.calculate(statement)
+
+    sec = result.listOfSecurities.depot[0].security[0]
+    kl_payment = next(p for p in sec.payment if p.kursliste)
+
+    assert kl_payment.withHoldingTaxClaim == Decimal("0.00")
+    assert kl_payment.grossRevenueA == Decimal("0.00")
+    assert kl_payment.grossRevenueB == Decimal("20.00")
+    assert kl_payment.withholding_capped is True
