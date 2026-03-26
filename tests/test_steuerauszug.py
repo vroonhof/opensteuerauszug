@@ -219,3 +219,54 @@ def test_main_final_xml_output(dummy_input_file: Path, tmp_path: Path):
     assert result.exit_code == 0
     assert "Processing finished successfully." in result.stdout
     assert xml_path.exists()
+
+
+def test_render_uses_language_override_with_empty_general_config(
+    dummy_xml_file: Path,
+    tmp_path: Path,
+    monkeypatch,
+):
+    """Language override should reach render even when [general] is absent."""
+
+    empty_config = tmp_path / "empty_config.toml"
+    empty_config.write_text("", encoding="utf-8")
+    output_path = tmp_path / "output.pdf"
+
+    captured = {}
+
+    class DummyTotalCalculator:
+        def __init__(self, mode):
+            self.mode = mode
+
+        def calculate(self, statement):
+            return statement
+
+    def fake_render_tax_statement(statement, output_path, **kwargs):
+        captured["language"] = kwargs.get("language")
+        out_path = Path(output_path)
+        out_path.write_bytes(b"%PDF-1.4\n%\n")
+        return out_path
+
+    monkeypatch.setattr("opensteuerauszug.steuerauszug.TotalCalculator", DummyTotalCalculator)
+    monkeypatch.setattr("opensteuerauszug.steuerauszug.render_tax_statement", fake_render_tax_statement)
+
+    result = runner.invoke(
+        app,
+        [
+            "process",
+            str(dummy_xml_file),
+            "--raw-import",
+            "--phases",
+            "render",
+            "--output",
+            str(output_path),
+            "--config",
+            str(empty_config),
+            "--set",
+            "general.language=fr",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["language"] == "fr"
+

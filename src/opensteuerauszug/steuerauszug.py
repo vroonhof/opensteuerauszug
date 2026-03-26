@@ -192,18 +192,21 @@ def process(
     
     # Extract general configuration settings for CleanupCalculator
     general_config_settings: Optional[GeneralSettings] = None
+    temp_general_settings = dict(config_manager.general_settings or {})
+    if override_configs:
+        temp_config = {"general": temp_general_settings.copy()}
+        temp_config = config_manager._apply_cli_overrides(temp_config, override_configs)
+        temp_general_settings = temp_config.get("general", {})
+
+    # Keep render options available even if full GeneralSettings validation fails.
+    render_language = temp_general_settings.get("language", DEFAULT_LANGUAGE)
+    minimal_frontpage_placeholder_setting = temp_general_settings.get(
+        "minimal_uses_placeholder_frontpage",
+        True,
+    )
+
     try:
-        if config_manager.general_settings:
-            # Create GeneralSettings instance from the loaded configuration
-            temp_general_settings = dict(config_manager.general_settings)
-            
-            # Apply CLI overrides to general settings if any
-            if override_configs:
-                # Create a temporary dict to apply overrides to general settings
-                temp_config = {"general": config_manager.general_settings.copy()}
-                temp_config = config_manager._apply_cli_overrides(temp_config, override_configs)
-                temp_general_settings = temp_config.get("general", {})
-            
+        if temp_general_settings:
             # Create the GeneralSettings Pydantic model
             general_config_settings = GeneralSettings(**temp_general_settings)
             
@@ -625,17 +628,9 @@ def process(
                 override_org_nr=org_nr,
                 minimal_frontpage_placeholder=(
                     (tax_calculation_level == TaxCalculationLevel.MINIMAL)
-                    and (
-                        general_config_settings.minimal_uses_placeholder_frontpage
-                        if general_config_settings
-                        else True
-                    )
+                    and minimal_frontpage_placeholder_setting
                 ),
-                language=(
-                    general_config_settings.language
-                    if general_config_settings
-                    else DEFAULT_LANGUAGE
-                ),
+                language=render_language,
             )
             print(f"Rendering successful to {rendered_path}")
 
