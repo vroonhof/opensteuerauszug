@@ -8,9 +8,10 @@ value and, when the broker's effective withholding is lower, adjusts the
 payment:
 
 * Broker WHT ≈ 0  →  full reversal: all income moves to ``grossRevenueB``,
-  WHT is zeroed, sign is cleared.
+  WHT is zeroed, ``(Q)`` sign is cleared.
 * Broker WHT ≈ Kursliste WHT  →  no change.
-* Anything in between  →  error (fractional capping is not supported).
+* Broker WHT is in between  →  for ``nonRecoverableTaxAmount`` the partial
+  amount is applied; for ``withHoldingTaxClaim`` this is an error.
 
 The calculator is run as a separate step in the CALCULATE phase, before
 ``TotalCalculator``, so that it works regardless of whether payment
@@ -70,15 +71,6 @@ class WithholdingCapCalculator:
         if not wht_payments:
             return
 
-        # Error if multiple withholding payments share the same date – we
-        # cannot reliably apportion the broker withholding across them.
-        wht_dates = [p.paymentDate for p in wht_payments]
-        if len(wht_dates) != len(set(wht_dates)):
-            raise ValueError(
-                f"Multiple Kursliste payments with withholding on the same "
-                f"date for {security.securityName}. Cannot apply withholding cap."
-            )
-
         # Aggregate broker withholding by payment date.
         broker_wht_by_date: Dict[date, _BrokerWhtAgg] = defaultdict(_BrokerWhtAgg)
         for p in broker_payments:
@@ -121,12 +113,25 @@ class WithholdingCapCalculator:
             if broker_wht_chf >= kurs_wht_chf - self.tolerance_chf:
                 continue
 
-            # Decide whether this is a full reversal (≈0) or something else.
+            # A cap is needed. Check for multiple WHT payments on the same
+            # date — we can only error now that we know a cap would apply.
+            same_date_wht = [p for p in wht_payments if p.paymentDate == d]
+            if len(same_date_wht) > 1:
+                raise ValueError(
+                    f"Multiple Kursliste payments with withholding on the same "
+                    f"date for {security.securityName} on {d}. "
+                    f"Cannot apply withholding cap."
+                )
+
+            # Decide whether this is a full reversal (≈0) or partial.
             if broker_wht_chf <= self.tolerance_chf:
                 # Full reversal – move everything to grossRevenueB (no WHT).
                 self._apply_full_reversal(security, kl_payment, kurs_wht_chf, d)
+            elif kl_payment.nonRecoverableTaxAmount is not None and kl_payment.nonRecoverableTaxAmount > Decimal("0"):
+                # Partial cap is supported for nonRecoverableTaxAmount.
+                self._apply_partial_cap(security, kl_payment, kurs_wht_chf, broker_wht_chf, d)
             else:
-                # Fractional – not supported.
+                # Fractional withHoldingTaxClaim is not supported.
                 raise ValueError(
                     f"Fractional withholding cap not supported for "
                     f"{security.securityName} on {d}: broker WHT "
@@ -160,19 +165,59 @@ class WithholdingCapCalculator:
         # Move everything to grossRevenueB (no WHT).
         kl_payment.grossRevenueA = Decimal("0.00")
         kl_payment.grossRevenueB = total_gross
-        kl_payment.sign = None  # Clear sign if present – see issue #308
+        # Only clear (Q) sign specifically.
+        if kl_payment.sign == "(Q)":
+            kl_payment.sign = None
 
-        # Track for logging / reporting.
-        sec_name = security.securityName
-        self.capped_securities.setdefault(sec_name, []).append(d)
+        self._track(security.securityName, d)
 
         logger.info(
             "Capped withholding for %s on %s: Kursliste %.2f CHF → 0.00 CHF "
-            "(full reversal, sign cleared)",
-            sec_name,
+            "(full reversal)",
+            security.securityName,
             d,
             original_wht_chf,
         )
+
+    def _apply_partial_cap(
+        self,
+        security: Security,
+        kl_payment: SecurityPayment,
+        original_wht_chf: Decimal,
+        broker_wht_chf: Decimal,
+        d: date,
+    ) -> None:
+        """Cap nonRecoverableTaxAmount to the broker's effective level."""
+        capped_wht = broker_wht_chf.quantize(Decimal("0.01"))
+        surplus_chf = (original_wht_chf - capped_wht).quantize(Decimal("0.01"))
+
+        old_a = kl_payment.grossRevenueA or Decimal("0")
+        old_b = kl_payment.grossRevenueB or Decimal("0")
+
+        # Store original values for reconciliation reporting.
+        kl_payment.withholding_capped = True
+        kl_payment.withholding_capped_original_wht_chf = original_wht_chf
+
+        kl_payment.nonRecoverableTaxAmount = capped_wht
+        kl_payment.grossRevenueA = (old_a - surplus_chf).quantize(Decimal("0.01"))
+        kl_payment.grossRevenueB = (old_b + surplus_chf).quantize(Decimal("0.01"))
+        # Only clear (Q) sign specifically.
+        if kl_payment.sign == "(Q)":
+            kl_payment.sign = None
+
+        self._track(security.securityName, d)
+
+        logger.info(
+            "Capped withholding for %s on %s: Kursliste %.2f CHF → broker %.2f CHF "
+            "(partial cap on nonRecoverableTaxAmount)",
+            security.securityName,
+            d,
+            original_wht_chf,
+            capped_wht,
+        )
+
+    def _track(self, sec_name: str, d: date) -> None:
+        self.capped_securities.setdefault(sec_name, []).append(d)
 
     @staticmethod
     def _accumulate_broker_wht(agg: _BrokerWhtAgg, payment: SecurityPayment) -> None:
