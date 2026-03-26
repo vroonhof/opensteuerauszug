@@ -210,12 +210,18 @@ class IbkrImporter:
         return aggregated
 
 
-    def import_files(self, filenames: List[str]) -> TaxStatement:
+    def import_files(self, filenames: List[str], corrections_filenames: Optional[List[str]] = None) -> TaxStatement:
         """
         Import data from IBKR Flex Query XMLs and return a TaxStatement.
 
         Args:
             filenames: List of file paths to import (XML).
+            corrections_filenames: Optional list of "corrections" flex query XML
+                files covering the period after the tax year (e.g. Jan–Mar of
+                the following year).  Only CashTransactions whose settleDate
+                falls within [period_from, period_to] are imported from these
+                files, allowing withholding-tax reversals to be netted against
+                original deductions.
 
         Returns:
             The imported tax statement.
@@ -838,6 +844,108 @@ class IbkrImporter:
                         processed_cash_positions[cash_pos_key]['payments'].append(
                             bank_payment
                         )
+
+        # --- Process Corrections Flex Files ---
+        # Import withholding-tax corrections from a post-year-end flex export.
+        # Only CashTransactions whose settleDate falls within the tax period
+        # are included, so that reversals/adjustments are netted against the
+        # original deductions automatically during reconciliation.
+        if corrections_filenames:
+            corrections_flex_statements = []
+            for cf in corrections_filenames:
+                if not os.path.exists(cf):
+                    raise FileNotFoundError(f"Corrections Flex file not found: {cf}")
+                if not cf.lower().endswith(".xml"):
+                    logger.warning(f"Skipping non-XML corrections file: {cf}")
+                    continue
+                try:
+                    logger.info(f"Parsing corrections Flex statement: {cf}")
+                    response = ibflex.parser.parse(cf)
+                    if response and response.FlexStatements:
+                        for stmt in response.FlexStatements:
+                            account_id_c = getattr(stmt, "accountId", None)
+                            if account_id_c == "-":
+                                continue
+                            corrections_flex_statements.append(stmt)
+                except FlexParserError as e:
+                    raise ValueError(f"Failed to parse corrections Flex file {cf}: {e}")
+
+            corrections_count = 0
+            for stmt in corrections_flex_statements:
+                account_id = self._get_required_field(stmt, 'accountId', 'FlexStatement (corrections)')
+                if not stmt.CashTransactions:
+                    continue
+                for cash_tx in stmt.CashTransactions:
+                    if should_skip_pseudo_account_entry(cash_tx):
+                        continue
+                    # Only import transactions whose settleDate is within the tax period
+                    settle_date = getattr(cash_tx, 'settleDate', None)
+                    if settle_date is None:
+                        continue
+                    if isinstance(settle_date, str):
+                        from datetime import datetime as _dt
+                        settle_date = _dt.strptime(settle_date, "%Y%m%d").date()
+                    if settle_date < self.period_from or settle_date > self.period_to:
+                        continue
+
+                    security_id = cash_tx.conid
+                    if not security_id:
+                        continue  # Only security-linked corrections
+                    tx_type = cash_tx.type
+                    if tx_type is None:
+                        continue
+                    tx_type_str = tx_type.value
+                    tx_type_str_lower = str(tx_type_str).lower()
+                    if "withholding" not in tx_type_str_lower:
+                        continue  # Only withholding-tax corrections
+
+                    tx_date_time = self._get_required_field(cash_tx, 'dateTime', 'CashTransaction (corrections)')
+                    tx_date = tx_date_time.date() if hasattr(tx_date_time, 'date') else settle_date
+                    description = self._get_required_field(cash_tx, 'description', 'CashTransaction (corrections)')
+                    amount = self._to_decimal(
+                        self._get_required_field(cash_tx, 'amount', 'CashTransaction (corrections)'),
+                        'amount', f"CashTransaction (corrections) {description[:30]}"
+                    )
+                    currency = self._get_required_field(cash_tx, 'currency', 'CashTransaction (corrections)')
+
+                    # Find existing security position or create a new one
+                    sec_pos_key = None
+                    for pos in processed_security_positions.keys():
+                        if pos.depot == account_id and pos.symbol == str(security_id):
+                            sec_pos_key = pos
+                            break
+                    if sec_pos_key is None:
+                        # Security not in main flex; skip correction for unknown security
+                        logger.warning(
+                            "Corrections flex: skipping withholding correction for unknown security conid=%s (%s)",
+                            security_id, description,
+                        )
+                        continue
+
+                    sec_payment = SecurityPayment(
+                        paymentDate=tx_date,
+                        name=description,
+                        amountCurrency=currency,
+                        amount=amount,
+                        quotationType='PIECE',
+                        quantity=UNINITIALIZED_QUANTITY,
+                        broker_label_original=tx_type_str,
+                    )
+
+                    if "withholding" in tx_type_str_lower:
+                        if amount < 0:
+                            if currency == "CHF":
+                                sec_payment.withHoldingTaxClaim = abs(amount)
+                            else:
+                                sec_payment.nonRecoverableTaxAmountOriginal = abs(amount)
+                        elif amount > 0:
+                            sec_payment.nonRecoverableTaxAmountOriginal = -amount
+
+                    processed_security_positions[sec_pos_key]['payments'].append(sec_payment)
+                    corrections_count += 1
+
+            if corrections_count:
+                logger.info("Imported %d withholding-tax correction(s) from corrections flex file(s).", corrections_count)
 
         # --- Construct ListOfSecurities ---
         # account_id -> list of Security objects

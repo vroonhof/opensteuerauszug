@@ -81,6 +81,16 @@ You can explicitly control this feature using:
 *   `--payment-reconciliation`: (Default) Enables the reconciliation phase and reports.
 *   `--no-payment-reconciliation`: Skips the reconciliation step.
 
+### Withholding-Tax Corrections for Bond ETFs (IBKR)
+
+For US bond ETFs like **BND** and **SGOV**, IBKR initially withholds 15% US tax but later reverses some or all of it after the annual 1042-S reclassification (typically Jan–Mar of the following year). To capture these corrections:
+
+1. **Wait for the 1042-S** to be issued by your broker.
+2. **Export a corrections flex** covering the post-year-end period (e.g. Jan 1 to Mar 31 of the next year).
+3. **Pass it via `--corrections-flex`** alongside your main annual flex file.
+
+OpenSteuerAuszug will net the reversals against original withholding and cap the Kursliste's (Q)-flagged withholding at the broker's effective level. See the [IBKR Importer Guide](importer_ibkr.md#withholding-tax-corrections-1042-s-reclassification) for details.
+
 ### Appending Additional Documents
 
 Often, you may want to include additional supporting documents (e.g., the original broker statement, US 1042-S forms, or other tax forms) in the same PDF as your Steuerauszug for archiving or submission purposes.

@@ -109,6 +109,8 @@ def process(
     kursliste_dir: Optional[Path] = typer.Option(None, "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste' in CWD or XDG data home."),
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
     payment_reconciliation: bool = typer.Option(True, "--payment-reconciliation/--no-payment-reconciliation", help="Run optional payment reconciliation between Kursliste and broker evidence."),
+    corrections_flex: Optional[List[Path]] = typer.Option(None, "--corrections-flex", help="IBKR Flex Query XML file(s) covering the post-year-end period (e.g. Jan–Mar of the following year). Only withholding-tax CashTransactions whose settleDate falls within the tax period are imported, allowing 1042-S corrections to be netted."),
+    cap_broker_withholding_flag: bool = typer.Option(True, "--cap-broker-withholding/--no-cap-broker-withholding", help="When enabled (default), cap Kursliste withholding tax at the broker's effective level and clear flag (Q) on adjusted payments."),
     pre_amble: Optional[List[Path]] = typer.Option(None, "--pre-amble", help="List of PDF documents to add before the main steuerauszug."),
     post_amble: Optional[List[Path]] = typer.Option(None, "--post-amble", help="List of PDF documents to add after the main steuerauszug."),
 ):
@@ -361,7 +363,8 @@ def process(
                     period_to=parsed_period_to,
                     account_settings_list=all_ibkr_account_settings_models
                 )
-                statement = ibkr_importer.import_files([str(input_file)])
+                corrections_files = [str(p) for p in corrections_flex] if corrections_flex else None
+                statement = ibkr_importer.import_files([str(input_file)], corrections_filenames=corrections_files)
                 print(f"IBKR import complete.")
 
             elif importer_type == ImporterType.NONE and not raw_import:
@@ -547,7 +550,9 @@ def process(
             if not statement:
                 raise ValueError("TaxStatement model not loaded. Cannot run payment reconciliation phase.")
 
-            reconciliation_calculator = PaymentReconciliationCalculator()
+            reconciliation_calculator = PaymentReconciliationCalculator(
+                cap_broker_withholding=cap_broker_withholding_flag,
+            )
             statement = reconciliation_calculator.calculate(statement)
             report = statement.payment_reconciliation_report
             if report:

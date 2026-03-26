@@ -2804,3 +2804,162 @@ def test_payment_in_lieu_of_dividends_is_marked_as_securities_lending(sample_ibk
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+
+# --------------------------------------------------------------------------- #
+#  Issue #308: Corrections flex – withholding-tax reversals for bond ETFs
+# --------------------------------------------------------------------------- #
+
+# Main flex covering tax year 2025 – contains the original -61.83 USD
+# withholding on a BND dividend.
+SAMPLE_IBKR_FLEX_XML_BND_MAIN = """
+<FlexQueryResponse queryName="BNDMain" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U12345678" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <OpenPositions>
+        <OpenPosition accountId="U12345678" assetCategory="STK" subCategory="ETF" symbol="BND" description="VANGUARD TOTAL BOND MARKET" conid="43645828" securityID="US9219378356" securityIDType="ISIN" cusip="921937835" isin="US9219378356" issuerCountryCode="US" currency="USD" position="254" markPrice="70.00" positionValue="17780.00" reportDate="2025-12-31" />
+      </OpenPositions>
+      <CashTransactions>
+        <CashTransaction accountId="U12345678" acctAlias="" model="" currency="USD" fxRateToBase="0.81028" assetCategory="STK" subCategory="ETF" symbol="BND" description="BND(US9219378356) CASH DIVIDEND USD 0.243631 PER SHARE - US TAX" conid="43645828" securityID="US9219378356" securityIDType="ISIN" cusip="921937835" isin="US9219378356" figi="BBG000BZZS63" listingExchange="NASDAQ" underlyingConid="" underlyingSymbol="BND" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" dateTime="20251105;202000" settleDate="20251105" availableForTradingDate="" amount="-61.83" type="Withholding Tax" tradeID="" code="" transactionID="36059967158" reportDate="20251105" exDate="" clientReference="" actionID="148268670" levelOfDetail="DETAIL" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0"/>
+        <CashTransaction accountId="U12345678" acctAlias="" model="" currency="USD" fxRateToBase="0.81028" assetCategory="STK" subCategory="ETF" symbol="BND" description="BND(US9219378356) CASH DIVIDEND USD 0.243631 PER SHARE (Ordinary Dividend)" conid="43645828" securityID="US9219378356" securityIDType="ISIN" cusip="921937835" isin="US9219378356" figi="BBG000BZZS63" listingExchange="NASDAQ" underlyingConid="" underlyingSymbol="BND" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" dateTime="20251105;202000" settleDate="20251105" availableForTradingDate="" amount="61.88" type="Dividends" tradeID="" code="" transactionID="36059967157" reportDate="20251105" exDate="" clientReference="" actionID="148268670" levelOfDetail="DETAIL" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0"/>
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U12345678" currency="USD" startingCash="0" endingCash="100.00" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+# Corrections flex covering Jan–Mar 2026 – contains reversal (+61.83) and
+# reduced re-withholding (-4.70), both with settleDate=2025-11-05.
+SAMPLE_IBKR_FLEX_XML_BND_CORRECTIONS = """
+<FlexQueryResponse queryName="BNDCorrections" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U12345678" fromDate="2026-01-01" toDate="2026-03-31" period="Custom" whenGenerated="2026-04-01T10:00:00">
+      <CashTransactions>
+        <CashTransaction accountId="U12345678" acctAlias="" model="" currency="USD" fxRateToBase="0.77527" assetCategory="STK" subCategory="ETF" symbol="BND" description="BND(US9219378356) CASH DIVIDEND USD 0.243631 PER SHARE - US TAX" conid="43645828" securityID="US9219378356" securityIDType="ISIN" cusip="921937835" isin="US9219378356" figi="BBG000BZZS63" listingExchange="NASDAQ" underlyingConid="" underlyingSymbol="BND" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" dateTime="20251105;202000" settleDate="20251105" availableForTradingDate="" amount="61.83" type="Withholding Tax" tradeID="" code="" transactionID="37763983470" reportDate="20260203" exDate="" clientReference="" actionID="148268670" levelOfDetail="DETAIL" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0"/>
+        <CashTransaction accountId="U12345678" acctAlias="" model="" currency="USD" fxRateToBase="0.77527" assetCategory="STK" subCategory="ETF" symbol="BND" description="BND(US9219378356) CASH DIVIDEND USD 0.243631 PER SHARE - US TAX" conid="43645828" securityID="US9219378356" securityIDType="ISIN" cusip="921937835" isin="US9219378356" figi="BBG000BZZS63" listingExchange="NASDAQ" underlyingConid="" underlyingSymbol="BND" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" dateTime="20251105;202000" settleDate="20251105" availableForTradingDate="" amount="-4.70" type="Withholding Tax" tradeID="" code="" transactionID="37763983487" reportDate="20260203" exDate="" clientReference="" actionID="148268670" levelOfDetail="DETAIL" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0"/>
+        <CashTransaction accountId="U12345678" acctAlias="" model="" currency="USD" fxRateToBase="0.77527" assetCategory="STK" subCategory="ETF" symbol="BND" description="BND(US9219378356) UNRELATED 2026 DIVIDEND" conid="43645828" securityID="US9219378356" securityIDType="ISIN" cusip="921937835" isin="US9219378356" figi="BBG000BZZS63" listingExchange="NASDAQ" underlyingConid="" underlyingSymbol="BND" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" dateTime="20260205;202000" settleDate="20260205" availableForTradingDate="" amount="-10.00" type="Withholding Tax" tradeID="" code="" transactionID="99999999999" reportDate="20260205" exDate="" clientReference="" actionID="999999999" levelOfDetail="DETAIL" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0"/>
+      </CashTransactions>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+
+def test_ibkr_corrections_flex_imports_withholding_reversals(sample_ibkr_settings):
+    """Corrections flex withholding-tax entries with settleDate in the tax year
+    are imported and netted against the original deduction (issue #308)."""
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    settings = [
+        IbkrAccountSettings(
+            account_number="U12345678",
+            broker_name="Interactive Brokers",
+            account_name_alias="Test",
+            canton="ZH",
+            full_name="Test User",
+        )
+    ]
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as f_main:
+        f_main.write(SAMPLE_IBKR_FLEX_XML_BND_MAIN)
+        main_path = f_main.name
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as f_corr:
+        f_corr.write(SAMPLE_IBKR_FLEX_XML_BND_CORRECTIONS)
+        corr_path = f_corr.name
+
+    try:
+        tax_statement = importer.import_files(
+            [main_path], corrections_filenames=[corr_path]
+        )
+        assert tax_statement is not None
+        depot = tax_statement.listOfSecurities.depot[0]
+        bnd_sec = next(s for s in depot.security if "BND" in s.securityName)
+
+        # Original flex: 1 dividend + 1 withholding
+        # Corrections: 2 entries (reversal + new withholding) – the 2026
+        # dividend entry (settleDate 2026-02-05) must NOT be imported.
+        wht_payments = [
+            p for p in bnd_sec.payment
+            if p.nonRecoverableTaxAmountOriginal is not None
+            or p.withHoldingTaxClaim is not None
+        ]
+
+        # Net withholding should sum to 4.70 USD
+        net_wht = sum(
+            (p.nonRecoverableTaxAmountOriginal or Decimal("0"))
+            + (p.withHoldingTaxClaim or Decimal("0"))
+            for p in wht_payments
+        )
+        assert net_wht == Decimal("4.70"), f"Expected net WHT 4.70, got {net_wht}"
+
+        # The 2026-02-05 entry must not appear (settleDate outside tax year)
+        all_dates = [p.paymentDate for p in bnd_sec.payment]
+        assert date(2026, 2, 5) not in all_dates
+
+    finally:
+        os.remove(main_path)
+        os.remove(corr_path)
+
+
+def test_ibkr_corrections_flex_skips_out_of_period_transactions(sample_ibkr_settings):
+    """Corrections flex entries whose settleDate is outside the tax year
+    must be excluded."""
+    period_from = date(2025, 1, 1)
+    period_to = date(2025, 12, 31)
+
+    settings = [
+        IbkrAccountSettings(
+            account_number="U12345678",
+            broker_name="Interactive Brokers",
+            account_name_alias="Test",
+            canton="ZH",
+            full_name="Test User",
+        )
+    ]
+    importer = IbkrImporter(
+        period_from=period_from, period_to=period_to, account_settings_list=settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as f_main:
+        f_main.write(SAMPLE_IBKR_FLEX_XML_BND_MAIN)
+        main_path = f_main.name
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as f_corr:
+        f_corr.write(SAMPLE_IBKR_FLEX_XML_BND_CORRECTIONS)
+        corr_path = f_corr.name
+
+    try:
+        # Import without corrections
+        tax_without_corr = importer.import_files([main_path])
+        bnd_without = next(
+            s for d in tax_without_corr.listOfSecurities.depot
+            for s in d.security if "BND" in s.securityName
+        )
+        payments_without = len(bnd_without.payment)
+
+        # Import with corrections
+        importer2 = IbkrImporter(
+            period_from=period_from, period_to=period_to, account_settings_list=settings,
+        )
+        tax_with_corr = importer2.import_files(
+            [main_path], corrections_filenames=[corr_path]
+        )
+        bnd_with = next(
+            s for d in tax_with_corr.listOfSecurities.depot
+            for s in d.security if "BND" in s.securityName
+        )
+        payments_with = len(bnd_with.payment)
+
+        # Corrections should add exactly 2 payments (reversal + re-withholding)
+        # The 3rd entry in the corrections file (2026 dividend) is excluded
+        assert payments_with == payments_without + 2
+
+    finally:
+        os.remove(main_path)
+        os.remove(corr_path)

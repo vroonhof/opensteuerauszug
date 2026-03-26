@@ -74,6 +74,38 @@ Because Interactive Brokers specifies relatively complete data in its exports, t
 opensteuerauszug process --importer ibkr <flex query xml file> ...
 ```
 
+## Withholding-Tax Corrections (1042-S Reclassification)
+
+Some US bond ETFs (e.g. **BND**, **SGOV**) have their dividend income reclassified by IBKR after year-end once the 1042-S forms are filed. IBKR initially withholds 15% US tax, but later reverses some or all of it when "Interest-Related Dividends from a RIC" are determined to be exempt from US withholding tax.
+
+These corrections typically appear in January–March of the year **following** the tax year. Because the standard annual Flex Query only covers the tax year, these reversals are missing unless you provide a **corrections flex file**.
+
+### How to use corrections flex
+
+1. **Wait for the 1042-S** to be issued (usually by end of March).
+2. **Export a second Flex Query** covering the period from the end of the tax year to the present (e.g. 2026-01-01 to 2026-03-31). Use the same Flex Query template.
+3. **Pass it via `--corrections-flex`**:
+
+```console
+opensteuerauszug process --importer ibkr \
+  --tax-year 2025 \
+  main_flex_2025.xml \
+  --corrections-flex corrections_2026_q1.xml
+```
+
+Only `CashTransactions` whose `settleDate` falls within the tax year are imported from the corrections file. This ensures that withholding-tax reversals are netted against the original deductions automatically.
+
+### Withholding-tax cap and flag (Q)
+
+The ESTV Kursliste marks some payments with sign **(Q)**, meaning "with foreign withholding tax". This causes the standard 15% withholding rate to be applied. However, when the broker's effective (net) withholding is lower — as happens with bond ETFs after 1042-S reclassification — OpenSteuerAuszug will:
+
+* **Cap** the Kursliste withholding at the broker's actual level
+* **Clear** the (Q) sign from the exported payment (so the tax software doesn't assume 15%)
+* **Keep** `kursliste=true` because the tax value itself still comes from the Kursliste
+* **Note** the adjustment in the payment reconciliation report
+
+This behaviour is enabled by default and can be disabled with `--no-cap-broker-withholding`.
+
 ## Importer Specifics & Known Quirks
 
 *   **Corporate Actions**: We have limited samples of stock splits, rights issues and stock exchanges between two ISINS. More samples and/or real-world testing are still useful, so careful auditing is recommended.
@@ -86,6 +118,7 @@ opensteuerauszug process --importer ibkr <flex query xml file> ...
 
 *   **Missing Data**: If the generated Steuerauszug seems incomplete, double-check that your IBKR reports cover the full tax year and include all necessary sections/fields.
 *   **Incorrect Values**: Verify that the currency and amounts in your reports are correctly interpreted.
+*   **Withholding tax too high on bond ETFs (BND, SGOV)**: Wait for the 1042-S to be issued, then export a corrections flex and pass it via `--corrections-flex`. See "Withholding-Tax Corrections" above.
 
 ---
 Return to [User Guide](user_guide.md)

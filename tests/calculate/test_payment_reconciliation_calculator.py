@@ -7,6 +7,7 @@ from opensteuerauszug.calculate.payment_reconciliation_calculator import (
 from opensteuerauszug.model.ech0196 import (
     Depot,
     DepotNumber,
+    ISINType,
     ListOfSecurities,
     Security,
     SecurityPayment,
@@ -515,3 +516,162 @@ def test_explicit_zero_kursliste_entry_with_broker_cash_is_mismatch_without_allo
     row = result.payment_reconciliation_report.rows[0]
     assert row.status == "mismatch"
     assert row.matched is False
+
+
+# --------------------------------------------------------------------------- #
+#  Issue #308: Withholding-tax cap for (Q)-signed payments
+# --------------------------------------------------------------------------- #
+
+def _make_bnd_statement(broker_wht_amounts, kurs_wht_chf, kurs_gross_a_chf,
+                         exchange_rate=Decimal("0.90")):
+    """Helper: build a TaxStatement for BND with given broker WHT amounts
+    and a single Kursliste payment with sign (Q)."""
+    broker_payments = []
+    for amt in broker_wht_amounts:
+        p = SecurityPayment(
+            paymentDate=date(2025, 11, 5),
+            quotationType="PIECE",
+            quantity=Decimal("-1"),
+            amountCurrency="USD",
+        )
+        if amt < 0:
+            p.nonRecoverableTaxAmountOriginal = abs(amt)
+        elif amt > 0:
+            # Refund
+            p.nonRecoverableTaxAmountOriginal = -amt
+        else:
+            p.amount = Decimal("0")
+        broker_payments.append(p)
+
+    return TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="FUND",
+                            securityName="VANGUARD TOTAL BOND MARKET (BND)",
+                            isin=ISINType("US9219378356"),
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 11, 5),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("254"),
+                                    amountCurrency="USD",
+                                    exchangeRate=exchange_rate,
+                                    grossRevenueA=kurs_gross_a_chf,
+                                    grossRevenueB=Decimal("0"),
+                                    withHoldingTaxClaim=kurs_wht_chf,
+                                    kursliste=True,
+                                    sign="(Q)",
+                                ),
+                            ],
+                            broker_payments=broker_payments,
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+
+def test_withholding_cap_reduces_q_sign_to_broker_level():
+    """When broker's effective WHT is below Kursliste (Q) WHT, the cap
+    should reduce withHoldingTaxClaim and clear the (Q) sign."""
+    # Broker: original -61.83, reversal +61.83, new -4.70 → net = 4.70 USD
+    # At exchange rate 0.90 → 4.23 CHF
+    # Kursliste: 15% of gross = 8.35 CHF (hypothetical)
+    statement = _make_bnd_statement(
+        broker_wht_amounts=[Decimal("-61.83"), Decimal("61.83"), Decimal("-4.70")],
+        kurs_wht_chf=Decimal("8.35"),
+        kurs_gross_a_chf=Decimal("55.67"),
+        exchange_rate=Decimal("0.90"),
+    )
+
+    calculator = PaymentReconciliationCalculator(cap_broker_withholding=True)
+    result = calculator.calculate(statement)
+
+    sec = result.listOfSecurities.depot[0].security[0]
+    kl_payment = next(p for p in sec.payment if p.kursliste)
+
+    # WHT should be capped at broker level: 4.70 * 0.90 = 4.23
+    assert kl_payment.withHoldingTaxClaim == Decimal("4.23")
+    # Sign (Q) should be cleared
+    assert kl_payment.sign is None
+    # grossRevenueA should be reduced, grossRevenueB increased
+    surplus = Decimal("8.35") - Decimal("4.23")
+    assert kl_payment.grossRevenueA == (Decimal("55.67") - surplus).quantize(Decimal("0.01"))
+    assert kl_payment.grossRevenueB == (Decimal("0") + surplus).quantize(Decimal("0.01"))
+
+
+def test_withholding_cap_no_change_when_broker_matches():
+    """No cap should be applied when broker WHT matches Kursliste."""
+    statement = _make_bnd_statement(
+        broker_wht_amounts=[Decimal("-9.28")],
+        kurs_wht_chf=Decimal("8.35"),
+        kurs_gross_a_chf=Decimal("55.67"),
+        exchange_rate=Decimal("0.90"),
+    )
+
+    calculator = PaymentReconciliationCalculator(cap_broker_withholding=True)
+    result = calculator.calculate(statement)
+
+    sec = result.listOfSecurities.depot[0].security[0]
+    kl_payment = next(p for p in sec.payment if p.kursliste)
+
+    # Broker WHT in CHF: 9.28 * 0.90 = 8.352, which is above 8.35
+    # No cap should be applied
+    assert kl_payment.withHoldingTaxClaim == Decimal("8.35")
+    assert kl_payment.sign == "(Q)"
+
+
+def test_withholding_cap_disabled():
+    """When cap_broker_withholding=False, (Q) sign should be preserved."""
+    statement = _make_bnd_statement(
+        broker_wht_amounts=[Decimal("-61.83"), Decimal("61.83"), Decimal("-4.70")],
+        kurs_wht_chf=Decimal("8.35"),
+        kurs_gross_a_chf=Decimal("55.67"),
+        exchange_rate=Decimal("0.90"),
+    )
+
+    calculator = PaymentReconciliationCalculator(cap_broker_withholding=False)
+    result = calculator.calculate(statement)
+
+    sec = result.listOfSecurities.depot[0].security[0]
+    kl_payment = next(p for p in sec.payment if p.kursliste)
+
+    # Nothing should change
+    assert kl_payment.withHoldingTaxClaim == Decimal("8.35")
+    assert kl_payment.sign == "(Q)"
+    assert kl_payment.grossRevenueA == Decimal("55.67")
+
+
+def test_withholding_cap_full_reversal_zeros_withholding():
+    """When broker fully reverses WHT (e.g. SGOV), withholding should be zero
+    and sign (Q) cleared."""
+    # SGOV: 100% interest-related → full reversal, net WHT = 0
+    statement = _make_bnd_statement(
+        broker_wht_amounts=[Decimal("-30.00"), Decimal("30.00")],
+        kurs_wht_chf=Decimal("4.50"),
+        kurs_gross_a_chf=Decimal("30.00"),
+        exchange_rate=Decimal("0.90"),
+    )
+
+    calculator = PaymentReconciliationCalculator(cap_broker_withholding=True)
+    result = calculator.calculate(statement)
+
+    sec = result.listOfSecurities.depot[0].security[0]
+    kl_payment = next(p for p in sec.payment if p.kursliste)
+
+    # Full reversal → 0 CHF withholding
+    assert kl_payment.withHoldingTaxClaim == Decimal("0.00")
+    assert kl_payment.sign is None
+    # All income moves to grossRevenueB (no WHT)
+    assert kl_payment.grossRevenueA == (Decimal("30.00") - Decimal("4.50")).quantize(Decimal("0.01"))
+    assert kl_payment.grossRevenueB == Decimal("4.50")
