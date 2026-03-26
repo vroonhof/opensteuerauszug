@@ -1,0 +1,11 @@
+services:
+  opensteuerauszug:
+    build:
+      context: .
+      args:
+        - YEAR=2025
+    volumes:
+      - ./data:/data
+    environment:
+      IMPORTER: ibkr
+      EXTRA_ARGS: ""

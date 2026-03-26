@@ -18,6 +18,24 @@ For more information on required due diligence see the the user guide.
 
 After installing, see the [User Guide](docs/user_guide.md) for preparation steps, how to get broker data and run the command.
 
+#### Easy usage with Docker
+
+Instead of installing python and the dependencies, you can install [Docker](https://docs.docker.com/engine/install/). It makes the usage much easier and requires minimal knowledge of programming languages and their ecosystem.
+
+After installing Docker, go into the ``./docker`` directory in this project within your terminal, optionally create a config.toml file (check [User Guide](docs/user_guide.md) if you need one) and put it into the `./docker/data/` directory. Create the directory if it doesn't exist.
+
+Now generate the data from your broker. Check the usage guide for details. Rename the xml file to ``input.xml`` and put it into the `./docker/data/` directory. Now you should have the following files in the `./docker/data/` directory.
+
+Open the ``./docker/docker-compose.yml`` file (or ``docker-compose.yml`` once you are in the ``./docker`` directory) and configure it to your needs. Adjust the year, change the importer if you need to, and optionally pass some additional arguments to the tool.
+
+Now run the following command in your terminal within the ``./docker`` directory to start the docker container and generate the PDF:
+
+```bash
+docker compose up --build
+```
+
+The PDF will be generated in the `./docker/data/` directory and will be named ``tax_statement_<YEAR>.pdf``.
+
 ### Verifying an Existing Steuerauszug
 
 The tool can also be used to cross check and existing existing Steuerauszug (eCH-0196 XML). See See [verify instructions](docs/verify_existing.md).
@@ -151,7 +169,7 @@ This project includes utility scripts for development and data management. For d
 
 ### Code quality and AI usage.
 
-This project exists in part for me to try out AI based coding outside of $WORKPLACE to try out various tools. As a result code quality and style is inconsistent and contains various AIisms. Code has been cleaned-up, reviewed and controlled by me where it matters.
+This project exists in part for me to try out AI based coding outside of $WORKPLACE to try out various tools. As a result code quality and style is inconsistent and contains various AIisms. Code has been cleaned-up, reviewed, and controlled by me where it matters.
 
 That said all mistakes, hallucinations etc are probably mine.
 
