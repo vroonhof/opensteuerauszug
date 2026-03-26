@@ -38,6 +38,8 @@ class _KurslisteAgg:
     exchange_rate: Optional[Decimal] = None
     noncash: bool = False
     allows_broker_above_kursliste: bool = False
+    has_capped_payment: bool = False
+    original_withholding_chf: Optional[Decimal] = None
 
 
 class PaymentReconciliationCalculator:
@@ -56,11 +58,9 @@ class PaymentReconciliationCalculator:
         "kapitalgewinn",
     )
 
-    def __init__(self, tolerance_chf: Decimal = Decimal("0.05"), tolerance_frac = Decimal(0.0005),
-                 cap_broker_withholding: bool = True):
+    def __init__(self, tolerance_chf: Decimal = Decimal("0.05"), tolerance_frac: Decimal = Decimal("0.0005")):
         self.tolerance_chf = tolerance_chf
         self.tolerance_frac = tolerance_frac
-        self.cap_broker_withholding = cap_broker_withholding
 
     def calculate(self, tax_statement: TaxStatement) -> TaxStatement:
         report = PaymentReconciliationReport()
@@ -71,8 +71,6 @@ class PaymentReconciliationCalculator:
 
         for depot in tax_statement.listOfSecurities.depot:
             for security in depot.security:
-                if self.cap_broker_withholding:
-                    self._apply_withholding_cap(security)
                 rows = self._reconcile_security(security)
                 report.rows.extend(rows)
 
@@ -81,90 +79,13 @@ class PaymentReconciliationCalculator:
                 report.match_count += 1
             elif row.status == "expected":
                 report.expected_missing_count += 1
+            elif row.status == "capped":
+                report.capped_count += 1
             else:
                 report.mismatch_count += 1
 
         tax_statement.payment_reconciliation_report = report
         return tax_statement
-
-    def _apply_withholding_cap(self, security: Security) -> None:
-        """Cap Kursliste withholding tax at the broker's effective level.
-
-        When sign is ``(Q)`` the Kursliste assumes foreign withholding tax at
-        the standard rate (15 %).  However, for bond ETFs like BND or SGOV, IBKR
-        may later reverse the withholding once the 1042-S reclassification
-        happens (interest-related dividends from a RIC are exempt from US tax).
-
-        This method compares broker and Kursliste withholding per payment date
-        and, when the broker's effective withholding is *lower*, adjusts the
-        Kursliste payment downwards:
-
-        * ``withHoldingTaxClaim`` is capped at the broker's net withholding.
-        * The surplus moves from ``grossRevenueA`` (with WHT) to
-          ``grossRevenueB`` (without WHT).
-        * The ``(Q)`` sign is cleared so the export does not claim a
-          withholding rate the broker did not actually apply.
-        * ``kursliste`` stays ``True`` because the tax value still comes from
-          the Kursliste.
-        """
-        broker_payments = security.broker_payments or [
-            p for p in security.payment if not p.kursliste
-        ]
-        kursliste_payments = [p for p in security.payment if p.kursliste]
-
-        if not broker_payments or not kursliste_payments:
-            return
-
-        # Check if any kursliste payment has (Q) sign – skip entirely if not
-        has_q_sign = any(p.sign == "(Q)" for p in kursliste_payments)
-        if not has_q_sign:
-            return
-
-        # Aggregate broker withholding by payment date
-        broker_wht_by_date: Dict[date, _BrokerAgg] = defaultdict(_BrokerAgg)
-        for payment in broker_payments:
-            agg = broker_wht_by_date[payment.paymentDate]
-            self._accumulate_broker(agg, payment)
-
-        # Aggregate kursliste exchange rates by date for conversion
-        kurs_rate_by_date: Dict[date, Optional[Decimal]] = {}
-        for payment in kursliste_payments:
-            if payment.paymentDate not in kurs_rate_by_date and payment.exchangeRate is not None:
-                kurs_rate_by_date[payment.paymentDate] = payment.exchangeRate
-
-        for kl_payment in kursliste_payments:
-            if kl_payment.sign != "(Q)":
-                continue
-            d = kl_payment.paymentDate
-            broker_agg = broker_wht_by_date.get(d)
-            if broker_agg is None or broker_agg.withholding_currency is None:
-                continue
-
-            rate = kurs_rate_by_date.get(d)
-            if rate is None:
-                continue
-
-            broker_wht_chf = broker_agg.withholding * rate
-            kurs_wht_chf = kl_payment.withHoldingTaxClaim or Decimal("0")
-
-            # Only cap if broker is meaningfully below kursliste
-            if broker_wht_chf >= kurs_wht_chf - self.tolerance_chf:
-                continue
-
-            # Compute the surplus to move from A (with WHT) to B (without WHT)
-            surplus_chf = kurs_wht_chf - broker_wht_chf
-            old_a = kl_payment.grossRevenueA or Decimal("0")
-            old_b = kl_payment.grossRevenueB or Decimal("0")
-
-            kl_payment.withHoldingTaxClaim = broker_wht_chf.quantize(Decimal("0.01"))
-            kl_payment.grossRevenueA = (old_a - surplus_chf).quantize(Decimal("0.01"))
-            kl_payment.grossRevenueB = (old_b + surplus_chf).quantize(Decimal("0.01"))
-            kl_payment.sign = None  # Clear (Q) – see issue #308
-
-            logger.info(
-                "Capped withholding for %s on %s: Kursliste %.2f CHF → broker %.2f CHF (sign (Q) cleared)",
-                security.securityName, d, kurs_wht_chf, broker_wht_chf,
-            )
 
     def _reconcile_security(self, security: Security) -> List[PaymentReconciliationRow]:
         broker_payments = security.broker_payments or [p for p in security.payment if not p.kursliste]
@@ -201,13 +122,27 @@ class PaymentReconciliationCalculator:
                 if broker.dividend_currency is not None:
                     broker_div_chf = broker.dividend * kurs.exchange_rate
                 if broker.withholding_currency is not None:
-                    broker_with_chf = broker.withholding * kurs.exchange_rate
+                    if broker.withholding_currency == "CHF":
+                        broker_with_chf = broker.withholding
+                    else:
+                        broker_with_chf = broker.withholding * kurs.exchange_rate
 
             matched = False
             status = "mismatch"
             note = None
 
-            if has_kurs and not has_broker and kurs.noncash:
+            # Detect capped payments (WithholdingCapCalculator already ran).
+            if has_kurs and kurs.has_capped_payment:
+                status = "capped"
+                matched = True
+                original_wht = kurs.original_withholding_chf
+                note = (
+                    f"Withholding capped to broker level (original Kursliste WHT: "
+                    f"{original_wht:.2f} CHF)."
+                    if original_wht is not None
+                    else "Withholding capped to broker level."
+                )
+            elif has_kurs and not has_broker and kurs.noncash:
                 status = "expected"
                 note = "Accumulating fund payment expected to be absent in broker cash flow."
                 matched = True
@@ -333,6 +268,11 @@ class PaymentReconciliationCalculator:
 
         if self._is_broker_above_kursliste_allowlisted(payment):
             agg.allows_broker_above_kursliste = True
+
+        # Detect payments that were already capped by WithholdingCapCalculator.
+        if payment.withholding_capped:
+            agg.has_capped_payment = True
+            agg.original_withholding_chf = payment.withholding_capped_original_wht_chf
 
     def _is_broker_above_kursliste_allowlisted(self, payment: SecurityPayment) -> bool:
         if payment.sign is not None and payment.sign in self._BROKER_ABOVE_KURSLISTE_ALLOWLIST_SIGNS:

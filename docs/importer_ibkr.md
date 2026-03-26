@@ -104,7 +104,7 @@ The ESTV Kursliste marks some payments with sign **(Q)**, meaning "with foreign 
 * **Keep** `kursliste=true` because the tax value itself still comes from the Kursliste
 * **Note** the adjustment in the payment reconciliation report
 
-This behaviour is enabled by default and can be disabled with `--no-cap-broker-withholding`.
+This behaviour is enabled by default (`--use-broker-withholding cap`) and can be disabled with `--use-broker-withholding off`.
 
 ## Importer Specifics & Known Quirks
 

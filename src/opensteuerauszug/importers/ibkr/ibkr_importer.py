@@ -1,7 +1,7 @@
 import os
 import logging
 from typing import Final, List, Any, Dict, Literal, Optional, get_args, cast
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
 
@@ -883,8 +883,7 @@ class IbkrImporter:
                     if settle_date is None:
                         continue
                     if isinstance(settle_date, str):
-                        from datetime import datetime as _dt
-                        settle_date = _dt.strptime(settle_date, "%Y%m%d").date()
+                        settle_date = datetime.strptime(settle_date, "%Y%m%d").date()
                     if settle_date < self.period_from or settle_date > self.period_to:
                         continue
 
@@ -899,8 +898,6 @@ class IbkrImporter:
                     if "withholding" not in tx_type_str_lower:
                         continue  # Only withholding-tax corrections
 
-                    tx_date_time = self._get_required_field(cash_tx, 'dateTime', 'CashTransaction (corrections)')
-                    tx_date = tx_date_time.date() if hasattr(tx_date_time, 'date') else settle_date
                     description = self._get_required_field(cash_tx, 'description', 'CashTransaction (corrections)')
                     amount = self._to_decimal(
                         self._get_required_field(cash_tx, 'amount', 'CashTransaction (corrections)'),
@@ -923,7 +920,7 @@ class IbkrImporter:
                         continue
 
                     sec_payment = SecurityPayment(
-                        paymentDate=tx_date,
+                        paymentDate=settle_date,
                         name=description,
                         amountCurrency=currency,
                         amount=amount,

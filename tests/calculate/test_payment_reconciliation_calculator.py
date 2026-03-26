@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from opensteuerauszug.calculate.payment_reconciliation_calculator import (
     PaymentReconciliationCalculator,
 )
@@ -581,33 +583,39 @@ def _make_bnd_statement(broker_wht_amounts, kurs_wht_chf, kurs_gross_a_chf,
     )
 
 
-def test_withholding_cap_reduces_q_sign_to_broker_level():
-    """When broker's effective WHT is below Kursliste (Q) WHT, the cap
-    should reduce withHoldingTaxClaim and clear the (Q) sign."""
-    # Broker: original -61.83, reversal +61.83, new -4.70 → net = 4.70 USD
-    # At exchange rate 0.90 → 4.23 CHF
-    # Kursliste: 15% of gross = 8.35 CHF (hypothetical)
+# ---------------------------------------------------------------------------
+# WithholdingCapCalculator tests
+# ---------------------------------------------------------------------------
+
+from opensteuerauszug.calculate.withholding_cap_calculator import WithholdingCapCalculator
+
+
+def test_withholding_cap_full_reversal_zeros_withholding():
+    """When broker fully reverses WHT (e.g. SGOV), withholding should be zero
+    and sign (Q) cleared, with all income in grossRevenueB."""
+    # SGOV: 100% interest-related → full reversal, net WHT = 0
     statement = _make_bnd_statement(
-        broker_wht_amounts=[Decimal("-61.83"), Decimal("61.83"), Decimal("-4.70")],
-        kurs_wht_chf=Decimal("8.35"),
-        kurs_gross_a_chf=Decimal("55.67"),
+        broker_wht_amounts=[Decimal("-30.00"), Decimal("30.00")],
+        kurs_wht_chf=Decimal("4.50"),
+        kurs_gross_a_chf=Decimal("30.00"),
         exchange_rate=Decimal("0.90"),
     )
 
-    calculator = PaymentReconciliationCalculator(cap_broker_withholding=True)
+    calculator = WithholdingCapCalculator()
     result = calculator.calculate(statement)
 
     sec = result.listOfSecurities.depot[0].security[0]
     kl_payment = next(p for p in sec.payment if p.kursliste)
 
-    # WHT should be capped at broker level: 4.70 * 0.90 = 4.23
-    assert kl_payment.withHoldingTaxClaim == Decimal("4.23")
-    # Sign (Q) should be cleared
+    # Full reversal → 0 CHF withholding
+    assert kl_payment.withHoldingTaxClaim == Decimal("0.00")
     assert kl_payment.sign is None
-    # grossRevenueA should be reduced, grossRevenueB increased
-    surplus = Decimal("8.35") - Decimal("4.23")
-    assert kl_payment.grossRevenueA == (Decimal("55.67") - surplus).quantize(Decimal("0.01"))
-    assert kl_payment.grossRevenueB == (Decimal("0") + surplus).quantize(Decimal("0.01"))
+    # All income moves to grossRevenueB (no WHT)
+    assert kl_payment.grossRevenueA == Decimal("0.00")
+    assert kl_payment.grossRevenueB == Decimal("30.00")
+    # Capping metadata
+    assert kl_payment.withholding_capped is True
+    assert kl_payment.withholding_capped_original_wht_chf == Decimal("4.50")
 
 
 def test_withholding_cap_no_change_when_broker_matches():
@@ -619,7 +627,7 @@ def test_withholding_cap_no_change_when_broker_matches():
         exchange_rate=Decimal("0.90"),
     )
 
-    calculator = PaymentReconciliationCalculator(cap_broker_withholding=True)
+    calculator = WithholdingCapCalculator()
     result = calculator.calculate(statement)
 
     sec = result.listOfSecurities.depot[0].security[0]
@@ -629,10 +637,14 @@ def test_withholding_cap_no_change_when_broker_matches():
     # No cap should be applied
     assert kl_payment.withHoldingTaxClaim == Decimal("8.35")
     assert kl_payment.sign == "(Q)"
+    assert kl_payment.withholding_capped is False
 
 
-def test_withholding_cap_disabled():
-    """When cap_broker_withholding=False, (Q) sign should be preserved."""
+def test_withholding_cap_fractional_raises_error():
+    """Fractional withholding (neither 0 nor equal to Kursliste) should
+    raise an error."""
+    # Broker: original -61.83, reversal +61.83, new -4.70 → net = 4.70 USD
+    # At exchange rate 0.90 → 4.23 CHF – between 0 and 8.35
     statement = _make_bnd_statement(
         broker_wht_amounts=[Decimal("-61.83"), Decimal("61.83"), Decimal("-4.70")],
         kurs_wht_chf=Decimal("8.35"),
@@ -640,22 +652,76 @@ def test_withholding_cap_disabled():
         exchange_rate=Decimal("0.90"),
     )
 
-    calculator = PaymentReconciliationCalculator(cap_broker_withholding=False)
-    result = calculator.calculate(statement)
-
-    sec = result.listOfSecurities.depot[0].security[0]
-    kl_payment = next(p for p in sec.payment if p.kursliste)
-
-    # Nothing should change
-    assert kl_payment.withHoldingTaxClaim == Decimal("8.35")
-    assert kl_payment.sign == "(Q)"
-    assert kl_payment.grossRevenueA == Decimal("55.67")
+    calculator = WithholdingCapCalculator()
+    with pytest.raises(ValueError, match="Fractional withholding cap not supported"):
+        calculator.calculate(statement)
 
 
-def test_withholding_cap_full_reversal_zeros_withholding():
-    """When broker fully reverses WHT (e.g. SGOV), withholding should be zero
-    and sign (Q) cleared."""
-    # SGOV: 100% interest-related → full reversal, net WHT = 0
+def test_withholding_cap_multiple_q_same_date_raises_error():
+    """Multiple (Q) Kursliste payments on the same date should raise an error."""
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="FUND",
+                            securityName="TEST FUND",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 11, 5),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("100"),
+                                    amountCurrency="USD",
+                                    exchangeRate=Decimal("0.90"),
+                                    grossRevenueA=Decimal("10.00"),
+                                    withHoldingTaxClaim=Decimal("1.50"),
+                                    kursliste=True,
+                                    sign="(Q)",
+                                ),
+                                SecurityPayment(
+                                    paymentDate=date(2025, 11, 5),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("100"),
+                                    amountCurrency="USD",
+                                    exchangeRate=Decimal("0.90"),
+                                    grossRevenueA=Decimal("5.00"),
+                                    withHoldingTaxClaim=Decimal("0.75"),
+                                    kursliste=True,
+                                    sign="(Q)",
+                                ),
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 11, 5),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    nonRecoverableTaxAmountOriginal=Decimal("0"),
+                                    amount=Decimal("0"),
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    calculator = WithholdingCapCalculator()
+    with pytest.raises(ValueError, match="Multiple.*same date"):
+        calculator.calculate(statement)
+
+
+def test_withholding_cap_reconciliation_shows_capped_status():
+    """After WithholdingCapCalculator runs, reconciliation should report
+    'capped' status with original Kursliste values."""
     statement = _make_bnd_statement(
         broker_wht_amounts=[Decimal("-30.00"), Decimal("30.00")],
         kurs_wht_chf=Decimal("4.50"),
@@ -663,15 +729,18 @@ def test_withholding_cap_full_reversal_zeros_withholding():
         exchange_rate=Decimal("0.90"),
     )
 
-    calculator = PaymentReconciliationCalculator(cap_broker_withholding=True)
-    result = calculator.calculate(statement)
+    # First run cap calculator
+    cap_calc = WithholdingCapCalculator()
+    statement = cap_calc.calculate(statement)
 
-    sec = result.listOfSecurities.depot[0].security[0]
-    kl_payment = next(p for p in sec.payment if p.kursliste)
+    # Then run reconciliation
+    recon_calc = PaymentReconciliationCalculator()
+    statement = recon_calc.calculate(statement)
 
-    # Full reversal → 0 CHF withholding
-    assert kl_payment.withHoldingTaxClaim == Decimal("0.00")
-    assert kl_payment.sign is None
-    # All income moves to grossRevenueB (no WHT)
-    assert kl_payment.grossRevenueA == (Decimal("30.00") - Decimal("4.50")).quantize(Decimal("0.01"))
-    assert kl_payment.grossRevenueB == Decimal("4.50")
+    report = statement.payment_reconciliation_report
+    assert report is not None
+    assert report.capped_count == 1
+
+    capped_rows = [r for r in report.rows if r.status == "capped"]
+    assert len(capped_rows) == 1
+    assert "original Kursliste WHT: 4.50 CHF" in capped_rows[0].note
