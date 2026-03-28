@@ -72,13 +72,23 @@ The [EWV](https://www.ewv-ete.ch/de/ewv-ete/) and SSK publish a [shared set of t
 ### Quick install (recommended for users)
 
 ```console
-uvx --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug --help
+# One-time install of the CLI via uv
+uv tool install --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug
+
+# Then run normally
+opensteuerauszug --help
 ```
 
 Install `uv` first: https://docs.astral.sh/uv/getting-started/installation/
 
 `uv` can also install/manage Python for you, so you usually do not need a
 separate Python setup step.
+
+For one-off runs without installing the tool, you can also use:
+
+```console
+uv run --with git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug --help
+```
 
 Then continue with the [User Guide](docs/user_guide.md).
 

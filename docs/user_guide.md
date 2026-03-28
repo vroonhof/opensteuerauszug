@@ -16,14 +16,20 @@ Install `uv` first (it can also install/manage Python for you):
 https://docs.astral.sh/uv/getting-started/installation/
 
 ```bash
-# Run directly without installing globally
-uvx --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug kursliste download --year 2025
+# One-time install of the CLI via uv
+uv tool install --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug
 
-uvx --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug process path/to/broker_export.xml \
+# Then run normally
+opensteuerauszug kursliste download --year 2025
+
+opensteuerauszug process path/to/broker_export.xml \
   --importer ibkr \
   --tax-year 2025 \
   -o steuerauszug_2025.pdf
 ```
+
+If you prefer not to install the tool, `uv run --with git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug ...`
+also works for one-off commands.
 
 You can replace `ibkr` with `schwab` depending on your source data.
 The rest of this guide explains each step in detail.
