@@ -24,8 +24,6 @@ from .calculate.kursliste_tax_value_calculator import KurslisteTaxValueCalculato
 from .calculate.fill_in_tax_value_calculator import FillInTaxValueCalculator
 from .calculate.payment_reconciliation_calculator import PaymentReconciliationCalculator
 from .util.known_issues import is_known_issue
-from .importers.schwab.schwab_importer import SchwabImporter
-from .importers.ibkr.ibkr_importer import IbkrImporter # Added IbkrImporter
 from .core.exchange_rate_provider import ExchangeRateProvider
 from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
@@ -331,6 +329,7 @@ def process(
                     print(f"Error: No valid Schwab account configurations loaded/found for broker 'schwab'. Check config.toml or provide --broker schwab if settings are under a different name.")
                     raise typer.Exit(code=1)
                 print(f"Initializing SchwabImporter with {len(all_schwab_account_settings_models)} Schwab account configuration(s).")
+                from .importers.schwab.schwab_importer import SchwabImporter
                 schwab_importer = SchwabImporter(
                     period_from=parsed_period_from,
                     period_to=parsed_period_to,
@@ -359,6 +358,7 @@ def process(
                 ibflex.enable_unknown_attribute_tolerance()
 
                 print(f"Initializing IbkrImporter with {len(all_ibkr_account_settings_models)} IBKR account configuration(s) (if any).")
+                from .importers.ibkr.ibkr_importer import IbkrImporter
                 ibkr_importer = IbkrImporter(
                     period_from=parsed_period_from,
                     period_to=parsed_period_to,
