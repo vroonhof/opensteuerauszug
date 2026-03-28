@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Final, List, Any, Dict, Literal, Optional, get_args, cast
+from typing import Final, List, Any, Dict, Literal, Optional, Sequence, TypedDict, get_args, cast
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
@@ -31,7 +31,22 @@ import ibflex
 from ibflex.parser import FlexParserError
 
 
-def is_summary_level(entry: Any) -> bool:
+class SecurityPositionData(TypedDict):
+    stocks: list[SecurityStock]
+    payments: list[SecurityPayment]
+
+
+class CashPositionData(TypedDict):
+    stocks: list[SecurityStock]
+    payments: list[BankAccountPayment]
+
+
+class SecurityNameMetadata(TypedDict):
+    best_name: str | None
+    priority: int
+
+
+def is_summary_level(entry: object) -> bool:
     """Return True when an entry is marked with levelOfDetail SUMMARY."""
     level_of_detail = getattr(entry, "levelOfDetail", None)
     if level_of_detail is None:
@@ -44,7 +59,7 @@ def is_summary_level(entry: Any) -> bool:
     return str(level_value).upper() == "SUMMARY"
 
 
-def should_skip_pseudo_account_entry(entry: Any) -> bool:
+def should_skip_pseudo_account_entry(entry: object) -> bool:
     """Skip pseudo rows where accountId='-' or mapped-to-None SUMMARY rows."""
     # ibflex maps accountId="-" to None on some entry types, so
     # we only treat missing accountId rows as pseudo entries when they
@@ -59,8 +74,8 @@ class IbkrImporter:
     Imports Interactive Brokers account data for a given tax period
     from Flex Query XML files.
     """
-    def _get_required_field(self, data_object: Any, field_name: str,
-                              object_description: str) -> Any:
+    def _get_required_field(self, data_object: object, field_name: str,
+                              object_description: str) -> object:
         """Helper to get a required field or raise ValueError if missing."""
         value = getattr(data_object, field_name, None)
         if value is None:
@@ -89,7 +104,7 @@ class IbkrImporter:
             )
         return value
 
-    def _to_decimal(self, value: Any, field_name: str,
+    def _to_decimal(self, value: object | None, field_name: str,
                     object_description: str) -> Decimal:
         """Converts a value to Decimal, raising ValueError on failure."""
         if value is None:  # Should be caught by _get_required_field if required
@@ -105,7 +120,7 @@ class IbkrImporter:
                 f"'{field_name}' in {object_description}"
             )
 
-    def _normalize_country_code(self, value: Any) -> str | None:
+    def _normalize_country_code(self, value: object | None) -> str | None:
         if value is None:
             return None
         country = str(value).strip().upper()
@@ -209,6 +224,231 @@ class IbkrImporter:
 
         return aggregated
 
+    def _parse_flex_statements(
+        self,
+        filenames: Sequence[str],
+        *,
+        file_label: str,
+        log_label: str,
+        error_label: str,
+    ) -> list[ibflex.FlexStatement]:
+        statements: list[ibflex.FlexStatement] = []
+
+        for filename in filenames:
+            if not os.path.exists(filename):
+                raise FileNotFoundError(f"{file_label} not found: {filename}")
+            if not filename.lower().endswith(".xml"):
+                logger.warning("Skipping non-XML %s: %s", log_label, filename)
+                continue
+
+            try:
+                logger.info("Parsing %s: %s", log_label, filename)
+                response = ibflex.parser.parse(filename)
+                if response and response.FlexStatements:
+                    for stmt in response.FlexStatements:
+                        if should_skip_pseudo_account_entry(stmt):
+                            logger.info(
+                                "Skipping FlexStatement with pseudo accountId in %s",
+                                filename,
+                            )
+                            continue
+                        logger.info(
+                            "Successfully parsed statement for account: %s, Period: %s to %s",
+                            stmt.accountId,
+                            stmt.fromDate,
+                            stmt.toDate,
+                        )
+                        statements.append(stmt)
+                else:
+                    logger.warning(
+                        "No FlexStatements found in %s or response was empty.",
+                        filename,
+                    )
+            except FlexParserError as e:
+                raise ValueError(
+                    f"Failed to parse {error_label} {filename} with ibflex: {e}"
+                )
+            except Exception as e:
+                raise RuntimeError(
+                    f"An unexpected error occurred while parsing {filename}: {e}"
+                )
+
+        return statements
+
+    def _find_processed_security_position(
+        self,
+        processed_security_positions: Dict[SecurityPosition, SecurityPositionData],
+        account_id: str,
+        security_id: object,
+    ) -> SecurityPosition | None:
+        for position in processed_security_positions:
+            if position.depot == account_id and position.symbol == str(security_id):
+                return position
+        return None
+
+    def _build_cash_transaction_security_position(
+        self,
+        account_id: str,
+        cash_tx: ibflex.CashTransaction,
+        description: str,
+    ) -> SecurityPosition:
+        security_id = self._get_required_field(cash_tx, 'conid', 'CashTransaction')
+        isin_attr = cash_tx.isin
+        symbol_attr = cash_tx.symbol
+        return SecurityPosition(
+            depot=account_id,
+            valor=None,
+            isin=ISINType(isin_attr) if isin_attr else None,
+            symbol=str(security_id),
+            description=(
+                f"{description} ({symbol_attr})" if symbol_attr else description
+            ),
+        )
+
+    def _apply_withholding_tax_fields(
+        self,
+        payment: SecurityPayment,
+        amount: Decimal,
+        currency: str,
+        tx_type: ibflex.CashAction,
+    ) -> None:
+        if tx_type != ibflex.CashAction.WHTAX:
+            return
+        if amount < 0:
+            if currency == "CHF":
+                payment.withHoldingTaxClaim = abs(amount)
+            else:
+                payment.nonRecoverableTaxAmountOriginal = abs(amount)
+        elif amount > 0:
+            payment.nonRecoverableTaxAmountOriginal = -amount
+
+    def _build_security_payment(
+        self,
+        *,
+        payment_date: date,
+        description: str,
+        currency: str,
+        amount: Decimal,
+        tx_type: ibflex.CashAction,
+    ) -> SecurityPayment:
+        tx_type_str = tx_type.value
+
+        payment = SecurityPayment(
+            paymentDate=payment_date,
+            name=description,
+            amountCurrency=currency,
+            amount=amount,
+            quotationType='PIECE',
+            quantity=UNINITIALIZED_QUANTITY,
+            broker_label_original=tx_type_str,
+        )
+
+        if tx_type == ibflex.CashAction.PAYMENTINLIEU:
+            payment.securitiesLending = True
+
+        self._apply_withholding_tax_fields(
+            payment,
+            amount,
+            currency,
+            tx_type,
+        )
+        return payment
+
+    def _import_corrections_flex_files(
+        self,
+        corrections_filenames: Sequence[str],
+        processed_security_positions: Dict[SecurityPosition, SecurityPositionData],
+    ) -> None:
+        corrections_flex_statements = self._parse_flex_statements(
+            corrections_filenames,
+            file_label="Corrections Flex file",
+            log_label="corrections Flex statement",
+            error_label="corrections Flex file",
+        )
+
+        corrections_count = 0
+        for stmt in corrections_flex_statements:
+            account_id = self._get_required_field(
+                stmt,
+                'accountId',
+                'FlexStatement (corrections)',
+            )
+            if not stmt.CashTransactions:
+                continue
+
+            for cash_tx in stmt.CashTransactions:
+                if should_skip_pseudo_account_entry(cash_tx):
+                    continue
+
+                settle_date = getattr(cash_tx, 'settleDate', None)
+                if settle_date is None:
+                    continue
+                if isinstance(settle_date, str):
+                    settle_date = datetime.strptime(settle_date, "%Y%m%d").date()
+                if settle_date < self.period_from or settle_date > self.period_to:
+                    continue
+
+                security_id = cash_tx.conid
+                if not security_id:
+                    continue
+
+                tx_type = cash_tx.type
+                if tx_type is None:
+                    continue
+
+                if tx_type != ibflex.CashAction.WHTAX:
+                    continue
+
+                description = self._get_required_field(
+                    cash_tx,
+                    'description',
+                    'CashTransaction (corrections)',
+                )
+                amount = self._to_decimal(
+                    self._get_required_field(
+                        cash_tx,
+                        'amount',
+                        'CashTransaction (corrections)',
+                    ),
+                    'amount',
+                    f"CashTransaction (corrections) {description[:30]}",
+                )
+                currency = self._get_required_field(
+                    cash_tx,
+                    'currency',
+                    'CashTransaction (corrections)',
+                )
+
+                sec_pos_key = self._find_processed_security_position(
+                    processed_security_positions,
+                    account_id,
+                    security_id,
+                )
+                if sec_pos_key is None:
+                    logger.warning(
+                        "Corrections flex: skipping withholding correction for unknown security conid=%s (%s)",
+                        security_id,
+                        description,
+                    )
+                    continue
+
+                processed_security_positions[sec_pos_key]['payments'].append(
+                    self._build_security_payment(
+                        payment_date=settle_date,
+                        description=description,
+                        currency=currency,
+                        amount=amount,
+                        tx_type=tx_type,
+                    )
+                )
+                corrections_count += 1
+
+        if corrections_count:
+            logger.info(
+                "Imported %d withholding-tax correction(s) from corrections flex file(s).",
+                corrections_count,
+            )
+
 
     def import_files(self, filenames: List[str], corrections_filenames: Optional[List[str]] = None) -> TaxStatement:
         """
@@ -226,57 +466,12 @@ class IbkrImporter:
         Returns:
             The imported tax statement.
         """
-        all_flex_statements = []
-
-        for filename in filenames:
-            if not os.path.exists(filename):
-                raise FileNotFoundError(
-                    f"IBKR Flex statement file not found: {filename}"
-                )
-            if not filename.lower().endswith(".xml"):
-                logger.warning(f"Skipping non-XML file: {filename}")
-                continue
-
-            try:
-                logger.info(f"Parsing IBKR Flex statement: {filename}")
-                response = ibflex.parser.parse(filename)
-                # response.FlexStatements is a list of FlexStatement objects
-                # Each FlexStatement corresponds to an account
-                if response and response.FlexStatements:
-                    for stmt in response.FlexStatements:
-                        account_id = getattr(stmt, "accountId", None)
-                        if account_id == "-":
-                            logger.info(
-                                "Skipping FlexStatement with pseudo accountId '-' in %s",
-                                filename,
-                            )
-                            continue
-                        # TODO: Potentially filter by accountId if multiple
-                        # accounts are in one file and account_settings_list
-                        # specifies which one to process.
-                        # For now, accumulate all statements found.
-                        logger.info(
-                        f"Successfully parsed statement for account: "
-                        f"{stmt.accountId}, Period: {stmt.fromDate} "
-                        f"to {stmt.toDate}"
-                    )
-                        all_flex_statements.append(stmt)
-                else:
-                    logger.warning(
-                        f"No FlexStatements found in {filename} "
-                        "or response was empty."
-                    )
-            except FlexParserError as e:
-                raise ValueError(
-                    f"Failed to parse IBKR Flex XML file {filename} "
-                    f"with ibflex: {e}"
-                )
-            except Exception as e:
-                # Catch other potential errors during parsing
-                raise RuntimeError(
-                    f"An unexpected error occurred while parsing "
-                    f"{filename}: {e}"
-                )
+        all_flex_statements = self._parse_flex_statements(
+            filenames,
+            file_label="IBKR Flex statement file",
+            log_label="IBKR Flex statement",
+            error_label="IBKR Flex XML file",
+        )
 
         if not all_flex_statements:
             # This might be an error or just a case of no relevant data.
@@ -293,14 +488,14 @@ class IbkrImporter:
             )
 
         # Key: SecurityPosition or tuple for cash. Value: dict with 'stocks', 'payments'
-        processed_security_positions: defaultdict[SecurityPosition, Dict[str, list]] = \
+        processed_security_positions: defaultdict[SecurityPosition, SecurityPositionData] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
 
         # Metadata for security names: {SecurityPosition: {'best_name': str, 'priority': int}}
-        security_name_metadata: defaultdict[SecurityPosition, Dict[str, Any]] = \
+        security_name_metadata: defaultdict[SecurityPosition, SecurityNameMetadata] = \
             defaultdict(lambda: {'best_name': None, 'priority': -1})
 
-        processed_cash_positions: defaultdict[tuple, Dict[str, list]] = \
+        processed_cash_positions: defaultdict[tuple, CashPositionData] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
         security_country_map: Dict[SecurityPosition, str] = {}
 
@@ -749,24 +944,19 @@ class IbkrImporter:
                         tx_type_str_lower = str(tx_type_str).lower()
                         assert 'interest' not in tx_type_str_lower
 
-                        sec_pos_key = None
-                        for pos in processed_security_positions.keys():
-                            if pos.depot == account_id and pos.symbol == str(security_id):
-                                sec_pos_key = pos
-                                break
+                        sec_pos_key = self._find_processed_security_position(
+                            processed_security_positions,
+                            account_id,
+                            security_id,
+                        )
 
                         sym_attr = cash_tx.symbol
 
                         if sec_pos_key is None:
-                            isin_attr = cash_tx.isin
-                            sec_pos_key = SecurityPosition(
-                                depot=account_id,
-                                valor=None,
-                                isin=ISINType(isin_attr) if isin_attr else None,
-                                symbol=str(security_id),
-                                description=(
-                                    f"{description} ({sym_attr})" if sym_attr else description
-                                ),
+                            sec_pos_key = self._build_cash_transaction_security_position(
+                                account_id,
+                                cash_tx,
+                                description,
                             )
 
                         # Update name metadata (Priority: 0 for CashTransactions - lowest)
@@ -779,27 +969,13 @@ class IbkrImporter:
                             0
                         )
 
-                        sec_payment = SecurityPayment(
-                            paymentDate=tx_date,
-                            name=description,
-                            amountCurrency=currency,
+                        sec_payment = self._build_security_payment(
+                            payment_date=tx_date,
+                            description=description,
+                            currency=currency,
                             amount=amount,
-                            quotationType='PIECE',
-                            quantity=UNINITIALIZED_QUANTITY,
-                            broker_label_original=tx_type_str,
+                            tx_type=tx_type,
                         )
-
-                        if tx_type == ibflex.CashAction.PAYMENTINLIEU:
-                            sec_payment.securitiesLending = True
-
-                        if "withholding" in tx_type_str_lower:
-                            if amount < 0:
-                                if currency == "CHF":
-                                    sec_payment.withHoldingTaxClaim = abs(amount)
-                                else:
-                                    sec_payment.nonRecoverableTaxAmountOriginal = abs(amount)
-                            elif amount > 0:
-                                sec_payment.nonRecoverableTaxAmountOriginal = -amount
                         processed_security_positions[sec_pos_key]['payments'].append(
                             sec_payment
                         )
@@ -851,98 +1027,10 @@ class IbkrImporter:
         # are included, so that reversals/adjustments are netted against the
         # original deductions automatically during reconciliation.
         if corrections_filenames:
-            corrections_flex_statements = []
-            for cf in corrections_filenames:
-                if not os.path.exists(cf):
-                    raise FileNotFoundError(f"Corrections Flex file not found: {cf}")
-                if not cf.lower().endswith(".xml"):
-                    logger.warning(f"Skipping non-XML corrections file: {cf}")
-                    continue
-                try:
-                    logger.info(f"Parsing corrections Flex statement: {cf}")
-                    response = ibflex.parser.parse(cf)
-                    if response and response.FlexStatements:
-                        for stmt in response.FlexStatements:
-                            account_id_c = getattr(stmt, "accountId", None)
-                            if account_id_c == "-":
-                                continue
-                            corrections_flex_statements.append(stmt)
-                except FlexParserError as e:
-                    raise ValueError(f"Failed to parse corrections Flex file {cf}: {e}")
-
-            corrections_count = 0
-            for stmt in corrections_flex_statements:
-                account_id = self._get_required_field(stmt, 'accountId', 'FlexStatement (corrections)')
-                if not stmt.CashTransactions:
-                    continue
-                for cash_tx in stmt.CashTransactions:
-                    if should_skip_pseudo_account_entry(cash_tx):
-                        continue
-                    # Only import transactions whose settleDate is within the tax period
-                    settle_date = getattr(cash_tx, 'settleDate', None)
-                    if settle_date is None:
-                        continue
-                    if isinstance(settle_date, str):
-                        settle_date = datetime.strptime(settle_date, "%Y%m%d").date()
-                    if settle_date < self.period_from or settle_date > self.period_to:
-                        continue
-
-                    security_id = cash_tx.conid
-                    if not security_id:
-                        continue  # Only security-linked corrections
-                    tx_type = cash_tx.type
-                    if tx_type is None:
-                        continue
-                    tx_type_str = tx_type.value
-                    tx_type_str_lower = str(tx_type_str).lower()
-                    if "withholding" not in tx_type_str_lower:
-                        continue  # Only withholding-tax corrections
-
-                    description = self._get_required_field(cash_tx, 'description', 'CashTransaction (corrections)')
-                    amount = self._to_decimal(
-                        self._get_required_field(cash_tx, 'amount', 'CashTransaction (corrections)'),
-                        'amount', f"CashTransaction (corrections) {description[:30]}"
-                    )
-                    currency = self._get_required_field(cash_tx, 'currency', 'CashTransaction (corrections)')
-
-                    # Find existing security position or create a new one
-                    sec_pos_key = None
-                    for pos in processed_security_positions.keys():
-                        if pos.depot == account_id and pos.symbol == str(security_id):
-                            sec_pos_key = pos
-                            break
-                    if sec_pos_key is None:
-                        # Security not in main flex; skip correction for unknown security
-                        logger.warning(
-                            "Corrections flex: skipping withholding correction for unknown security conid=%s (%s)",
-                            security_id, description,
-                        )
-                        continue
-
-                    sec_payment = SecurityPayment(
-                        paymentDate=settle_date,
-                        name=description,
-                        amountCurrency=currency,
-                        amount=amount,
-                        quotationType='PIECE',
-                        quantity=UNINITIALIZED_QUANTITY,
-                        broker_label_original=tx_type_str,
-                    )
-
-                    if "withholding" in tx_type_str_lower:
-                        if amount < 0:
-                            if currency == "CHF":
-                                sec_payment.withHoldingTaxClaim = abs(amount)
-                            else:
-                                sec_payment.nonRecoverableTaxAmountOriginal = abs(amount)
-                        elif amount > 0:
-                            sec_payment.nonRecoverableTaxAmountOriginal = -amount
-
-                    processed_security_positions[sec_pos_key]['payments'].append(sec_payment)
-                    corrections_count += 1
-
-            if corrections_count:
-                logger.info("Imported %d withholding-tax correction(s) from corrections flex file(s).", corrections_count)
+            self._import_corrections_flex_files(
+                corrections_filenames,
+                processed_security_positions,
+            )
 
         # --- Construct ListOfSecurities ---
         # account_id -> list of Security objects
