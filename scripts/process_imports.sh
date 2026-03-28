@@ -22,9 +22,10 @@ if [[ "$1" == "--minimal" ]]; then
   shift # consume the argument
 fi
 
-PHASES="-p import -p calculate -p render"
+#PHASES="-p import -p calculate -p render"
+PHASES=
 
-DEFAULT_TAX_YEAR="2024"
+DEFAULT_TAX_YEAR="2025"
 
 # Ensure output directory exists
 mkdir -p "$OUTPUT_DIR"
