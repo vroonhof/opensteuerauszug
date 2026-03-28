@@ -818,7 +818,7 @@ def test_withholding_cap_reconciliation_shows_capped_status():
 
     capped_rows = [r for r in report.rows if r.status == "capped"]
     assert len(capped_rows) == 1
-    assert "original Kursliste WHT: 4.50 CHF" in capped_rows[0].note
+    assert "0.00 CHF" in capped_rows[0].note
 
 
 def test_withholding_cap_applies_to_payments_without_q_sign():

@@ -137,9 +137,9 @@ class PaymentReconciliationCalculator:
                 matched = True
                 original_wht = kurs.original_withholding_chf
                 note = (
-                    f"Withholding capped to broker level (original Kursliste WHT: "
-                    f"{original_wht:.2f} CHF)."
-                    if original_wht is not None
+                    f"Withholding capped to broker level ("
+                    f"{kurs.withholding_chf:.2f} CHF)."
+                    if kurs.withholding_chf is not None
                     else "Withholding capped to broker level."
                 )
             elif has_kurs and not has_broker and kurs.noncash:
@@ -190,7 +190,7 @@ class PaymentReconciliationCalculator:
                     security=security_label,
                     payment_date=d,
                     kursliste_dividend_chf=kurs.dividend_chf,
-                    kursliste_withholding_chf=kurs.withholding_chf,
+                    kursliste_withholding_chf=kurs.original_withholding_chf or kurs.withholding_chf,
                     broker_dividend_amount=broker.dividend if broker.dividend_currency else None,
                     broker_dividend_currency=broker.dividend_currency,
                     broker_withholding_amount=broker.withholding if broker.withholding_currency else None,
