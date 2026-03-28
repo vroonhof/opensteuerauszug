@@ -16,7 +16,9 @@ For more information on required due diligence see the the user guide.
 
 ### Main usage case: Generating Steuerauszug from Broker Data
 
-After installing, see the [User Guide](docs/user_guide.md) for preparation steps, how to get broker data and run the command.
+After installing, use the [User Guide](docs/user_guide.md) as the main
+walkthrough. It covers quick start, preparation steps, broker data export,
+and complete command examples.
 
 ### Verifying an Existing Steuerauszug
 
@@ -69,38 +71,32 @@ The [EWV](https://www.ewv-ete.ch/de/ewv-ete/) and SSK publish a [shared set of t
 
 Requires **Python 3.10** or newer.
 
-This needs newer version of pdf417gen and (for testing) pdf417decoder than
-available on PyPY for now there are my vendored branches
-
-In the current development phase it is best to install direct from git. e.g.
+### Quick install (recommended for users)
 
 ```console
-# Clone the repository
-git clone https://github.com/vroonhof/opensteuerauszug.git
-
-# Navigate into the cloned directory
-cd opensteuerauszug
-
-# --- Virtual Environment Setup ---
-# Create a virtual environment
-python3 -m venv .venv
-
-# Activate the virtual environment
-# On macOS and Linux:
-source .venv/bin/activate
-
-# On Windows (use this command instead):
-# .venv\Scripts\activate
-
-# --- Install the package ---
-# Install the package and its dependencies using pip
-# The '.' indicates to install the package from the current directory
-# The '[dev]' part is optional and installs development dependencies as well
-pip install .[dev]
-
+pip install opensteuerauszug
 ```
 
-This package needs a needs newer version of pdf417gen and (for testing) pdf417decoder than available on PyPY. Either install them directly from git ot use my vendored branches (e.g. `git+https://github.com/vroonhof/pdf417-py.git`)
+Or run without installing globally:
+
+```console
+uvx --from opensteuerauszug opensteuerauszug --help
+```
+
+Then continue with the [User Guide](docs/user_guide.md).
+
+### Development install (contributors)
+
+For development and tests, install from source:
+
+```console
+git clone https://github.com/vroonhof/opensteuerauszug.git
+cd opensteuerauszug
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
+```
 
 ### Verifying the generated XML
 
