@@ -69,19 +69,16 @@ The [EWV](https://www.ewv-ete.ch/de/ewv-ete/) and SSK publish a [shared set of t
 
 ## Installation
 
-Requires **Python 3.10** or newer.
-
 ### Quick install (recommended for users)
 
 ```console
-pip install opensteuerauszug
+uvx --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug --help
 ```
 
-Or run without installing globally:
+Install `uv` first: https://docs.astral.sh/uv/getting-started/installation/
 
-```console
-uvx --from opensteuerauszug opensteuerauszug --help
-```
+`uv` can also install/manage Python for you, so you usually do not need a
+separate Python setup step.
 
 Then continue with the [User Guide](docs/user_guide.md).
 

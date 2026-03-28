@@ -12,11 +12,14 @@ This guide will walk you through the necessary steps to use OpenSteuerAuszug eff
 
 If your broker export is ready, this is the shortest path:
 
+Install `uv` first (it can also install/manage Python for you):
+https://docs.astral.sh/uv/getting-started/installation/
+
 ```bash
 # Run directly without installing globally
-uvx --from opensteuerauszug opensteuerauszug kursliste download --year 2025
+uvx --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug kursliste download --year 2025
 
-uvx --from opensteuerauszug opensteuerauszug process path/to/broker_export.xml \
+uvx --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug process path/to/broker_export.xml \
   --importer ibkr \
   --tax-year 2025 \
   -o steuerauszug_2025.pdf
