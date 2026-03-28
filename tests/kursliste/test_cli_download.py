@@ -2,6 +2,7 @@ import logging
 from unittest.mock import patch, MagicMock
 from typer.testing import CliRunner
 from opensteuerauszug.kursliste.__main__ import app
+from opensteuerauszug.kursliste.converter import CONVERTER_SCHEMA_VERSION
 from pathlib import Path
 
 runner = CliRunner()
@@ -62,7 +63,7 @@ def test_download_skips_when_newest_file_hash_unchanged(caplog):
 
         mock_latest.return_value = {"file_hash": "samehash", "file_id": 1, "file_name": "kursliste_2023.zip"}
         mock_metadata.return_value = MagicMock(newest_file_hash="samehash")
-        mock_metadata_value.return_value = "1"
+        mock_metadata_value.return_value = CONVERTER_SCHEMA_VERSION
         mock_exists.return_value = True
 
         with caplog.at_level(logging.INFO):

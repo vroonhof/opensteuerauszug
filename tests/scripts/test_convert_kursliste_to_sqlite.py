@@ -102,9 +102,8 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
 
     # Verify indexes on securities table
     indexes_info = {info['name'] for info in cursor.execute("PRAGMA index_list('securities');").fetchall()}
-    assert "idx_valor" in indexes_info
-    assert "idx_isin" in indexes_info
-    assert "idx_tax_year" in indexes_info
+    assert "idx_securities_isin_tax_year" in indexes_info
+    assert "idx_securities_valor_tax_year" in indexes_info
     
     # d. Verify Pydantic Model Reconstruction for securities
     expected_tax_year = 2023
