@@ -1941,7 +1941,7 @@ def create_payment_reconciliation_tables(tax_statement: TaxStatement, styles, us
             style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#fdecea')))
         for idx in expected_rows:
             style.append(('TEXTCOLOR', (-1, idx), (-1, idx), status_exp))
-            style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#fff6dd')))
+            # No need to draw attention to expected row, so no background
         for idx in capped_rows:
             style.append(('TEXTCOLOR', (-1, idx), (-1, idx), status_cap))
             style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#e6f0ff')))
