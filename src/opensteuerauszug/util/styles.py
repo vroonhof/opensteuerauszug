@@ -1,9 +1,11 @@
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from functools import lru_cache
 
 FONT_REGULAR = 'Helvetica'
 FONT_BOLD = 'Helvetica-Bold'
 
+@lru_cache(maxsize=1)
 def get_custom_styles():
     styles = getSampleStyleSheet()
     base_style = styles['Normal']

@@ -343,15 +343,18 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
     # Draw client information table on all pages
     if hasattr(doc, 'tax_statement') and doc.tax_statement:
         box_width = getattr(doc, 'summary_table_last_col_width', 60*mm)  # Default fallback
-        client_table = create_client_info_table(doc.tax_statement, get_custom_styles(), box_width)
+        if not hasattr(doc, '_cached_client_table'):
+            doc._cached_client_table = create_client_info_table(doc.tax_statement, get_custom_styles(), box_width)
+            if doc._cached_client_table:
+                # Wrap the table to get its dimensions
+                doc._cached_client_table_wh = doc._cached_client_table.wrapOn(canvas, box_width, 50*mm)
+        client_table = doc._cached_client_table
         if client_table:
             # Position the table in the header area
             table_x = page_width - doc.rightMargin - box_width
             table_y = page_height - 12*mm
             
-            # Wrap the table to get its dimensions
-            table_width, table_height = client_table.wrapOn(canvas, box_width, 50*mm)
-            # Draw the table at the calculated position
+            table_width, table_height = doc._cached_client_table_wh
             client_table.drawOn(canvas, table_x, table_y - table_height)
     
     # Draw the barcode if page specific data is available
