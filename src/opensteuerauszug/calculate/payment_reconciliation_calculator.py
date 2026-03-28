@@ -43,6 +43,20 @@ class _KurslisteAgg:
 
 
 class PaymentReconciliationCalculator:
+    _COUNTRIES_WHERE_OVERWITHHOLDING_SUGGESTS_CALCULATION_ISSUE = {
+        "GB",  # United Kingdom (0% WHT)
+        "NL",  # Netherlands (15% - matches treaty)
+        "LU",  # Luxembourg (15% - matches treaty)
+        "US",  # USA (15% via W-8BEN)
+        "CA",  # Canada (15% via NR301)
+        "JP",  # Japan (15% via Relief at Source)
+        "FR",  # France (12.8% or 15% via Form 5000/5001)
+        "IE",  # Ireland (0% via Form V2)
+        "SG",  # Singapore (0% WHT)
+        "HK",  # Hong Kong (0% WHT)
+        "AU",  # Australia (0% on Franked dividends)
+    }
+
     _BROKER_ABOVE_KURSLISTE_ALLOWLIST_SIGNS = {
         "(H)",
         "(IK)",
@@ -90,6 +104,9 @@ class PaymentReconciliationCalculator:
     def _reconcile_security(self, security: Security) -> List[PaymentReconciliationRow]:
         broker_payments = security.broker_payments or [p for p in security.payment if not p.kursliste]
         kursliste_payments = [p for p in security.payment if p.kursliste]
+        security_has_sensitive_overwithholding = (
+            security.country in self._COUNTRIES_WHERE_OVERWITHHOLDING_SUGGESTS_CALCULATION_ISSUE
+        )
 
         broker_by_date: Dict[date, _BrokerAgg] = defaultdict(_BrokerAgg)
         kurs_by_date: Dict[date, _KurslisteAgg] = defaultdict(_KurslisteAgg)
@@ -160,7 +177,9 @@ class PaymentReconciliationCalculator:
                     kurs_value_chf=kurs.withholding_chf,
                     broker_value_chf=broker_with_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
-                    allow_broker_above_kursliste=allow_broker_above_kursliste,
+                    allow_broker_above_kursliste=(
+                        allow_broker_above_kursliste or not security_has_sensitive_overwithholding
+                    ),
                 )
                 if not div_ok:
                     note = "Broker dividend is below Kursliste value beyond tolerance."

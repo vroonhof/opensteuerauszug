@@ -427,6 +427,127 @@ def test_broker_above_kursliste_with_allowlisted_broker_keyword_is_match():
     assert row.status == "match"
 
 
+def test_broker_withholding_above_kursliste_is_match_for_germany():
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="DE",
+                            currency="EUR",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="SIXT SE",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("1"),
+                                    amountCurrency="EUR",
+                                    amount=Decimal("100"),
+                                    exchangeRate=Decimal("1"),
+                                    grossRevenueB=Decimal("100"),
+                                    withHoldingTaxClaim=Decimal("10"),
+                                    kursliste=True,
+                                )
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="EUR",
+                                    amount=Decimal("100"),
+                                    name="Dividend",
+                                ),
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="EUR",
+                                    amount=Decimal("-12"),
+                                    name="Withholding",
+                                    nonRecoverableTaxAmountOriginal=Decimal("12"),
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator().calculate(statement)
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.status == "match"
+    assert row.matched is True
+
+
+def test_broker_withholding_above_kursliste_is_mismatch_for_treaty_security():
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="AAPL",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("100"),
+                                    exchangeRate=Decimal("1"),
+                                    grossRevenueB=Decimal("100"),
+                                    withHoldingTaxClaim=Decimal("10"),
+                                    additionalWithHoldingTaxUSA=Decimal("0"),
+                                    kursliste=True,
+                                )
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("100"),
+                                    name="Dividend",
+                                ),
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("-12"),
+                                    name="Withholding",
+                                    nonRecoverableTaxAmountOriginal=Decimal("12"),
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator().calculate(statement)
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.status == "mismatch"
+    assert row.matched is False
+
+
 def test_negligible_kursliste_values_allow_missing_broker_entry():
     statement = TaxStatement(
         minorVersion=2,
