@@ -8,6 +8,32 @@ The primary goal is to simplify the process of preparing your tax return by auto
 
 This guide will walk you through the necessary steps to use OpenSteuerAuszug effectively.
 
+## Quick Start
+
+If your broker export is ready, this is the shortest path:
+
+Install `uv` first (it can also install/manage Python for you):
+https://docs.astral.sh/uv/getting-started/installation/
+
+```bash
+# One-time install of the CLI via uv
+uv tool install --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug
+
+# Then run normally
+opensteuerauszug kursliste download --year 2025
+
+opensteuerauszug process path/to/broker_export.xml \
+  --importer ibkr \
+  --tax-year 2025 \
+  -o steuerauszug_2025.pdf
+```
+
+If you prefer not to install the tool, `uv run --with git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug ...`
+also works for one-off commands.
+
+You can replace `ibkr` with `schwab` depending on your source data.
+The rest of this guide explains each step in detail.
+
 ## Short Primer on Tax data and calculations
 
 ### What data are we aiming for
@@ -64,44 +90,6 @@ Using OpenSteuerAuszug to generate your Steuerauszug generally involves the foll
     * Remove any manual entries you may have used in previous years.
     * **Recalculate the tax information using the tax software**. Most tax software offers the ability to recompute tax values based on the latest Kursliste, accept that option.
 
-## Features
-
-### Payment Reconciliation
-
-OpenSteuerAuszug includes a powerful **Payment Reconciliation** feature (enabled by default). 
-
-When you run the tool with Kursliste data, it automatically compares the dividends and withholding taxes reported by your broker against the official values expected from the Kursliste for each security.
-
-*   **Discrepancy Reporting**: It identifies cases where the broker's reported income or withholding tax differs from the Kursliste.
-*   **DA-1 Confidence**: The reconciliation tables are particularly useful for building confidence that foreign withholding tax (e.g., US withholding on dividends) has actually occurred and matches the expected rates. This is essential when claiming tax credits via the **DA-1 form** in your Swiss tax return.
-*   **Detailed Tables**: The generated PDF includes reconciliation tables showing these comparisons, making it easy to spot missing dividends or incorrect tax withholdings.
-*   **Automatic Match Detection**: It accounts for common scenarios like accumulating funds (where no cash flow is expected) and small rounding differences.
-
-You can explicitly control this feature using:
-*   `--payment-reconciliation`: (Default) Enables the reconciliation phase and reports.
-*   `--no-payment-reconciliation`: Skips the reconciliation step.
-
-### Appending Additional Documents
-
-Often, you may want to include additional supporting documents (e.g., the original broker statement, US 1042-S forms, or other tax forms) in the same PDF as your Steuerauszug for archiving or submission purposes.
-
-OpenSteuerAuszug provides command-line options to prepend or append existing PDF files to the generated tax statement:
-
-*   `--pre-amble <file.pdf>`: Adds the specified PDF **before** the main tax statement.
-*   `--post-amble <file.pdf>`: Adds the specified PDF **after** the main tax statement.
-
-You can specify these options multiple times to add multiple files. The files will be added in the order they appear on the command line.
-
-**Note:** This feature performs a "naive concatenation." The added pages are attached exactly as they are; no page numbers, barcodes, or headers/footers are added or modified on these external documents.
-
-Example:
-```bash
-opensteuerauszug process input.xml --importer ibkr \
-  --post-amble 1042-S_form.pdf \
-  --post-amble broker_statement.pdf \
-  -o final_tax_statement.pdf
-```
-
 ## Disclaimer and User Responsibility
 
 **Important**: OpenSteuerAuszug is provided "as is" without any formal audit or warranty. While it aims to be accurate, it is your responsibility as the taxpayer to:
@@ -137,7 +125,8 @@ This command performs the following steps:
 
 You can disable the automatic conversion with the `--no-convert` flag if desired.
 
-#### Manual Download and Conversion
+<details>
+<summary>Manual Kursliste download/conversion (optional fallback)</summary>
 
 If you prefer to obtain the file manually or need to process a specific file:
 
@@ -157,6 +146,8 @@ If you prefer to obtain the file manually or need to process a specific file:
     *   This will create `kursliste_2023.sqlite` next to the XML file.
 
 *(Note: A legacy script `scripts/convert_kursliste_to_sqlite.py` is also available but the CLI command is preferred.)*
+
+</details>
 
 ### Storing the Kursliste
 
@@ -289,6 +280,34 @@ opensteuerauszug process {broker data location} --importer {schwab|ibkr} --tax-c
 ```
 
 If doing active development it is best to place any real tax data including the generated output outside of the source tree or in the `/private` directory. 
+
+## Features and optional extras
+
+### Payment Reconciliation (default)
+
+When Kursliste data is available, OpenSteuerAuszug automatically reconciles broker-reported
+dividends and withholding taxes against expected values.
+
+This is mainly useful as a confidence check (especially for DA-1 relevant withholding), and
+the generated PDF includes reconciliation tables that help spot mismatches quickly.
+
+### Appending Additional Documents
+
+You can prepend/append supporting PDFs (for example a broker statement or 1042-S form):
+
+*   `--pre-amble <file.pdf>`: add pages before the generated statement.
+*   `--post-amble <file.pdf>`: add pages after the generated statement.
+
+Example:
+
+```bash
+opensteuerauszug process input.xml --importer ibkr --tax-year 2025 \
+  --post-amble 1042-S_form.pdf \
+  --post-amble broker_statement.pdf \
+  -o final_tax_statement.pdf
+```
+
+**Note:** This is a straightforward concatenation. Added pages are not re-formatted and do not receive generated headers/footers or barcodes.
 
 ---
 
