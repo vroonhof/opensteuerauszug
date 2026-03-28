@@ -133,11 +133,10 @@ class WithholdingCapCalculator:
             else:
                 # Fractional withHoldingTaxClaim is not supported.
                 raise ValueError(
-                    f"Fractional withholding cap not supported for "
+                    f"Fractional swiss withholding cap not supported for "
                     f"{security.securityName} on {d}: broker WHT "
                     f"{broker_wht_chf:.2f} CHF is neither ≈0 nor ≈equal to "
-                    f"Kursliste {kurs_wht_chf:.2f} CHF. Please check the "
-                    f"corrections flex data."
+                    f"Kursliste {kurs_wht_chf:.2f} CHF."
                 )
 
     def _apply_full_reversal(
@@ -148,9 +147,11 @@ class WithholdingCapCalculator:
         d: date,
     ) -> None:
         """Zero out WHT and move all gross revenue to the B column."""
-        old_a = kl_payment.grossRevenueA or Decimal("0")
-        old_b = kl_payment.grossRevenueB or Decimal("0")
-        total_gross = (old_a + old_b).quantize(Decimal("0.01"))
+        # Without withholding any revenue is type B
+        if kl_payment.grossRevenueA and kl_payment.grossRevenueA > Decimal("0"):
+            assert kl_payment.grossRevenueB is None or kl_payment.grossRevenueB == Decimal("0")
+            kl_payment.grossRevenueB = kl_payment.grossRevenueA
+            kl_payment.grossRevenueA = Decimal("0.00")
 
         # Store original values for reconciliation reporting.
         kl_payment.withholding_capped = True
@@ -162,10 +163,7 @@ class WithholdingCapCalculator:
         if kl_payment.nonRecoverableTaxAmount is not None:
             kl_payment.nonRecoverableTaxAmount = Decimal("0.00")
 
-        # Move everything to grossRevenueB (no WHT).
-        kl_payment.grossRevenueA = Decimal("0.00")
-        kl_payment.grossRevenueB = total_gross
-        # Only clear (Q) sign specifically.
+        #  Broker knows better than Kursliste, so clear the (Q) sign if it was set.
         if kl_payment.sign == "(Q)":
             kl_payment.sign = None
 
@@ -188,19 +186,13 @@ class WithholdingCapCalculator:
         d: date,
     ) -> None:
         """Cap nonRecoverableTaxAmount to the broker's effective level."""
-        capped_wht = broker_wht_chf.quantize(Decimal("0.01"))
-        surplus_chf = (original_wht_chf - capped_wht).quantize(Decimal("0.01"))
-
-        old_a = kl_payment.grossRevenueA or Decimal("0")
-        old_b = kl_payment.grossRevenueB or Decimal("0")
+        assert kl_payment.grossRevenueA is None or kl_payment.grossRevenueA == Decimal("0")
 
         # Store original values for reconciliation reporting.
         kl_payment.withholding_capped = True
         kl_payment.withholding_capped_original_wht_chf = original_wht_chf
 
-        kl_payment.nonRecoverableTaxAmount = capped_wht
-        kl_payment.grossRevenueA = (old_a - surplus_chf).quantize(Decimal("0.01"))
-        kl_payment.grossRevenueB = (old_b + surplus_chf).quantize(Decimal("0.01"))
+        kl_payment.nonRecoverableTaxAmount = broker_wht_chf
         # Only clear (Q) sign specifically.
         if kl_payment.sign == "(Q)":
             kl_payment.sign = None
@@ -213,7 +205,7 @@ class WithholdingCapCalculator:
             security.securityName,
             d,
             original_wht_chf,
-            capped_wht,
+            broker_wht_chf,
         )
 
     def _track(self, sec_name: str, d: date) -> None:

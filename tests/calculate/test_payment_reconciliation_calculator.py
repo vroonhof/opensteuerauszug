@@ -653,7 +653,7 @@ def test_withholding_cap_fractional_raises_error():
     )
 
     calculator = WithholdingCapCalculator()
-    with pytest.raises(ValueError, match="Fractional withholding cap not supported"):
+    with pytest.raises(ValueError, match="Fractional swiss withholding cap not supported"):
         calculator.calculate(statement)
 
 
@@ -910,8 +910,8 @@ def test_withholding_cap_partial_for_non_recoverable_tax():
                                     quantity=Decimal("254"),
                                     amountCurrency="USD",
                                     exchangeRate=Decimal("0.90"),
-                                    grossRevenueA=Decimal("55.67"),
-                                    grossRevenueB=Decimal("0"),
+                                    grossRevenueA=0,
+                                    grossRevenueB=Decimal("55.67"),
                                     nonRecoverableTaxAmount=Decimal("8.35"),
                                     kursliste=True,
                                     sign="(Q)",
@@ -960,11 +960,6 @@ def test_withholding_cap_partial_for_non_recoverable_tax():
     assert kl_payment.withholding_capped_original_wht_chf == Decimal("8.35")
     # (Q) sign should be cleared
     assert kl_payment.sign is None
-    # Surplus moved from A to B
-    surplus = Decimal("8.35") - Decimal("4.23")
-    assert kl_payment.grossRevenueA == (Decimal("55.67") - surplus).quantize(Decimal("0.01"))
-    assert kl_payment.grossRevenueB == (Decimal("0") + surplus).quantize(Decimal("0.01"))
-
 
 def test_withholding_cap_only_clears_q_sign():
     """Full reversal should only clear (Q) sign, not other signs."""
