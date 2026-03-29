@@ -25,8 +25,6 @@ from .calculate.fill_in_tax_value_calculator import FillInTaxValueCalculator
 from .calculate.payment_reconciliation_calculator import PaymentReconciliationCalculator
 from .calculate.withholding_cap_calculator import WithholdingCapCalculator
 from .util.known_issues import is_known_issue
-from .importers.schwab.schwab_importer import SchwabImporter
-from .importers.ibkr.ibkr_importer import IbkrImporter # Added IbkrImporter
 from .core.exchange_rate_provider import ExchangeRateProvider
 from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
@@ -199,18 +197,21 @@ def process(
     
     # Extract general configuration settings for CleanupCalculator
     general_config_settings: Optional[GeneralSettings] = None
+    temp_general_settings = dict(config_manager.general_settings or {})
+    if override_configs:
+        temp_config = {"general": temp_general_settings.copy()}
+        temp_config = config_manager._apply_cli_overrides(temp_config, override_configs)
+        temp_general_settings = temp_config.get("general", {})
+
+    # Keep render options available even if full GeneralSettings validation fails.
+    render_language = temp_general_settings.get("language", DEFAULT_LANGUAGE)
+    minimal_frontpage_placeholder_setting = temp_general_settings.get(
+        "minimal_uses_placeholder_frontpage",
+        True,
+    )
+
     try:
-        if config_manager.general_settings:
-            # Create GeneralSettings instance from the loaded configuration
-            temp_general_settings = dict(config_manager.general_settings)
-            
-            # Apply CLI overrides to general settings if any
-            if override_configs:
-                # Create a temporary dict to apply overrides to general settings
-                temp_config = {"general": config_manager.general_settings.copy()}
-                temp_config = config_manager._apply_cli_overrides(temp_config, override_configs)
-                temp_general_settings = temp_config.get("general", {})
-            
+        if temp_general_settings:
             # Create the GeneralSettings Pydantic model
             general_config_settings = GeneralSettings(**temp_general_settings)
             
@@ -335,6 +336,7 @@ def process(
                     print(f"Error: No valid Schwab account configurations loaded/found for broker 'schwab'. Check config.toml or provide --broker schwab if settings are under a different name.")
                     raise typer.Exit(code=1)
                 print(f"Initializing SchwabImporter with {len(all_schwab_account_settings_models)} Schwab account configuration(s).")
+                from .importers.schwab.schwab_importer import SchwabImporter
                 schwab_importer = SchwabImporter(
                     period_from=parsed_period_from,
                     period_to=parsed_period_to,
@@ -363,6 +365,7 @@ def process(
                 ibflex.enable_unknown_attribute_tolerance()
 
                 print(f"Initializing IbkrImporter with {len(all_ibkr_account_settings_models)} IBKR account configuration(s) (if any).")
+                from .importers.ibkr.ibkr_importer import IbkrImporter
                 ibkr_importer = IbkrImporter(
                     period_from=parsed_period_from,
                     period_to=parsed_period_to,
@@ -644,17 +647,9 @@ def process(
                 override_org_nr=org_nr,
                 minimal_frontpage_placeholder=(
                     (tax_calculation_level == TaxCalculationLevel.MINIMAL)
-                    and (
-                        general_config_settings.minimal_uses_placeholder_frontpage
-                        if general_config_settings
-                        else True
-                    )
+                    and minimal_frontpage_placeholder_setting
                 ),
-                language=(
-                    general_config_settings.language
-                    if general_config_settings
-                    else DEFAULT_LANGUAGE
-                ),
+                language=render_language,
             )
             print(f"Rendering successful to {rendered_path}")
 

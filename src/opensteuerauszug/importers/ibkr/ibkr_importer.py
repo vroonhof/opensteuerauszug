@@ -1418,7 +1418,7 @@ class IbkrImporter:
                 elif is_valid_string(account_holder_name):
                     client_first_name, client_last_name = split_full_name(account_holder_name)
 
-                if account_id and client_last_name: # lastName is mandatory for Client
+                if account_id:
                     client_obj = Client(
                         clientNumber=ClientNumber(account_id),
                         firstName=client_first_name,

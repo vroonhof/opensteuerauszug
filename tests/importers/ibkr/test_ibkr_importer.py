@@ -1027,41 +1027,41 @@ CLIENT_INFO_TEST_CASES = [
         "expected_last_name": "Smith",
         "description": "different name present in AccountInformation",
     },
-    # Scenario 3: No name provided, client should not be created
+    # Scenario 3: No name provided; client is still created from accountId
     {
         "account_info_xml": """
           <AccountInformation accountId="U9876545" acctAlias="Third Alias" />""",
-        "expected_client_number": None,  # client object should not be created
+        "expected_client_number": "U9876545",
         "expected_first_name": None,
         "expected_last_name": None,
-        "description": "No name field present, client should be None",
+        "description": "No name field present, client should include accountId",
     },
-    # Scenario 4: Empty name provided, client should not be created
+    # Scenario 4: Empty name provided; client is still created from accountId
     {
         "account_info_xml": """
           <AccountInformation accountId="U9876546" acctAlias="Fourth Alias" name="" />""",
-        "expected_client_number": None,  # client object should not be created due to empty name
+        "expected_client_number": "U9876546",
         "expected_first_name": None,
         "expected_last_name": None,
-        "description": "Empty name field present, client should be None",
+        "description": "Empty name field present, client should include accountId",
     },
-    # Scenario 5: Whitespace-only name provided, client should not be created
+    # Scenario 5: Whitespace-only name provided; client is still created from accountId
     {
         "account_info_xml": """
           <AccountInformation accountId="U9876547" acctAlias="Fifth Alias" name="   " />""",
-        "expected_client_number": None,  # client object should not be created due to whitespace-only name
+        "expected_client_number": "U9876547",
         "expected_first_name": None,
         "expected_last_name": None,
-        "description": "Whitespace-only name field present, client should be None",
+        "description": "Whitespace-only name field present, client should include accountId",
     },
-    # Scenario 6: Other attributes present but no name
+    # Scenario 6: Other attributes present but no name; client is still created from accountId
     {
         "account_info_xml": """
           <AccountInformation accountId="U9876548" acctAlias="Sixth Alias" street="123 Main St" city="New York" />""",
-        "expected_client_number": None,  # client object should not be created
+        "expected_client_number": "U9876548",
         "expected_first_name": None,
         "expected_last_name": None,
-        "description": "Other attributes present but no name field, client should be None",
+        "description": "Other attributes present but no name field, client should include accountId",
     },
 ]
 
