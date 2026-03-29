@@ -1,17 +1,13 @@
-import pytest
-import subprocess
 import sqlite3
-import sys
-from pathlib import Path
 from decimal import Decimal
-import json
 from typing import Dict, Type
 
 # Import Pydantic models needed for deserialization and type map
 from opensteuerauszug.model.kursliste import (
-    Security, Share, Bond, Fund, Derivative, CoinBullion, CurrencyNote, LiborSwap,
+    Security, Share, Bond, Fund,
     SecurityTypeESTV
 )
+from opensteuerauszug.kursliste.converter import convert_kursliste_xml_to_sqlite
 
 
 SAMPLE_XML_CONTENT = """<?xml version="1.0" encoding="UTF-8"?>
@@ -53,35 +49,19 @@ SAMPLE_XML_CONTENT = """<?xml version="1.0" encoding="UTF-8"?>
 </kursliste>
 """
 
-# Determine the project root directory to correctly locate the script
-# This assumes tests are run from the project root or a similar consistent location.
-PROJECT_ROOT = Path(__file__).parent.parent.parent 
-SCRIPT_PATH = PROJECT_ROOT / "scripts" / "convert_kursliste_to_sqlite.py"
-
-
 def get_table_info(conn, table_name):
     cursor = conn.cursor()
     cursor.execute(f"PRAGMA table_info({table_name})")
     return {row['name'] for row in cursor.fetchall()}
 
 def test_convert_kursliste_xml_to_sqlite(tmp_path):
-    # a. Prepare paths and run the script
+    # a. Prepare paths and run the conversion directly
     sample_xml_file = tmp_path / "sample_kursliste_for_db_test.xml"
     sample_xml_file.write_text(SAMPLE_XML_CONTENT)
     
     output_db_file = tmp_path / "kursliste_test.sqlite"
 
-    # Ensure the script path is correct. If running tests from root, it's 'scripts/...'
-    # If this test file is in tests/scripts/, then SCRIPT_PATH needs to be adjusted.
-    # Assuming SCRIPT_PATH is correctly defined relative to where pytest is run.
-    cmd = [
-        sys.executable, str(SCRIPT_PATH),
-        str(sample_xml_file),
-        str(output_db_file)
-    ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    assert result.returncode == 0, f"Script execution failed: {result.stderr}"
+    convert_kursliste_xml_to_sqlite(str(sample_xml_file), str(output_db_file))
     assert output_db_file.exists(), "SQLite DB file was not created."
 
     # b. Connect to the generated SQLite DB

@@ -111,29 +111,46 @@ def main():
         raise ValueError(f"Invalid log level: {args.log_level}")
     logging.basicConfig(level=numeric_level)
 
+    return filter_kursliste(
+        input_file=args.input_file,
+        output_file=args.output_file,
+        valor_numbers=args.valor_numbers,
+        tax_statement_files=args.tax_statement_files if args.tax_statement_files else None,
+        include_bonds=args.include_bonds,
+        target_currency=args.target_currency,
+    )
+
+def filter_kursliste(
+    input_file: str,
+    output_file: str,
+    valor_numbers: str | None = None,
+    tax_statement_files: list[str] | None = None,
+    include_bonds: bool = False,
+    target_currency: str = "CHF",
+) -> int:
+    """Core filtering logic. Returns 0 on success, 1 on error."""
     logging.info("Parsed arguments:")
-    logging.info(f"  Input file: {args.input_file}")
-    logging.info(f"  Output file: {args.output_file}")
-    logging.info(f"  Valor numbers: {args.valor_numbers if args.valor_numbers else 'Not provided'}")
-    if args.tax_statement_files:
-        logging.info(f"  Tax statement files: {args.tax_statement_files}")
+    logging.info(f"  Input file: {input_file}")
+    logging.info(f"  Output file: {output_file}")
+    logging.info(f"  Valor numbers: {valor_numbers if valor_numbers else 'Not provided'}")
+    if tax_statement_files:
+        logging.info(f"  Tax statement files: {tax_statement_files}")
     else:
         logging.info("  Tax statement files: Not provided")
-    logging.info(f"  Include bonds: {args.include_bonds}")
-    logging.info(f"  Target currency: {args.target_currency}")
-    logging.info(f"  Log level: {args.log_level}")
+    logging.info(f"  Include bonds: {include_bonds}")
+    logging.info(f"  Target currency: {target_currency}")
 
     # Ensure that either valor_numbers or tax_statement_files is provided
-    if not args.valor_numbers and not args.tax_statement_files:
+    if not valor_numbers and not tax_statement_files:
         logging.error("Error: Either --valor-numbers or --tax-statement-files must be provided.")
         return 1 # Exit with an error code
     
     # Parse Tax Statements if provided
     tax_statement_valors = set()
     tax_statement_currencies = set()
-    if args.tax_statement_files:
+    if tax_statement_files:
         logging.info("Processing tax statement files...")
-        tax_statement_valors, tax_statement_currencies = parse_tax_statements(args.tax_statement_files)
+        tax_statement_valors, tax_statement_currencies = parse_tax_statements(tax_statement_files)
         logging.info(f"Valors from tax statements: {tax_statement_valors if tax_statement_valors else 'None'}")
         logging.info(f"Currencies from tax statements: {tax_statement_currencies if tax_statement_currencies else 'None'}")
     else:
@@ -142,9 +159,9 @@ def main():
     try:
         # 1. Parse Valor Numbers from Command Line
         cmd_line_valor_numbers = set()
-        if args.valor_numbers:
-            logging.info(f"Parsing command-line valor numbers: {args.valor_numbers}")
-            raw_cmd_valors = args.valor_numbers.split(',')
+        if valor_numbers:
+            logging.info(f"Parsing command-line valor numbers: {valor_numbers}")
+            raw_cmd_valors = valor_numbers.split(',')
             valor_errors_cmd = False
             for v_str in raw_cmd_valors:
                 try:
@@ -170,9 +187,9 @@ def main():
 
         # 4. Consolidate Initial Relevant Currencies
         relevant_currencies = set()
-        if args.target_currency:
-            relevant_currencies.add(args.target_currency)
-            logging.debug(f"Added target_currency '{args.target_currency}' to initial relevant_currencies.")
+        if target_currency:
+            relevant_currencies.add(target_currency)
+            logging.debug(f"Added target_currency '{target_currency}' to initial relevant_currencies.")
         
         relevant_currencies.update(tax_statement_currencies)
         logging.info(f"Initial set of relevant currencies (target_currency + tax statement currencies): {relevant_currencies if relevant_currencies else 'None'}")
@@ -184,24 +201,24 @@ def main():
             # Current script structure will produce an empty Kursliste for securities/rates if this set is empty.
 
         # Load and Parse Kursliste XML
-        logging.info(f"Loading Kursliste XML from {args.input_file}...")
+        logging.info(f"Loading Kursliste XML from {input_file}...")
         try:
             # Use Kursliste.from_xml_file to parse the input XML file
             # Pass denylist=None to ensure all elements are loaded from the source Kursliste.
-            kursliste_data = Kursliste.from_xml_file(args.input_file, denylist=None)
-            logging.info(f"Successfully parsed Kursliste XML from {args.input_file}")
+            kursliste_data = Kursliste.from_xml_file(input_file, denylist=None)
+            logging.info(f"Successfully parsed Kursliste XML from {input_file}")
             logging.info(f"Kursliste date: {kursliste_data.creationDate}, Year: {kursliste_data.year}")
         except ET.XMLSyntaxError as e:
-            logging.error(f"XML Syntax Error parsing Kursliste file {args.input_file}: {e}")
+            logging.error(f"XML Syntax Error parsing Kursliste file {input_file}: {e}")
             return 1 # Exit with error
         except ValidationError as e:
-            logging.error(f"Pydantic validation error parsing Kursliste {args.input_file}: {e}")
+            logging.error(f"Pydantic validation error parsing Kursliste {input_file}: {e}")
             return 1 # Exit with error
         except FileNotFoundError: # Already caught by the outer try-except, but good to be specific if desired
-            logging.error(f"Error: Kursliste input file not found at {args.input_file}")
+            logging.error(f"Error: Kursliste input file not found at {input_file}")
             return 1
         except Exception as e: # Catch other potential errors from from_xml_file
-            logging.error(f"An unexpected error occurred while parsing Kursliste {args.input_file}: {e}", exc_info=True)
+            logging.error(f"An unexpected error occurred while parsing Kursliste {input_file}: {e}", exc_info=True)
             return 1
 
 
@@ -231,7 +248,7 @@ def main():
             logging.info("No funds found in the input Kursliste.")
 
         # 5. Filter Bonds (Conditional)
-        if args.include_bonds:
+        if include_bonds:
             if kursliste_data.bonds:
                 logging.info(f"Processing {len(kursliste_data.bonds)} bonds from input (include_bonds is True)...")
                 for bond in kursliste_data.bonds:
@@ -409,7 +426,7 @@ def main():
         logging.info("Successfully constructed output_kursliste_obj.")
 
         # 16. Serialize to XML
-        logging.info(f"Serializing output Kursliste to XML for output file: {args.output_file}...")
+        logging.info(f"Serializing output Kursliste to XML for output file: {output_file}...")
         try:
             # Use the instance method to_xml for serialization
             # ns_map should be handled by the model's own definition
@@ -427,18 +444,18 @@ def main():
 
         # 17. Write to Output File
         try:
-            with open(args.output_file, 'wb') as f:
+            with open(output_file, 'wb') as f:
                 f.write(output_xml_bytes)
-            logging.info(f"Successfully wrote filtered Kursliste to {args.output_file}")
+            logging.info(f"Successfully wrote filtered Kursliste to {output_file}")
         except IOError as e:
-            logging.error(f"Error writing output XML to file {args.output_file}: {e}", exc_info=True)
+            logging.error(f"Error writing output XML to file {output_file}: {e}", exc_info=True)
             return 1 # Exit if file writing fails
             
         logging.info("Script finished successfully.")
         return 0 # Exit with success code
 
     except FileNotFoundError:
-        logging.error(f"Error: Input file not found at {args.input_file}")
+        logging.error(f"Error: Input file not found at {input_file}")
         return 1
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}", exc_info=True)

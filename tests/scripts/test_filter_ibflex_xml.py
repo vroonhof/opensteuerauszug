@@ -1,11 +1,12 @@
-import subprocess
 import sys
 from pathlib import Path
 
 import lxml.etree as ET
 
+SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
+sys.path.insert(0, str(SCRIPTS_DIR))
 
-SCRIPT_PATH = Path(__file__).parent.parent.parent / "scripts" / "filter_ibflex_xml.py"
+from filter_ibflex_xml import filter_statement, parse_isins, sanitize_account_information
 
 SAMPLE_IBFLEX_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <FlexQueryResponse queryName=\"Annual Tax Report\" type=\"AF\">
@@ -36,19 +37,17 @@ def run_filter_script(tmp_path: Path, *extra_args: str) -> Path:
     output_file = tmp_path / "output.xml"
     input_file.write_text(SAMPLE_IBFLEX_XML, encoding="utf-8")
 
-    command = [
-        sys.executable,
-        str(SCRIPT_PATH),
-        "--input-file",
-        str(input_file),
-        "--output-file",
-        str(output_file),
-        "--isins",
-        "US0000000001",
-        *extra_args,
-    ]
-    result = subprocess.run(command, capture_output=True, text=True, check=False)
-    assert result.returncode == 0, result.stderr
+    target_isins = parse_isins(["US0000000001"])
+
+    parser = ET.XMLParser(remove_blank_text=True)
+    tree = ET.parse(str(input_file), parser)
+    root = tree.getroot()
+
+    for statement in root.iter():
+        if isinstance(statement.tag, str) and statement.tag.endswith("FlexStatement"):
+            filter_statement(statement, target_isins)
+
+    tree.write(str(output_file), encoding="UTF-8", xml_declaration=True, pretty_print=True)
     assert output_file.exists()
     return output_file
 
