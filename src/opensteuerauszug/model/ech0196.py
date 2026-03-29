@@ -1153,6 +1153,10 @@ class SecurityPayment(BaseXmlModel):
     broker_label_original: Optional[str] = Field(default=None, exclude=True)
     nonRecoverableTaxAmountOriginal: Optional[Decimal] = Field(default=None, exclude=True)
     payment_type_original: Optional[PaymentTypeOriginal] = Field(default=None, exclude=True)
+
+    # Withholding-cap metadata (set by WithholdingCapCalculator, never serialized).
+    withholding_capped: bool = Field(default=False, exclude=True)
+    withholding_capped_original_wht_chf: Optional[Decimal] = Field(default=None, exclude=True)
     
     model_config = {
         "json_schema_extra": {'tag_name': 'payment', 'tag_namespace': NS_MAP['eCH-0196']}

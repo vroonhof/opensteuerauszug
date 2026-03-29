@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
@@ -16,6 +17,8 @@ from opensteuerauszug.model.payment_reconciliation import (
     PaymentReconciliationReport,
     PaymentReconciliationRow,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -35,9 +38,25 @@ class _KurslisteAgg:
     exchange_rate: Optional[Decimal] = None
     noncash: bool = False
     allows_broker_above_kursliste: bool = False
+    has_capped_payment: bool = False
+    original_withholding_chf: Optional[Decimal] = None
 
 
 class PaymentReconciliationCalculator:
+    _COUNTRIES_WHERE_OVERWITHHOLDING_SUGGESTS_CALCULATION_ISSUE = {
+        "GB",  # United Kingdom (0% WHT)
+        "NL",  # Netherlands (15% - matches treaty)
+        "LU",  # Luxembourg (15% - matches treaty)
+        "US",  # USA (15% via W-8BEN)
+        "CA",  # Canada (15% via NR301)
+        "JP",  # Japan (15% via Relief at Source)
+        "FR",  # France (12.8% or 15% via Form 5000/5001)
+        "IE",  # Ireland (0% via Form V2)
+        "SG",  # Singapore (0% WHT)
+        "HK",  # Hong Kong (0% WHT)
+        "AU",  # Australia (0% on Franked dividends)
+    }
+
     _BROKER_ABOVE_KURSLISTE_ALLOWLIST_SIGNS = {
         "(H)",
         "(IK)",
@@ -53,7 +72,7 @@ class PaymentReconciliationCalculator:
         "kapitalgewinn",
     )
 
-    def __init__(self, tolerance_chf: Decimal = Decimal("0.05"), tolerance_frac = Decimal(0.0005)):
+    def __init__(self, tolerance_chf: Decimal = Decimal("0.05"), tolerance_frac: Decimal = Decimal("0.0005")):
         self.tolerance_chf = tolerance_chf
         self.tolerance_frac = tolerance_frac
 
@@ -74,6 +93,8 @@ class PaymentReconciliationCalculator:
                 report.match_count += 1
             elif row.status == "expected":
                 report.expected_missing_count += 1
+            elif row.status == "capped":
+                report.capped_count += 1
             else:
                 report.mismatch_count += 1
 
@@ -83,6 +104,9 @@ class PaymentReconciliationCalculator:
     def _reconcile_security(self, security: Security) -> List[PaymentReconciliationRow]:
         broker_payments = security.broker_payments or [p for p in security.payment if not p.kursliste]
         kursliste_payments = [p for p in security.payment if p.kursliste]
+        security_has_sensitive_overwithholding = (
+            security.country in self._COUNTRIES_WHERE_OVERWITHHOLDING_SUGGESTS_CALCULATION_ISSUE
+        )
 
         broker_by_date: Dict[date, _BrokerAgg] = defaultdict(_BrokerAgg)
         kurs_by_date: Dict[date, _KurslisteAgg] = defaultdict(_KurslisteAgg)
@@ -115,13 +139,27 @@ class PaymentReconciliationCalculator:
                 if broker.dividend_currency is not None:
                     broker_div_chf = broker.dividend * kurs.exchange_rate
                 if broker.withholding_currency is not None:
-                    broker_with_chf = broker.withholding * kurs.exchange_rate
+                    if broker.withholding_currency == "CHF":
+                        broker_with_chf = broker.withholding
+                    else:
+                        broker_with_chf = broker.withholding * kurs.exchange_rate
 
             matched = False
             status = "mismatch"
             note = None
 
-            if has_kurs and not has_broker and kurs.noncash:
+            # Detect capped payments (WithholdingCapCalculator already ran).
+            if has_kurs and kurs.has_capped_payment:
+                status = "capped"
+                matched = True
+                original_wht = kurs.original_withholding_chf
+                note = (
+                    f"Withholding capped to broker level ("
+                    f"{kurs.withholding_chf:.2f} CHF)."
+                    if kurs.withholding_chf is not None
+                    else "Withholding capped to broker level."
+                )
+            elif has_kurs and not has_broker and kurs.noncash:
                 status = "expected"
                 note = "Accumulating fund payment expected to be absent in broker cash flow."
                 matched = True
@@ -139,7 +177,9 @@ class PaymentReconciliationCalculator:
                     kurs_value_chf=kurs.withholding_chf,
                     broker_value_chf=broker_with_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
-                    allow_broker_above_kursliste=allow_broker_above_kursliste,
+                    allow_broker_above_kursliste=(
+                        allow_broker_above_kursliste or not security_has_sensitive_overwithholding
+                    ),
                 )
                 if not div_ok:
                     note = "Broker dividend is below Kursliste value beyond tolerance."
@@ -169,7 +209,7 @@ class PaymentReconciliationCalculator:
                     security=security_label,
                     payment_date=d,
                     kursliste_dividend_chf=kurs.dividend_chf,
-                    kursliste_withholding_chf=kurs.withholding_chf,
+                    kursliste_withholding_chf=kurs.original_withholding_chf or kurs.withholding_chf,
                     broker_dividend_amount=broker.dividend if broker.dividend_currency else None,
                     broker_dividend_currency=broker.dividend_currency,
                     broker_withholding_amount=broker.withholding if broker.withholding_currency else None,
@@ -247,6 +287,11 @@ class PaymentReconciliationCalculator:
 
         if self._is_broker_above_kursliste_allowlisted(payment):
             agg.allows_broker_above_kursliste = True
+
+        # Detect payments that were already capped by WithholdingCapCalculator.
+        if payment.withholding_capped:
+            agg.has_capped_payment = True
+            agg.original_withholding_chf = payment.withholding_capped_original_wht_chf
 
     def _is_broker_above_kursliste_allowlisted(self, payment: SecurityPayment) -> bool:
         if payment.sign is not None and payment.sign in self._BROKER_ABOVE_KURSLISTE_ALLOWLIST_SIGNS:

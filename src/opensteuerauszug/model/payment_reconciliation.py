@@ -30,3 +30,4 @@ class PaymentReconciliationReport(BaseModel):
     match_count: int = 0
     mismatch_count: int = 0
     expected_missing_count: int = 0
+    capped_count: int = 0

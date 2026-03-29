@@ -23,6 +23,7 @@ from .calculate.minimal_tax_value import MinimalTaxValueCalculator
 from .calculate.kursliste_tax_value_calculator import KurslisteTaxValueCalculator
 from .calculate.fill_in_tax_value_calculator import FillInTaxValueCalculator
 from .calculate.payment_reconciliation_calculator import PaymentReconciliationCalculator
+from .calculate.withholding_cap_calculator import WithholdingCapCalculator
 from .util.known_issues import is_known_issue
 from .core.exchange_rate_provider import ExchangeRateProvider
 from .core.kursliste_manager import KurslisteManager
@@ -66,6 +67,10 @@ class TaxCalculationLevel(str, Enum):
     KURSLISTE = "kursliste"
     FILL_IN = "fillin"
 
+class UseBrokerWithholding(str, Enum):
+    OFF = "off"
+    CAP = "cap"
+
 class LogLevel(str, Enum):
     DEBUG = "DEBUG"
     INFO = "INFO"
@@ -107,6 +112,8 @@ def process(
     kursliste_dir: Optional[Path] = typer.Option(None, "--kursliste-dir", help="Directory containing Kursliste XML files for exchange rate information. Defaults to 'data/kursliste' in CWD or XDG data home."),
     org_nr: Optional[str] = typer.Option(None, "--org-nr", help="Override the organization number used in barcodes (5-digit number)"),
     payment_reconciliation: bool = typer.Option(True, "--payment-reconciliation/--no-payment-reconciliation", help="Run optional payment reconciliation between Kursliste and broker evidence."),
+    corrections_flex: Optional[List[Path]] = typer.Option(None, "--corrections-flex", help="IBKR Flex Query XML file(s) covering the post-year-end period (e.g. Jan–Mar of the following year). Only withholding-tax CashTransactions whose settleDate falls within the tax period are imported, allowing 1042-S corrections to be netted."),
+    use_broker_withholding: UseBrokerWithholding = typer.Option(UseBrokerWithholding.CAP, "--use-broker-withholding", help="Control how broker withholding evidence is used: OFF disables adjustments, CAP (default) caps Kursliste (Q) withholding at the broker's effective level."),
     pre_amble: Optional[List[Path]] = typer.Option(None, "--pre-amble", help="List of PDF documents to add before the main steuerauszug."),
     post_amble: Optional[List[Path]] = typer.Option(None, "--post-amble", help="List of PDF documents to add after the main steuerauszug."),
 ):
@@ -364,7 +371,8 @@ def process(
                     period_to=parsed_period_to,
                     account_settings_list=all_ibkr_account_settings_models
                 )
-                statement = ibkr_importer.import_files([str(input_file)])
+                corrections_files = [str(p) for p in corrections_flex] if corrections_flex else None
+                statement = ibkr_importer.import_files([str(input_file)], corrections_filenames=corrections_files)
                 print(f"IBKR import complete.")
 
             elif importer_type == ImporterType.NONE and not raw_import:
@@ -467,7 +475,17 @@ def process(
             else:
                 print(f"Tax calculation level set to '{tax_calculation_level.value}', skipping detailed tax value calculation step.")
 
-            # --- 3. Run TotalCalculator (or other main calculators) ---
+            # --- 3. Cap withholding to broker level (if enabled) ---
+            if use_broker_withholding == UseBrokerWithholding.CAP:
+                print("Running WithholdingCapCalculator...")
+                cap_calculator = WithholdingCapCalculator()
+                statement = cap_calculator.calculate(statement)
+                if cap_calculator.capped_securities:
+                    for sec_name, dates in cap_calculator.capped_securities.items():
+                        print(f"  Capped withholding for {sec_name} on {', '.join(str(d) for d in dates)}")
+                dump_debug_model(current_phase.value + "_after_withholding_cap", statement)
+
+            # --- 4. Run TotalCalculator (or other main calculators) ---
             # Ensure statement is not None after cleanup, though cleanup should always return it
             if not statement:
                 raise ValueError("TaxStatement became None after cleanup phase. This should not happen.")
@@ -557,6 +575,7 @@ def process(
                 print(
                     "Payment reconciliation complete: "
                     f"matches={report.match_count}, "
+                    f"capped={report.capped_count}, "
                     f"expected-missing={report.expected_missing_count}, "
                     f"mismatches={report.mismatch_count}"
                 )
