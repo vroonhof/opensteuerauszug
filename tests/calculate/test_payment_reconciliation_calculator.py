@@ -1106,3 +1106,65 @@ def test_withholding_cap_only_clears_q_sign():
     assert kl_payment.withholding_capped is True
     # (H) sign should NOT be cleared
     assert kl_payment.sign == "(H)"
+
+
+def test_withholding_cap_zeros_when_broker_has_no_wht_entries():
+    """When broker has dividend payments on a date but no Withholding Tax entries
+    (e.g. Payment In Lieu with no tax deducted), nonRecoverableTaxAmount should
+    be capped at 0 (full reversal)."""
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="LU",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="ARCELORMITTAL-NY REGISTERED",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 6, 11),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("950"),
+                                    amountCurrency="USD",
+                                    exchangeRate=Decimal("0.90"),
+                                    grossRevenueA=Decimal("0"),
+                                    grossRevenueB=Decimal("55.00"),
+                                    nonRecoverableTaxAmount=Decimal("8.25"),
+                                    kursliste=True,
+                                    sign="(Q)",
+                                ),
+                            ],
+                            broker_payments=[
+                                # Dividend payment but NO Withholding Tax entry
+                                SecurityPayment(
+                                    paymentDate=date(2025, 6, 11),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("261.25"),
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    calculator = WithholdingCapCalculator()
+    result = calculator.calculate(statement)
+
+    sec = result.listOfSecurities.depot[0].security[0]
+    kl_payment = next(p for p in sec.payment if p.kursliste)
+
+    assert kl_payment.nonRecoverableTaxAmount == Decimal("0.00")
+    assert kl_payment.withholding_capped is True
+    assert kl_payment.withholding_capped_original_wht_chf == Decimal("8.25")
+    assert kl_payment.sign is None
+

@@ -86,18 +86,21 @@ class WithholdingCapCalculator:
         for kl_payment in wht_payments:
             d = kl_payment.paymentDate
             broker_agg = broker_wht_by_date.get(d)
-            if broker_agg is None or broker_agg.currency is None:
+            if broker_agg is None:
                 continue
 
-            rate = kurs_rate_by_date.get(d)
-            if rate is None:
-                continue
-
+            # When broker has payments on this date but no WHT entries
+            # broker effective WHT is 0.
+            if broker_agg.currency is None:
+                broker_wht_chf = Decimal("0")
             # Convert broker WHT to CHF, avoiding double conversion when
             # the amount is already in CHF (withHoldingTaxClaim path).
-            if broker_agg.currency == "CHF":
+            elif broker_agg.currency == "CHF":
                 broker_wht_chf = broker_agg.total
             else:
+                rate = kurs_rate_by_date.get(d)
+                if rate is None:
+                    continue
                 broker_wht_chf = broker_agg.total * rate
 
             # Clamp at zero to avoid negative withholding claims.
