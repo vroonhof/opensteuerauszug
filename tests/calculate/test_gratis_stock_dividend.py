@@ -391,7 +391,7 @@ def test_regular_stock_split_still_uses_split_terminology():
 
 
 def _make_calc_with_gratis_payment(ex_date, payment_date):
-    """Helper: return (calc, share, kursliste_manager) for a GRATIS stock-dividend payment."""
+    """Helper: return (calc, share) for a GRATIS stock-dividend payment."""
     payment = PaymentShare(
         id=7309735,
         paymentDate=payment_date,

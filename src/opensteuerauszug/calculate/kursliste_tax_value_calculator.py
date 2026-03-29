@@ -27,7 +27,7 @@ def _next_business_day(d: date) -> date:
     return next_day
 
 
-def _has_intervening_event(d1: date, d2: date, event_dates) -> bool:
+def _has_intervening_event(d1: date, d2: date, event_dates: Set[date]) -> bool:
     """Return True if any date in *event_dates* falls strictly between *d1* and *d2*."""
     if d1 == d2:
         return False
@@ -280,7 +280,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         valor_number_new: Optional[int],
         is_gratis: bool = False,
         payment_date=None,
-        other_tax_event_dates=None,
+        all_tax_event_dates: Optional[Set[date]] = None,
     ) -> None:
         """Validate that a stock split is correctly reflected in the imported mutations.
 
@@ -327,7 +327,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         # Build ordered list of candidate dates to search for matching mutations.
         # Fallback dates are only considered when no other tax event for this security
         # falls strictly between the primary date and the candidate date.
-        event_dates = other_tax_event_dates or set()
+        # Exclude the current event's own dates so they don't block fallback matching
+        # within the same event window.
+        current_event_dates: Set[date] = {
+            d for d in (reconciliation_date, payment_date) if d is not None
+        }
+        event_dates: Set[date] = (all_tax_event_dates or set()) - current_event_dates
         candidate_dates = [primary_date]
 
         # Alternative date: paydate <-> exdate swap
@@ -631,12 +636,6 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     valor_number_new = split_legend.valorNumberNew
                     is_gratis = hasattr(pay, "gratis") and pay.gratis
                     if ratio_present:
-                        # Exclude the current payment's own dates so they don't block
-                        # fallback matching within the same event window.
-                        current_pay_dates = {
-                            d for d in (pay.exDate, pay.paymentDate) if d is not None
-                        }
-                        other_tax_event_dates = all_kl_tax_event_dates - current_pay_dates
                         self._validate_stock_split(
                             security=security,
                             reconciliation_date=reconciliation_date,
@@ -646,7 +645,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                             valor_number_new=valor_number_new,
                             is_gratis=is_gratis,
                             payment_date=pay.paymentDate,
-                            other_tax_event_dates=other_tax_event_dates,
+                            all_tax_event_dates=all_kl_tax_event_dates,
                         )
 
                     if pay.paymentValueCHF in (None, Decimal("0")) and pay.paymentValue in (
