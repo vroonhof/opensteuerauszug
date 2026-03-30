@@ -1,21 +1,20 @@
 from decimal import Decimal
+import io
+import logging
 import tempfile
-import os
 import sys
+from contextlib import redirect_stdout
 from pathlib import Path
-from subprocess import run, PIPE
 
 import pytest
-import lxml.etree as ET
-from pydantic import ValidationError
 from opensteuerauszug.model.kursliste import Kursliste as KurslisteModel
 
 # Add the script's directory to sys.path to allow direct import
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR.parent))  # Add project root to import opensteuerauszug
+sys.path.insert(0, str(SCRIPTS_DIR))
 
-# Path to the script to be tested
-FILTER_KURSLISTE_SCRIPT = SCRIPTS_DIR / "filter_kursliste.py"
+from filter_kursliste import filter_kursliste
 
 
 @pytest.fixture
@@ -76,30 +75,35 @@ def temp_dir():
         yield Path(temp_dir)
 
 
-def run_script(temp_dir, args_list):
+def run_script(temp_dir, **kwargs):
     """
-    Run the filter_kursliste.py script with given arguments.
+    Run the filter_kursliste logic directly with given keyword arguments.
     Returns the path to the output file, stdout, stderr, and return code.
     """
     output_xml_path = temp_dir / "output_kursliste.xml"
-    
-    common_args = [
-        sys.executable,  # Python interpreter
-        str(FILTER_KURSLISTE_SCRIPT),
-        "--output-file", str(output_xml_path),
-    ]
-    
-    cmd = common_args + args_list
-    
-    print(f"Running command: {' '.join(cmd)}")  # For debugging tests
-    
-    result = run(cmd, capture_output=True, text=True, encoding='utf-8')
+    kwargs["output_file"] = str(output_xml_path)
 
-    print(f"Command completed with return code {result.returncode}")
-    print(f"Stdout:\n{result.stdout}")
-    print(f"Stderr:\n{result.stderr}")
-    
-    return output_xml_path, result.stdout, result.stderr, result.returncode
+    stderr_stream = io.StringIO()
+    stdout_stream = io.StringIO()
+
+    log_handler = logging.StreamHandler(stderr_stream)
+    log_handler.setLevel(logging.DEBUG)
+    root_logger = logging.getLogger()
+    original_handlers = root_logger.handlers[:]
+    original_level = root_logger.level
+    root_logger.handlers = [log_handler]
+    root_logger.setLevel(logging.DEBUG)
+
+    try:
+        with redirect_stdout(stdout_stream):
+            returncode = filter_kursliste(**kwargs)
+    except SystemExit as e:
+        returncode = e.code if e.code is not None else 0
+    finally:
+        root_logger.handlers = original_handlers
+        root_logger.setLevel(original_level)
+
+    return output_xml_path, stdout_stream.getvalue(), stderr_stream.getvalue(), returncode
 
 
 def parse_output_xml(output_xml_path):
@@ -129,13 +133,12 @@ def parse_output_xml(output_xml_path):
 
 def test_filter_by_cmd_line_valors_only(temp_dir, sample_kursliste_xml):
     """Test filtering kursliste by command line valor numbers only."""
-    args = [
-        "--input-file", str(sample_kursliste_xml),
-        "--valor-numbers", "12345",  # Test Share CHF
-        "--target-currency", "CHF",
-        "--log-level", "DEBUG"  # Use DEBUG for more verbose output during tests
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(sample_kursliste_xml),
+        valor_numbers="12345",
+        target_currency="CHF",
+    )
 
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     assert output_xml_path.exists(), "Output XML file was not created."
@@ -173,13 +176,12 @@ def test_filter_by_cmd_line_valors_only(temp_dir, sample_kursliste_xml):
 
 def test_filter_by_tax_statement_valors_only(temp_dir, sample_kursliste_xml, sample_ech0196_statement1_xml):
     """Test filtering kursliste by tax statement valor numbers only."""
-    args = [
-        "--input-file", str(sample_kursliste_xml),
-        "--tax-statement-files", str(sample_ech0196_statement1_xml),
-        "--target-currency", "CHF",  # Important for exchange rate selection
-        "--log-level", "DEBUG"
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(sample_kursliste_xml),
+        tax_statement_files=[str(sample_ech0196_statement1_xml)],
+        target_currency="CHF",  # Important for exchange rate selection
+    )
 
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     assert output_xml_path.exists(), "Output XML file was not created."
@@ -239,14 +241,13 @@ def test_filter_by_tax_statement_valors_only(temp_dir, sample_kursliste_xml, sam
 
 def test_filter_by_union_valors_and_currencies(temp_dir, sample_kursliste_xml, sample_ech0196_statement1_xml, sample_ech0196_statement2_xml):
     """Test filtering kursliste by union of command line valor numbers and tax statement valor numbers."""
-    args = [
-        "--input-file", str(sample_kursliste_xml),
-        "--valor-numbers", "11223",  # Fund EUR from Kursliste
-        "--tax-statement-files", str(sample_ech0196_statement1_xml), str(sample_ech0196_statement2_xml),
-        "--target-currency", "CHF",
-        "--log-level", "DEBUG"
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(sample_kursliste_xml),
+        valor_numbers="11223",  # Fund EUR from Kursliste
+        tax_statement_files=[str(sample_ech0196_statement1_xml), str(sample_ech0196_statement2_xml)],
+        target_currency="CHF",
+    )
 
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     assert output_xml_path.exists(), "Output XML file was not created."
@@ -327,14 +328,13 @@ def test_filter_by_union_valors_and_currencies(temp_dir, sample_kursliste_xml, s
 @pytest.mark.skip("Bonds currently filtered out in parser")
 def test_include_bonds(temp_dir, sample_kursliste_xml):
     """Test filtering kursliste with the include bonds option."""
-    args = [
-        "--input-file", str(sample_kursliste_xml),
-        "--valor-numbers", "33445",  # Test Bond CHF
-        "--include-bonds",
-        "--target-currency", "CHF",
-        "--log-level", "DEBUG"
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(sample_kursliste_xml),
+        valor_numbers="33445",  # Test Bond CHF
+        include_bonds=True,
+        target_currency="CHF",
+    )
 
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     assert output_xml_path.exists(), "Output XML file was not created."
@@ -374,14 +374,13 @@ def test_include_bonds(temp_dir, sample_kursliste_xml):
 
 def test_exclude_bonds_by_default(temp_dir, sample_kursliste_xml):
     """Test that bonds are excluded by default."""
-    args = [
-        "--input-file", str(sample_kursliste_xml),
-        "--valor-numbers", "33445",  # Test Bond CHF
-        # --include-bonds is NOT specified
-        "--target-currency", "CHF",
-        "--log-level", "DEBUG"
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(sample_kursliste_xml),
+        valor_numbers="33445",  # Test Bond CHF
+        # include_bonds is NOT specified
+        target_currency="CHF",
+    )
 
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     assert output_xml_path.exists(), "Output XML file was not created."
@@ -404,13 +403,12 @@ def test_exclude_bonds_by_default(temp_dir, sample_kursliste_xml):
 
 def test_no_matching_valors(temp_dir, sample_kursliste_xml):
     """Test filtering kursliste with no matching valor numbers."""
-    args = [
-        "--input-file", str(sample_kursliste_xml),
-        "--valor-numbers", "99999,88888",  # Valors not in sample Kursliste
-        "--target-currency", "EUR",  # Use a different target to check its definition
-        "--log-level", "DEBUG"
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(sample_kursliste_xml),
+        valor_numbers="99999,88888",  # Valors not in sample Kursliste
+        target_currency="EUR",  # Use a different target to check its definition
+    )
 
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     assert output_xml_path.exists(), "Output XML file was not created."
@@ -454,15 +452,13 @@ def test_no_matching_valors(temp_dir, sample_kursliste_xml):
 
 def test_error_no_input_source(temp_dir, sample_kursliste_xml):
     """Test error when no input source is provided."""
-    # Test without --valor-numbers and without --tax-statement-files
-    args = [
-        "--input-file", str(sample_kursliste_xml),
-        # No --valor-numbers
-        # No --tax-statement-files
-        "--target-currency", "CHF",
-        "--log-level", "ERROR"  # Keep log clean for error checking
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(sample_kursliste_xml),
+        # No valor_numbers
+        # No tax_statement_files
+        target_currency="CHF",
+    )
 
     assert returncode != 0, "Script should exit with a non-zero return code when no input source is provided."
     # The script logs to stderr for this specific error, check for the message.
@@ -476,13 +472,12 @@ def test_error_no_input_source(temp_dir, sample_kursliste_xml):
 
 def test_input_file_not_found(temp_dir):
     """Test error when input file is not found."""
-    args = [
-        "--input-file", "non_existent_kursliste.xml",
-        "--valor-numbers", "12345",
-        "--target-currency", "CHF",
-        "--log-level", "ERROR"
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file="non_existent_kursliste.xml",
+        valor_numbers="12345",
+        target_currency="CHF",
+    )
     
     assert returncode != 0, "Script should exit with a non-zero return code for non-existent input file."
     assert not output_xml_path.exists(), "Output XML file should not be created."
@@ -490,13 +485,12 @@ def test_input_file_not_found(temp_dir):
 
 def test_invalid_kursliste_xml(temp_dir, malformed_kursliste_xml):
     """Test error when kursliste XML is invalid."""
-    args = [
-        "--input-file", str(malformed_kursliste_xml),
-        "--valor-numbers", "12345",  # Valor numbers are provided
-        "--target-currency", "CHF",
-        "--log-level", "ERROR"
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(malformed_kursliste_xml),
+        valor_numbers="12345",  # Valor numbers are provided
+        target_currency="CHF",
+    )
 
     assert returncode != 0, "Script should exit with a non-zero return code for malformed Kursliste XML."
     # The script should log an error related to XML parsing.
@@ -509,15 +503,12 @@ def test_invalid_kursliste_xml(temp_dir, malformed_kursliste_xml):
 
 def test_invalid_tax_statement_xml(temp_dir, sample_kursliste_xml, sample_ech0196_statement1_xml, malformed_ech0196_statement_xml):
     """Test error handling with valid and invalid tax statement XML files."""
-    # Test with one valid and one malformed tax statement.
-    # The script should process the valid one and skip the malformed one.
-    args = [
-        "--input-file", str(sample_kursliste_xml),
-        "--tax-statement-files", str(sample_ech0196_statement1_xml), str(malformed_ech0196_statement_xml),
-        "--target-currency", "CHF",
-        "--log-level", "DEBUG"  # DEBUG to see all processing logs
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(sample_kursliste_xml),
+        tax_statement_files=[str(sample_ech0196_statement1_xml), str(malformed_ech0196_statement_xml)],
+        target_currency="CHF",
+    )
 
     assert returncode == 0, f"Script should complete successfully even with a malformed tax statement, by skipping it. Stderr:\n{stderr}\nStdout:\n{stdout}"
     
@@ -542,13 +533,12 @@ def test_invalid_tax_statement_xml(temp_dir, sample_kursliste_xml, sample_ech019
 
 def test_invalid_valor_number_format(temp_dir, sample_kursliste_xml):
     """Test error when an invalid valor number format is provided."""
-    args = [
-        "--input-file", str(sample_kursliste_xml),
-        "--valor-numbers", "12345,abc,67890",  # Contains an invalid valor 'abc'
-        "--target-currency", "CHF",
-        "--log-level", "ERROR"
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(sample_kursliste_xml),
+        valor_numbers="12345,abc,67890",  # Contains an invalid valor 'abc'
+        target_currency="CHF",
+    )
 
     assert returncode != 0, "Script should exit with a non-zero return code for invalid valor number format."
     # The script logs "Invalid valor number format from command line: 'abc'. Must be an integer."
@@ -562,13 +552,12 @@ def test_invalid_valor_number_format(temp_dir, sample_kursliste_xml):
 
 def test_target_currency_behavior(temp_dir, sample_kursliste_xml):
     """Test behavior with a target currency that requires specific exchange rates."""
-    args = [
-        "--input-file", str(sample_kursliste_xml),
-        "--valor-numbers", "67890",  # Share USD
-        "--target-currency", "USD",  # Target is USD
-        "--log-level", "DEBUG"
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(sample_kursliste_xml),
+        valor_numbers="67890",  # Share USD
+        target_currency="USD",  # Target is USD
+    )
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     
     output_kursliste = parse_output_xml(output_xml_path)
@@ -621,13 +610,12 @@ def test_empty_input_kursliste(temp_dir):
     with open(empty_kursliste_path, "w", encoding="utf-8") as f:
         f.write(empty_kursliste_content)
 
-    args = [
-        "--input-file", str(empty_kursliste_path),
-        "--valor-numbers", "12345",  # Valor won't be found
-        "--target-currency", "CHF",
-        "--log-level", "DEBUG"
-    ]
-    output_xml_path, stdout, stderr, returncode = run_script(temp_dir, args)
+    output_xml_path, stdout, stderr, returncode = run_script(
+        temp_dir,
+        input_file=str(empty_kursliste_path),
+        valor_numbers="12345",  # Valor won't be found
+        target_currency="CHF",
+    )
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     
     output_kursliste = parse_output_xml(output_xml_path)
