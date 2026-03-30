@@ -373,6 +373,16 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
         event_type = "stock dividend" if is_gratis else "stock split"
 
+        # Resolve the Kursliste year for cross-ISIN lookups even when the old
+        # security has no year-end taxValue (fully replaced during the year).
+        split_lookup_year = None
+        if security.taxValue and security.taxValue.referenceDate:
+            split_lookup_year = security.taxValue.referenceDate.year
+        elif payment_date is not None:
+            split_lookup_year = payment_date.year
+        elif reconciliation_date is not None:
+            split_lookup_year = reconciliation_date.year
+
         if valor_number_new is None:
             # ---- Same-ISIN split: look for a single delta on this security ----
             expected_delta = quantity * (ratio_new / ratio_present - Decimal("1"))
@@ -437,15 +447,8 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     new_security = sec
                     break
 
-            if (
-                new_security is None
-                and self.kursliste_manager
-                and security.taxValue
-                and security.taxValue.referenceDate
-            ):
-                accessor = self.kursliste_manager.get_kurslisten_for_year(
-                    security.taxValue.referenceDate.year
-                )
+            if new_security is None and self.kursliste_manager and split_lookup_year is not None:
+                accessor = self.kursliste_manager.get_kurslisten_for_year(split_lookup_year)
                 if accessor:
                     new_kl_security = accessor.get_security_by_valor(int(valor_number_new))
                     if new_kl_security and new_kl_security.isin:

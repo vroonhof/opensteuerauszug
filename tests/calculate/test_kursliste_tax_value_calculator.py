@@ -892,6 +892,142 @@ def test_cross_isin_stock_split_resolves_new_security_by_kursliste_isin_when_val
     assert calc.errors == []
 
 
+def test_cross_isin_stock_split_resolves_new_security_without_old_tax_value():
+    """Cross-ISIN split validation should still resolve the new security via
+    Kursliste when the old security has no taxValue (fully replaced intra-year)."""
+    split_date = date(2025, 5, 16)
+    old_isin = "US05968L1026"
+    new_isin = "US40090E1064"
+    new_valor = 145059053
+
+    payment = PaymentShare(
+        id=1,
+        paymentDate=split_date,
+        currency="COP",
+        paymentValue=Decimal("0"),
+        paymentValueCHF=Decimal("0"),
+        paymentType=PaymentTypeESTV.OTHER_BENEFIT,
+        taxEvent=True,
+        exDate=split_date,
+        legend=[
+            Legend(
+                id=1,
+                effectiveDate=split_date,
+                exchangeRatioPresent=Decimal("1"),
+                exchangeRatioNew=Decimal("1"),
+                valorNumberNew=new_valor,
+            )
+        ],
+    )
+
+    old_share = Share(
+        id=1,
+        isin=old_isin,
+        valorNumber=882239,
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="SADR",
+        institutionId=54824,
+        institutionName="Bancolombia SA",
+        country="CO",
+        currency="COP",
+        nominalValue=Decimal("500"),
+        payment=[payment],
+    )
+    new_share = Share(
+        id=2,
+        isin=new_isin,
+        valorNumber=new_valor,
+        securityGroup=SecurityGroupESTV.SHARE,
+        securityName="ADR",
+        institutionId=941697,
+        institutionName="Grupo Cibest S.A.",
+        country="CO",
+        currency="COP",
+        nominalValue=Decimal("500"),
+    )
+    kursliste = Kursliste(
+        version="2.2.0.0",
+        creationDate=datetime(2025, 1, 1),
+        year=2025,
+        shares=[old_share, new_share],
+    )
+    kursliste_manager = KurslisteManager()
+    kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
+
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+    )
+
+    old_security = Security(
+        country="CO",
+        securityName="BANCOLOMBIA S.A.-SPONS ADR",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(old_isin),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2025, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("700"),
+                balanceCurrency="USD",
+            ),
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("-700"),
+                balanceCurrency="USD",
+            ),
+        ],
+    )
+
+    new_security = Security(
+        country="CO",
+        securityName="GRUPO CIBEST SA-ADR",
+        positionId=2,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType(new_isin),
+        stock=[
+            SecurityStock(
+                referenceDate=split_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("700"),
+                balanceCurrency="USD",
+            ),
+        ],
+    )
+
+    statement = TaxStatement(
+        minorVersion=2,
+        taxPeriod=2025,
+        periodFrom=date(2025, 1, 1),
+        periodTo=date(2025, 12, 31),
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("U1234567"),
+                    security=[old_security, new_security],
+                )
+            ]
+        ),
+    )
+
+    result = calc.calculate(statement)
+    split_warnings = [
+        w for w in result.critical_warnings
+        if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
+    ]
+    assert split_warnings == []
+    assert calc.errors == []
+
+
 def test_cross_isin_stock_split_error_when_new_security_missing():
     """When a cross-ISIN split references a valorNumberNew that does not
     correspond to any security in the statement, the validator should raise."""
