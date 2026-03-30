@@ -1,7 +1,7 @@
 ---
 name: IBKR Importer issue report
 about: Report a parsing/import issue with the IBKR importer.
-title: "[importer] "
+title: "IBKR: "
 labels: [bug, importer]
 ---
 
@@ -10,15 +10,6 @@ labels: [bug, importer]
 If you're comfortable sharing it, a minimal IBKR Flex XML that reproduces the problem makes it much easier to diagnose. We understand the data contains real financial information — only share what you're comfortable with.
 
 You can use the ISIN filter script to strip the XML down to only the relevant securities and anonymize account details:
-
-```bash
-python scripts/filter_ibflex_xml.py \
-  --input-file path/to/full_ibkr_flex.xml \
-  --output-file path/to/minimal_repro.xml \
-  --isins US0378331005
-```
-
-Use multiple ISINs when needed:
 
 ```bash
 python scripts/filter_ibflex_xml.py \
