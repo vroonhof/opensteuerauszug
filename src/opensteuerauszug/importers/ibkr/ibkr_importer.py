@@ -16,7 +16,6 @@ from opensteuerauszug.model.ech0196 import (
 )
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
-from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Final[Dict[str, SecurityCategory]] = {
     "STK": "SHARE",
@@ -339,7 +338,7 @@ class IbkrImporter:
             amountCurrency=currency,
             amount=amount,
             quotationType='PIECE',
-            quantity=UNINITIALIZED_QUANTITY,
+            quantity=None,
             broker_label_original=tx_type_str,
         )
 
