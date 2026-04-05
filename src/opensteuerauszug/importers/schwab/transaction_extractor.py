@@ -5,7 +5,6 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from opensteuerauszug.model.position import Position, SecurityPosition, CashPosition
 from opensteuerauszug.model.ech0196 import SecurityStock, SecurityPayment, CurrencyId, QuotationType
-from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 # A logger for this module
 logger = logging.getLogger(__name__)
@@ -340,7 +339,7 @@ class TransactionExtractor:
                 # Payment record (will be associated with CashPosition by caller)
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE", 
-                    quantity=UNINITIALIZED_QUANTITY, amountCurrency=currency, # Use currency string
+                    quantity=None, amountCurrency=currency, # Use currency string
                     amount=schwab_amount, name="Credit Interest",
                     grossRevenueB=schwab_amount,
                     broker_label_original=action,
@@ -352,10 +351,9 @@ class TransactionExtractor:
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
                 if schwab_qty is not None and schwab_qty != Decimal(0):
                     print(f"Warning: Ignoring non-zero quantity ({schwab_qty}) for action '{action}' on symbol {pos_object.symbol}. Payment quantity will be uninitialized.")
-                payment_quantity = UNINITIALIZED_QUANTITY
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE",
-                    quantity=payment_quantity, amountCurrency=currency, # Use currency string
+                    quantity=None, amountCurrency=currency, # Use currency string
                     amount=schwab_amount, name="Dividend",
                     grossRevenueB=schwab_amount,
                     broker_label_original=action,
@@ -413,7 +411,7 @@ class TransactionExtractor:
             if schwab_amount and schwab_amount != 0:
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE",
-                    quantity=UNINITIALIZED_QUANTITY, amountCurrency=currency, # Use currency string
+                    quantity=None, amountCurrency=currency, # Use currency string
                     amount=schwab_amount, name=f"{action}",
                     nonRecoverableTax=abs(schwab_amount) if schwab_amount < 0 else None,
                     grossRevenueB=schwab_amount if schwab_amount > 0 else None,

@@ -12,7 +12,6 @@ from opensteuerauszug.model.critical_warning import CriticalWarning, CriticalWar
 from opensteuerauszug.util.sorting import find_index_of_date, sort_security_stocks, sort_payments, sort_security_payments
 from opensteuerauszug.config.models import GeneralSettings
 from opensteuerauszug.core.position_reconciler import PositionReconciler
-from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 from opensteuerauszug.core.organisation import compute_org_nr
 
 logger = logging.getLogger(__name__)
@@ -561,7 +560,7 @@ class CleanupCalculator:
                         # Process Security Payments for the current security
                         if security.payment:
                             payments_needing_qty_update = any(
-                                p.quantity == UNINITIALIZED_QUANTITY for p in security.payment
+                                p.quantity is None for p in security.payment
                             )
 
                             if payments_needing_qty_update and not security.stock:
@@ -591,13 +590,13 @@ class CleanupCalculator:
                                 else:
                                     logger.info(f"  Security {pos_id}: Security payment filtering skipped (tax period not fully defined).")
 
-                            # --- Calculate SecurityPayment.quantity where it's UNINITIALIZED_QUANTITY ---
+                            # --- Calculate SecurityPayment.quantity where it's None (uninitialized) ---
                             # This block is now only entered if security.stock is guaranteed to be non-empty (due to the check above)
                             # OR if no payments needed update in the first place.
                             if payments_needing_qty_update and security.stock: # security.stock check is technically redundant here but safe
                                 reconciler = PositionReconciler(full_stock_history, identifier=f"{pos_id}-payment-qty-reconcile")
                                 for payment_event in security.payment:
-                                    if payment_event.quantity == UNINITIALIZED_QUANTITY:
+                                    if payment_event.quantity is None:
                                         date_to_use_for_reconciliation = payment_event.paymentDate
                                         log_date_source = "paymentDate"
                                         if payment_event.exDate:

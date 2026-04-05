@@ -1117,7 +1117,8 @@ class SecurityPayment(BaseXmlModel):
     # Required attributes
     paymentDate: date = Field(..., json_schema_extra={'is_attribute': True})
     quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})
-    quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
+    # quantity is Optional to support tracking whether it was set or not, but it must be set to a Decimal (possibly 0) later on (enforced by XSD validation in the end).
+    quantity: Optional[Decimal] = Field(default=None, json_schema_extra={'is_attribute': True})
     amountCurrency: CurrencyId = Field(..., json_schema_extra={'is_attribute': True})
     
     # Optional attributes
