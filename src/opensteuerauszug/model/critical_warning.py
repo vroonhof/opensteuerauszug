@@ -5,6 +5,7 @@ user about issues that need attention.  They are rendered on the instructions
 page of the PDF and a hint is placed on the summary page.
 """
 
+from datetime import date
 from enum import Enum
 from typing import Optional
 
@@ -36,3 +37,4 @@ class CriticalWarning(BaseModel):
     message: str
     source: str
     identifier: Optional[str] = None
+    payment_date: Optional[date] = None
