@@ -72,7 +72,7 @@ class PaymentReconciliationCalculator:
         "kapitalgewinn",
     )
 
-    def __init__(self, tolerance_chf: Decimal = Decimal("0.05"), tolerance_frac: Decimal = Decimal("0.0005")):
+    def __init__(self, tolerance_chf: Decimal = Decimal("0.05"), tolerance_frac: Decimal = Decimal("0.001")):
         self.tolerance_chf = tolerance_chf
         self.tolerance_frac = tolerance_frac
 

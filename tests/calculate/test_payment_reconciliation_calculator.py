@@ -239,6 +239,75 @@ def test_broker_above_kursliste_without_allowlist_is_mismatch():
     assert row.status == "mismatch"
 
 
+def test_per_share_fx_rounding_within_tolerance_is_match():
+    """Small differences caused by per-share FX rounding (Kursliste rounds
+    per-share CHF, then multiplies by quantity) should be within tolerance.
+    Real-world example: 272 shares × USD 1.26, exchange rate ~0.8819."""
+    exchange_rate = Decimal("0.88177")
+    broker_div_usd = Decimal("342.72")  # 272 * 1.26
+    broker_wht_usd = Decimal("51.41")
+    # Kursliste rounds per-share: round(1.26 * 0.88177, 3) = 1.111 → 272 * 1.111 = 302.192
+    kl_div_chf = Decimal("302.192")
+    kl_wht_chf = Decimal("45.3288")
+    # broker_div_chf = 342.72 * 0.88177 ≈ 302.199 → delta ≈ 0.207 CHF (0.07%)
+
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="KIMBERLY-CLARK CORP",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 4, 2),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("272"),
+                                    amountCurrency="USD",
+                                    amount=broker_div_usd,
+                                    exchangeRate=exchange_rate,
+                                    grossRevenueB=kl_div_chf,
+                                    withHoldingTaxClaim=kl_wht_chf,
+                                    kursliste=True,
+                                )
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 4, 2),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-272"),
+                                    amountCurrency="USD",
+                                    amount=broker_div_usd,
+                                    name="Dividend",
+                                ),
+                                SecurityPayment(
+                                    paymentDate=date(2025, 4, 2),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-272"),
+                                    amountCurrency="USD",
+                                    amount=-broker_wht_usd,
+                                    name="Withholding Tax",
+                                    nonRecoverableTaxAmountOriginal=broker_wht_usd,
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator().calculate(statement)
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.status == "match"
+    assert row.matched is True
 
 
 def test_broker_above_kursliste_with_allowlisted_h_sign_is_match():
