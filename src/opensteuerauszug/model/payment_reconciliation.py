@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 class PaymentReconciliationRow(BaseModel):
     country: str
     security: str
+    identifier: Optional[str] = None
     payment_date: date
     kursliste_dividend_chf: Decimal = Field(default=Decimal("0"))
     kursliste_withholding_chf: Decimal = Field(default=Decimal("0"))

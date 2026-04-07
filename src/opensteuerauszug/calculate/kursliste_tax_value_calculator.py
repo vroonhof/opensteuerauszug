@@ -149,6 +149,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     message=warning_info["message"],
                     source="KurslisteTaxValueCalculator",
                     identifier=warning_info["identifier"],
+                    payment_date=warning_info["payment_date"],
                 )
             )
         return result
@@ -604,6 +605,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                         {
                             "message": warning_msg,
                             "identifier": sec_ident,
+                            "payment_date": pay.paymentDate,
                         }
                     )
 

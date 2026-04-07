@@ -7,6 +7,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Dict, List, Optional
 
+from opensteuerauszug.model.critical_warning import CriticalWarningCategory
 from opensteuerauszug.model.ech0196 import (
     PaymentTypeOriginal,
     Security,
@@ -99,7 +100,47 @@ class PaymentReconciliationCalculator:
                 report.mismatch_count += 1
 
         tax_statement.payment_reconciliation_report = report
+
+        self._dismiss_reconciled_previous_year_exdate_warnings(tax_statement, report)
+
         return tax_statement
+
+    def _dismiss_reconciled_previous_year_exdate_warnings(
+        self,
+        tax_statement: TaxStatement,
+        report: PaymentReconciliationReport,
+    ) -> None:
+        """Remove PREVIOUS_YEAR_EXDATE critical warnings whose payment was successfully reconciled."""
+        prev_year_warnings = [
+            w
+            for w in tax_statement.critical_warnings
+            if w.category == CriticalWarningCategory.PREVIOUS_YEAR_EXDATE and w.payment_date
+        ]
+        if not prev_year_warnings:
+            return
+
+        matched_dates_by_identifier = defaultdict(set)
+        for row in report.rows:
+            if row.matched and row.identifier and row.payment_date:
+                matched_dates_by_identifier[row.identifier].add(row.payment_date)
+
+        dismissed = []
+        for warning in prev_year_warnings:
+            if warning.identifier and warning.payment_date in matched_dates_by_identifier.get(
+                warning.identifier, set()
+            ):
+                dismissed.append(warning)
+                logger.info(
+                    "Dismissing previous-year ex-date warning for %s on %s "
+                    "(reconciliation matched)",
+                    warning.identifier,
+                    warning.payment_date,
+                )
+
+        if dismissed:
+            tax_statement.critical_warnings = [
+                w for w in tax_statement.critical_warnings if w not in dismissed
+            ]
 
     def _reconcile_security(self, security: Security) -> List[PaymentReconciliationRow]:
         broker_payments = security.broker_payments or [p for p in security.payment if not p.kursliste]
@@ -124,6 +165,7 @@ class PaymentReconciliationCalculator:
         all_dates = sorted(set(broker_by_date.keys()) | set(kurs_by_date.keys()))
         rows: List[PaymentReconciliationRow] = []
         security_label = security.securityName
+        security_identifier = str(security.isin) if security.isin else None
         country = security.country
 
         for d in all_dates:
@@ -207,6 +249,7 @@ class PaymentReconciliationCalculator:
                 PaymentReconciliationRow(
                     country=country,
                     security=security_label,
+                    identifier=security_identifier,
                     payment_date=d,
                     kursliste_dividend_chf=kurs.dividend_chf,
                     kursliste_withholding_chf=kurs.original_withholding_chf or kurs.withholding_chf,
