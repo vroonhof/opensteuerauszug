@@ -165,6 +165,12 @@ That said all mistakes, hallucinations etc are probably mine.
 - https://github.com/BrunoEberhard/open-ech-taxstatement : An old project I only discovered later that contains a model defintion of the Tax data targeting Java. The author has since left the Swis open data efforts.
 
 
+## Acknowledgements
+
+Many thanks to everyone who has tested this tool with their own data and contributed fixes and improvements.
+
+Special thanks to [@pet-zh](https://github.com/pet-zh), whose extensive real-world testing and numerous fixes have made the output significantly more polished and reliable.
+
 ## License
 
 See [LICENSE](LICENSE) file.
