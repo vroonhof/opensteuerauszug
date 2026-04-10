@@ -65,11 +65,12 @@ def test_download_kursliste_logic(mock_open, mock_zip, mock_get, mock_post, mock
         "status": "SUCCESS",
         "data": {"csrfToken": "test-csrf-token"}
     }
-    mock_dl_resp = MagicMock(status_code=200, content=b"zip_content")
+    mock_dl_resp = MagicMock(status_code=200)
+    mock_dl_resp.iter_content.return_value = [b"zip_content"]
 
     mock_get.side_effect = [mock_session_resp, mock_dl_resp]
 
-    # Mock zip extraction
+    # Mock zip extraction (downloader iterates over z.namelist())
     mock_zip_instance = mock_zip.return_value.__enter__.return_value
     mock_zip_instance.namelist.return_value = ["kursliste_2025.xml"]
 
@@ -86,9 +87,16 @@ def test_download_kursliste_logic(mock_open, mock_zip, mock_get, mock_post, mock
     # We can check the mock_post call headers if we really wanted,
     # but requests.Session.post uses session.headers by default.
 
+    # Verify request flow: session init GET then download GET
+    assert mock_get.call_count == 2
+
+    session_call = mock_get.call_args_list[0]
+    assert session_call[0][0] == "https://www.ictax.admin.ch/extern/api/authentication/session.json"
+
     # Verify that THIRD.INIT.220 was selected (highest version)
     download_call = mock_get.call_args_list[1]
     assert download_call[0][0] == "https://www.ictax.admin.ch/extern/api/download/3586267/21f330db01497a390e5aa71cd5e3e21a/kursliste_2025.zip"
+    assert download_call[1]["stream"] is True
 
     # Verify that we tried to write the file
     mock_open.assert_called_with(tmp_path / "kursliste_2025.xml", "wb")
