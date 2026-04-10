@@ -1,9 +1,9 @@
 import unittest
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import Optional
 from opensteuerauszug.model.ech0196 import SecurityStock, QuotationType, CurrencyId
-from opensteuerauszug.core.position_reconciler import PositionReconciler, ReconciledQuantity
+from opensteuerauszug.core.position_reconciler import PositionReconciler
 
 # Helper to create SecurityStock instances easily
 def create_stock(ref_date: str, qty: str, mutation: bool, currency: CurrencyId = "CHF", name: Optional[str] = None, q_type: QuotationType = "PIECE") -> SecurityStock:

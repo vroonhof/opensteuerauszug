@@ -5,7 +5,6 @@ These tests verify that the KurslisteManager can correctly load and process
 Kursliste files from the data directory.
 """
 
-import os
 from pathlib import Path
 
 import pytest

@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Final, List, Any, Dict, Literal, Optional, Sequence, TypedDict, get_args, cast
+from typing import Final, List, Any, Dict, Optional, Sequence, TypedDict, get_args, cast
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
@@ -9,10 +9,10 @@ logger = logging.getLogger(__name__)
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    BankAccountName, ClientNumber, Institution, OrganisationName, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
+    BankAccountName, ClientNumber, Institution, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
     Security, SecurityStock, SecurityPayment,
     BankAccount, BankAccountPayment, BankAccountTaxValue,
-    CurrencyId, QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client, CantonAbbreviation
+    QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client, CantonAbbreviation
 )
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
@@ -586,7 +586,6 @@ class IbkrImporter:
                         logger.debug("Skipped CASH trade {symbol}")
                         continue
 
-                    # Added ETF, FUND
                     if asset_category not in [
                         "STK", "OPT", "FUT", "BOND", "ETF", "FUND"
                     ]:
@@ -677,7 +676,6 @@ class IbkrImporter:
                         open_pos, 'currency', 'OpenPosition'
                     )
 
-                    # Added ETF, FUND
                     if asset_category not in [
                         "STK", "OPT", "FUT", "BOND", "ETF", "FUND"
                     ]:
@@ -1433,10 +1431,10 @@ class IbkrImporter:
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO) # Set a default level for standalone execution
+    logging.basicConfig(level=logging.INFO)
     logger.info("IbkrImporter module loaded.")
     # Example usage:
-    # from opensteuerauszug.config.models import IbkrAccountSettings # Create
+    # from .config.models import IbkrAccountSettings
     # settings = IbkrAccountSettings(account_id="U1234567")
     # importer = IbkrImporter(
     #     period_from=date(2023, 1, 1),

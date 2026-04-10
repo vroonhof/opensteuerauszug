@@ -1,9 +1,7 @@
-
-import pytest
 from datetime import datetime, date
 from decimal import Decimal
 from lxml import etree as ET
-from opensteuerauszug.model.ech0196 import TaxStatement, Institution, Client, ClientNumber, NS_MAP
+from opensteuerauszug.model.ech0196 import TaxStatement, Institution, Client, ClientNumber
 
 def test_tax_statement_xsi_namespace_and_schema_location():
     """Test that the TaxStatement root element includes xsi namespace and schemaLocation."""

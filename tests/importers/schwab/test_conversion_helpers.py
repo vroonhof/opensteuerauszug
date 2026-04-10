@@ -1,11 +1,10 @@
-import pytest
 from opensteuerauszug.importers.schwab.schwab_importer import (
     convert_security_positions_to_list_of_securities,
     convert_cash_positions_to_list_of_bank_accounts,
     create_tax_statement_from_positions
 )
 from opensteuerauszug.model.position import SecurityPosition, CashPosition
-from opensteuerauszug.model.ech0196 import SecurityStock, SecurityPayment, CurrencyId, BankAccountTaxValue
+from opensteuerauszug.model.ech0196 import SecurityStock, BankAccountTaxValue
 from datetime import date
 from decimal import Decimal
 

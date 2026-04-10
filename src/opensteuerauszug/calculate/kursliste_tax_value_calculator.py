@@ -3,18 +3,18 @@ from decimal import Decimal
 from typing import Optional, List, Set
 import logging
 
-from ..core.exchange_rate_provider import ExchangeRateProvider
-from ..core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
-from ..core.kursliste_manager import KurslisteManager
-from ..core.flag_override_provider import FlagOverrideProvider
-from ..model.ech0196 import Security, SecurityTaxValue, SecurityPayment, SecurityStock, PaymentTypeOriginal
-from ..model.kursliste import PaymentTypeESTV, SecurityGroupESTV
-from ..model.critical_warning import CriticalWarning, CriticalWarningCategory
-from ..core.position_reconciler import PositionReconciler
-from ..core.constants import WITHHOLDING_TAX_RATE
+from opensteuerauszug.core.exchange_rate_provider import ExchangeRateProvider
+from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
+from opensteuerauszug.core.kursliste_manager import KurslisteManager
+from opensteuerauszug.core.flag_override_provider import FlagOverrideProvider
+from opensteuerauszug.model.ech0196 import Security, SecurityTaxValue, SecurityPayment, SecurityStock, PaymentTypeOriginal
+from opensteuerauszug.model.kursliste import PaymentTypeESTV, SecurityGroupESTV
+from opensteuerauszug.model.critical_warning import CriticalWarning, CriticalWarningCategory
+from opensteuerauszug.core.position_reconciler import PositionReconciler
+from opensteuerauszug.core.constants import WITHHOLDING_TAX_RATE
 from .base import CalculationMode
 from .minimal_tax_value import MinimalTaxValueCalculator
-from ..util.converters import security_tax_value_to_stock
+from opensteuerauszug.util.converters import security_tax_value_to_stock
 
 logger = logging.getLogger(__name__)
 

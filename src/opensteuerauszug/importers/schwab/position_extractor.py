@@ -1,10 +1,10 @@
 import csv
 import re
-from typing import List, Dict, Optional, Tuple
+from typing import List, Optional, Tuple
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, date, timedelta
 from opensteuerauszug.model.position import Position, CashPosition, SecurityPosition
-from opensteuerauszug.model.ech0196 import SecurityStock, CurrencyId
+from opensteuerauszug.model.ech0196 import SecurityStock
 
 class PositionExtractor:
     """

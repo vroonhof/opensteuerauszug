@@ -1,28 +1,17 @@
 import argparse
 import logging
 import sys
-import lxml.etree as ET # Added lxml.etree import
-from pydantic import ValidationError # Added ValidationError import
+import lxml.etree as ET
+from pydantic import ValidationError
 
 from opensteuerauszug.model.kursliste import (
-    Kursliste, Share, Fund, Bond,
-    ExchangeRate, ExchangeRateMonthly, ExchangeRateYearEnd,
-    PaymentShare, PaymentFund, PaymentBond, Daily, Yearend,
-    DefinitionCurrency, Country, Institution,
-    Canton, Sector, ShortCut, Sign, Da1Rate, MediumTermBond
+    Kursliste
 )
 from opensteuerauszug.model.ech0196 import (
-    TaxStatement,
-    Security as Ech0196Security,
-    BankAccount as Ech0196BankAccount,
-    LiabilityAccount as Ech0196LiabilityAccount,
-    Expense as Ech0196Expense
+    TaxStatement
 )
-# Removed standalone to_xml import and its self-check.
-# We will use the instance method output_kursliste_obj.to_xml()
 
 
-# New function to parse tax statements
 def parse_tax_statements(file_paths: list[str]) -> tuple[set[int], set[str]]:
     collected_valor_numbers = set()
     collected_currencies = set()

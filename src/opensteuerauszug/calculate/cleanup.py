@@ -4,8 +4,8 @@ from typing import List, Optional, Dict, Any, cast, get_args
 from decimal import Decimal
 import logging
 from opensteuerauszug.model.ech0196 import (
-    SecurityTaxValue, TaxStatement, SecurityStock, BankAccountPayment, SecurityPayment,
-    Client, ClientNumber, CantonAbbreviation, LiabilityAccount, LiabilityAccountTaxValue,
+    SecurityTaxValue, TaxStatement, SecurityStock,
+    Client, CantonAbbreviation, LiabilityAccount, LiabilityAccountTaxValue,
     ListOfLiabilities, BankAccountName, CountryIdISO2Type, CurrencyId, LiabilityAccountPayment
 )
 from opensteuerauszug.model.critical_warning import CriticalWarning, CriticalWarningCategory
@@ -56,7 +56,6 @@ class CleanupCalculator:
 
     
 
-    from opensteuerauszug.model.ech0196 import TaxStatement  # Explicit import for clarity
 
     def _generate_tax_statement_id(self, statement: TaxStatement) -> str:
         """

@@ -1,4 +1,3 @@
-# Import key functions for easier access
 from .xml import (
     normalize_xml,
     sort_xml_elements,

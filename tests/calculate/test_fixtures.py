@@ -2,7 +2,6 @@
 Test file to verify that the new fixtures work correctly.
 """
 
-import pytest
 from pathlib import Path
 from typing import List
 

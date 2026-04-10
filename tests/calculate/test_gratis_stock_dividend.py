@@ -27,7 +27,6 @@ from opensteuerauszug.model.ech0196 import (
     SecurityStock,
     TaxStatement,
 )
-from opensteuerauszug.model.critical_warning import CriticalWarningCategory
 from opensteuerauszug.model.kursliste import (
     Kursliste,
     Legend,

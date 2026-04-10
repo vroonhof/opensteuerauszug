@@ -1,17 +1,16 @@
 import pytest
-import sqlite3
-from decimal import Decimal, InvalidOperation
-from datetime import date, datetime # Added datetime
-from pathlib import Path # Added Path
+from decimal import Decimal
+from datetime import date
 
 # Import direct conversion function instead of subprocess
 from scripts.convert_kursliste_to_sqlite import convert_kursliste_xml_to_sqlite
 
 from opensteuerauszug.core.kursliste_db_reader import KurslisteDBReader
-# Import Pydantic models for assertions
 from opensteuerauszug.model.kursliste import (
-    Security, Share, Bond, Fund, # Key security types
-    SecurityTypeESTV # For checking type identifier
+    Share,
+    Bond,
+    Fund,
+    SecurityTypeESTV
 )
 
 TAX_YEAR = 2023

@@ -1,6 +1,5 @@
 from decimal import Decimal
 from datetime import date
-from typing import Optional
 
 from opensteuerauszug.calculate.base import CalculationMode
 from opensteuerauszug.calculate.fill_in_tax_value_calculator import FillInTaxValueCalculator

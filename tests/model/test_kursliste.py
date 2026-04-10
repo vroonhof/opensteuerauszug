@@ -1,9 +1,8 @@
 import pytest
 from decimal import Decimal
-from pathlib import Path
 
 from opensteuerauszug.model.kursliste import (
-    Kursliste, Security, Bond, Share, Fund
+    Kursliste, Bond, Share, Fund
 )
 
 class TestKurslisteFindMethods:

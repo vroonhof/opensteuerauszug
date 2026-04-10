@@ -1,4 +1,3 @@
-import pytest
 from typer.testing import CliRunner
 from pathlib import Path
 from opensteuerauszug.steuerauszug import app

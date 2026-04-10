@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import Optional, Union
 from platformdirs import user_config_path, user_data_path

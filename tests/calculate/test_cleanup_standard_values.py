@@ -1,5 +1,4 @@
-import pytest
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from freezegun import freeze_time
 from opensteuerauszug.calculate.cleanup import CleanupCalculator
 from opensteuerauszug.model.ech0196 import TaxStatement, Client, ClientNumber, Institution, LEIType

@@ -23,13 +23,8 @@ from opensteuerauszug.model.ech0196 import (
     BankAccountName,
     CountryIdISO2Type
 )
-from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY # Added
+from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 import os
-# from unittest.mock import patch # Removed patch
-# pandas is used by the module under test, not directly in tests for enrichment logic
-# import pandas
-# shutil is not needed for the chosen patching strategy
-# import shutil
 
 DEFAULT_TEST_PERIOD_FROM = date(2023, 1, 1)
 DEFAULT_TEST_PERIOD_TO = date(2023, 12, 31)

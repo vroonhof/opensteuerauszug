@@ -1,8 +1,8 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Type, TypeVar, Union, cast
+from typing import Any, List, Set, TypeVar, cast
 from decimal import Decimal
 
-from ..model.ech0196 import TaxStatement, BaseXmlModel, Security
+from opensteuerauszug.model.ech0196 import TaxStatement, BaseXmlModel, Security
 
 # Type variable for generic calculation handlers
 T = TypeVar('T', bound=BaseXmlModel)

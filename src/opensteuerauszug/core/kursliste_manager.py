@@ -5,17 +5,16 @@ This module provides functionality to load and manage multiple Kursliste instanc
 for different tax years.
 """
 
-import os
-import re # For parsing year from filename
+import re
 import datetime
 import xml.etree.ElementTree as ET
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Optional, Union # Union will be removed from self.kurslisten type
+from typing import Dict, List, Optional, Union
 
-from opensteuerauszug.model.kursliste import Kursliste, Security, Payment  # Added Payment for type hint
+from opensteuerauszug.model.kursliste import Kursliste, Payment
 from .kursliste_db_reader import KurslisteDBReader
-from .kursliste_accessor import KurslisteAccessor # Added import
+from .kursliste_accessor import KurslisteAccessor
 
 
 class KurslisteManager:
@@ -260,7 +259,7 @@ class KurslisteManager:
             return None
 
         # KurslisteAccessor.get_security_by_isin returns Optional[Security]
-        # The Security object is a Pydantic model from ..model.kursliste
+        # The Security object is a Pydantic model from opensteuerauszug.model.kursliste
         security_model = accessor.get_security_by_isin(isin) 
 
         if not security_model:

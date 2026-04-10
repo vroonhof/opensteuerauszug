@@ -2,7 +2,7 @@ import unittest
 import os
 import csv
 import tempfile
-import shutil # For tearDown
+import shutil
 
 from opensteuerauszug.core.identifier_loader import SecurityIdentifierMapLoader
 

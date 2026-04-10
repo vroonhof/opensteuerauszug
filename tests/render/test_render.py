@@ -1,15 +1,13 @@
 import os
-import sys
 import tempfile
 import pytest
-from pathlib import Path
 from datetime import date, datetime
 from decimal import Decimal
-import pypdf  # Fors checking PDF pages
+import pypdf
 from io import BytesIO
-from unittest import mock # Added for mocking
+from unittest import mock
 
-from PIL import Image as PILImage # Added for dummy image
+from PIL import Image as PILImage
 
 from opensteuerauszug.model.ech0196 import (
     TaxStatement,

@@ -1,7 +1,7 @@
-from typing import Optional, Union, Literal, List, Any
+from typing import Optional, Union, Literal, Any
 from pydantic import BaseModel, Field, field_validator, PrivateAttr
 
-from opensteuerauszug.model.ech0196 import ISINType, ValorNumber
+from .ech0196 import ISINType, ValorNumber
 
 class BasePosition(BaseModel):
     depot: str

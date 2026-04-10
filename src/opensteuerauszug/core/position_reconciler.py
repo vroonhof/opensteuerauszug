@@ -4,10 +4,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import List, Optional, Tuple
 from decimal import Decimal
-from opensteuerauszug.model.ech0196 import SecurityStock, CurrencyId, QuotationType
+from opensteuerauszug.model.ech0196 import SecurityStock, CurrencyId
 from opensteuerauszug.util.sorting import sort_security_stocks
-
-# A logger for this module
 logger = logging.getLogger(__name__)
 
 @dataclass

@@ -1,14 +1,12 @@
-import os
 import pytest
 from datetime import date
-from decimal import Decimal
 from typing import List
 from pathlib import Path
 
 from opensteuerauszug.importers.ibkr.ibkr_importer import IbkrImporter
 from opensteuerauszug.config.models import IbkrAccountSettings
-from opensteuerauszug.model.ech0196 import TaxStatement # ListOfSecurities, ListOfBankAccounts, Security, BankAccount, QuotationType, CurrencyId # Keep only TaxStatement for now
-from tests.utils.samples import get_sample_files # Import the utility
+from opensteuerauszug.model.ech0196 import TaxStatement
+from tests.utils.samples import get_sample_files
 
 # Check if ibflex is available, skip tests if not
 try:

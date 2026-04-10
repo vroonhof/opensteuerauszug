@@ -1,4 +1,3 @@
-import pytest
 from opensteuerauszug.model.ech0196 import ISINType, ValorNumber
 from opensteuerauszug.model.position import SecurityPosition
 

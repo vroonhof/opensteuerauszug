@@ -1,21 +1,18 @@
-import os
 import pytest
 from decimal import Decimal
-from pathlib import Path
-from typing import Dict, Any, List, Optional
 from opensteuerauszug.model.ech0196 import (
-    CurrencyId, ListOfSecurities, ValorNumber, ISINType, BankAccountNumber, BankAccountName,
-    ClientNumber, CountryIdISO2Type, LiabilityCategory, PositiveDecimal,
+    ValorNumber, ISINType,
+    PositiveDecimal,
     BankAccountNumber, BankAccountName, CountryIdISO2Type, CurrencyId, Depot, DepotNumber
 )
 
-from opensteuerauszug.calculate.base import CalculationMode, CalculationError
+from opensteuerauszug.calculate.base import CalculationMode
 from opensteuerauszug.calculate.total import TotalCalculator
 from opensteuerauszug.model.ech0196 import (
-    TaxStatement, Security, BankAccount, LiabilityAccount, Expense,
+    TaxStatement, Security, BankAccount, LiabilityAccount,
     SecurityTaxValue, SecurityPayment, BankAccountTaxValue, BankAccountPayment,
     LiabilityAccountTaxValue, LiabilityAccountPayment, ListOfSecurities,
-    ListOfBankAccounts, ListOfLiabilities, ListOfExpenses, ClientNumber
+    ListOfBankAccounts, ListOfLiabilities, ClientNumber
 )
 from tests.utils.samples import get_sample_files
 

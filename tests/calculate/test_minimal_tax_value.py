@@ -5,15 +5,14 @@ from opensteuerauszug.calculate.base import CalculationError, CalculationMode
 from opensteuerauszug.model.ech0196 import (
     TaxStatement, BankAccount, BankAccountTaxValue, BankAccountPayment,
     LiabilityAccountTaxValue, LiabilityAccountPayment, Security, SecurityTaxValue,
-    SecurityPayment, Institution, PaymentTypeOriginal
+    SecurityPayment, PaymentTypeOriginal
 )
 from opensteuerauszug.core.exchange_rate_provider import DummyExchangeRateProvider, ExchangeRateProvider
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from opensteuerauszug.core.kursliste_manager import KurslisteManager
 from scripts.convert_kursliste_to_sqlite import convert_kursliste_xml_to_sqlite
 from tests.core.test_kursliste_db_reader import SAMPLE_XML_CONTENT, TAX_YEAR
-from datetime import date, datetime
-from typing import Optional
+from datetime import date
 from tests.utils.samples import get_sample_files
 from .known_issues import _known_issue
 from .conftest import get_tax_year_for_sample, ensure_kursliste_year_available

@@ -1,4 +1,3 @@
-import os
 import pytest
 from opensteuerauszug.core.flag_override_provider import FlagOverrideProvider
 

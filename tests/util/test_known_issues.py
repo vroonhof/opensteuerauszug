@@ -1,5 +1,4 @@
 """Tests for known_issues utility functions."""
-import pytest
 from decimal import Decimal
 
 from opensteuerauszug.calculate.base import CalculationError

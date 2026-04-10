@@ -4,8 +4,6 @@ import datetime as dt
 from datetime import date, datetime
 from decimal import Decimal
 
-import pytest
-
 from opensteuerauszug.calculate.base import CalculationMode
 from opensteuerauszug.calculate.kursliste_tax_value_calculator import KurslisteTaxValueCalculator
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider

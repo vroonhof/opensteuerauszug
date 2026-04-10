@@ -3,8 +3,6 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-import pytest
-
 from opensteuerauszug.calculate.cleanup import CleanupCalculator
 from opensteuerauszug.model.critical_warning import CriticalWarningCategory
 from opensteuerauszug.model.ech0196 import (

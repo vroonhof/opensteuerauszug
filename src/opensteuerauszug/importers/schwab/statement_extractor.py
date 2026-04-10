@@ -2,10 +2,9 @@ import re
 import decimal
 from datetime import datetime, timedelta
 import os
-import argparse # Added for command-line arguments
+import argparse
 import logging
 
-# Use pypdf for PDF reading
 from pypdf import PdfReader, errors
 
 # Use Decimal for precise financial calculations
@@ -34,7 +33,7 @@ CASH_SUMMARY_PATTERN = re.compile(
 )
 
 from opensteuerauszug.model.position import SecurityPosition, CashPosition
-from opensteuerauszug.model.ech0196 import SecurityStock, CurrencyId
+from opensteuerauszug.model.ech0196 import SecurityStock
 
 class StatementExtractor:
     """

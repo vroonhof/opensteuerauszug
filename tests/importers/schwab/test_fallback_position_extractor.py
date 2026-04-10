@@ -1,5 +1,4 @@
 from unittest.mock import patch, mock_open
-from typing import List, Optional, Tuple, Any
 from datetime import date
 import csv
 import pytest
@@ -10,7 +9,7 @@ from io import StringIO
 import contextlib
 
 from opensteuerauszug.importers.schwab.fallback_position_extractor import FallbackPositionExtractor
-from opensteuerauszug.model.position import Position, CashPosition, SecurityPosition
+from opensteuerauszug.model.position import CashPosition, SecurityPosition
 from opensteuerauszug.model.ech0196 import SecurityStock
 
 @pytest.fixture

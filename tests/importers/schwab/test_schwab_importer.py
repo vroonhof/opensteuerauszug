@@ -1,27 +1,21 @@
 import unittest
-from unittest.mock import MagicMock, patch
-from datetime import date, datetime, timedelta
+from unittest.mock import patch
+from datetime import date, timedelta
 from decimal import Decimal
 
 from opensteuerauszug.importers.schwab.schwab_importer import SchwabImporter, convert_security_positions_to_list_of_securities
-from opensteuerauszug.importers.schwab.transaction_extractor import TransactionExtractor # Assuming path
 from opensteuerauszug.model.ech0196 import (
     TaxStatement,
     SecurityPayment,
     SecurityStock,
-    CurrencyId,      # This is an Annotated[str, ...]
-    QuotationType,   # This is a Literal["PIECE", "PERCENT"]
-    DepotNumber,     # This is class DepotNumber(str)
-    Security,        # Added Security for asserting results
-    ListOfSecurities # Added for type hint
-    # Import other necessary eCH-0196 models if needed for constructing test data
+    DepotNumber,
+    ListOfSecurities
 )
 from opensteuerauszug.model.position import SecurityPosition
-# Assuming your models are Pydantic, otherwise adjust instantiation
 
 from opensteuerauszug.importers.schwab.schwab_importer import _get_configured_account_info, create_tax_statement_from_positions
 from opensteuerauszug.config.models import SchwabAccountSettings
-from opensteuerauszug.model.ech0196 import ClientNumber # Import ClientNumber for assertions
+from opensteuerauszug.model.ech0196 import ClientNumber
 
 
 class TestGetConfiguredAccountInfo(unittest.TestCase):
@@ -98,7 +92,7 @@ class TestGetConfiguredAccountInfo(unittest.TestCase):
 
 from opensteuerauszug.importers.schwab.schwab_importer import convert_cash_positions_to_list_of_bank_accounts
 from opensteuerauszug.model.position import CashPosition
-from opensteuerauszug.model.ech0196 import BankAccountNumber, BankAccountName, ListOfBankAccounts, Depot # Depot needed for DepotNumber
+from opensteuerauszug.model.ech0196 import BankAccountNumber, BankAccountName, ListOfBankAccounts, Depot
 
 
 class TestSchwabImporterAccountResolution(unittest.TestCase):

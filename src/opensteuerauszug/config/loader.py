@@ -11,9 +11,6 @@ except ImportError:
 
 from .paths import resolve_config_file
 from .models import (
-    GeneralSettings,
-    BrokerSettings,
-    AccountSettingsBase,
     SchwabAccountSettings,
     ConcreteAccountSettings,
     SpecificAccountSettingsUnion,

@@ -6,7 +6,7 @@ import lxml.etree as ET
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from filter_ibflex_xml import filter_statement, parse_isins, sanitize_account_information
+from filter_ibflex_xml import filter_statement, parse_isins
 
 SAMPLE_IBFLEX_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <FlexQueryResponse queryName=\"Annual Tax Report\" type=\"AF\">

@@ -5,19 +5,14 @@ The Kursliste is a standardized format used by Swiss financial institutions
 to report security prices for tax purposes.
 """
 import datetime
-import sys
 import lxml.etree as ET
-# Added logging
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 import logging
-# Add Any for type hinting the validator function
-from typing import Any, ClassVar, Dict, List, Literal, Optional, Set, Union
-# Removed io import as debugging is removed
+from typing import ClassVar, List, Optional, Set, Union
 
-from pydantic import (BaseModel, ConfigDict, Field, StringConstraints,
-                      ValidationError, field_validator)
+from pydantic import (BaseModel, ConfigDict, Field, StringConstraints, ValidationError)
 from typing_extensions import Annotated
 from pydantic_xml import BaseXmlModel as PydanticXmlModel, attr, element
 

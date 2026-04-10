@@ -1,8 +1,7 @@
 """Pydantic models for eCH-0196 Tax Statement standard."""
 
-from pydantic import BaseModel, Field, validator, field_validator, StringConstraints, AfterValidator
-from pydantic.fields import FieldInfo  # Import FieldInfo
-from pydantic import ConfigDict  # Import ConfigDict for model_config
+from pydantic import BaseModel, Field, field_validator, StringConstraints, AfterValidator
+from pydantic import ConfigDict
 from pydantic_core import PydanticUndefined
 from typing import (
     ClassVar,
@@ -22,12 +21,12 @@ from datetime import date, datetime
 from enum import Enum
 from decimal import Decimal
 import lxml.etree as ET
-from inspect import isclass  # Add import for isclass function
+from inspect import isclass
 import logging
 import re
 
-from opensteuerauszug.model.critical_warning import CriticalWarning
-from opensteuerauszug.model.payment_reconciliation import PaymentReconciliationReport
+from .critical_warning import CriticalWarning
+from .payment_reconciliation import PaymentReconciliationReport
 
 logger = logging.getLogger(__name__)
 

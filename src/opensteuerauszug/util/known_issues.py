@@ -2,8 +2,8 @@
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
-from ..calculate.base import CalculationError
-from ..model.ech0196 import Institution, SecurityPayment
+from opensteuerauszug.calculate.base import CalculationError
+from opensteuerauszug.model.ech0196 import Institution, SecurityPayment
 
 
 # With our current structure we cannot auto detect.

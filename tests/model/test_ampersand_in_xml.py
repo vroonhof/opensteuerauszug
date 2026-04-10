@@ -1,7 +1,5 @@
 """Test that ampersands in security names are properly handled in XML output."""
 
-import pytest
-from decimal import Decimal
 from opensteuerauszug.model.ech0196 import Security, ISINType, ValorNumber
 
 

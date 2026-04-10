@@ -1,5 +1,4 @@
 from datetime import date, timedelta
-from bisect import bisect_left, bisect_right
 from typing import List, Tuple
 
 class DateRangeCoverage:

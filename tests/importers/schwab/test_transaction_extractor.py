@@ -1,11 +1,11 @@
 import pytest
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
-from typing import List, Optional, Tuple, Any, Dict
+from typing import List, Optional, Tuple
 
-from opensteuerauszug.importers.schwab.transaction_extractor import TransactionExtractor, KNOWN_ACTIONS
+from opensteuerauszug.importers.schwab.transaction_extractor import TransactionExtractor
 from opensteuerauszug.model.position import Position, SecurityPosition, CashPosition
-from opensteuerauszug.model.ech0196 import SecurityStock, SecurityPayment, CurrencyId
+from opensteuerauszug.model.ech0196 import SecurityStock, SecurityPayment
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 # Helper to create a TransactionExtractor instance with a dummy filename

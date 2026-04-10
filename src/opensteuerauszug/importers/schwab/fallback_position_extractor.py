@@ -1,10 +1,10 @@
 import logging
 from typing import List, Optional, Tuple
-from datetime import date, datetime # Added datetime
-import csv # Added for CSV parsing
-from decimal import Decimal, InvalidOperation # Added for Decimal
-from opensteuerauszug.model.position import Position
-from opensteuerauszug.model.ech0196 import SecurityStock, QuotationType, CurrencyId
+from datetime import datetime
+import csv
+from decimal import Decimal, InvalidOperation
+from opensteuerauszug.model.position import Position, CashPosition, SecurityPosition
+from opensteuerauszug.model.ech0196 import SecurityStock
 
 logger = logging.getLogger(__name__)
 
@@ -121,11 +121,9 @@ class FallbackPositionExtractor:
                 default_currency = "USD"
 
                 if symbol_str == "CASH":
-                    from opensteuerauszug.model.position import CashPosition # Local import
                     pos = CashPosition(depot=processed_depot, currentCy=default_currency, cash_account_id=None)
                     stock_name = "Manual Cash Position from CSV"
                 else:
-                    from opensteuerauszug.model.position import SecurityPosition # Local import
                     pos = SecurityPosition(depot=processed_depot, symbol=symbol_str, description=None)
                     stock_name = f"Manual Security Position for {symbol_str} from CSV"
                 

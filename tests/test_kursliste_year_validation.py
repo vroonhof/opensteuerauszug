@@ -3,8 +3,7 @@ Test that validates early detection of missing Kursliste for the tax year.
 """
 import pytest
 from pathlib import Path
-from datetime import date
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from opensteuerauszug.core.kursliste_manager import KurslisteManager
 
