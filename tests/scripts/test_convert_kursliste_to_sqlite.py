@@ -103,8 +103,8 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     assert share_row is not None
     share_model_class = SECURITY_TYPE_MAP.get(share_row["security_type_identifier"])
     assert share_model_class is Share
-    reconstructed_share = share_model_class.model_validate_json(share_row["security_object_blob"].decode('utf-8'))
-    
+    reconstructed_share = share_model_class.from_xml(share_row["security_object_blob"])
+
     assert reconstructed_share.id == 101
     assert reconstructed_share.valorNumber == 123456
     assert reconstructed_share.isin == "CH0012345678"
@@ -120,7 +120,7 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     assert bond_row is not None
     bond_model_class = SECURITY_TYPE_MAP.get(bond_row["security_type_identifier"])
     assert bond_model_class is Bond
-    reconstructed_bond = bond_model_class.model_validate_json(bond_row["security_object_blob"].decode('utf-8'))
+    reconstructed_bond = bond_model_class.from_xml(bond_row["security_object_blob"])
 
     assert reconstructed_bond.id == 202
     assert reconstructed_bond.valorNumber == 789012
@@ -137,7 +137,7 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     assert fund_row is not None
     fund_model_class = SECURITY_TYPE_MAP.get(fund_row["security_type_identifier"])
     assert fund_model_class is Fund
-    reconstructed_fund = fund_model_class.model_validate_json(fund_row["security_object_blob"].decode('utf-8'))
+    reconstructed_fund = fund_model_class.from_xml(fund_row["security_object_blob"])
 
     assert reconstructed_fund.id == 303
     assert reconstructed_fund.valorNumber == 654321

@@ -22,13 +22,13 @@ The `KurslisteManager` component is designed to automatically discover and load 
 All Kursliste data, whether from XML or SQLite, is accessed through the `KurslisteAccessor` for a given tax year. This accessor provides a unified interface for retrieving security information (as Pydantic models) and exchange rates.
 
 -   **Caching**: The `KurslisteAccessor` automatically caches the results of its data retrieval methods (e.g., fetching securities by ISIN/VALOR, getting exchange rates). This means that subsequent requests for the same data will be served from the cache, significantly improving performance.
--   **Data Source Handling**: The `KurslisteManager` determines the underlying data source for the accessor (SQLite DB or a list of XML file models). The `KurslisteAccessor` then intelligently queries this source. If the source is an SQLite database, the `KurslisteDBReader` component handles the direct database interaction, including deserializing security objects from JSON BLOBs into their respective Pydantic models.
+-   **Data Source Handling**: The `KurslisteManager` determines the underlying data source for the accessor (SQLite DB or a list of XML file models). The `KurslisteAccessor` then intelligently queries this source. If the source is an SQLite database, the `KurslisteDBReader` component handles the direct database interaction, including deserializing security objects from BLOBs (raw XML or legacy JSON) into their respective Pydantic models.
 
 ## Automatic Conversion of XML to SQLite (Recommended)
 
 Using the SQLite format is **highly recommended** for performance, especially with large datasets or frequent access. The `KurslisteAccessor`'s caching provides benefits for both sources, but initial loading and complex queries are generally faster with a pre-processed SQLite database.
 
-A utility script is provided to convert XML Kurslisten to the SQLite format. This script now stores each security object as a JSON BLOB in the database, allowing for full reconstruction into its original Pydantic model.
+A utility script is provided to convert XML Kurslisten to the SQLite format. This script stores each security object as a raw XML BLOB in the database, allowing for full reconstruction into its original Pydantic model via `from_xml()`. This avoids the expensive Pydantic round-trip during conversion, making the process significantly faster.
 
 ### Conversion Script
 -   **Location**: `scripts/convert_kursliste_to_sqlite.py`
@@ -36,7 +36,7 @@ A utility script is provided to convert XML Kurslisten to the SQLite format. Thi
     -   A `securities` table where each security is stored with its `kl_id` (original XML ID) as the PRIMARY KEY.
     -   Indexed columns `valor_number`, `isin`, and `tax_year` for efficient lookups.
     -   The `security_type_identifier` (e.g., "SHARE.COMMON") is stored for quick type checking.
-    -   The full Pydantic model of the security is serialized to a JSON string and stored in a `security_object_blob` (BLOB) field.
+    -   The full security element is stored as raw XML bytes in a `security_object_blob` (BLOB) field, which is lazily parsed into the Pydantic model on read.
     -   Exchange rate data is stored in separate, structured tables.
 
 ### How to Use the Conversion Script

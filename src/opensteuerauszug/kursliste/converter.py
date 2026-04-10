@@ -1,16 +1,19 @@
 import sqlite3
 import os
-import xml.etree.ElementTree as ET
+import lxml.etree as ET
 from typing import Optional, Union
 from pathlib import Path
 
 from opensteuerauszug.model.kursliste import (
-    Share, Bond, Fund, Derivative, CoinBullion, CurrencyNote, LiborSwap,
-    Sign, Da1Rate, KurslisteMetadata
+    KurslisteMetadata,
+    KURSLISTE_NS_2_0, KURSLISTE_NS_2_2,
 )
 
-CONVERTER_SCHEMA_VERSION = "2"
+CONVERTER_SCHEMA_VERSION = "3"
 KURSLISTE_METADATA_KEY = "kursliste_metadata"
+
+# Blob format identifier: "xml" means blobs are raw XML bytes (parsed via from_xml).
+BLOB_FORMAT = "xml"
 
 
 def create_schema(conn):
@@ -114,59 +117,50 @@ def create_idx(conn):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_securities_isin_tax_year ON securities (isin, tax_year);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_securities_valor_tax_year ON securities (valor_number, tax_year);")
 
-	# Add index for signs
+    # Add index for signs
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_signs_value_tax_year ON signs (sign_value, tax_year);")
 
-	# Add index for DA1
+    # Add index for DA1
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_da1_country_group_tax_year ON da1_rates (country, security_group, tax_year);")
 
-	# Add indexes for exchange rate tabels
+    # Add indexes for exchange rate tables
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exchange_daily_currency_date_year ON exchange_rates_daily (currency_code, date, tax_year);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exchange_monthly_currency_year_month ON exchange_rates_monthly (currency_code, year, month, tax_year);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exchange_year_end_currency_year ON exchange_rates_year_end (currency_code, year, tax_year);")
 
-    conn.commit()    
+    conn.commit()
 
-def get_attr(elem, attr):
-    """Helper to get attribute from an XML element."""
-    return elem.get(attr)
 
-def serialize_element_to_pydantic_json(elem, model_class):
+def _normalize_ns_to_22(xml_bytes: bytes) -> bytes:
+    """Fast byte-level namespace normalization from v2.0 to v2.2."""
+    return xml_bytes.replace(
+        KURSLISTE_NS_2_0.encode('ascii'),
+        KURSLISTE_NS_2_2.encode('ascii'),
+    )
+
+
+def serialize_element_to_xml_bytes(elem, needs_ns_rewrite):
     """
-    Convert an XML element to a Pydantic model and serialize to JSON.
+    Serialize an lxml element to XML bytes for storage.
+
+    Skips the expensive Pydantic round-trip entirely. The element is serialized
+    directly to XML bytes, with namespace normalization if needed.
 
     Args:
-        elem: The XML element
-        model_class: The Pydantic model class to use
+        elem: The lxml XML element
+        needs_ns_rewrite: Whether to rewrite namespace from v2.0 to v2.2
 
     Returns:
-        JSON string of the model, or None if parsing fails
+        XML bytes, or None on error
     """
     try:
-        # Convert element subtree to XML string
-        xml_str = ET.tostring(elem, encoding='unicode')
-
-        # Try parsing with the original namespace first
-        try:
-            model_instance = model_class.from_xml(xml_str)
-            return model_instance.model_dump_json(by_alias=True)
-        except Exception as e1:
-            # If that fails, try replacing the namespace with the expected one
-            # This handles older kursliste versions with different namespaces
-            xml_str_fixed = xml_str.replace(
-                'http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste',
-                'http://xmlns.estv.admin.ch/ictax/2.2.0/kursliste'
-            )
-            try:
-                model_instance = model_class.from_xml(xml_str_fixed)
-                return model_instance.model_dump_json(by_alias=True)
-            except Exception as e2:
-                # If both attempts fail, print warning and return None
-                print(f"Warning: Failed to parse element to {model_class.__name__}: {e1}")
-                return None
-
+        xml_bytes = ET.tostring(elem)
+        if needs_ns_rewrite:
+            xml_bytes = _normalize_ns_to_22(xml_bytes)
+        return xml_bytes
     except Exception as e:
-        print(f"Warning: Failed to serialize element to {model_class.__name__}: {e}")
+        tag = getattr(elem, 'tag', '?')
+        print(f"Warning: Failed to serialize element {tag}: {e}")
         return None
 
 def read_conversion_metadata(db_file_path: Union[str, Path]) -> dict[str, str]:
@@ -237,6 +231,10 @@ def convert_kursliste_xml_to_sqlite(
     """
     Streaming conversion function that processes XML without loading entire file into memory.
 
+    Uses lxml iterparse for fast streaming, stores raw XML bytes as BLOBs
+    (avoiding expensive Pydantic round-trips), and uses SQLite pragmas
+    optimized for bulk inserts.
+
     Args:
         xml_file_path: Path to the Kursliste XML file
         db_file_path: Path to the SQLite database file to create
@@ -244,41 +242,34 @@ def convert_kursliste_xml_to_sqlite(
     Returns:
         True if successful, raises exception if failed
     """
+    xml_file_path = str(xml_file_path)
     conn = None
     try:
-        # Create/connect to the SQLite database
+        if not os.path.isfile(xml_file_path):
+            raise FileNotFoundError(f"XML file not found at {xml_file_path}")
+
+        # Create/connect to the SQLite database with bulk-insert optimizations
         conn = sqlite3.connect(str(db_file_path))
         cursor = conn.cursor()
+        cursor.execute("PRAGMA journal_mode=OFF")
+        cursor.execute("PRAGMA synchronous=OFF")
+        cursor.execute("PRAGMA cache_size=-65536")  # 64MB cache
+        cursor.execute("PRAGMA temp_store=MEMORY")
 
         # Create the database schema
         create_schema(conn)
 
-        source_file_name = os.path.basename(str(xml_file_path))
+        source_file_name = os.path.basename(xml_file_path)
 
-        # Use iterparse for streaming XML processing
         print(f"Starting streaming parse of {xml_file_path}...")
 
-        # Detect namespace
-        namespace = None
-        # Must cast to str because ET.iterparse expects str or bytes, not Path
-        for event, elem in ET.iterparse(str(xml_file_path), events=('start',)):
-            if '}' in elem.tag:
-                namespace = elem.tag.split('}')[0][1:]
-            break
-
         # Security types to process
-        security_tags = ['share', 'bond', 'fund', 'derivative', 'coinBullion', 'currencyNote', 'liborSwap']
-        security_model_map = {
-            'share': Share,
-            'bond': Bond,
-            'fund': Fund,
-            'derivative': Derivative,
-            'coinBullion': CoinBullion,
-            'currencyNote': CurrencyNote,
-            'liborSwap': LiborSwap
-        }
+        security_tags_local = frozenset([
+            'share', 'bond', 'fund', 'derivative',
+            'coinBullion', 'currencyNote', 'liborSwap',
+        ])
 
-        counts = {tag: 0 for tag in security_tags}
+        counts = {tag: 0 for tag in security_tags_local}
         counts['exchangeRate'] = 0
         counts['exchangeRateMonthly'] = 0
         counts['exchangeRateYearEnd'] = 0
@@ -286,8 +277,10 @@ def convert_kursliste_xml_to_sqlite(
         counts['da1Rate'] = 0
 
         tax_year = None
-        batch_size = 1000
+        batch_size = 5000
         batch_count = 0
+        total_count = 0
+        needs_ns_rewrite = False
 
         # Batch lists for executemany
         securities_batch = []
@@ -297,62 +290,80 @@ def convert_kursliste_xml_to_sqlite(
         signs_batch = []
         da1_rates_batch = []
 
+        # Pre-compiled SQL statements
+        sql_securities = """
+            INSERT INTO securities (
+                kl_id, valor_number, isin, tax_year,
+                security_type_identifier, security_object_blob
+            ) VALUES (?, ?, ?, ?, ?, ?)"""
+        sql_exchange_daily = """
+            INSERT INTO exchange_rates_daily (
+                currency_code, date, rate, denomination, tax_year, source_file
+            ) VALUES (?, ?, ?, ?, ?, ?)"""
+        sql_exchange_monthly = """
+            INSERT INTO exchange_rates_monthly (
+                currency_code, year, month, rate, denomination, tax_year, source_file
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)"""
+        sql_exchange_year_end = """
+            INSERT INTO exchange_rates_year_end (
+                currency_code, year, rate, rate_middle, denomination, tax_year, source_file
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)"""
+        sql_signs = """
+            INSERT INTO signs (
+                kl_id, sign_value, tax_year, source_file, sign_object_blob
+            ) VALUES (?, ?, ?, ?, ?)"""
+        sql_da1_rates = """
+            INSERT INTO da1_rates (
+                kl_id, country, security_group, tax_year, source_file, da1_rate_object_blob
+            ) VALUES (?, ?, ?, ?, ?, ?)"""
+
         def flush_batches():
             if securities_batch:
-                cursor.executemany("""
-                    INSERT INTO securities (
-                        kl_id, valor_number, isin, tax_year,
-                        security_type_identifier, security_object_blob
-                    ) VALUES (?, ?, ?, ?, ?, ?)
-                """, securities_batch)
+                cursor.executemany(sql_securities, securities_batch)
                 securities_batch.clear()
             if exchange_rates_daily_batch:
-                cursor.executemany("""
-                    INSERT INTO exchange_rates_daily (
-                        currency_code, date, rate, denomination, tax_year, source_file
-                    ) VALUES (?, ?, ?, ?, ?, ?)
-                """, exchange_rates_daily_batch)
+                cursor.executemany(sql_exchange_daily, exchange_rates_daily_batch)
                 exchange_rates_daily_batch.clear()
             if exchange_rates_monthly_batch:
-                cursor.executemany("""
-                    INSERT INTO exchange_rates_monthly (
-                        currency_code, year, month, rate, denomination, tax_year, source_file
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, exchange_rates_monthly_batch)
+                cursor.executemany(sql_exchange_monthly, exchange_rates_monthly_batch)
                 exchange_rates_monthly_batch.clear()
             if exchange_rates_year_end_batch:
-                cursor.executemany("""
-                    INSERT INTO exchange_rates_year_end (
-                        currency_code, year, rate, rate_middle, denomination, tax_year, source_file
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, exchange_rates_year_end_batch)
+                cursor.executemany(sql_exchange_year_end, exchange_rates_year_end_batch)
                 exchange_rates_year_end_batch.clear()
             if signs_batch:
-                cursor.executemany("""
-                    INSERT INTO signs (
-                        kl_id, sign_value, tax_year, source_file, sign_object_blob
-                    ) VALUES (?, ?, ?, ?, ?)
-                """, signs_batch)
+                cursor.executemany(sql_signs, signs_batch)
                 signs_batch.clear()
             if da1_rates_batch:
-                cursor.executemany("""
-                    INSERT INTO da1_rates (
-                        kl_id, country, security_group, tax_year, source_file, da1_rate_object_blob
-                    ) VALUES (?, ?, ?, ?, ?, ?)
-                """, da1_rates_batch)
+                cursor.executemany(sql_da1_rates, da1_rates_batch)
                 da1_rates_batch.clear()
 
-        # First pass to get tax year from the root element attribute
-        for event, elem in ET.iterparse(str(xml_file_path), events=('start',)):
-            tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
-            if tag == 'kursliste':
-                # Year is an attribute of kursliste element
-                tax_year_str = elem.get('year')
-                if tax_year_str:
-                    tax_year = int(tax_year_str)
-                    print(f"Processing kursliste for tax year: {tax_year}")
-                break  # Only process the first kursliste element
+        # Quick first pass: detect namespace and tax year from root element only
+        namespace = None
+        for _event, elem in ET.iterparse(xml_file_path, events=('start',)):
+            tag = elem.tag
+            if tag and '}' in tag:
+                namespace = tag.split('}')[0][1:]
+                needs_ns_rewrite = (namespace == KURSLISTE_NS_2_0)
+            tax_year_str = elem.get('year')
+            if tax_year_str:
+                tax_year = int(tax_year_str)
+                print(f"Processing kursliste for tax year: {tax_year}")
+            break  # Only need the root element
 
+        # Build namespace-qualified tag set for fast lookup
+        ns_qualified_tags = {}
+        all_tags = (
+            list(security_tags_local)
+            + ['exchangeRate', 'exchangeRateMonthly', 'exchangeRateYearEnd',
+               'sign', 'da1Rate']
+        )
+        for t in all_tags:
+            if namespace:
+                ns_qualified_tags[f'{{{namespace}}}{t}'] = t
+            else:
+                ns_qualified_tags[t] = t
+
+        # Write metadata
         if tax_year is not None:
             cursor.execute(
                 "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
@@ -367,122 +378,108 @@ def convert_kursliste_xml_to_sqlite(
             "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
             ("source_xml_file", source_file_name),
         )
+        cursor.execute(
+            "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+            ("blob_format", BLOB_FORMAT),
+        )
 
-        # Reset file parsing for main processing
-        # Process XML in streaming fashion
-        for event, elem in ET.iterparse(str(xml_file_path), events=('end',)):
-            tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+        # Main pass: only subscribe to 'end' events to avoid processing millions
+        # of unused 'start' events. Use tag filtering for the top-level tags we need.
+        root = None
+        for event, elem in ET.iterparse(xml_file_path, events=('end',)):
+            # Capture root element (first element to appear; its 'end' fires last,
+            # but we can detect it as the parent of the first processed child)
+            if root is None:
+                parent = elem.getparent()
+                if parent is not None:
+                    root = parent
+
+            tag = ns_qualified_tags.get(elem.tag)
+            if tag is None:
+                continue
 
             # Process security elements
-            if tag in security_tags:
-                kl_id = get_attr(elem, 'id')
-                valor_number = get_attr(elem, 'valorNumber')
-                isin = get_attr(elem, 'isin')
-                security_type = get_attr(elem, 'securityType')
+            if tag in security_tags_local:
+                kl_id = elem.get('id')
+                valor_number = elem.get('valorNumber')
+                isin = elem.get('isin')
+                security_type = elem.get('securityType')
 
-                # Convert element to Pydantic model and serialize to JSON
-                model_class = security_model_map[tag]
-                json_str = serialize_element_to_pydantic_json(elem, model_class)
+                blob_data = serialize_element_to_xml_bytes(elem, needs_ns_rewrite)
 
-                if json_str:  # Only insert if parsing succeeded
-                    blob_data = json_str.encode('utf-8')
+                if blob_data:
                     securities_batch.append((kl_id, valor_number, isin, tax_year, security_type, blob_data))
 
                 counts[tag] += 1
                 batch_count += 1
 
-                # Clear element to free memory
-                elem.clear()
-
             # Process exchange rates
             elif tag == 'exchangeRate':
-                currency = get_attr(elem, 'currency')
-                date = get_attr(elem, 'date')
-                rate = get_attr(elem, 'value')
-                denomination = get_attr(elem, 'denomination')
-
-                exchange_rates_daily_batch.append((currency, date, rate, denomination, tax_year, source_file_name))
-
+                exchange_rates_daily_batch.append((
+                    elem.get('currency'), elem.get('date'), elem.get('value'),
+                    elem.get('denomination'), tax_year, source_file_name,
+                ))
                 counts['exchangeRate'] += 1
                 batch_count += 1
-                elem.clear()
 
             # Process monthly exchange rates
             elif tag == 'exchangeRateMonthly':
-                currency = get_attr(elem, 'currency')
-                year = get_attr(elem, 'year')
-                month = get_attr(elem, 'month')
-                rate = get_attr(elem, 'value')
-                denomination = get_attr(elem, 'denomination')
-
-                exchange_rates_monthly_batch.append((currency, year, month, rate, denomination, tax_year, source_file_name))
-
+                exchange_rates_monthly_batch.append((
+                    elem.get('currency'), elem.get('year'), elem.get('month'),
+                    elem.get('value'), elem.get('denomination'), tax_year, source_file_name,
+                ))
                 counts['exchangeRateMonthly'] += 1
                 batch_count += 1
-                elem.clear()
 
             # Process year-end exchange rates
             elif tag == 'exchangeRateYearEnd':
-                currency = get_attr(elem, 'currency')
-                year = get_attr(elem, 'year')
-                rate = get_attr(elem, 'value')
-                rate_middle = get_attr(elem, 'valueMiddle')
-                denomination = get_attr(elem, 'denomination')
-
-                exchange_rates_year_end_batch.append((currency, year, rate, rate_middle, denomination, tax_year, source_file_name))
-
+                exchange_rates_year_end_batch.append((
+                    elem.get('currency'), elem.get('year'), elem.get('value'),
+                    elem.get('valueMiddle'), elem.get('denomination'), tax_year, source_file_name,
+                ))
                 counts['exchangeRateYearEnd'] += 1
                 batch_count += 1
-                elem.clear()
 
             # Process signs
             elif tag == 'sign':
-                kl_id = get_attr(elem, 'id')
-                sign_value = get_attr(elem, 'sign')
-
-                # Convert element to Pydantic model and serialize to JSON
-                json_str = serialize_element_to_pydantic_json(elem, Sign)
-
-                if json_str:  # Only insert if parsing succeeded
-                    blob_data = json_str.encode('utf-8')
-
+                kl_id = elem.get('id')
+                sign_value = elem.get('sign')
+                blob_data = serialize_element_to_xml_bytes(elem, needs_ns_rewrite)
+                if blob_data:
                     signs_batch.append((kl_id, sign_value, tax_year, source_file_name, blob_data))
-
                     counts['sign'] += 1
                     batch_count += 1
 
-                elem.clear()
-
             # Process DA1 rates
             elif tag == 'da1Rate':
-                kl_id = get_attr(elem, 'id')
-                country = get_attr(elem, 'country')
-                security_group = get_attr(elem, 'securityGroup')
-
-                # Convert element to Pydantic model and serialize to JSON
-                json_str = serialize_element_to_pydantic_json(elem, Da1Rate)
-
-                if json_str:  # Only insert if parsing succeeded
-                    blob_data = json_str.encode('utf-8')
-
+                kl_id = elem.get('id')
+                country = elem.get('country')
+                security_group = elem.get('securityGroup')
+                blob_data = serialize_element_to_xml_bytes(elem, needs_ns_rewrite)
+                if blob_data:
                     da1_rates_batch.append((kl_id, country, security_group, tax_year, source_file_name, blob_data))
-
                     counts['da1Rate'] += 1
                     batch_count += 1
 
-                elem.clear()
+            # Free memory: clear processed element and remove from root
+            elem.clear()
+            if root is not None and len(root):
+                # Remove processed direct children from root to free memory
+                while len(root) and root[0].getparent() is root:
+                    del root[0]
 
-            # Commit in batches to improve performance
+            # Flush batches periodically
             if batch_count >= batch_size:
                 flush_batches()
-                conn.commit()
-                print(f"\rProcessed {sum(counts.values())} records...", end='', flush=True)
+                total_count += batch_count
+                print(f"\rProcessed {total_count} records...", end='', flush=True)
                 batch_count = 0
 
         # Final commit
         flush_batches()
         conn.commit()
 
+        total_count += batch_count
         print(f"\nCreating indexes...")
         create_idx(conn)
 
