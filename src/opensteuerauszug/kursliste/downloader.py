@@ -1,8 +1,9 @@
 import logging
 import requests
 import zipfile
-import io
-from pathlib import Path
+import tempfile
+import shutil
+from pathlib import Path, PurePosixPath
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,8 @@ logger = logging.getLogger(__name__)
 API_URL = "https://www.ictax.admin.ch/extern/api/xml/xmls.json"
 SESSION_URL = "https://www.ictax.admin.ch/extern/api/authentication/session.json"
 DOWNLOAD_BASE_URL = "https://www.ictax.admin.ch/extern/api/download"
+DOWNLOAD_CHUNK_SIZE = 1024 * 1024
+EXTRACTION_CHUNK_SIZE = 128 * 1024
 
 
 def _initialize_session(session: requests.Session) -> None:
@@ -117,30 +120,44 @@ def download_kursliste(
     download_url = f"{DOWNLOAD_BASE_URL}/{file_id}/{file_hash}/{file_name}"
 
     logger.info(f"Downloading Kursliste from {download_url}...")
-    dl_response = session.get(download_url, timeout=60)
+    dl_response = session.get(download_url, timeout=60, stream=True)
     dl_response.raise_for_status()
+    with tempfile.TemporaryFile(suffix=".zip") as tmp_zip:
+        # Stream download into temp file
+        for chunk in dl_response.iter_content(chunk_size=DOWNLOAD_CHUNK_SIZE):
+            if chunk:
+                tmp_zip.write(chunk)
 
-    # Extract zip
-    with zipfile.ZipFile(io.BytesIO(dl_response.content)) as z:
-        xml_files = [name for name in z.namelist() if name.endswith(".xml")]
-        if not xml_files:
-            raise ValueError("No XML file found in the downloaded zip archive")
+        tmp_zip.seek(0)
 
-        target_xml = None
-        for name in xml_files:
-            if f"kursliste_{year}" in name:
-                target_xml = name
-                break
-        if not target_xml:
-            target_xml = xml_files[0]
+        with zipfile.ZipFile(tmp_zip) as z:
+            target_xml = None
+            first_xml = None
 
-        logger.info(f"Extracting {target_xml}...")
-        destination_dir.mkdir(parents=True, exist_ok=True)
+            for name in z.namelist():
+                if not name.endswith(".xml"):
+                    continue
 
-        target_path = destination_dir / f"kursliste_{year}.xml"
+                if first_xml is None:
+                    first_xml = name
 
-        with z.open(target_xml) as source_file, open(target_path, "wb") as dest_file:
-            dest_file.write(source_file.read())
+                entry_name = PurePosixPath(name).name
+                if entry_name == f"kursliste_{year}.xml":
+                    target_xml = name
+                    break
+
+            if first_xml is None:
+                raise ValueError("No XML file found in the downloaded zip archive")
+
+            target_xml = target_xml or first_xml
+
+            logger.info(f"Extracting {target_xml}...")
+            destination_dir.mkdir(parents=True, exist_ok=True)
+
+            target_path = destination_dir / f"kursliste_{year}.xml"
+
+            with z.open(target_xml) as source, open(target_path, "wb") as dest:
+                shutil.copyfileobj(source, dest, length=EXTRACTION_CHUNK_SIZE)
 
     logger.info(f"Successfully downloaded and saved Kursliste to {target_path}")
     return target_path
