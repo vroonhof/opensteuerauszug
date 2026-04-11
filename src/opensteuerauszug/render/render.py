@@ -874,6 +874,7 @@ def create_liabilities_table(tax_statement, styles, usable_width):
     ])
 
     col_widths = [24*mm, 110*mm, 19*mm, 28*mm, 18*mm, 28*mm, 5*mm, 8, 23*mm]
+    assert sum(col_widths) < usable_width
     liabilities_table = Table(table_data, colWidths=col_widths)
 
     table_style = [
@@ -1530,7 +1531,8 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
     ])
 
     # Column widths (adjust as needed for layout)
-    col_widths = [24*mm, 80*mm, 18*mm, 28*mm, 18*mm, 28*mm, 5*mm, 8, 23*mm, 5*mm,  8 , 23*mm]
+    col_widths = [24*mm, 94*mm, 16*mm, 20*mm, 18*mm, 24*mm, 5*mm, 8, 23*mm, 5*mm,  8 , 23*mm]
+    assert sum(col_widths) < usable_width
     bank_table = Table(table_data, colWidths=col_widths)
     # --- Table style for header and intermediate totals ---
     table_style = [
