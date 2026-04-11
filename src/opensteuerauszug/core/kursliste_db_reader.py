@@ -14,7 +14,8 @@ from opensteuerauszug.model.kursliste import (
 class KurslisteDBReader:
     """
     Reads security and exchange rate data from a Kursliste SQLite database.
-    Securities are stored as JSON BLOBs and deserialized into Pydantic models.
+    Securities are stored as BLOBs (raw XML in v3+, JSON in legacy) and
+    deserialized into Pydantic models on read.
     """
     _SECURITY_TYPE_MAP: PyDict[str, Type[Security]] = {  # Changed Dict to PyDict
         st.value: globals()[st.name.split('_')[-1].capitalize() if '.' not in st.name else st.name.split('.')[0].capitalize()]
@@ -72,23 +73,41 @@ class KurslisteDBReader:
         self.db_path = db_path
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row  # Access columns by name
+        # Detect blob format from metadata (xml or json/legacy)
+        self._blob_format = self._read_blob_format()
+
+    def _read_blob_format(self) -> str:
+        """Read the blob_format metadata from the database. Returns 'json' for legacy databases."""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT value FROM metadata WHERE key = 'blob_format'")
+            row = cursor.fetchone()
+            if row:
+                return row[0]
+        except Exception:
+            pass
+        return "json"  # Legacy databases used JSON blobs
 
     def _deserialize_object(self, blob_data: bytes, model_class: Type, object_type_name: str) -> Optional[object]:
         """
-        Generic deserializer for objects stored as JSON BLOBs.
+        Generic deserializer for objects stored as BLOBs.
+        Handles both XML format (v3+) and legacy JSON format.
         """
         if not blob_data:
             return None
         if not model_class:
             print(f"Warning: No model class provided for deserialization of '{object_type_name}'.")
             return None
-            
+
         try:
-            json_string = blob_data.decode('utf-8')
-            instance = model_class.model_validate_json(json_string)
+            if self._blob_format == "xml":
+                instance = model_class.from_xml(blob_data)
+            else:
+                json_string = blob_data.decode('utf-8')
+                instance = model_class.model_validate_json(json_string)
             return instance
         except json.JSONDecodeError:
-            print(f"Warning: Failed to decode JSON for type '{object_type_name}'. Data: {blob_data[:100]}...")
+            print(f"Warning: Failed to decode blob for type '{object_type_name}'. Data: {blob_data[:100]}...")
             return None
         except ValidationError as e:
             print(f"Warning: Pydantic validation error for type '{object_type_name}': {e}")
