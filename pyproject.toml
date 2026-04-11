@@ -51,6 +51,11 @@ dev = [
     "freezegun>=1.5.0",
     "pdf417decoder @ git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python" 
 ]
+web = [
+    "Flask>=2.3",
+    "defusedxml>=0.7.1",
+    "waitress>=3.0",
+]
 
 [tool.black]
 line-length = 100
