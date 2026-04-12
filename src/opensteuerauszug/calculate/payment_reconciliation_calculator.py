@@ -225,12 +225,12 @@ class PaymentReconciliationCalculator:
                         allow_broker_above_kursliste or not security_has_sensitive_overwithholding
                     ),
                 )
-                if (broker_div_chf < kurs.dividend_chf  or broker_with_chf < kurs.withholding_chf):
+                if (broker_div_chf < kurs.dividend_chf  or (broker_with_chf is not None and broker_with_chf < kurs.withholding_chf)):
                     if not div_ok:
                         note = "Broker dividend is below Kursliste value beyond tolerance."
                     elif not w_ok:
                         note = "Broker withholding is below Kursliste value beyond tolerance."
-                elif (broker_div_chf > kurs.dividend_chf  or broker_with_chf > kurs.withholding_chf):
+                elif (broker_div_chf > kurs.dividend_chf  or (broker_with_chf is not None and broker_with_chf > kurs.withholding_chf)):
                     if not div_ok:
                         note = "Broker dividend is above Kursliste value beyond tolerance."
                     elif not w_ok and div_ok:
