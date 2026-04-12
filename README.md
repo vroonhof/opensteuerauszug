@@ -110,6 +110,8 @@ pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=pytho
 git clone https://github.com/vroonhof/opensteuerauszug.git
 cd opensteuerauszug
 . ./scripts/setup_pixi.sh
+```
+
 ### Verifying the generated XML
 
 When you export the final XML using `--xml-output`, you can validate it
