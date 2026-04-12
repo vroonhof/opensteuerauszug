@@ -96,6 +96,10 @@ setup opensteuerauszug pixi environment
 * `pixi` available in PATH
 * macos or linux (zsh,bash,csh,tcsh shells)
 
+**Command-Line Arguments:**
+
+* `-b` : (Optional) Do not immediately activate the pixi environment after setup.
+
 **Usage Example:**
 
 ```bash
