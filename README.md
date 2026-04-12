@@ -90,7 +90,7 @@ or (after installing pixi):
 ```console 
 cd opensteuerauszug
 pixi init -i requirements.yaml
-pixi add --pypi "opensteuerauszug @ file:$PWD"
+pixi add --pypi --editable "opensteuerauszug @ file:$PWD"
 ```
 
 # Then run normally (without pixi, or after . ./scripts/setup_pixi.sh)
