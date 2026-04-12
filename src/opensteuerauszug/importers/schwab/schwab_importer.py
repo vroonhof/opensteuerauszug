@@ -15,8 +15,66 @@ from opensteuerauszug.util.date_coverage import DateRangeCoverage
 from collections import defaultdict
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import SchwabAccountSettings
+from opensteuerauszug.util.sorting import sort_security_stocks
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Settlement date helpers
+# ---------------------------------------------------------------------------
+# These functions are intentionally kept modular so that holiday calendars
+# (e.g. US federal holidays, NYSE holidays) can be plugged in later without
+# changing the calling code.
+
+def next_business_day(d: date) -> date:
+    """Return the next calendar day that is a business day (Mon–Fri).
+
+    Currently only skips weekends.  To add holiday support, replace this
+    function or inject a custom calendar predicate.
+    """
+    result = d + timedelta(days=1)
+    while result.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+        result += timedelta(days=1)
+    return result
+
+
+def settlement_date(trade_date: date) -> date:
+    """Return the T+1 settlement date for a trade.
+
+    US equities settled T+2 until May 2024, then switched to T+1.
+    We use T+1 as the conservative default.  Replace or extend
+    ``next_business_day`` to handle exchange/product-specific rules.
+    """
+    return next_business_day(trade_date)
+
+
+def split_unsettled_cash(
+    stocks: List[SecurityStock],
+    period_end: date,
+) -> Tuple[List[SecurityStock], List[SecurityStock]]:
+    """Partition *stocks* into settled and unsettled at *period_end*.
+
+    A mutation (trade) is considered **unsettled** when its T+1 settlement
+    date falls strictly *after* period_end — meaning the cash would not yet
+    appear in the broker's reported balance.  Balance entries (mutation=False)
+    are always placed in the settled bucket.
+
+    Args:
+        stocks: All SecurityStock entries for a cash position.
+        period_end: The last day of the reporting period (inclusive).
+
+    Returns:
+        (settled_stocks, unsettled_stocks)
+    """
+    settled: List[SecurityStock] = []
+    unsettled: List[SecurityStock] = []
+    for s in stocks:
+        if s.mutation and settlement_date(s.referenceDate) > period_end:
+            unsettled.append(s)
+        else:
+            settled.append(s)
+    return settled, unsettled
 
 
 
@@ -191,6 +249,59 @@ class SchwabImporter:
             print(f"[{current_identifier}] Could not synthesize end-of-period balance for {effective_period_end_date}. It might be missing.")
 
         return pos_obj, live_stocks_list, associated_pos_payments
+
+    def _make_unsettled_position_tuple(
+        self,
+        pos_obj: CashPosition,
+        unsettled_stocks: List[SecurityStock],
+    ) -> Tuple[CashPosition, List[SecurityStock], List[SecurityPayment]]:
+        """Build a self-consistent position tuple for unsettled (in-transit) cash.
+
+        The returned tuple contains:
+        - A *new* CashPosition flagged with ``is_unsettled_balance=True``.
+        - A synthetic stock list: zero opening balance, the original unsettled
+          mutation entries, and a synthetic closing balance equal to the sum of
+          those mutations.
+        - An empty payments list (unsettled cash has no dividend events).
+
+        This tuple can be fed directly into ``convert_cash_positions_to_list_of_bank_accounts``
+        without passing through ``_reconcile_and_ensure_boundary_stocks_for_position`` because
+        the balances are already manufactured to be consistent.
+        """
+        total_unsettled: Decimal = sum((s.quantity for s in unsettled_stocks), Decimal("0"))
+        currency = unsettled_stocks[0].balanceCurrency if unsettled_stocks else pos_obj.currentCy
+        q_type = unsettled_stocks[0].quotationType if unsettled_stocks else "PIECE"
+
+        opening = SecurityStock(
+            referenceDate=self.period_from,
+            mutation=False,
+            quantity=Decimal("0"),
+            balanceCurrency=currency,
+            quotationType=q_type,
+            name="Unsettled Cash Opening Balance",
+        )
+        closing = SecurityStock(
+            referenceDate=self.period_to + timedelta(days=1),
+            mutation=False,
+            quantity=total_unsettled,
+            balanceCurrency=currency,
+            quotationType=q_type,
+            name="Unsettled Cash (T+1 pending settlement)",
+        )
+
+        all_stocks = sort_security_stocks([opening] + list(unsettled_stocks) + [closing])
+
+        unsettled_pos = CashPosition(
+            depot=pos_obj.depot,
+            currentCy=pos_obj.currentCy,
+            cash_account_id=pos_obj.cash_account_id,
+            is_unsettled_balance=True,
+        )
+        logger.info(
+            f"[{pos_obj.get_processing_identifier()}] Created unsettled cash account "
+            f"with {len(unsettled_stocks)} trade(s) totalling {total_unsettled} {currency}."
+        )
+        return unsettled_pos, all_stocks, []
 
     def import_files(self, filenames: List[str]) -> TaxStatement:
         """
@@ -385,14 +496,38 @@ class SchwabImporter:
                     current_payments.append(payments)
 
         tax_year = self.period_from.year
-        
-        # --- Reconcile and ensure period boundary stock records --- 
+
+        # --- Reconcile and ensure period boundary stock records ---
         all_processed_tuples = []
         for pos_obj, (initial_stocks, associated_payments) in position_map.items():
-            processed_tuple = self._reconcile_and_ensure_boundary_stocks_for_position(
-                pos_obj, initial_stocks, associated_payments
-            )
-            all_processed_tuples.append(processed_tuple)
+            if isinstance(pos_obj, CashPosition):
+                # Split cash into settled and unsettled at period end.
+                # Unsettled = trades whose T+1 settlement date falls after period_to
+                # (i.e. the broker's statement would not yet reflect them).
+                settled_stocks, unsettled_stocks = split_unsettled_cash(initial_stocks, self.period_to)
+                if unsettled_stocks:
+                    logger.info(
+                        f"[{pos_obj.get_processing_identifier()}] {len(unsettled_stocks)} "
+                        f"unsettled trade(s) at period end {self.period_to}; "
+                        "will be reported as a separate account."
+                    )
+
+                processed_tuple = self._reconcile_and_ensure_boundary_stocks_for_position(
+                    pos_obj, settled_stocks, associated_payments
+                )
+                all_processed_tuples.append(processed_tuple)
+
+                # Generate a separate unsettled account only when there is a non-zero balance
+                if unsettled_stocks:
+                    total_unsettled = sum((s.quantity for s in unsettled_stocks), Decimal("0"))
+                    if total_unsettled != Decimal("0"):
+                        unsettled_tuple = self._make_unsettled_position_tuple(pos_obj, unsettled_stocks)
+                        all_processed_tuples.append(unsettled_tuple)
+            else:
+                processed_tuple = self._reconcile_and_ensure_boundary_stocks_for_position(
+                    pos_obj, initial_stocks, associated_payments
+                )
+                all_processed_tuples.append(processed_tuple)
 
         # Now, filter the processed tuples into security and cash lists
         final_security_tuples = []
@@ -528,6 +663,13 @@ def convert_cash_positions_to_list_of_bank_accounts(
                 final_account_number_str = display_id_from_helper # This is the full account number as per _get_configured_account_info logic
             else: # No match in config, display_id_from_helper is "...<depot>"
                 final_account_number_str = f"{pos.currentCy} Account {display_id_from_helper}"
+
+        # Append an unsettled marker for positions that represent in-transit cash.
+        # Truncate the base name first so the suffix always fits within 40 chars.
+        if pos.is_unsettled_balance:
+            suffix = " (Unsettled)"
+            base = final_account_number_str[: 40 - len(suffix)]
+            final_account_number_str = base + suffix
 
         bank_payments = [BankAccountPayment(
             paymentDate=payment.paymentDate,

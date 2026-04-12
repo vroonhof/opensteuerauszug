@@ -35,6 +35,7 @@ class CashPosition(BasePosition):
     type: Literal["cash"] = "cash"
     currentCy: str = Field(default="USD", description="Currency code for cash position")
     cash_account_id: Optional[str] = Field(default=None, description="Optional identifier for a specific cash account within the same depot and currency")
+    is_unsettled_balance: bool = Field(default=False, description="If True, this position holds cash that is in-transit (T+1 settlement pending)")
     _identifier_str: Optional[str] = PrivateAttr(default=None)
 
     model_config = {
@@ -43,11 +44,12 @@ class CashPosition(BasePosition):
     }
 
     def _comparison_key(self):
-        return (self.depot, self.currentCy, self.cash_account_id)
+        return (self.depot, self.currentCy, self.cash_account_id, self.is_unsettled_balance)
 
     def get_processing_identifier(self) -> str:
         if self._identifier_str is None:
-            self._identifier_str = f"Cash-{self.depot}-{self.cash_account_id}-{self.currentCy}"
+            suffix = "-unsettled" if self.is_unsettled_balance else ""
+            self._identifier_str = f"Cash-{self.depot}-{self.cash_account_id}-{self.currentCy}{suffix}"
         return self._identifier_str
 
     def get_balance_name_prefix(self) -> str:
