@@ -599,7 +599,8 @@ def process(
                             f"Broker wht {row.broker_withholding_amount} {row.broker_withholding_currency}; "
                             f"dCHF(div={div_diff_chf}, wht={wht_diff_chf}); "
                             f"dORIG(div={div_diff_orig} {row.broker_dividend_currency}, "
-                            f"wht={wht_diff_orig} {row.broker_withholding_currency})"
+                            f"wht={wht_diff_orig} {row.broker_withholding_currency}), "
+                            f"note: {row.note}"
                         )
 
             dump_debug_model(current_phase.value, statement)
