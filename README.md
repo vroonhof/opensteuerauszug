@@ -93,7 +93,7 @@ uv run --with git+https://github.com/vroonhof/opensteuerauszug.git opensteueraus
 
 Then continue with the [User Guide](docs/user_guide.md).
 
-### Development install [option 1] (contributors)
+### Development install [option 1] (contributors: using python venv)
 
 For development and tests, install from source:
 
@@ -134,7 +134,7 @@ For detailed documentation on available scripts, including the Kursliste filteri
 
 ### Setup
 
-To set up the development environment:
+To set up the development environment (venv):
 
 ```bash
 # Create and activate virtual environment
@@ -144,6 +144,16 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -e ".[dev]"
 pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
+```
+
+To set up the development environment (pixi):
+
+```bash
+. ./setup_pixi.sh
+```
+or (in the installation directory)
+```bash
+pixi shell
 ```
 
 ### Testing
