@@ -1,0 +1,6 @@
+name: background_estimate
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python
