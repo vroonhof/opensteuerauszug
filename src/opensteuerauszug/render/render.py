@@ -95,6 +95,14 @@ class BarcodeDocTemplate(BaseDocTemplate):
         self.summary_table_last_col_width: float = 0.0
         self.tax_statement: Optional[TaxStatement] = None
 
+    def afterFlowable(self, flowable):
+        "Registers TOC entries."
+        if flowable.__class__.__name__ == 'Paragraph':
+            text = flowable.getPlainText()
+            style = flowable.style.name
+            if style == 'SectionTitle':
+                self.canv.add_bookmark(text)
+
 # --- Helper Function for Currency Formatting ---
 def format_currency_rounded(value: Decimal, default='0'):
     """Format currency with 0 decimals, for summary table only."""
@@ -436,6 +444,8 @@ class NumberedCanvas(canvas.Canvas):
 
     def __init__(self, *args, **kwargs):
         self._saved_page_states = []
+        self._bookmarks = []
+        self.show_outline = kwargs.pop("show_outline", False)
         self.left_margin = kwargs.pop("left_margin", 0)
         self.right_margin = kwargs.pop("right_margin", 0)
         self.bottom_margin = kwargs.pop("bottom_margin", 0)
@@ -444,6 +454,7 @@ class NumberedCanvas(canvas.Canvas):
 
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
+        self._bookmarks = []
         self._startPage()
 
     def save(self):
@@ -451,7 +462,16 @@ class NumberedCanvas(canvas.Canvas):
         for state in self._saved_page_states:
             self.__dict__.update(state)
             self._draw_page_number(num_pages)
+            if self._bookmarks:
+                bid = 1
+                for b in self._bookmarks:
+                    bkey = f"page_{self.getPageNumber()}_{bid}"
+                    self.bookmarkPage(bkey)
+                    self.addOutlineEntry(b, bkey, level=0, closed=False)
+                    bid = bid+1
             canvas.Canvas.showPage(self)
+        if self.show_outline:
+            self.showOutline()
         canvas.Canvas.save(self)
 
     def _draw_page_number(self, page_count: int) -> None:
@@ -462,6 +482,8 @@ class NumberedCanvas(canvas.Canvas):
         page_width = self._pagesize[0]
         self.drawRightString(page_width - self.right_margin, footer_y, text)
 
+    def add_bookmark(self, title):
+        self._bookmarks.append(title)
 
 # --- Table Creation Functions ---
 
@@ -1307,7 +1329,7 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     
     return images
     
-def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxStatement, title_style: ParagraphStyle) -> None:
+def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxStatement, title_style: ParagraphStyle, barcode_style: ParagraphStyle) -> None:
     """
     Configure the document for barcode pages and add barcode page content to the story.
     
@@ -1344,7 +1366,7 @@ def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxS
         story.append(PageBreak('barcode'))
 
         story.append(DocAssign("section_name", f"'{t('barcode_page').format(page=page_num + 1, total=barcode_pages)}'"))
-        story.append(Paragraph(t('barcode_page').format(page=page_num + 1, total=barcode_pages), title_style))
+        story.append(Paragraph(t('barcode_page').format(page=page_num + 1, total=barcode_pages), title_style if page_num == 0 else barcode_style))
         story.append(Spacer(0.1*cm, 0.5*cm))
         
         # Calculate start and end indices for this page
@@ -2077,6 +2099,7 @@ def render_tax_statement(
 
     # --- Sections ---
     title_style = ParagraphStyle(name='SectionTitle', parent=styles['HeaderTitle'],  spaceAfter=6*mm)
+    barcode_style = ParagraphStyle(name='BarcodeTitle', parent=title_style)  # add seperate style to exclude from bookmarks
     # Would love to use this, but following text then overlaps.
     # title_style = styles['HeaderTitle']
 
@@ -2230,7 +2253,7 @@ def render_tax_statement(
         story.extend(criticial_warnings_flowables)
 
     # Add the barcode page
-    make_barcode_pages(doc, story, tax_statement, title_style)
+    make_barcode_pages(doc, story, tax_statement, title_style, barcode_style)
     
     # Build the PDF
     def _canvas_maker(*args, **kwargs):
@@ -2239,6 +2262,7 @@ def render_tax_statement(
             left_margin=left_margin,
             right_margin=right_margin,
             bottom_margin=bottom_margin,
+            show_outline=True if tax_statement.payment_reconciliation_report is not None else False,  # Show outline only if reconciliation report exists
             **kwargs,
         )
 
