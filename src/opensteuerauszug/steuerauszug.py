@@ -113,6 +113,7 @@ def process(
     use_broker_withholding: UseBrokerWithholding = typer.Option(UseBrokerWithholding.CAP, "--use-broker-withholding", help="Control how broker withholding evidence is used: OFF disables adjustments, CAP (default) caps Kursliste (Q) withholding at the broker's effective level."),
     pre_amble: Optional[List[Path]] = typer.Option(None, "--pre-amble", help="List of PDF documents to add before the main steuerauszug."),
     post_amble: Optional[List[Path]] = typer.Option(None, "--post-amble", help="List of PDF documents to add after the main steuerauszug."),
+    allow_above_treaty_withholding: bool = typer.Option(False, "--above-treaty-withholding", help="Allow broker withholding > KL calculation"),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
     logging.basicConfig(level=log_level.value)
@@ -565,7 +566,7 @@ def process(
             if not statement:
                 raise ValueError("TaxStatement model not loaded. Cannot run payment reconciliation phase.")
 
-            reconciliation_calculator = PaymentReconciliationCalculator()
+            reconciliation_calculator = PaymentReconciliationCalculator(allow_above_treaty_withholding=allow_above_treaty_withholding)
             statement = reconciliation_calculator.calculate(statement)
             report = statement.payment_reconciliation_report
             if report:

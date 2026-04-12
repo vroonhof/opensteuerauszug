@@ -73,9 +73,10 @@ class PaymentReconciliationCalculator:
         "kapitalgewinn",
     )
 
-    def __init__(self, tolerance_chf: Decimal = Decimal("0.05"), tolerance_frac: Decimal = Decimal("0.001")):
+    def __init__(self, tolerance_chf: Decimal = Decimal("0.05"), tolerance_frac: Decimal = Decimal("0.001"), allow_above_treaty_withholding: bool = False):
         self.tolerance_chf = tolerance_chf
         self.tolerance_frac = tolerance_frac
+        self.allow_above_treaty_withholding=allow_above_treaty_withholding
 
     def calculate(self, tax_statement: TaxStatement) -> TaxStatement:
         report = PaymentReconciliationReport()
@@ -208,6 +209,7 @@ class PaymentReconciliationCalculator:
             elif has_kurs and has_broker:
                 allow_broker_above_kursliste = (
                     kurs.allows_broker_above_kursliste or broker.allows_broker_above_kursliste
+                    or self.allow_above_treaty_withholding
                 )
                 div_ok = self._component_matches(
                     kurs_value_chf=kurs.dividend_chf,
