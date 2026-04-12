@@ -92,6 +92,7 @@ TRANSLATIONS = {
     'total_da1_usa': 'Total Anrechnung ausländischer Quellensteuer / zusätzlicher Steuerrückbehalt USA',
     'foreign_tax_credit': '<b>Anrechenbare ausl. Quellen- steuer</b> in CHF',
     'usa_withholding': '<b>Steuerrückbehalt USA</b><br/>in CHF',
+    'country_total': 'Total {country}',
 
     # === LIABILITIES TABLE ===
     'designation_liabilities_interest': 'Bezeichnung<br/>Schulden<br/>Zinsen',
