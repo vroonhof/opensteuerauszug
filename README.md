@@ -71,11 +71,36 @@ The [EWV](https://www.ewv-ete.ch/de/ewv-ete/) and SSK publish a [shared set of t
 
 ### Quick install (recommended for users)
 
-```console
-# One-time install of the CLI via uv
-uv tool install --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug
 
-# Then run normally
+# One-time install of the CLI via uv
+```console 
+uv tool install --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug
+```
+# install of the CLI using pixi (https://pixi.prefix.dev/latest/)
+in the directory you want to use for installation:
+```console 
+git clone https://github.com/vroonhof/opensteuerauszug.git .
+```
+then (if linux or macos):
+```console 
+cd opensteuerauszug
+. ./scripts/setup_pixi.sh
+```
+or (after installing pixi):
+```console 
+cd opensteuerauszug
+pixi init -i requirements.yaml
+pixi add --pypi "opensteuerauszug @ file:$PWD"
+```
+
+# Then run normally (without pixi, or after . ./scripts/setup_pixi.sh)
+```console 
+opensteuerauszug --help
+```
+or:
+
+```console
+pixi shell
 opensteuerauszug --help
 ```
 
