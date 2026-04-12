@@ -29,7 +29,7 @@ dependencies = [
     "pdf417gen @ git+https://github.com/vroonhof/pdf417-py.git",
     "markdown>=3.0.0",
     "platformdirs>=3.0.0",
-    "requests>=2.33.0",
+    "requests>=2.33.0", # actually an undeclared dependecy of ibflex [not as optional as it says on the tin]
 ]
 
 [project.scripts]
@@ -75,6 +75,7 @@ extend-exclude = ".venv"
 testpaths = ["tests"]
 pythonpath = ["."]
 python_files = ["test_*.py"]
+#addopts = "-v --cov=opensteuerauszug --cov-report=term-missing" 
 markers = [
     "integration: marks tests as integration tests",
 ]
