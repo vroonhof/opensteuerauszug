@@ -75,32 +75,8 @@ The [EWV](https://www.ewv-ete.ch/de/ewv-ete/) and SSK publish a [shared set of t
 # One-time install of the CLI via uv
 ```console 
 uv tool install --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug
-```
-# install of the CLI using pixi (https://pixi.prefix.dev/latest/)
-in the directory you want to use for installation:
-```console 
-git clone https://github.com/vroonhof/opensteuerauszug.git .
-```
-then (if linux or macos):
-```console 
-cd opensteuerauszug
-. ./scripts/setup_pixi.sh
-```
-or (after installing pixi):
-```console 
-cd opensteuerauszug
-pixi init -i requirements.yaml
-pixi add --pypi --editable "opensteuerauszug @ file:$PWD"
-```
 
 # Then run normally (without pixi, or after . ./scripts/setup_pixi.sh)
-```console 
-opensteuerauszug --help
-```
-or:
-
-```console
-pixi shell
 opensteuerauszug --help
 ```
 
@@ -117,7 +93,7 @@ uv run --with git+https://github.com/vroonhof/opensteuerauszug.git opensteueraus
 
 Then continue with the [User Guide](docs/user_guide.md).
 
-### Development install (contributors)
+### Development install [option 1] (contributors)
 
 For development and tests, install from source:
 
@@ -129,7 +105,11 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
 ```
-
+### Development install [option 2] (contributors: using [pixi](https://pixi.prefix.dev/latest/))
+```console
+git clone https://github.com/vroonhof/opensteuerauszug.git
+cd opensteuerauszug
+. ./scripts/setup_pixi.sh
 ### Verifying the generated XML
 
 When you export the final XML using `--xml-output`, you can validate it
