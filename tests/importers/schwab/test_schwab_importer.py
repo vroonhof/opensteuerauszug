@@ -92,7 +92,7 @@ class TestGetConfiguredAccountInfo(unittest.TestCase):
 
 from opensteuerauszug.importers.schwab.schwab_importer import convert_cash_positions_to_list_of_bank_accounts
 from opensteuerauszug.model.position import CashPosition
-from opensteuerauszug.model.ech0196 import BankAccountNumber, BankAccountName, ListOfBankAccounts, Depot
+from opensteuerauszug.model.ech0196 import BankAccountNumber, BankAccountName, ListOfBankAccounts
 
 
 class TestSchwabImporterAccountResolution(unittest.TestCase):

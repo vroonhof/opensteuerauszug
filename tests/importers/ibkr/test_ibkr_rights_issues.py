@@ -10,7 +10,7 @@ from opensteuerauszug.config.models import IbkrAccountSettings
 
 # Check if ibflex is available, skip tests if not
 try:
-    import ibflex
+    import ibflex  # noqa: F401
     IBFLEX_INSTALLED = True
 except ImportError:
     IBFLEX_INSTALLED = False

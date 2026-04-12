@@ -34,8 +34,7 @@ from opensteuerauszug.render.render import (
 )
 import opensteuerauszug.render.render as render
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import Paragraph, Spacer, SimpleDocTemplate, Table
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.platypus import Paragraph, Spacer, Table
 from opensteuerauszug.calculate.total import TotalCalculator
 from opensteuerauszug.calculate.base import CalculationMode
 from tests.utils.samples import get_sample_files
