@@ -10,37 +10,34 @@ readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License", # Or choose appropriate license
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 
 dependencies = [
-    "pydantic>=2.0",
+    "pydantic>=2.4.0",
     "pydantic-xml",
     "tomli>=1.1.0",
-    "typer",
-    "rich", # Included because requirements.txt had typer[all]
-    "lxml", # Added for XML parsing and serialization
-    "Pillow>=9.0.0", # Added for image handling in render module
-    "reportlab>=4.0.0", # Added for PDF generation in render module
-    "python-barcode>=0.15.0", # Added for barcode generation in render module
-    "pypdf>=4.0.0", # Use pypdf for PDF reading and analysis
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "lxml>=4.9.1",
+    "Pillow>=10.2.0",
+    "reportlab>=4.0.0",
+    "python-barcode>=0.15.0",
+    "pypdf>=6.10.0",
     "ibflex @ git+https://github.com/vroonhof/ibflex.git",
     "pdf417gen @ git+https://github.com/vroonhof/pdf417-py.git",
-    "markdown",
+    "markdown>=3.0.0",
     "platformdirs>=3.0.0",
-    "requests", # actually an undeclared dependecy of ibflex [not as optional as it says on the tin]
-    # TODO make these formal dependencies 
-    # pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
+    "requests>=2.33.0", # actually an undeclared dependecy of ibflex [not as optional as it says on the tin]
 ]
 
 [project.scripts]
-# opensteuerauszug = "opensteuerauszug.cli:app"
-opensteuerauszug = "opensteuerauszug.steuerauszug:app" # Updated entry point
+opensteuerauszug = "opensteuerauszug.steuerauszug:app"
 
 [project.urls]
-"Homepage" = "https://github.com/yourusername/opensteuerauszug" # Replace with actual URL
-"Bug Tracker" = "https://github.com/yourusername/opensteuerauszug/issues" # Replace
+"Homepage" = "https://github.com/vroonhof/opensteuerauszug"
+"Bug Tracker" = "https://github.com/vroonhof/opensteuerauszug/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -50,10 +47,9 @@ dev = [
     "isort>=5.0.0",
     "mypy>=1.0.0",
     "flake8>=6.0.0",
-    "flake8",
     "Flake8-pyproject",
-    "freezegun>=1.5.0",  # Added for time-freezing in tests
-    # TODO make these formal dependencies 
+    "freezegun>=1.5.0",
+    # TODO make these formal dependencies
     # pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
 ]
 
@@ -74,14 +70,6 @@ line_length = 100
 max-line-length = 127
 extend-ignore = "E1,E2,E3,E4,E5,E7,F4,F5,F8,W29,W39"
 extend-exclude = ".venv"
-
-# For now we just rely on pyright / pylance
-#[tool.mypy]
-#python_version = "3.9"
-#warn_return_any = true
-#warn_unused_configs = true
-#disallow_untyped_defs = true
-#disallow_incomplete_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
