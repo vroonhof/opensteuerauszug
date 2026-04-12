@@ -88,6 +88,26 @@ This will:
 - Store logs and optional result paths under `local-action-results/<run-id>/`.
 - Only upload artifacts and create a check run when `--upload-artifacts` and `--confirm-upload` are set.
 
+### pixi setup script (`scripts/setup_pixi.sh`)
+
+setup opensteuerauszug pixi environment
+
+**Requirements:**
+* `pixi` available in PATH
+* macos or linux (zsh,bash,csh,tcsh shells)
+
+**Usage Example:**
+
+```bash
+. ./scripts/setup_pixi.sh
+```
+
+This will:
+- Initialise the pixi environment 'opensteuerauszug'
+- Install the required packages from the requirements.yaml file
+- Install opensteuerauszug as an editable pypi package
+
+
 **Safety note:** this repository is public. By default the script does not upload artifacts or
 create a check run. When you opt in to `--confirm-upload` without `--upload-artifacts`, only the
 stderr text is sent to the check run summary. Only opt in after reviewing outputs and confirming
