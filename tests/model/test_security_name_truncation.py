@@ -1,6 +1,5 @@
 """Tests for security name truncation functionality."""
 
-import pytest
 from src.opensteuerauszug.model.ech0196 import Security
 
 

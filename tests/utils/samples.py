@@ -1,6 +1,6 @@
 import os
 import glob
-from typing import List, Optional, Pattern, Union
+from typing import List
 from pathlib import Path
 
 def _find_repo_root(start: Path) -> Path:

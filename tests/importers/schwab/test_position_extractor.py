@@ -1,9 +1,7 @@
 import os
 import tempfile
-import pytest
 from opensteuerauszug.importers.schwab.position_extractor import PositionExtractor
 from opensteuerauszug.model.position import SecurityPosition
-from opensteuerauszug.model.ech0196 import SecurityStock, CurrencyId
 
 SAMPLE_CSV = (
     '"Positions for account Individual ...178 as of 12:33 PM ET, 2025/05/04","","","","","","","","","","","","","","","",""\n'

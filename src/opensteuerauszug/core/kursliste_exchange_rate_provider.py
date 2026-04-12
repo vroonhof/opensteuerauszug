@@ -1,14 +1,9 @@
-# Removed: from functools import lru_cache
-# Removed: from ..model.kursliste import Kursliste, ExchangeRateYearEnd, ExchangeRateMonthly, ExchangeRate
-# Removed: from .kursliste_db_reader import KurslisteDBReader
-from abc import ABC, abstractmethod # Keep if ExchangeRateProvider is ABC
 from decimal import Decimal
 from typing import Optional
 from datetime import date
 
 from .exchange_rate_provider import ExchangeRateProvider
-from ..core.kursliste_manager import KurslisteManager
-from .kursliste_accessor import KurslisteAccessor # Added import
+from opensteuerauszug.core.kursliste_manager import KurslisteManager
 
 class KurslisteExchangeRateProvider(ExchangeRateProvider):
     def __init__(self, kursliste_manager: KurslisteManager):

@@ -1,13 +1,12 @@
 from decimal import Decimal
-from typing import List, Optional, Dict, Any, cast
+from typing import Any
 
-from ..core.security import determine_security_type
-from ..model.ech0196 import (
-    TaxStatement, Security, BankAccount, LiabilityAccount, Expense,
-    ListOfSecurities, Depot, ListOfBankAccounts, ListOfLiabilities, ListOfExpenses
+from opensteuerauszug.core.security import determine_security_type
+from opensteuerauszug.model.ech0196 import (
+    TaxStatement
 )
-from .base import BaseCalculator, CalculationMode, CalculationError
-from ..util import round_accounting
+from .base import BaseCalculator, CalculationMode
+from opensteuerauszug.util import round_accounting
 
 class TotalCalculator(BaseCalculator):
     """

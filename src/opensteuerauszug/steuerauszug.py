@@ -7,15 +7,12 @@ from typing import List, Optional
 from datetime import date, datetime
 from pypdf import PdfReader, PdfWriter
 
-from opensteuerauszug.config.models import SchwabAccountSettings, IbkrAccountSettings, GeneralSettings # Added GeneralSettings
-from opensteuerauszug.render.translations import DEFAULT_LANGUAGE
+from .config.models import SchwabAccountSettings, IbkrAccountSettings, GeneralSettings
+from .render.translations import DEFAULT_LANGUAGE
 from .core.identifier_loader import SecurityIdentifierMapLoader
 
-# Use the generated eCH-0196 model
 from .model.ech0196 import TaxStatement, Client, ClientNumber, Institution
-# Import the rendering functionality
 from .render.render import render_tax_statement
-# Import calculation framework
 from .calculate.base import CalculationMode
 from .calculate.total import TotalCalculator
 from .calculate.cleanup import CleanupCalculator
@@ -58,7 +55,7 @@ class Phase(str, Enum):
 
 class ImporterType(str, Enum):
     SCHWAB = "schwab"
-    IBKR = "ibkr" # Added IBKR
+    IBKR = "ibkr"
     NONE = "none"
 
 class TaxCalculationLevel(str, Enum):

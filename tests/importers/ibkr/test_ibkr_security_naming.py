@@ -1,7 +1,6 @@
 import os
 import pytest
 from datetime import date
-from decimal import Decimal
 import tempfile
 from typing import List
 

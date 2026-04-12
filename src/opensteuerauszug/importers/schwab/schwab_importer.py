@@ -1,12 +1,11 @@
 import logging
-import pprint
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Optional, Tuple
 import os
 from decimal import Decimal
 from opensteuerauszug.model.ech0196 import (
-    BankAccountName, Institution, ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, CurrencyId, QuotationType, BankAccountTaxValue, Client, ClientNumber
+    BankAccountName, Institution, ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, BankAccountTaxValue, Client, ClientNumber
 )
-from opensteuerauszug.model.position import BasePosition, SecurityPosition, CashPosition, Position
+from opensteuerauszug.model.position import BasePosition, SecurityPosition, CashPosition
 from .statement_extractor import StatementExtractor
 from datetime import date, timedelta
 from .fallback_position_extractor import FallbackPositionExtractor
@@ -14,13 +13,11 @@ from .position_extractor import PositionExtractor
 from .transaction_extractor import TransactionExtractor
 from opensteuerauszug.util.date_coverage import DateRangeCoverage
 from collections import defaultdict
-from opensteuerauszug.core.position_reconciler import PositionReconciler, ReconciledQuantity
-from opensteuerauszug.config.models import SchwabAccountSettings # Add this
+from opensteuerauszug.core.position_reconciler import PositionReconciler
+from opensteuerauszug.config.models import SchwabAccountSettings
 
 logger = logging.getLogger(__name__)
 
-# Placeholder import for TransactionExtractor (to be implemented)
-# from .TransactionExtractor import TransactionExtractor
 
 
 def _get_configured_account_info(depot_short_id: str, account_settings_list: List[SchwabAccountSettings], is_awards_depot: bool) -> Tuple[Optional[str], str]:
@@ -484,7 +481,7 @@ def convert_security_positions_to_list_of_securities(
             securityName=security_name,
             stock=stocks,
             payment=payments or [],
-            symbol=pos.symbol  # Add this line
+            symbol=pos.symbol
         )
         depots[final_depot_id_str].security.append(sec) # Use final_depot_id_str as key
     return ListOfSecurities(depot=list(depots.values()))
@@ -573,7 +570,7 @@ def create_tax_statement_from_positions(
     period_from: date,
     period_to: date,
     tax_period: int,
-    account_settings_list: List[SchwabAccountSettings] # Added account_settings_list
+    account_settings_list: List[SchwabAccountSettings]
 ) -> TaxStatement:
     """
     Create a TaxStatement from security and cash tuples.
@@ -608,7 +605,6 @@ def create_tax_statement_from_positions(
     )
 
 if __name__ == "__main__":
-    import sys
     import argparse
     from datetime import datetime
 

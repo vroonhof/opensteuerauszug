@@ -1,10 +1,6 @@
-import pytest
-import sqlite3  # Still needed for direct database manipulation in tests
 from pathlib import Path
-from typing import List, Union
-import os
-from decimal import Decimal
-from datetime import datetime, date
+from typing import List
+from datetime import date
 
 from opensteuerauszug.core.kursliste_manager import KurslisteManager
 from opensteuerauszug.core.kursliste_db_reader import KurslisteDBReader

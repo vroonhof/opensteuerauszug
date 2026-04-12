@@ -1,18 +1,12 @@
-import os
-import sys
 import pytest
 from datetime import date, datetime
 from decimal import Decimal
-from lxml import etree as ET  # Use lxml.etree explicitly
+from lxml import etree as ET
 from pathlib import Path
-import re
 from pydantic import Field
 
-# Import the centralized test utilities
 from tests.utils import normalize_xml, get_sample_files
 
-# Adjust import path based on your project structure if necessary
-# This assumes 'tests' is at the same level as 'src'
 from opensteuerauszug.model.ech0196 import (
     TaxStatement,
     Institution,
@@ -21,7 +15,6 @@ from opensteuerauszug.model.ech0196 import (
     BankAccount,
     BankAccountName,
     BankAccountNumber,
-    BaseXmlModel,
     NS_MAP,
     ns_tag,
     Security,

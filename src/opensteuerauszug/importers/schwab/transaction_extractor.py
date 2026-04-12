@@ -1,13 +1,12 @@
 import logging
 import json
-from typing import List, Optional, Tuple, Any, Annotated
+from typing import List, Optional, Tuple, Any
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from opensteuerauszug.model.position import Position, SecurityPosition, CashPosition
-from opensteuerauszug.model.ech0196 import SecurityStock, SecurityPayment, CurrencyId, QuotationType
+from opensteuerauszug.model.ech0196 import SecurityStock, SecurityPayment
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
-# A logger for this module
 logger = logging.getLogger(__name__)
 
 # Known actions from formats.md

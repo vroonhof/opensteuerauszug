@@ -1,15 +1,9 @@
-# Import necessary ReportLab components
 from reportlab.graphics.barcode import code128
 from reportlab.lib.units import mm
-from reportlab.graphics.shapes import Drawing
-from reportlab.graphics import renderPDF
 from reportlab.pdfgen import canvas
-# Import landscape and A4 page size
 from reportlab.lib.pagesizes import A4, landscape
-# Import Tuple for type hinting from the correct module
 from typing import Tuple
 import logging
-# Import standard colors
 from reportlab.lib import colors
 
 PRINT_SCALE_CORRECTION = 1/0.97 # Allow for printer scaling (97% reduction)

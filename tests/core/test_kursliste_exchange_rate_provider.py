@@ -4,7 +4,7 @@ from decimal import Decimal
 from unittest.mock import MagicMock
 
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
-from opensteuerauszug.core.kursliste_accessor import KurslisteAccessor # Added import
+from opensteuerauszug.core.kursliste_accessor import KurslisteAccessor
 from opensteuerauszug.model.kursliste import Kursliste, ExchangeRateYearEnd, ExchangeRateMonthly, ExchangeRate
 
 # Define a consistent tax year for tests that need it for the accessor

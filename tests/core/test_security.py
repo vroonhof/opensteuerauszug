@@ -1,13 +1,12 @@
 """Tests for the security module in the core package."""
 
-import pytest
 from decimal import Decimal
 from datetime import date
 from typing import Optional, List
 
 from opensteuerauszug.core.security import determine_security_type, SecurityType
 from opensteuerauszug.model.ech0196 import (
-    Security, SecurityPayment, CurrencyId, QuotationType, SecurityCategory, ValorNumber, ISINType
+    Security, SecurityPayment, CurrencyId
 )
 
 

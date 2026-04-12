@@ -1,13 +1,11 @@
 import pytest
-import sqlite3 
 from decimal import Decimal
 from datetime import date, datetime
-from unittest import mock 
 
 from opensteuerauszug.core.kursliste_accessor import KurslisteAccessor
 from opensteuerauszug.core.kursliste_db_reader import KurslisteDBReader
 from opensteuerauszug.model.kursliste import (
-    Kursliste, Security, Share, Bond, Fund, 
+    Kursliste, Share, Bond, Fund,
     ExchangeRate, ExchangeRateMonthly, ExchangeRateYearEnd,
     SecurityGroupESTV, SecurityTypeESTV, 
 )

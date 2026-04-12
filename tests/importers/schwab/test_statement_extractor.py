@@ -1,11 +1,10 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 import decimal
 from datetime import date
 
 from opensteuerauszug.importers.schwab.statement_extractor import StatementExtractor
 from opensteuerauszug.model.position import SecurityPosition, CashPosition
-from opensteuerauszug.model.ech0196 import SecurityStock
 
 class TestStatementExtractorPositions(unittest.TestCase):
 

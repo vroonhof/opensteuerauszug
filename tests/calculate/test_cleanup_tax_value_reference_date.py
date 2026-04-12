@@ -13,14 +13,13 @@ Without the fix, this test would fail because the SecurityTaxValue would have
 referenceDate=2024-01-01 instead of the correct referenceDate=2023-12-31.
 """
 
-import pytest
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from opensteuerauszug.calculate.cleanup import CleanupCalculator
 from opensteuerauszug.model.ech0196 import (
-    TaxStatement, Security, SecurityStock, SecurityTaxValue, Depot, ListOfSecurities,
-    Institution, Client, LEIType, ClientNumber, ValorNumber, ISINType, CurrencyId, DepotNumber
+    TaxStatement, Security, SecurityStock, Depot, ListOfSecurities,
+    ValorNumber, ISINType, DepotNumber
 )
 
 

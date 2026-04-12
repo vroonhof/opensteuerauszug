@@ -1,4 +1,3 @@
-import pytest
 from pathlib import Path
 from opensteuerauszug.core.kursliste_manager import KurslisteManager
 

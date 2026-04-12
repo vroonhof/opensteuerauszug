@@ -2,7 +2,6 @@ import sqlite3
 from decimal import Decimal
 from typing import Dict, Type
 
-# Import Pydantic models needed for deserialization and type map
 from opensteuerauszug.model.kursliste import (
     Security, Share, Bond, Fund,
     SecurityTypeESTV

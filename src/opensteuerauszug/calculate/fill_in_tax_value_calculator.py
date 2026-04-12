@@ -6,10 +6,10 @@ import logging
 from opensteuerauszug.model.ech0196 import SecurityPayment, Security
 from .kursliste_tax_value_calculator import KurslisteTaxValueCalculator
 from .base import CalculationMode
-from ..core.exchange_rate_provider import ExchangeRateProvider
+from opensteuerauszug.core.exchange_rate_provider import ExchangeRateProvider
 
 
-from ..core.flag_override_provider import FlagOverrideProvider
+from opensteuerauszug.core.flag_override_provider import FlagOverrideProvider
 
 logger = logging.getLogger(__name__)
 

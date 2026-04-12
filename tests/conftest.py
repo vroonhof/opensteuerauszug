@@ -5,7 +5,6 @@ This file ensures that the src directory is in the Python path
 so that tests can import modules from the package.
 """
 
-import os
 import sys
 from pathlib import Path
 

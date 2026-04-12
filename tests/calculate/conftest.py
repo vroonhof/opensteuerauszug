@@ -14,7 +14,6 @@ from typing import List, Optional
 from opensteuerauszug.core.kursliste_manager import KurslisteManager
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from opensteuerauszug.core.kursliste_accessor import KurslisteAccessor
-from opensteuerauszug.model.kursliste import Kursliste
 from opensteuerauszug.model.ech0196 import TaxStatement
 from tests.utils.samples import get_sample_dirs
 

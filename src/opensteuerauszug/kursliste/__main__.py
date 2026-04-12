@@ -4,8 +4,8 @@ import os
 from pathlib import Path
 from typing import Optional
 from .downloader import download_kursliste, get_latest_initial_export
-from ..config.paths import resolve_kursliste_dir, get_app_data_dir
-from ..model.kursliste import KurslisteMetadata
+from opensteuerauszug.config.paths import resolve_kursliste_dir, get_app_data_dir
+from opensteuerauszug.model.kursliste import KurslisteMetadata
 from .converter import (
     CONVERTER_SCHEMA_VERSION,
     convert_kursliste_xml_to_sqlite,

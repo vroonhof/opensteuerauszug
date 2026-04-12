@@ -2,47 +2,34 @@ import io
 from math import floor
 import sys
 import hashlib
-import os
-import json
 from pathlib import Path
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Optional, Union
 from decimal import Decimal, ROUND_HALF_UP
 import zlib
 from PIL import Image as PILImage
 import html
 
-# --- ReportLab Imports ---
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, 
-    PageBreak, KeepTogether, Frame, PageTemplate, FrameActionFlowable,
+    Paragraph, Spacer, Image, Table, TableStyle,
+    PageBreak, KeepTogether, Frame, PageTemplate,
     BaseDocTemplate, DocAssign
 )
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.units import cm, mm
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 import logging
 
-# --- Import TaxStatement model ---
 from opensteuerauszug.model.ech0196 import TaxStatement
-from opensteuerauszug.model.critical_warning import CriticalWarning, CriticalWarningCategory
-
-# --- Import OneDeeBarCode for barcode rendering ---
-from opensteuerauszug.render.onedee import OneDeeBarCode
-
-# --- Import Organisation helper functions ---
+from .onedee import OneDeeBarCode
 from opensteuerauszug.core.organisation import compute_org_nr
-
-# --- Import Security type utilities ---
 from opensteuerauszug.core.security import determine_security_type, SecurityType
-
-# --- Import styles utility ---
 from opensteuerauszug.util.styles import get_custom_styles, FONT_REGULAR, FONT_BOLD
 from opensteuerauszug.util import round_accounting
-from opensteuerauszug.render.markdown_renderer import markdown_to_platypus
-from opensteuerauszug.render.translations import t as _t, DEFAULT_LANGUAGE
+from .markdown_renderer import markdown_to_platypus
+from .translations import t as _t, DEFAULT_LANGUAGE
 
 logger = logging.getLogger(__name__)
 

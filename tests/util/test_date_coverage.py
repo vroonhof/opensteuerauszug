@@ -1,4 +1,3 @@
-import pytest
 from datetime import date
 from src.opensteuerauszug.util import DateRangeCoverage
 

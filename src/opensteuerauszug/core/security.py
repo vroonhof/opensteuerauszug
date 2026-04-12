@@ -13,9 +13,8 @@ Tax classification of securities:
 from decimal import Decimal
 from typing import Literal, Optional, List
 
-from ..model.ech0196 import Security, SecurityPayment
+from opensteuerauszug.model.ech0196 import Security, SecurityPayment
 
-# Define a new type for security types
 SecurityType = Literal["A", "B", "DA1"]
 
 

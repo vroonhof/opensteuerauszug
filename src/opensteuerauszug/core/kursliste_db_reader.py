@@ -1,5 +1,5 @@
 import sqlite3
-import json # Added import
+import json
 from typing import Optional, Dict as PyDict, List, Type
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -17,14 +17,14 @@ class KurslisteDBReader:
     Securities are stored as BLOBs (raw XML in v3+, JSON in legacy) and
     deserialized into Pydantic models on read.
     """
-    _SECURITY_TYPE_MAP: PyDict[str, Type[Security]] = {  # Changed Dict to PyDict
+    _SECURITY_TYPE_MAP: PyDict[str, Type[Security]] = {
         st.value: globals()[st.name.split('_')[-1].capitalize() if '.' not in st.name else st.name.split('.')[0].capitalize()]
         for st in SecurityTypeESTV if st.name.split('_')[-1].capitalize() in globals() or ('.' in st.name and st.name.split('.')[0].capitalize() in globals())
     }
     # Manually adjust specific mappings if capitalization/naming is tricky
     # For example, if SecurityTypeESTV.SHARE_COMMON -> Share, SecurityTypeESTV.BOND_BOND -> Bond
     # The comprehension above is a bit optimistic. Let's define it more explicitly for clarity and correctness.
-    _SECURITY_TYPE_MAP: PyDict[str, Type[Security]] = { # Changed Dict to PyDict
+    _SECURITY_TYPE_MAP: PyDict[str, Type[Security]] = {
         SecurityTypeESTV.SHARE_COMMON.value: Share,
         SecurityTypeESTV.SHARE_BEARERCERT.value: Share,
         SecurityTypeESTV.SHARE_BONUS.value: Share,

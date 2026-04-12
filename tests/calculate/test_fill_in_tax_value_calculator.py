@@ -3,10 +3,6 @@ from typing import Dict, Optional
 
 from opensteuerauszug.calculate.base import CalculationMode
 from opensteuerauszug.calculate.fill_in_tax_value_calculator import FillInTaxValueCalculator
-from opensteuerauszug.core.exchange_rate_provider import (
-    DummyExchangeRateProvider,
-    ExchangeRateProvider,
-)
 from opensteuerauszug.core.flag_override_provider import FlagOverrideProvider
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from opensteuerauszug.model.ech0196 import TaxStatement
