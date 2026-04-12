@@ -10,7 +10,7 @@ from tests.utils.samples import get_sample_files
 
 # Check if ibflex is available, skip tests if not
 try:
-    from ibflex import parser as ibflex_parser
+    from ibflex import parser as ibflex_parser  # noqa: F401
     IBFLEX_INSTALLED = True
 except ImportError:
     IBFLEX_INSTALLED = False

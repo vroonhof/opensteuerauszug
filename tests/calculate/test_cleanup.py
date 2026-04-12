@@ -24,7 +24,6 @@ from opensteuerauszug.model.ech0196 import (
     CountryIdISO2Type
 )
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
-import os
 
 DEFAULT_TEST_PERIOD_FROM = date(2023, 1, 1)
 DEFAULT_TEST_PERIOD_TO = date(2023, 12, 31)

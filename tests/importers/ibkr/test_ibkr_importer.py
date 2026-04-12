@@ -12,13 +12,6 @@ from opensteuerauszug.importers.ibkr.ibkr_importer import (
 )
 from opensteuerauszug.config.models import IbkrAccountSettings
 from opensteuerauszug.model.ech0196 import (
-    TaxStatement,
-    ListOfSecurities,
-    ListOfBankAccounts,
-    Security,
-    BankAccount,
-    QuotationType,
-    CurrencyId,
     Client,
 )
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
