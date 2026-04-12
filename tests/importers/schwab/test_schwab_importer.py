@@ -3,19 +3,29 @@ from unittest.mock import patch
 from datetime import date, timedelta
 from decimal import Decimal
 
-from opensteuerauszug.importers.schwab.schwab_importer import SchwabImporter, convert_security_positions_to_list_of_securities
+from opensteuerauszug.importers.schwab.schwab_importer import (
+    SchwabImporter,
+    _get_configured_account_info,
+    convert_cash_positions_to_list_of_bank_accounts,
+    convert_security_positions_to_list_of_securities,
+    create_tax_statement_from_positions,
+    next_business_day,
+    settlement_date,
+    split_unsettled_cash,
+)
 from opensteuerauszug.model.ech0196 import (
-    TaxStatement,
+    BankAccountName,
+    BankAccountNumber,
+    ClientNumber,
+    DepotNumber,
+    ListOfBankAccounts,
+    ListOfSecurities,
     SecurityPayment,
     SecurityStock,
-    DepotNumber,
-    ListOfSecurities
+    TaxStatement,
 )
-from opensteuerauszug.model.position import SecurityPosition
-
-from opensteuerauszug.importers.schwab.schwab_importer import _get_configured_account_info, create_tax_statement_from_positions
+from opensteuerauszug.model.position import CashPosition, SecurityPosition
 from opensteuerauszug.config.models import SchwabAccountSettings
-from opensteuerauszug.model.ech0196 import ClientNumber
 
 
 class TestGetConfiguredAccountInfo(unittest.TestCase):
@@ -89,10 +99,6 @@ class TestGetConfiguredAccountInfo(unittest.TestCase):
     # The case for non_awards_match_with_no_alias_in_setting is implicitly covered
     # by test_non_awards_unique_match, as account_name_alias is mandatory.
     # The warning message for multiple matches also correctly references the alias.
-
-from opensteuerauszug.importers.schwab.schwab_importer import convert_cash_positions_to_list_of_bank_accounts
-from opensteuerauszug.model.position import CashPosition
-from opensteuerauszug.model.ech0196 import BankAccountNumber, BankAccountName, ListOfBankAccounts
 
 
 class TestSchwabImporterAccountResolution(unittest.TestCase):
@@ -707,12 +713,6 @@ class TestSchwabImporterBankAccountNames(unittest.TestCase):
         # Bank account number should be None for awards (no configured account number)
         assert bank_account.bankAccountNumber is None
 
-from opensteuerauszug.importers.schwab.schwab_importer import (
-    next_business_day,
-    settlement_date,
-    split_unsettled_cash,
-)
-
 
 class TestNextBusinessDay(unittest.TestCase):
     """Unit tests for the next_business_day / settlement_date helpers."""
@@ -750,13 +750,15 @@ class TestSplitUnsettledCash(unittest.TestCase):
             quotationType="PIECE",
         )
 
-    def _mut(self, d: str, qty: str) -> SecurityStock:
+    def _mut(self, d: str, qty: str, requires_settlement: bool = True) -> SecurityStock:
+        """Create a trade cash mutation (requires_settlement=True by default)."""
         return SecurityStock(
             referenceDate=date.fromisoformat(d),
             mutation=True,
             quantity=Decimal(qty),
             balanceCurrency="USD",
             quotationType="PIECE",
+            requires_settlement=requires_settlement,
         )
 
     def test_no_mutations(self):
@@ -766,7 +768,7 @@ class TestSplitUnsettledCash(unittest.TestCase):
         self.assertEqual(len(unsettled), 0)
 
     def test_settled_trade_before_period_end(self):
-        # Dec 29 trade settles Dec 30 — before Dec 31
+        # Dec 29 (Mon) trade settles Dec 30 (Tue) ≤ Dec 31 → settled
         stocks = [self._bal("2025-01-01", "0"), self._mut("2025-12-29", "500"), self._bal("2026-01-01", "500")]
         settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
         self.assertEqual(len(unsettled), 0)
@@ -790,6 +792,15 @@ class TestSplitUnsettledCash(unittest.TestCase):
         self.assertEqual(len(settled), 3)   # opening bal + Dec29 mutation + closing bal
         self.assertEqual(len(unsettled), 1)  # Dec31 mutation
         self.assertEqual(unsettled[0].referenceDate, date(2025, 12, 31))
+
+    def test_non_trade_mutation_never_unsettled(self):
+        """A mutation without requires_settlement=True (e.g. dividend, interest) is
+        always placed in the settled bucket even if it occurs on the last day."""
+        dividend = self._mut("2025-12-31", "50", requires_settlement=False)
+        stocks = [self._bal("2025-01-01", "0"), dividend, self._bal("2026-01-01", "50")]
+        settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
+        self.assertEqual(len(unsettled), 0)
+        self.assertEqual(len(settled), 3)
 
     def test_balance_entries_always_settled(self):
         """Balance (non-mutation) entries always go to the settled bucket."""
@@ -834,7 +845,8 @@ class TestUnsettledCashAccountGeneration(unittest.TestCase):
         opening = SecurityStock(referenceDate=period_from, mutation=False, quantity=Decimal("0"),
                                 balanceCurrency="USD", quotationType="PIECE")
         sale = SecurityStock(referenceDate=period_to, mutation=True, quantity=Decimal("1000"),
-                             balanceCurrency="USD", quotationType="PIECE", name="Sale proceeds")
+                             balanceCurrency="USD", quotationType="PIECE", name="Sale proceeds",
+                             requires_settlement=True)
         # PDF reports $0 because trade hasn't settled
         closing_pdf = SecurityStock(referenceDate=period_to + timedelta(days=1), mutation=False,
                                     quantity=Decimal("0"), balanceCurrency="USD", quotationType="PIECE")
@@ -869,7 +881,7 @@ class TestUnsettledCashAccountGeneration(unittest.TestCase):
                                 balanceCurrency="USD", quotationType="PIECE")
         # Dec 29 is a Monday; settlement = Dec 30 ≤ Dec 31 → fully settled
         sale = SecurityStock(referenceDate=date(2025, 12, 29), mutation=True, quantity=Decimal("500"),
-                             balanceCurrency="USD", quotationType="PIECE")
+                             balanceCurrency="USD", quotationType="PIECE", requires_settlement=True)
         # PDF correctly shows $500 (trade settled by year-end)
         closing_pdf = SecurityStock(referenceDate=period_to + timedelta(days=1), mutation=False,
                                     quantity=Decimal("500"), balanceCurrency="USD", quotationType="PIECE")
@@ -895,7 +907,7 @@ class TestUnsettledCashAccountGeneration(unittest.TestCase):
                                 balanceCurrency="USD", quotationType="PIECE")
         # Dec 31 trade (Wed) settles Jan 1 → unsettled
         sale = SecurityStock(referenceDate=date(2025, 12, 31), mutation=True, quantity=Decimal("200"),
-                             balanceCurrency="USD", quotationType="PIECE")
+                             balanceCurrency="USD", quotationType="PIECE", requires_settlement=True)
         closing_pdf = SecurityStock(referenceDate=period_to + timedelta(days=1), mutation=False,
                                     quantity=Decimal("0"), balanceCurrency="USD", quotationType="PIECE")
 
@@ -922,9 +934,9 @@ class TestUnsettledCashAccountGeneration(unittest.TestCase):
                                 balanceCurrency="USD", quotationType="PIECE")
         # Two unsettled trades on Dec 31 (Wed → settles Jan 1)
         sale1 = SecurityStock(referenceDate=date(2025, 12, 31), mutation=True, quantity=Decimal("600"),
-                              balanceCurrency="USD", quotationType="PIECE")
+                              balanceCurrency="USD", quotationType="PIECE", requires_settlement=True)
         sale2 = SecurityStock(referenceDate=date(2025, 12, 31), mutation=True, quantity=Decimal("400"),
-                              balanceCurrency="USD", quotationType="PIECE")
+                              balanceCurrency="USD", quotationType="PIECE", requires_settlement=True)
         closing_pdf = SecurityStock(referenceDate=period_to + timedelta(days=1), mutation=False,
                                     quantity=Decimal("0"), balanceCurrency="USD", quotationType="PIECE")
 

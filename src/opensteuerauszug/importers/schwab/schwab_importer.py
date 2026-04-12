@@ -70,7 +70,7 @@ def split_unsettled_cash(
     settled: List[SecurityStock] = []
     unsettled: List[SecurityStock] = []
     for s in stocks:
-        if s.mutation and settlement_date(s.referenceDate) > period_end:
+        if s.mutation and s.requires_settlement and settlement_date(s.referenceDate) > period_end:
             unsettled.append(s)
         else:
             settled.append(s)
@@ -298,7 +298,7 @@ class SchwabImporter:
             is_unsettled_balance=True,
         )
         logger.info(
-            f"[{pos_obj.get_processing_identifier()}] Created unsettled cash account "
+            f"[{unsettled_pos.get_processing_identifier()}] Created unsettled cash account "
             f"with {len(unsettled_stocks)} trade(s) totalling {total_unsettled} {currency}."
         )
         return unsettled_pos, all_stocks, []
@@ -505,12 +505,6 @@ class SchwabImporter:
                 # Unsettled = trades whose T+1 settlement date falls after period_to
                 # (i.e. the broker's statement would not yet reflect them).
                 settled_stocks, unsettled_stocks = split_unsettled_cash(initial_stocks, self.period_to)
-                if unsettled_stocks:
-                    logger.info(
-                        f"[{pos_obj.get_processing_identifier()}] {len(unsettled_stocks)} "
-                        f"unsettled trade(s) at period end {self.period_to}; "
-                        "will be reported as a separate account."
-                    )
 
                 processed_tuple = self._reconcile_and_ensure_boundary_stocks_for_position(
                     pos_obj, settled_stocks, associated_payments
@@ -521,6 +515,11 @@ class SchwabImporter:
                 if unsettled_stocks:
                     total_unsettled = sum((s.quantity for s in unsettled_stocks), Decimal("0"))
                     if total_unsettled != Decimal("0"):
+                        logger.info(
+                            f"[{pos_obj.get_processing_identifier()}] {len(unsettled_stocks)} "
+                            f"unsettled trade(s) at period end {self.period_to} "
+                            f"(net {total_unsettled}); will be reported as a separate account."
+                        )
                         unsettled_tuple = self._make_unsettled_position_tuple(pos_obj, unsettled_stocks)
                         all_processed_tuples.append(unsettled_tuple)
             else:
