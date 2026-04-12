@@ -40,7 +40,7 @@ if ! pixi info | grep -q "Name: $PIXI_ENV_NAME"; then
   # create pixi workspace 
   printf -- "--> pixi environment '$PIXI_ENV_NAME' not found\n"
   printf -- "--> Creating new pixi workspace: $PIXI_ENV_NAME\n"
-  pixi init -i requirements.yaml
+  pixi init
   printf -- "--> adding framework as pypi package\n"
   pixi add --pypi --editable "$PIXI_ENV_NAME @ file:$PWD"
   pixi add --pypi "pdf417decoder @ git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python"
