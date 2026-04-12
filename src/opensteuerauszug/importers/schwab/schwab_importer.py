@@ -55,10 +55,21 @@ def split_unsettled_cash(
 ) -> Tuple[List[SecurityStock], List[SecurityStock]]:
     """Partition *stocks* into settled and unsettled at *period_end*.
 
-    A mutation (trade) is considered **unsettled** when its T+1 settlement
-    date falls strictly *after* period_end — meaning the cash would not yet
-    appear in the broker's reported balance.  Balance entries (mutation=False)
-    are always placed in the settled bucket.
+    A mutation (trade) is considered **period-end unsettled** when its T+1
+    settlement date falls strictly *after* period_end — meaning the cash would
+    not yet appear in the broker's reported balance.  These are returned in the
+    second bucket so the caller can create a separate unsettled account.
+
+    Intra-period balance checkpoints (e.g. quarterly statement boundaries) are
+    also handled.  When a T+1 trade's settlement date falls on or after the
+    nearest balance-snapshot date that follows the trade, the broker's snapshot
+    does not yet include that cash.  In this case the mutation's referenceDate
+    is shifted to the settlement date so the reconciler processes it *after*
+    the balance checkpoint rather than before it (balance entries sort before
+    mutations on the same date, so an exact tie still works correctly).
+
+    Balance entries (mutation=False) are always placed in the settled bucket
+    unchanged.
 
     Args:
         stocks: All SecurityStock entries for a cash position.
@@ -67,11 +78,29 @@ def split_unsettled_cash(
     Returns:
         (settled_stocks, unsettled_stocks)
     """
+    # Sorted list of all balance-snapshot dates in the stock list.
+    balance_dates = sorted({s.referenceDate for s in stocks if not s.mutation})
+
     settled: List[SecurityStock] = []
     unsettled: List[SecurityStock] = []
     for s in stocks:
-        if s.mutation and s.requires_settlement and settlement_date(s.referenceDate) > period_end:
-            unsettled.append(s)
+        if s.mutation and s.requires_settlement:
+            settle = settlement_date(s.referenceDate)
+            if settle > period_end:
+                # Will not settle within the period → separate unsettled account.
+                unsettled.append(s)
+            else:
+                # Settles within the period. Check for an intra-period balance
+                # checkpoint that would not yet include this settlement.
+                next_checkpoint = next(
+                    (d for d in balance_dates if d > s.referenceDate), None
+                )
+                if next_checkpoint is not None and settle >= next_checkpoint:
+                    # The next balance snapshot is on or before settlement day.
+                    # Shift the mutation to settlement_date so it falls *after*
+                    # the checkpoint in the sorted stock sequence.
+                    s = s.model_copy(update={"referenceDate": settle})
+                settled.append(s)
         else:
             settled.append(s)
     return settled, unsettled

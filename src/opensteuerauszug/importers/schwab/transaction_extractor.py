@@ -436,7 +436,7 @@ class TransactionExtractor:
                 #     amount=schwab_amount, name="Cash In Lieu",
                 #     grossRevenueB=schwab_amount
                 # )
-                cash_stock = create_cash_stock(schwab_amount, f"Cash in for Cash In Lieu {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}", requires_settlement=True)
+                cash_stock = create_cash_stock(schwab_amount, f"Cash in for Cash In Lieu {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
 
         elif action == "Journal":
             if schwab_qty and pos_object.type == "security": # Security journal
