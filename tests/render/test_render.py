@@ -353,7 +353,7 @@ def test_integration_render_all_samples(mock_render_to_barcodes, sample_file):
 def test_create_bank_accounts_table_none():
     styles = getSampleStyleSheet()
     tax_statement = TaxStatement(minorVersion=2)
-    result = create_bank_accounts_table(tax_statement, styles, 500)
+    result = create_bank_accounts_table(tax_statement, styles, 737)
     assert result is None
 
 def test_create_bank_accounts_table_single_minimal():
@@ -385,7 +385,7 @@ def test_create_bank_accounts_table_single_minimal():
             totalGrossRevenueB=Decimal("5.00")
         )
     )
-    table = create_bank_accounts_table(tax_statement, styles, 500)
+    table = create_bank_accounts_table(tax_statement, styles, 737)
     assert isinstance(table, Table)
     # Should have at least header + 2 rows (label, value)
     assert len(table._cellvalues) >= 3  # type: ignore[attr-defined]
@@ -449,7 +449,7 @@ def test_create_bank_accounts_table_multiple_accounts_with_payments():
             totalGrossRevenueB=Decimal("0.00")
         )
     )
-    table = create_bank_accounts_table(tax_statement, styles, 500)
+    table = create_bank_accounts_table(tax_statement, styles, 737)
     assert isinstance(table, Table)
     # Should have header + rows for each account and payment
     assert len(table._cellvalues) > 4  # type: ignore[attr-defined]
@@ -489,7 +489,7 @@ def test_create_bank_accounts_table_with_opening_date():
             totalGrossRevenueB=Decimal("0"),
         ),
     )
-    table = create_bank_accounts_table(tax_statement, styles, 500)
+    table = create_bank_accounts_table(tax_statement, styles, 737)
     assert isinstance(table, Table)
     # Find the account description cell and check for opening date text
     all_text = " ".join(
@@ -527,7 +527,7 @@ def test_create_bank_accounts_table_with_closing_date():
             totalGrossRevenueB=Decimal("0"),
         ),
     )
-    table = create_bank_accounts_table(tax_statement, styles, 500)
+    table = create_bank_accounts_table(tax_statement, styles, 737)
     assert isinstance(table, Table)
     all_text = " ".join(
         cell.text for row in table._cellvalues for cell in row if isinstance(cell, Paragraph)
@@ -565,7 +565,7 @@ def test_create_bank_accounts_table_with_both_dates():
             totalGrossRevenueB=Decimal("0"),
         ),
     )
-    table = create_bank_accounts_table(tax_statement, styles, 500)
+    table = create_bank_accounts_table(tax_statement, styles, 737)
     assert isinstance(table, Table)
     all_text = " ".join(
         cell.text for row in table._cellvalues for cell in row if isinstance(cell, Paragraph)
@@ -604,7 +604,7 @@ def test_create_bank_accounts_table_without_dates():
             totalGrossRevenueB=Decimal("0"),
         ),
     )
-    table = create_bank_accounts_table(tax_statement, styles, 500)
+    table = create_bank_accounts_table(tax_statement, styles, 737)
     assert isinstance(table, Table)
     all_text = " ".join(
         cell.text for row in table._cellvalues for cell in row if isinstance(cell, Paragraph)
