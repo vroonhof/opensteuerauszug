@@ -21,6 +21,10 @@ from opensteuerauszug.model.payment_reconciliation import (
 
 logger = logging.getLogger(__name__)
 
+_CMP_LOWER = -1
+_CMP_EQUAL = 0
+_CMP_HIGHER = 1
+
 
 @dataclass
 class _BrokerAgg:
@@ -209,13 +213,13 @@ class PaymentReconciliationCalculator:
                 allow_broker_above_kursliste = (
                     kurs.allows_broker_above_kursliste or broker.allows_broker_above_kursliste
                 )
-                div_ok = self._component_matches(
+                div_cmp = self._compare_component(
                     kurs_value_chf=kurs.dividend_chf,
                     broker_value_chf=broker_div_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
                     allow_broker_above_kursliste=allow_broker_above_kursliste,
                 )
-                w_ok = self._component_matches(
+                w_cmp = self._compare_component(
                     kurs_value_chf=kurs.withholding_chf,
                     broker_value_chf=broker_with_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
@@ -223,11 +227,27 @@ class PaymentReconciliationCalculator:
                         allow_broker_above_kursliste or not security_has_sensitive_overwithholding
                     ),
                 )
-                if not div_ok:
+                if div_cmp == _CMP_LOWER:
                     note = "Broker dividend is below Kursliste value beyond tolerance."
-                elif not w_ok:
+                elif div_cmp == _CMP_HIGHER:
+                    note = "Broker dividend is above Kursliste value beyond tolerance."
+                elif w_cmp == _CMP_LOWER:
                     note = "Broker withholding is below Kursliste value beyond tolerance."
-                matched = div_ok and w_ok
+                elif w_cmp == _CMP_HIGHER:
+                    if (
+                        country == "US"
+                        and broker_with_chf is not None
+                        and kurs.withholding_chf
+                        and kurs.withholding_chf != 0
+                        and abs((broker_with_chf / kurs.withholding_chf) - 2) < Decimal("0.01")
+                    ):
+                        note = (
+                            "Broker withholding is twice Kursliste value, check that your broker "
+                            "has a valid W-8BEN/1042-S setup."
+                        )
+                    else:
+                        note = "Broker withholding is above Kursliste value beyond tolerance."
+                matched = div_cmp == _CMP_EQUAL and w_cmp == _CMP_EQUAL
                 status = "match" if matched else "mismatch"
             elif not has_kurs and has_broker:
                 note = "Broker payment has no Kursliste entry."
@@ -268,30 +288,32 @@ class PaymentReconciliationCalculator:
 
         return rows
 
-    def _component_matches(
+    def _compare_component(
         self,
         kurs_value_chf: Decimal,
         broker_value_chf: Optional[Decimal],
         allow_bidirectional_on_noncash: bool,
         allow_broker_above_kursliste: bool,
-    ) -> bool:
+    ) -> int:
         if broker_value_chf is None:
-            return abs(kurs_value_chf) < Decimal("0.01")
+            if abs(kurs_value_chf) < Decimal("0.01"):
+                return _CMP_EQUAL
+            return _CMP_LOWER
 
         if allow_bidirectional_on_noncash:
-            return True
+            return _CMP_EQUAL
 
         delta = broker_value_chf - kurs_value_chf
         if abs(delta) <= self.tolerance_chf:
-            return True
+            return _CMP_EQUAL
 
         if abs(delta) <= self.tolerance_frac * broker_value_chf:
-            return True
+            return _CMP_EQUAL
 
         if delta > self.tolerance_chf and allow_broker_above_kursliste:
-            return True
+            return _CMP_EQUAL
 
-        return False
+        return _CMP_HIGHER if delta > 0 else _CMP_LOWER
 
     def _accumulate_broker(self, agg: _BrokerAgg, payment: SecurityPayment) -> None:
         if self._is_broker_above_kursliste_allowlisted(payment):

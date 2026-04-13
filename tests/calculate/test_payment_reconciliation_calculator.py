@@ -237,6 +237,7 @@ def test_broker_above_kursliste_without_allowlist_is_mismatch():
     result = PaymentReconciliationCalculator().calculate(statement)
     row = result.payment_reconciliation_report.rows[0]
     assert row.status == "mismatch"
+    assert row.note == "Broker dividend is above Kursliste value beyond tolerance."
 
 
 def test_per_share_fx_rounding_within_tolerance_is_match():
@@ -615,6 +616,72 @@ def test_broker_withholding_above_kursliste_is_mismatch_for_treaty_security():
     row = result.payment_reconciliation_report.rows[0]
     assert row.status == "mismatch"
     assert row.matched is False
+    assert row.note == "Broker withholding is above Kursliste value beyond tolerance."
+
+
+def test_broker_withholding_twice_kursliste_uses_w8ben_specific_note_for_us_security():
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="AAPL",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("100"),
+                                    exchangeRate=Decimal("1"),
+                                    grossRevenueB=Decimal("100"),
+                                    withHoldingTaxClaim=Decimal("6"),
+                                    kursliste=True,
+                                )
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("100"),
+                                    name="Dividend",
+                                ),
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("-12"),
+                                    name="Withholding",
+                                    nonRecoverableTaxAmountOriginal=Decimal("12"),
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator().calculate(statement)
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.status == "mismatch"
+    assert row.matched is False
+    assert (
+        row.note
+        == "Broker withholding is twice Kursliste value, check that your broker has a valid "
+        "W-8BEN/1042-S setup."
+    )
 
 
 def test_negligible_kursliste_values_allow_missing_broker_entry():
@@ -1236,4 +1303,3 @@ def test_withholding_cap_zeros_when_broker_has_no_wht_entries():
     assert kl_payment.withholding_capped is True
     assert kl_payment.withholding_capped_original_wht_chf == Decimal("8.25")
     assert kl_payment.sign is None
-
