@@ -831,19 +831,20 @@ class TestSplitUnsettledCash(unittest.TestCase):
         self.assertEqual(mutations[0].referenceDate, date(2025, 10, 1),
                          "Trade referenceDate must be shifted to settlement date (Oct 1)")
 
-    def test_intra_period_fully_settled_trade_no_shift(self):
-        """A Sep 29 trade (settlement Sep 30) with Q3 close at Oct 1 should NOT be shifted:
-        Sep 30 < Oct 1, so it's already settled before the balance checkpoint."""
+    def test_settled_trade_always_shifted_to_settlement_date(self):
+        """ALL T+1 mutations are unconditionally re-dated to settlement_date.
+        A Sep 29 trade settles Sep 30; even though Sep 30 < Oct 1 checkpoint,
+        the referenceDate is still shifted to Sep 30 (cash moves on settlement day)."""
         q3_close = self._bal("2025-10-01", "1500")
-        trade = self._mut("2025-09-29", "500")  # settles Sep 30 < Oct 1 → no shift needed
+        trade = self._mut("2025-09-29", "500")  # settles Sep 30
         stocks = [q3_close, trade]
 
         settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
 
         self.assertEqual(len(unsettled), 0)
         mutations = [s for s in settled if s.mutation]
-        self.assertEqual(mutations[0].referenceDate, date(2025, 9, 29),
-                         "No shift for trade that settles before the next checkpoint")
+        self.assertEqual(mutations[0].referenceDate, date(2025, 9, 30),
+                         "referenceDate must be shifted to settlement date (Sep 30)")
 
 
 class TestUnsettledCashAccountGeneration(unittest.TestCase):
