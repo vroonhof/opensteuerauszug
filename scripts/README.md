@@ -106,11 +106,27 @@ setup opensteuerauszug pixi environment
 . ./scripts/setup_pixi.sh
 ```
 
-This will:
-- Initialise the pixi environment 'opensteuerauszug'
-- Install the required packages from the requirements.yaml file
-- Install opensteuerauszug as an editable pypi package
+when presented with the option
+```console
+A 'pyproject.toml' file already exists. Do you want to extend it with the '[tool.pixi]' configuration?
+```
+choose yes.
+Otherwise run
+```console
+pixi add "python >= {version}"
+```
+and try
 
+```bash
+. ./scripts/setup_pixi.sh
+```
+
+again
+This will:
+- (If needed) Initialise the pixi environment 'opensteuerauszug'
+- (If needed) Install the required packages from the requirements.yaml file
+- (If needed) Install opensteuerauszug as an editable pypi package
+- launch the pixi dev environment for opensteuerauszug
 
 **Safety note:** this repository is public. By default the script does not upload artifacts or
 create a check run. When you opt in to `--confirm-upload` without `--upload-artifacts`, only the
