@@ -15,29 +15,25 @@ else
 fi
 
 # check if pixi workspace exists
-if ! pixi info | grep -q "Name: $PIXI_ENV_NAME"; then
+if ! pixi info | grep -q "Name: opensteuerauszug"; then
   # create pixi workspace 
-  printf -- "--> pixi environment '$PIXI_ENV_NAME' not found\n"
-  printf -- "--> Creating new pixi workspace: $PIXI_ENV_NAME\n"
-  pixi init ../opensteuerauszug
-  if !  pixi info  | grep -q "Environment: dev"; then
-    pixi add python
-    pixi add --pypi --editable "opensteuerauszug @ file:$PWD"
-    pixi add --pypi --feature dev --editable "opensteuerauszug[dev] @ file:$PWD"
-    pixi workspace environment add dev --feature dev
-  fi
+  printf -- "--> pixi workspace 'opensteuerauszug' not found\n"
+  printf -- "--> Creating new pixi workspace: opensteuerauszug\n"
+  pixi init --format pixi ../opensteuerauszug
+  pixi add python
+  pixi add --pypi --editable "opensteuerauszug[dev] @ file:$PWD"
   printf -- "--> workspace opensteuerauszug added\n"
 else
-  printf --  "--> pixi workspace $PIXI_ENV_NAME found\n\n"
+  printf --  "--> pixi workspace opensteuerauszug found\n\n"
 fi
 # activate pixi 
 
 if [ $# -eq 0 ]; then 
-  printf -- "--> Activating pixi dev environment\n"
-  pixi shell -e dev
+  printf -- "--> Activating pixi environment\n"
+  pixi shell
 elif [ "$1" == "-b" ]; then
   printf -- "--> Not Activating pixi environment\n"
 else
-  printf -- "--> Activating pixi dev environment\n"
-  pixi shell -e dev
+  printf -- "--> Activating pixi environment\n"
+  pixi shell
 fi
