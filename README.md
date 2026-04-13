@@ -143,17 +143,12 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -e ".[dev]"
-pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
 ```
 
 To set up the development environment (pixi):
 
 ```bash
 . ./setup_pixi.sh
-```
-or (in the installation directory)
-```bash
-pixi shell
 ```
 
 ### Testing
