@@ -49,8 +49,7 @@ dev = [
     "flake8>=6.0.0",
     "Flake8-pyproject",
     "freezegun>=1.5.0",
-    # TODO make these formal dependencies
-    # pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
+    "pdf417decoder @ git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python" 
 ]
 
 [tool.black]
