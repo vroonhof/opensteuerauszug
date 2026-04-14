@@ -14,7 +14,7 @@ KNOWN_ACTIONS = {
     "Buy", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
     "Journaled Shares",
     "NRA Tax Adj", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell", "Stock Plan Activity", "Stock Split",
-    "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
+    "Tax Reversal", "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
 }
 
 class TransactionExtractor:
@@ -408,7 +408,7 @@ class TransactionExtractor:
                 # if cash_flow:
                 #     cash_stock = create_cash_stock(cash_flow, f"Implied cash out for Deposit {pos_object.symbol}")
         
-        elif action == "Tax Withholding" or action == "NRA Tax Adj":
+        elif action in ("Tax Withholding", "NRA Tax Adj", "Tax Reversal"):
             # Creates a Payment for the security AND a cash stock mutation
             if schwab_amount and schwab_amount != 0:
                 sec_payment = SecurityPayment(

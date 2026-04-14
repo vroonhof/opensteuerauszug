@@ -1047,3 +1047,39 @@ class TestSchwabTransactionExtractor:
         assert stock.quantity == Decimal("15.0")
         assert stock.unitPrice is None
         assert stock.name == "Stock Plan Activity"
+
+    def test_action_tax_reversal(self):
+        """Tax Reversal with positive amount generates SecurityPayment + cash mutation (like NRA Tax Adj positive)."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "07/12/2024", "Action": "Tax Reversal", "Symbol": "GOOG",
+                "Quantity": None, "Description": "Credit",
+                "FeesAndCommissions": None, "Amount": "$11.20",
+                "TransactionDetails": []
+            }]
+        }
+        result = run_extraction_test(extractor, data, 2)  # GOOG + Cash
+        assert result is not None
+        goog_data = find_position(result, SecurityPosition, "GOOG")
+        cash_data = find_position(result, CashPosition)
+        assert goog_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = goog_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "GOOG"
+        assert not stocks
+        assert payments is not None
+        assert len(payments) == 1
+        payment = payments[0]
+        assert payment.amount == Decimal("11.20")
+        assert payment.grossRevenueB == Decimal("11.20")
+        assert payment.nonRecoverableTax is None
+        assert payment.name == "Tax Reversal"
+
+        cash_pos, cash_stocks, _ = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("11.20")
