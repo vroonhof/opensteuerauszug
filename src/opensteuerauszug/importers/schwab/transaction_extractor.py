@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Known actions from formats.md
 KNOWN_ACTIONS = {
-    "Buy", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
+    "Buy", "Cash Dividend", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
     "Journaled Shares",
     "NRA Tax Adj", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell", "Stock Plan Activity", "Stock Split",
     "Tax Reversal", "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
@@ -348,7 +348,7 @@ class TransactionExtractor:
                 # Cash stock mutation
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Credit Interest")
 
-        elif action in ("Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Qualified Dividend"):
+        elif action in ("Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Qualified Dividend", "Cash Dividend"):
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
                 if schwab_qty is not None and schwab_qty != Decimal(0):
                     print(f"Warning: Ignoring non-zero quantity ({schwab_qty}) for action '{action}' on symbol {pos_object.symbol}. Payment quantity will be uninitialized.")

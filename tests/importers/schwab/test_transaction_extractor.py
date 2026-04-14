@@ -1115,3 +1115,33 @@ class TestSchwabTransactionExtractor:
         cash_pos, cash_stocks, _ = cash_data
         assert len(cash_stocks) == 1
         assert cash_stocks[0].quantity == Decimal("50.00")
+
+    def test_action_cash_dividend(self):
+        """Cash Dividend is handled like a regular Dividend."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "06/15/2024", "Action": "Cash Dividend", "Symbol": "MSFT",
+                "Description": "Cash Dividend", "Amount": "$35.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 2)  # MSFT + Cash
+        assert result is not None
+        msft_data = find_position(result, SecurityPosition, "MSFT")
+        cash_data = find_position(result, CashPosition)
+        assert msft_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = msft_data
+        assert not stocks
+        assert payments is not None
+        assert len(payments) == 1
+        payment = payments[0]
+        assert payment.grossRevenueB == Decimal("35.00")
+        assert payment.name == "Dividend"
+        assert payment.broker_label_original == "Cash Dividend"
+
+        cash_pos, cash_stocks, _ = cash_data
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("35.00")
