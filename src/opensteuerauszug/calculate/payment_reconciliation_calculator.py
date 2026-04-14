@@ -207,17 +207,19 @@ class PaymentReconciliationCalculator:
                 note = "Accumulating fund payment expected to be absent in broker cash flow."
                 matched = True
             elif has_kurs and has_broker:
+                div_note=''
+                w_note=''
                 allow_broker_above_kursliste = (
                     kurs.allows_broker_above_kursliste or broker.allows_broker_above_kursliste
                     or self.allow_above_treaty_withholding
                 )
-                div_ok = self._component_matches(
+                div_not_ok = self._component_mismatches(
                     kurs_value_chf=kurs.dividend_chf,
                     broker_value_chf=broker_div_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
                     allow_broker_above_kursliste=allow_broker_above_kursliste,
                 )
-                w_ok = self._component_matches(
+                w_not_ok = self._component_mismatches(
                     kurs_value_chf=kurs.withholding_chf,
                     broker_value_chf=broker_with_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
@@ -225,21 +227,16 @@ class PaymentReconciliationCalculator:
                         allow_broker_above_kursliste or not security_has_sensitive_overwithholding
                     ),
                 )
-                if (broker_div_chf < kurs.dividend_chf  or (broker_with_chf is not None and broker_with_chf < kurs.withholding_chf)):
-                    if not div_ok:
-                        note = "Broker dividend is below Kursliste value beyond tolerance."
-                    elif not w_ok:
-                        note = "Broker withholding is below Kursliste value beyond tolerance."
-                elif (broker_div_chf > kurs.dividend_chf  or (broker_with_chf is not None and broker_with_chf > kurs.withholding_chf)):
-                    if not div_ok:
-                        note = "Broker dividend is above Kursliste value beyond tolerance."
-                    elif not w_ok and div_ok:
-                        if (abs((broker_with_chf/kurs.withholding_chf)-2) < 0.01) and country == "US":
-                            note = ("Broker withholding is twice Kursliste value, check that your broker has a valid "
-                                    "W8-BEN")
-                    elif not w_ok:
-                        note = "Broker withholding is above Kursliste value beyond tolerance."
-                matched = div_ok and w_ok
+                if div_not_ok:
+                    div_note = f'Broker dividend differs from Kursliste value beyond tolerance. delta={div_not_ok} CHF.'
+                if w_not_ok:
+                    w_note = f'Broker withholding differs from Kursliste value beyond tolerance. delta={w_not_ok} CHF.'
+                note =' '.join([div_note, w_note])
+                if w_not_ok and not div_not_ok and (
+                        abs((broker_with_chf / kurs.withholding_chf) - 2) < 0.01) and country == "US":
+                    note = (f'Broker withholding is twice Kursliste value, check that your broker has a valid '
+                            f'W8-BEN. delta={w_not_ok} CHF.')
+                matched = not (div_not_ok or w_not_ok)
                 status = "match" if matched else "mismatch"
             elif not has_kurs and has_broker:
                 note = "Broker payment has no Kursliste entry."
@@ -279,31 +276,34 @@ class PaymentReconciliationCalculator:
             )
 
         return rows
-
-    def _component_matches(
+    # return 0 is there is no mismatch otherwise return broker value - kurs value
+    def _component_mismatches(
         self,
         kurs_value_chf: Decimal,
         broker_value_chf: Optional[Decimal],
         allow_bidirectional_on_noncash: bool,
         allow_broker_above_kursliste: bool,
-    ) -> bool:
+    ) -> float:
         if broker_value_chf is None:
-            return abs(kurs_value_chf) < Decimal("0.01")
+            if abs(kurs_value_chf) < Decimal("0.01"):
+                return 0
+            else:
+                return round(-kurs_value_chf,2)
 
         if allow_bidirectional_on_noncash:
-            return True
+            return 0
 
         delta = broker_value_chf - kurs_value_chf
         if abs(delta) <= self.tolerance_chf:
-            return True
+            return 0
 
         if abs(delta) <= self.tolerance_frac * broker_value_chf:
-            return True
+            return 0
 
         if delta > self.tolerance_chf and allow_broker_above_kursliste:
-            return True
+            return 0
 
-        return False
+        return round(delta,2)
 
     def _accumulate_broker(self, agg: _BrokerAgg, payment: SecurityPayment) -> None:
         if self._is_broker_above_kursliste_allowlisted(payment):
