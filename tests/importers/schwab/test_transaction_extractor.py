@@ -1083,3 +1083,35 @@ class TestSchwabTransactionExtractor:
         assert isinstance(cash_pos, CashPosition)
         assert len(cash_stocks) == 1
         assert cash_stocks[0].quantity == Decimal("11.20")
+
+    def test_action_qualified_dividend(self):
+        """Qualified Dividend is handled like a regular Dividend."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "06/15/2024", "Action": "Qualified Dividend", "Symbol": "AAPL",
+                "Description": "Qualified Dividend", "Amount": "$50.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 2)  # AAPL + Cash
+        assert result is not None
+        aapl_data = find_position(result, SecurityPosition, "AAPL")
+        cash_data = find_position(result, CashPosition)
+        assert aapl_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = aapl_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "AAPL"
+        assert not stocks
+        assert payments is not None
+        assert len(payments) == 1
+        payment = payments[0]
+        assert payment.grossRevenueB == Decimal("50.00")
+        assert payment.name == "Dividend"
+        assert payment.broker_label_original == "Qualified Dividend"
+
+        cash_pos, cash_stocks, _ = cash_data
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("50.00")
