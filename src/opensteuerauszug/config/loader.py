@@ -15,6 +15,7 @@ from .models import (
     ConcreteAccountSettings,
     SpecificAccountSettingsUnion,
     CalculateSettings,
+    GeneralSettings,
 )
 
 logger = logging.getLogger(__name__)
@@ -264,4 +265,25 @@ class ConfigManager:
                 )
         
         return all_settings
+
+    def update_settings(self,temp_settings, overrides, key):
+        settings=None
+        if overrides:
+            temp_config = {key: temp_settings.copy()}
+            temp_config = self._apply_cli_overrides(temp_config, overrides)
+            temp_settings = temp_config.get(key, {})
+        try:
+            if temp_settings:
+                # Create the GeneralSettings Pydantic model
+                settings = (CalculateSettings(**temp_settings) if key== "calculate" else GeneralSettings(
+                    **temp_settings))
+                printline = f'Loaded {key} settings:'
+                for newkey, value in temp_settings.items():
+                    printline = printline + f'{newkey}={value}, '
+                print(printline.strip().strip(','))
+            else:
+                print(f"No {key} configuration settings found.")
+        except Exception as e:
+            print(f"Warning: Error loading {key} configuration settings: {e}")
+        return settings, temp_settings
 
