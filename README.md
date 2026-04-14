@@ -163,6 +163,11 @@ That said all mistakes, hallucinations etc are probably mine.
 - https://github.com/stefanloerwald/zh-tax-csv-import : if you want an
   automated import that controls PrivateTax directly. It is more hacky but leaves no trace for the tax office to be confused about.
 - https://github.com/BrunoEberhard/open-ech-taxstatement : An old project I only discovered later that contains a model defintion of the Tax data targeting Java. The author has since left the Swis open data efforts.
+- https://github.com/KapJI/capital-gains-calculator : UK Capital Gains Tax calculator
+  supporting Charles Schwab, Interactive Brokers, and others. Thanks to
+  [@KapJI](https://github.com/KapJI) and contributors for the comprehensive Schwab
+  transaction type coverage and sample data that helped improve our importer. Their
+  test data serves as a useful source of example inputs for many importers.
 
 
 ## Acknowledgements
