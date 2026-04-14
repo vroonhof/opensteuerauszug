@@ -606,6 +606,32 @@ class TestSchwabTransactionExtractor:
         assert stock.name is not None
         assert stock.name == "Journal (Shares)"
 
+    def test_action_journaled_shares_security_is_supported(self):
+        extractor = create_extractor(filename_for_depot_test="Brokerage_XX742_Transactions_20250520.json")
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "BrokerageTransactions": [{
+                "Date": "04/30/2025", "Action": "Journaled Shares", "Symbol": "NOVN",
+                "Description": "NOVARTIS AG", "Quantity": "71.322", "Price": "$95.10", "Amount": ""
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        novn_data = find_position(result, SecurityPosition, "NOVN")
+        assert novn_data is not None
+
+        pos, stocks, payments = novn_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.depot == "742"
+        assert payments is None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2025, 4, 30)
+        assert stock.mutation is True
+        assert stock.quantity == Decimal("71.322")
+        assert stock.name == "Journaled Shares (Shares)"
+        assert stock.unitPrice is None
+
     def test_action_journal_cash(self):
         extractor = create_extractor()
         data = {

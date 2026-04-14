@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 # Known actions from formats.md
 KNOWN_ACTIONS = {
     "Buy", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
+    "Journaled Shares",
     "NRA Tax Adj", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell", "Stock Plan Activity", "Stock Split",
     "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
 }
@@ -434,7 +435,7 @@ class TransactionExtractor:
                 # )
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Cash In Lieu {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
 
-        elif action == "Journal":
+        elif action == "Journal" or action == "Journaled Shares":
             if schwab_qty and pos_object.type == "security": # Security journal
                 # Assume no cash impact unless Amount/Price present and non-zero?
                 cash_flow = None
@@ -447,7 +448,7 @@ class TransactionExtractor:
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
                     quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    name="Journal (Shares)"
+                    name=f"{action} (Shares)"
                 )
                 if cash_flow:
                      cash_stock = create_cash_stock(cash_flow, f"Cash flow for Journal {pos_object.symbol}")
