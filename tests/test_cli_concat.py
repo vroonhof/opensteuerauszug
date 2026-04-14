@@ -72,7 +72,7 @@ def test_cli_concatenation(tmp_path, dummy_xml, pre_amble_pdf, post_amble_pdf):
         mock_render.side_effect = side_effect
 
         # Mock ConfigManager and TotalCalculator
-        with patch("opensteuerauszug.steuerauszug.ConfigManager") as MockConfigManager, \
+        with patch("opensteuerauszug.steuerauszug.calculate_settings") as MockConfigManager, \
              patch("opensteuerauszug.steuerauszug.TotalCalculator") as MockTotalCalculator:
 
              MockConfigManager.return_value.general_settings = None
@@ -117,7 +117,7 @@ def test_cli_concatenation_failure_cleanup(tmp_path, dummy_xml, pre_amble_pdf):
         # Simulate failure during merge
         MockPdfWriter.return_value.append.side_effect = Exception("Merge failed")
 
-        with patch("opensteuerauszug.steuerauszug.ConfigManager") as MockConfigManager, \
+        with patch("opensteuerauszug.steuerauszug.calculate_settings") as MockConfigManager, \
              patch("opensteuerauszug.steuerauszug.TotalCalculator") as MockTotalCalculator:
 
              MockConfigManager.return_value.general_settings = None
