@@ -71,11 +71,12 @@ The [EWV](https://www.ewv-ete.ch/de/ewv-ete/) and SSK publish a [shared set of t
 
 ### Quick install (recommended for users)
 
-```console
+
 # One-time install of the CLI via uv
+```console 
 uv tool install --from git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug
 
-# Then run normally
+# Then run normally (without pixi, or after . ./scripts/setup_pixi.sh)
 opensteuerauszug --help
 ```
 
@@ -92,7 +93,7 @@ uv run --with git+https://github.com/vroonhof/opensteuerauszug.git opensteueraus
 
 Then continue with the [User Guide](docs/user_guide.md).
 
-### Development install (contributors)
+### Development install [option 1] (contributors: using python venv)
 
 For development and tests, install from source:
 
@@ -103,6 +104,12 @@ python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
+```
+### Development install [option 2] (contributors: using [pixi](https://pixi.prefix.dev/latest/))
+```console
+git clone https://github.com/vroonhof/opensteuerauszug.git
+cd opensteuerauszug
+. ./scripts/setup_pixi.sh
 ```
 
 ### Verifying the generated XML
@@ -127,7 +134,7 @@ For detailed documentation on available scripts, including the Kursliste filteri
 
 ### Setup
 
-To set up the development environment:
+To set up the development environment (venv):
 
 ```bash
 # Create and activate virtual environment
@@ -136,7 +143,12 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -e ".[dev]"
-pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
+```
+
+To set up the development environment (pixi):
+
+```bash
+. ./setup_pixi.sh
 ```
 
 ### Testing
