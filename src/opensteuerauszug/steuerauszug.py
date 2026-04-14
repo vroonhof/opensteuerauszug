@@ -7,7 +7,7 @@ from typing import List, Optional
 from datetime import date, datetime
 from pypdf import PdfReader, PdfWriter
 
-from .config.models import SchwabAccountSettings, IbkrAccountSettings, GeneralSettings
+from .config.models import SchwabAccountSettings, IbkrAccountSettings, GeneralSettings, CalculateSettings
 from .render.translations import DEFAULT_LANGUAGE
 from .core.identifier_loader import SecurityIdentifierMapLoader
 
@@ -80,7 +80,8 @@ default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RECONCILE
 _COMMAND_DEFAULT_PHASES = {
     'verify': [Phase.VERIFY],
 }
-
+general_config_settings: Optional[GeneralSettings] = None
+calculate_settings: Optional[CalculateSettings] = None
 @app.command("process")
 def process(
     ctx: typer.Context,
@@ -113,7 +114,6 @@ def process(
     use_broker_withholding: UseBrokerWithholding = typer.Option(UseBrokerWithholding.CAP, "--use-broker-withholding", help="Control how broker withholding evidence is used: OFF disables adjustments, CAP (default) caps Kursliste (Q) withholding at the broker's effective level."),
     pre_amble: Optional[List[Path]] = typer.Option(None, "--pre-amble", help="List of PDF documents to add before the main steuerauszug."),
     post_amble: Optional[List[Path]] = typer.Option(None, "--post-amble", help="List of PDF documents to add after the main steuerauszug."),
-    allow_above_treaty_withholding: bool = typer.Option(False, "--above-treaty-withholding", help="Allow broker withholding > KL calculation"),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
     logging.basicConfig(level=log_level.value)
@@ -192,14 +192,17 @@ def process(
     all_ibkr_account_settings_models: List[IbkrAccountSettings] = [] # New list for IBKR
     effective_config_file = resolve_config_file(config_file)
     config_manager = ConfigManager(config_file_path=str(effective_config_file))
-    
+
     # Extract general configuration settings for CleanupCalculator
-    general_config_settings: Optional[GeneralSettings] = None
     temp_general_settings = dict(config_manager.general_settings or {})
-    if override_configs:
-        temp_config = {"general": temp_general_settings.copy()}
-        temp_config = config_manager._apply_cli_overrides(temp_config, override_configs)
-        temp_general_settings = temp_config.get("general", {})
+    temp_calculate_settings = dict(config_manager.calculate_settings or {})
+
+    general_config_settings, temp_general_settings = config_manager.update_settings(temp_settings=temp_general_settings,
+                                                             overrides=override_configs,
+                                                            key="general")
+    calculate_settings, temp_config_settings =config_manager.update_settings(temp_settings=temp_calculate_settings,
+                                                        overrides=override_configs,
+                                                       key="calculate")
 
     # Keep render options available even if full GeneralSettings validation fails.
     render_language = temp_general_settings.get("language", DEFAULT_LANGUAGE)
@@ -207,18 +210,6 @@ def process(
         "minimal_uses_placeholder_frontpage",
         True,
     )
-
-    try:
-        if temp_general_settings:
-            # Create the GeneralSettings Pydantic model
-            general_config_settings = GeneralSettings(**temp_general_settings)
-            
-            print(f"Loaded general configuration settings: canton={general_config_settings.canton}, full_name={general_config_settings.full_name}, language={general_config_settings.language}")
-        else:
-            print("No general configuration settings found.")
-    except Exception as e:
-        print(f"Warning: Error loading general configuration settings: {e}")
-        general_config_settings = None
 
     target_broker_kind_for_config_loading = None
     if importer_type == ImporterType.SCHWAB:
@@ -454,15 +445,15 @@ def process(
             if tax_calculation_level == TaxCalculationLevel.MINIMAL:
                 print("Running MinimalTaxValueCalculator...")
                 calculator_name = "MinimalTaxValueCalculator"
-                tax_value_calculator = MinimalTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
+                tax_value_calculator = MinimalTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.KURSLISTE:
                 print("Running KurslisteTaxValueCalculator...")
                 calculator_name = "KurslisteTaxValueCalculator"
-                tax_value_calculator = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
+                tax_value_calculator = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 print("Running FillInTaxValueCalculator...")
                 calculator_name = "FillInTaxValueCalculator"
-                tax_value_calculator = FillInTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
+                tax_value_calculator = FillInTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=calculate_settings.keep_existing_payments)
             
             if tax_value_calculator and calculator_name:
                 statement = tax_value_calculator.calculate(statement)
@@ -524,13 +515,13 @@ def process(
 
             if tax_calculation_level == TaxCalculationLevel.MINIMAL:
                 verifier_name = "MinimalTaxValueCalculator"
-                tax_value_verifier = MinimalTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
+                tax_value_verifier = MinimalTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.KURSLISTE:
                 verifier_name = "KurslisteTaxValueCalculator"
-                tax_value_verifier = KurslisteTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
+                tax_value_verifier = KurslisteTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 verifier_name = "FillInTaxValueCalculator"
-                tax_value_verifier = FillInTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=config_manager.calculate_settings.keep_existing_payments)
+                tax_value_verifier = FillInTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=calculate_settings.keep_existing_payments)
 
             if tax_value_verifier and verifier_name:
                 print(f"Running {verifier_name} (Verify Mode)...")
@@ -566,7 +557,7 @@ def process(
             if not statement:
                 raise ValueError("TaxStatement model not loaded. Cannot run payment reconciliation phase.")
 
-            reconciliation_calculator = PaymentReconciliationCalculator(allow_above_treaty_withholding=allow_above_treaty_withholding)
+            reconciliation_calculator = PaymentReconciliationCalculator(allow_above_treaty_withholding=calculate_settings.allow_above_treaty_withholding)
             statement = reconciliation_calculator.calculate(statement)
             report = statement.payment_reconciliation_report
             if report:
