@@ -71,6 +71,7 @@ class IbkrAccountSettings(AccountSettingsBase):
 class CalculateSettings(BaseModel):
     """Settings for the calculation process."""
     keep_existing_payments: bool = Field(default=False, description="If True, keep existing payments when calculating tax values.")
+    allow_above_treaty_withholding: bool = Field(default=False, description = "Allow broker withholding > KL calculation")
 
 # A type union for all possible specific account settings models
 SpecificAccountSettingsUnion = Union[SchwabAccountSettings, IbkrAccountSettings] # Add other types like UBSAccountSettings here
