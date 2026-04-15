@@ -1193,3 +1193,42 @@ class TestSchwabTransactionExtractor:
         stock = stocks[0]
         assert stock.quantity == Decimal("-5000.00")
         assert "MoneyLink Transfer" in stock.name
+
+    def test_action_bond_interest(self):
+        """Bond Interest creates a SecurityPayment on the CUSIP position and a cash mutation."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2023", "ToDate": "12/31/2023",
+            "BrokerageTransactions": [{
+                "Date": "03/15/2023", "Action": "Bond Interest", "Symbol": "912828YW8",
+                "Description": "US TREASURY NOTE", "Amount": "$500.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 2)  # SecurityPosition for CUSIP + CashPosition
+        assert result is not None
+        bond_data = find_position(result, SecurityPosition, "912828YW8")
+        cash_data = find_position(result, CashPosition)
+        assert bond_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = bond_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "912828YW8"
+        assert not stocks
+        assert payments is not None
+        assert len(payments) == 1
+        payment = payments[0]
+        assert payment.paymentDate == date(2023, 3, 15)
+        assert payment.amount == Decimal("500.00")
+        assert payment.grossRevenueB == Decimal("500.00")
+        assert payment.name == "Bond Interest"
+        assert payment.broker_label_original == "Bond Interest"
+        assert payment.quantity == UNINITIALIZED_QUANTITY
+
+        cash_pos, cash_stocks, cash_payments = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert cash_payments is None
+        assert cash_stocks is not None
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("500.00")
+        assert cash_stocks[0].name == "Cash in for Bond Interest 912828YW8"

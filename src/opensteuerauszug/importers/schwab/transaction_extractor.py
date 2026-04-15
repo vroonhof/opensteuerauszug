@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 KNOWN_ACTIONS = {
     "Buy", "Cash Dividend", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
     "Journaled Shares",
-    "MoneyLink Transfer",
+    "Bond Interest", "MoneyLink Transfer",
     "NRA Tax Adj", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell", "Stock Plan Activity", "Stock Split",
     "Tax Reversal", "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
 }
@@ -366,6 +366,18 @@ class TransactionExtractor:
             else:
                 raise ValueError(f"Dividend action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}")
                 
+        elif action == "Bond Interest":
+            # Bond interest has a Symbol (CUSIP) — payment attaches to the security position
+            if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
+                sec_payment = SecurityPayment(
+                    paymentDate=tx_date, quotationType="PIECE",
+                    quantity=UNINITIALIZED_QUANTITY, amountCurrency=currency,
+                    amount=schwab_amount, name="Bond Interest",
+                    grossRevenueB=schwab_amount,
+                    broker_label_original=action,
+                )
+                cash_stock = create_cash_stock(schwab_amount, f"Cash in for Bond Interest {pos_object.symbol}")
+
         elif action == "Stock Split":
             if schwab_qty and schwab_qty != 0 and isinstance(pos_object, SecurityPosition):
                 # TODOD: Format date string in swiss format
