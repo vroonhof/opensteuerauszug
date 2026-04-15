@@ -96,7 +96,7 @@ class BarcodeDocTemplate(BaseDocTemplate):
         self.tax_statement: Optional[TaxStatement] = None
 
     def afterFlowable(self, flowable):
-        "Registers TOC entries."
+        "Registers bookmark entries."
         if flowable.__class__.__name__ == 'Paragraph':
             text = flowable.getPlainText()
             style = flowable.style.name
@@ -463,12 +463,12 @@ class NumberedCanvas(canvas.Canvas):
             self.__dict__.update(state)
             self._draw_page_number(num_pages)
             if self._bookmarks:
-                bid = 1
-                for b in self._bookmarks:
-                    bkey = f"page_{self.getPageNumber()}_{bid}"
-                    self.bookmarkPage(bkey)
-                    self.addOutlineEntry(b, bkey, level=0, closed=False)
-                    bid = bid+1
+                bookmark_id = 1
+                for bookmark in self._bookmarks:
+                    bookmark_key = f"page_{self.getPageNumber()}_{bookmark_id}"
+                    self.bookmarkPage(bookmark_key)
+                    self.addOutlineEntry(bookmark, bookmark_key, level=0, closed=False)
+                    bookmark_id = bookmark_id+1
             canvas.Canvas.showPage(self)
         if self.show_outline:
             self.showOutline()
@@ -1366,7 +1366,7 @@ def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxS
         story.append(PageBreak('barcode'))
 
         story.append(DocAssign("section_name", f"'{t('barcode_page').format(page=page_num + 1, total=barcode_pages)}'"))
-        story.append(Paragraph(t('barcode_page').format(page=page_num + 1, total=barcode_pages), title_style if page_num == 0 else barcode_style))
+        story.append(Paragraph(t('barcode_page').format(page=page_num + 1, total=barcode_pages), title_style if page_num == 0 else barcode_style))   # only use title_style for first page to exclude  others from bookmarks
         story.append(Spacer(0.1*cm, 0.5*cm))
         
         # Calculate start and end indices for this page
