@@ -263,7 +263,7 @@ def test_render_uses_language_override_with_empty_general_config(
             "--config",
             str(empty_config),
             "--set",
-            "general.language=fr",
+            "language=fr",
         ],
     )
 
