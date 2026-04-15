@@ -216,13 +216,13 @@ class PaymentReconciliationCalculator:
                     allow_broker_dividend_above_kursliste
                     or self.allow_above_treaty_withholding
                 )
-                div_not_ok = self._component_mismatches(
+                div_diff = self._component_mismatches(
                     kurs_value_chf=kurs.dividend_chf,
                     broker_value_chf=broker_div_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
                     allow_broker_above_kursliste=allow_broker_dividend_above_kursliste,
                 )
-                w_not_ok = self._component_mismatches(
+                w_diff = self._component_mismatches(
                     kurs_value_chf=kurs.withholding_chf,
                     broker_value_chf=broker_with_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
@@ -231,16 +231,21 @@ class PaymentReconciliationCalculator:
                         or not security_has_sensitive_overwithholding
                     ),
                 )
-                if div_not_ok:
-                    div_note = f'Broker dividend differs from Kursliste value beyond tolerance. delta={div_not_ok} CHF.'
-                if w_not_ok:
-                    w_note = f'Broker withholding differs from Kursliste value beyond tolerance. delta={w_not_ok} CHF.'
+                if div_diff:
+                    div_note = f'Broker dividend differs from Kursliste value beyond tolerance. delta={div_diff} CHF.'
+                if w_diff:
+                    w_note = f'Broker withholding differs from Kursliste value beyond tolerance. delta={w_diff} CHF.'
                 note =' '.join([div_note, w_note])
-                if w_not_ok and not div_not_ok and (
-                        abs((broker_with_chf / kurs.withholding_chf) - 2) < 0.01) and country == "US":
+                if (
+                    w_diff
+                    and not div_diff
+                    and kurs.withholding_chf != 0
+                    and abs((broker_with_chf / kurs.withholding_chf) - 2) < 0.01
+                    and country == "US"
+                ):
                     note = (f'Broker withholding is twice Kursliste value, check that your broker has a valid '
-                            f'W8-BEN. delta={w_not_ok} CHF.')
-                matched = not (div_not_ok or w_not_ok)
+                            f'W8-BEN. delta={w_diff} CHF.')
+                matched = not (div_diff or w_diff)
                 status = "match" if matched else "mismatch"
             elif not has_kurs and has_broker:
                 note = "Broker payment has no Kursliste entry."
@@ -280,34 +285,35 @@ class PaymentReconciliationCalculator:
             )
 
         return rows
-    # return 0 is there is no mismatch otherwise return broker value - kurs value
+    # Return Decimal('0') if there is no mismatch, otherwise the CHF delta.
     def _component_mismatches(
         self,
         kurs_value_chf: Decimal,
         broker_value_chf: Optional[Decimal],
         allow_bidirectional_on_noncash: bool,
         allow_broker_above_kursliste: bool,
-    ) -> float:
+    ) -> Decimal:
+        mismatch_precision = Decimal("0.01")
         if broker_value_chf is None:
             if abs(kurs_value_chf) < Decimal("0.01"):
-                return 0
+                return Decimal("0")
             else:
-                return round(-kurs_value_chf,2)
+                return (-kurs_value_chf).quantize(mismatch_precision)
 
         if allow_bidirectional_on_noncash:
-            return 0
+            return Decimal("0")
 
         delta = broker_value_chf - kurs_value_chf
         if abs(delta) <= self.tolerance_chf:
-            return 0
+            return Decimal("0")
 
         if abs(delta) <= self.tolerance_frac * broker_value_chf:
-            return 0
+            return Decimal("0")
 
         if delta > self.tolerance_chf and allow_broker_above_kursliste:
-            return 0
+            return Decimal("0")
 
-        return round(delta,2)
+        return delta.quantize(mismatch_precision)
 
     def _accumulate_broker(self, agg: _BrokerAgg, payment: SecurityPayment) -> None:
         if self._is_broker_above_kursliste_allowlisted(payment):
