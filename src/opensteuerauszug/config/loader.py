@@ -20,6 +20,7 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+
 class ConfigManager:
     def __init__(self, config_file_path: Optional[str] = None):
         self.config_file_path = str(resolve_config_file(config_file_path))
@@ -27,7 +28,7 @@ class ConfigManager:
 
         self.general_settings: Dict[str, Any] = self._raw_config.get("general", {})
         self.brokers_settings: Dict[str, Any] = self._raw_config.get("brokers", {})
-        self.calculate_settings: CalculateSettings = CalculateSettings(**self._raw_config.get("calculate", {}))
+        self.calculate_settings: Dict[str, Any] = self._raw_config.get("calculate", {})
 
     def _load_raw_config(self) -> Dict[str, Any]:
         if not os.path.exists(self.config_file_path):
@@ -87,6 +88,15 @@ class ConfigManager:
         
         current_level[final_key] = coerced_value
 
+    def _normalize_override_path(self, path_str: str) -> str:
+        if "." in path_str:
+            return path_str
+
+        if path_str in GeneralSettings.model_fields or path_str in self.general_settings:
+            return f"general.{path_str}"
+
+        return path_str
+
     def _apply_cli_overrides(self, config_dict: Dict[str, Any], overrides: Optional[List[str]]) -> Dict[str, Any]:
         if not overrides:
             return config_dict
@@ -102,8 +112,9 @@ class ConfigManager:
                 continue
             
             path_str, value_str = override_entry.split('=', 1)
+            normalized_path = self._normalize_override_path(path_str)
             try:
-                self._set_nested_value(modified_config_dict, path_str, value_str)
+                self._set_nested_value(modified_config_dict, normalized_path, value_str)
             except ValueError as e:
                 logger.warning(
                     "Could not apply override '%s': %s. Skipping.", override_entry, e
@@ -117,19 +128,66 @@ class ConfigManager:
 
         return modified_config_dict
 
+    def _get_effective_config(self, overrides: Optional[List[str]] = None) -> Dict[str, Any]:
+        return self._apply_cli_overrides(self._raw_config, overrides)
+
+    def _get_section_settings(self, section: str, overrides: Optional[List[str]] = None) -> Dict[str, Any]:
+        effective_config = self._get_effective_config(overrides)
+        return copy.deepcopy(effective_config.get(section, {}))
+
+    def _print_loaded_settings(self, key: str, settings_dict: Dict[str, Any]) -> None:
+        if settings_dict:
+            printline = f"Loaded {key} settings:"
+            for newkey, value in settings_dict.items():
+                printline = printline + f"{newkey}={value}, "
+            print(printline.strip().strip(','))
+        else:
+            print(f"No {key} configuration settings found.")
+
+    def get_general_settings_dict(self, overrides: Optional[List[str]] = None) -> Dict[str, Any]:
+        return self._get_section_settings("general", overrides)
+
+    def resolve_general_settings(self, overrides: Optional[List[str]] = None) -> Optional[GeneralSettings]:
+        settings_dict = self.get_general_settings_dict(overrides)
+        if not settings_dict:
+            print("No general configuration settings found.")
+            return None
+
+        try:
+            settings = GeneralSettings(**settings_dict)
+        except Exception as e:
+            print(f"Warning: Error loading general configuration settings: {e}")
+            return None
+
+        self._print_loaded_settings("general", settings_dict)
+        return settings
+
+    def resolve_calculate_settings(self, overrides: Optional[List[str]] = None) -> CalculateSettings:
+        settings_dict = self._get_section_settings("calculate", overrides)
+
+        try:
+            settings = CalculateSettings(**settings_dict)
+        except Exception as e:
+            raise ValueError(f"Error loading calculate configuration settings: {e}") from e
+
+        self._print_loaded_settings("calculate", settings.model_dump())
+        return settings
+
     def get_account_settings(self, broker_name: str, account_name_alias: str, overrides: Optional[List[str]] = None) -> ConcreteAccountSettings:
-        if not self._raw_config:
-             # This check is important if _load_raw_config returns {} for a missing file
+        effective_config = self._get_effective_config(overrides)
+        if not effective_config:
+            # This check is important if _load_raw_config returns {} for a missing file
             raise ValueError(
                 f"Cannot create settings for '{broker_name}/{account_name_alias}': "
                 "Configuration file was not found or was empty."
             )
 
         # 1. Start with general settings
-        current_config = copy.deepcopy(self.general_settings)
+        current_config = copy.deepcopy(effective_config.get("general", {}))
 
         # 2. Merge broker-specific settings
-        broker_config_raw = self.brokers_settings.get(broker_name, {})
+        brokers_settings = effective_config.get("brokers", {})
+        broker_config_raw = brokers_settings.get(broker_name, {})
         if broker_config_raw:
             broker_accounts_data = broker_config_raw.get("accounts", {})
             # Exclude 'accounts' table from broker-level settings before merging
@@ -156,9 +214,6 @@ class ConfigManager:
                 f"Account alias '{account_name_alias}' under broker '{broker_name}' not found in configuration. "
                 "An account-specific section is required."
             )
-
-        # Apply CLI overrides before Pydantic validation and adding contextual info
-        current_config = self._apply_cli_overrides(current_config, overrides)
         
         # Add contextual information (broker_name, account_name_alias)
         # This should happen AFTER overrides in case these contextual fields were somehow targeted by overrides (though unlikely/undesirable)
@@ -265,25 +320,4 @@ class ConfigManager:
                 )
         
         return all_settings
-
-    def update_settings(self,temp_settings, overrides, key):
-        settings=None
-        if overrides:
-            temp_config = {key: temp_settings.copy()}
-            temp_config = self._apply_cli_overrides(temp_config, overrides)
-            temp_settings = temp_config.get(key, {})
-        try:
-            if temp_settings:
-                # Create the GeneralSettings Pydantic model
-                settings = (CalculateSettings(**temp_settings) if key== "calculate" else GeneralSettings(
-                    **temp_settings))
-                printline = f'Loaded {key} settings:'
-                for newkey, value in temp_settings.items():
-                    printline = printline + f'{newkey}={value}, '
-                print(printline.strip().strip(','))
-            else:
-                print(f"No {key} configuration settings found.")
-        except Exception as e:
-            print(f"Warning: Error loading {key} configuration settings: {e}")
-        return settings, temp_settings
 

@@ -192,20 +192,17 @@ def process(
     effective_config_file = resolve_config_file(config_file)
     config_manager = ConfigManager(config_file_path=str(effective_config_file))
 
-    # Extract general configuration settings for CleanupCalculator
-    temp_general_settings = dict(config_manager.general_settings or {})
-    temp_calculate_settings = dict(config_manager.calculate_settings or {})
-
-    general_config_settings, temp_general_settings = config_manager.update_settings(temp_settings=temp_general_settings,
-                                                             overrides=override_configs,
-                                                            key="general")
-    calculate_settings, temp_config_settings =config_manager.update_settings(temp_settings=temp_calculate_settings,
-                                                        overrides=override_configs,
-                                                       key="calculate")
+    general_settings_data = config_manager.get_general_settings_dict(overrides=override_configs)
+    general_config_settings = config_manager.resolve_general_settings(overrides=override_configs)
+    try:
+        calculate_settings = config_manager.resolve_calculate_settings(overrides=override_configs)
+    except ValueError as e:
+        print(f"Error loading configuration: {e}")
+        raise typer.Exit(code=1)
 
     # Keep render options available even if full GeneralSettings validation fails.
-    render_language = temp_general_settings.get("language", DEFAULT_LANGUAGE)
-    minimal_frontpage_placeholder_setting = temp_general_settings.get(
+    render_language = general_settings_data.get("language", DEFAULT_LANGUAGE)
+    minimal_frontpage_placeholder_setting = general_settings_data.get(
         "minimal_uses_placeholder_frontpage",
         True,
     )
