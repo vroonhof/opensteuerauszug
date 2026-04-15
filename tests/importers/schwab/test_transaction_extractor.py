@@ -1363,3 +1363,39 @@ class TestSchwabTransactionExtractor:
             assert payment.name == "Capital Gain", f"Payment name for {action_str} should be 'Capital Gain'"
             assert payment.broker_label_original == action_str
             assert payment.grossRevenueB == Decimal(amount)
+
+    def test_action_cash_transfer_variants(self):
+        """Misc Cash Entry, Service Fee, Wire Funds, Wire Sent, Funds Received, Visa Purchase, MoneyLink Deposit, Wire Funds Received are all cash-only."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [
+                {
+                    "Date": "03/15/2024", "Action": "Service Fee",
+                    "Description": "SERVICE FEE", "Amount": "-$5.00"
+                },
+                {
+                    "Date": "06/15/2024", "Action": "Funds Received",
+                    "Description": "ACH DEPOSIT", "Amount": "$1000.00"
+                },
+                {
+                    "Date": "09/15/2024", "Action": "Wire Funds",
+                    "Description": "WIRE OUT", "Amount": "-$500.00"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 1)  # All merge into 1 CashPosition
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 3
+        service_fee_stock = next(s for s in stocks if "Service Fee" in s.name)
+        assert service_fee_stock.quantity == Decimal("-5.00")
+        funds_received_stock = next(s for s in stocks if "Funds Received" in s.name)
+        assert funds_received_stock.quantity == Decimal("1000.00")
+        wire_funds_stock = next(s for s in stocks if "Wire Funds" in s.name)
+        assert wire_funds_stock.quantity == Decimal("-500.00")
