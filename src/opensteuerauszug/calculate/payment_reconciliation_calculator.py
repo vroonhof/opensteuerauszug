@@ -209,22 +209,26 @@ class PaymentReconciliationCalculator:
             elif has_kurs and has_broker:
                 div_note=''
                 w_note=''
-                allow_broker_above_kursliste = (
+                allow_broker_dividend_above_kursliste = (
                     kurs.allows_broker_above_kursliste or broker.allows_broker_above_kursliste
+                )
+                allow_broker_withholding_above_kursliste = (
+                    allow_broker_dividend_above_kursliste
                     or self.allow_above_treaty_withholding
                 )
                 div_not_ok = self._component_mismatches(
                     kurs_value_chf=kurs.dividend_chf,
                     broker_value_chf=broker_div_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
-                    allow_broker_above_kursliste=allow_broker_above_kursliste,
+                    allow_broker_above_kursliste=allow_broker_dividend_above_kursliste,
                 )
                 w_not_ok = self._component_mismatches(
                     kurs_value_chf=kurs.withholding_chf,
                     broker_value_chf=broker_with_chf,
                     allow_bidirectional_on_noncash=kurs.noncash,
                     allow_broker_above_kursliste=(
-                        allow_broker_above_kursliste or not security_has_sensitive_overwithholding
+                        allow_broker_withholding_above_kursliste
+                        or not security_has_sensitive_overwithholding
                     ),
                 )
                 if div_not_ok:

@@ -239,6 +239,69 @@ def test_broker_above_kursliste_without_allowlist_is_mismatch():
     assert row.status == "mismatch"
 
 
+def test_allow_above_treaty_withholding_does_not_mask_dividend_mismatch():
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="GOOG",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("100"),
+                                    exchangeRate=Decimal("1"),
+                                    grossRevenueB=Decimal("100"),
+                                    withHoldingTaxClaim=Decimal("10"),
+                                    kursliste=True,
+                                )
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("120"),
+                                    name="Dividend",
+                                ),
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("-12"),
+                                    name="Withholding",
+                                    nonRecoverableTaxAmountOriginal=Decimal("12"),
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator(
+        allow_above_treaty_withholding=True
+    ).calculate(statement)
+
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.status == "mismatch"
+    assert row.note == "Broker dividend differs from Kursliste value beyond tolerance. delta=20.00 CHF. "
+
+
 def test_per_share_fx_rounding_within_tolerance_is_match():
     """Small differences caused by per-share FX rounding (Kursliste rounds
     per-share CHF, then multiplies by quantity) should be within tolerance.
