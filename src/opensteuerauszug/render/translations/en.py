@@ -92,6 +92,7 @@ TRANSLATIONS = {
     "total_da1_usa": "Total recognition of foreign withholding tax / tax deduction USA",
     "foreign_tax_credit": "<b>Recognition<br/>foreign WHT</b><br/>in CHF",
     "usa_withholding": "<b>Withholding<br/>tax USA</b><br/>in CHF",
+    'country_total': 'Total {country}',
 
     # === LIABILITIES TABLE ===
     "designation_liabilities_interest": "Description<br/>Debts<br/>Interests",
