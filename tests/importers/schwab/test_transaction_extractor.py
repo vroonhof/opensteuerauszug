@@ -1399,3 +1399,28 @@ class TestSchwabTransactionExtractor:
         assert funds_received_stock.quantity == Decimal("1000.00")
         wire_funds_stock = next(s for s in stocks if "Wire Funds" in s.name)
         assert wire_funds_stock.quantity == Decimal("-500.00")
+
+    def test_action_adr_mgmt_fee(self):
+        """ADR Mgmt Fee with negative amount creates a cash outflow mutation."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "06/15/2024", "Action": "ADR Mgmt Fee",
+                "Description": "ADR FEE", "Amount": "-$2.50"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2024, 6, 15)
+        assert stock.mutation is True
+        assert stock.quantity == Decimal("-2.50")
+        assert "ADR Mgmt Fee" in stock.name
