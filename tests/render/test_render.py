@@ -297,6 +297,7 @@ def test_make_barcode_pages(sample_tax_statement, monkeypatch):
     doc = BarcodeDocTemplate(buffer, pagesize=(800, 600))
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(name='SectionTitle', parent=styles['h2'], fontSize=10)
+    barcode_style = ParagraphStyle(name='BarcodeTitle', parent=title_style)  # add seperate style to exclude from bookmarks
     
     # Mock the render_to_barcodes function to return a list of mock images
     def mock_render_to_barcodes(tax_statement):
@@ -309,7 +310,7 @@ def test_make_barcode_pages(sample_tax_statement, monkeypatch):
     monkeypatch.setattr('opensteuerauszug.render.render.render_to_barcodes', mock_render_to_barcodes)
     
     # Call the function
-    make_barcode_pages(doc, story, sample_tax_statement, title_style)
+    make_barcode_pages(doc, story, sample_tax_statement, title_style, barcode_style)
     
     # Check that the story has been populated with elements
     assert len(story) > 0
