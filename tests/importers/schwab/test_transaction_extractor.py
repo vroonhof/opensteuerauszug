@@ -1452,3 +1452,32 @@ class TestSchwabTransactionExtractor:
         assert len(stocks) == 2
         quantities = sorted([s.quantity for s in stocks])
         assert quantities == [Decimal("-10.00"), Decimal("25.00")]
+
+    def test_action_spin_off(self):
+        """Spin-off creates a SecurityStock with positive quantity and no cash flow."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "05/01/2024", "Action": "Spin-off", "Symbol": "NEWCO",
+                "Description": "NEWCO INC SPINOFF", "Quantity": "10"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)  # Just the SecurityPosition
+        assert result is not None
+        newco_data = find_position(result, SecurityPosition, "NEWCO")
+        assert newco_data is not None
+        pos, stocks, payments = newco_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "NEWCO"
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2024, 5, 1)
+        assert stock.mutation is True
+        assert stock.quantity == Decimal("10")
+        assert stock.name == "Spin-off"
+        # No cash position expected (no cash flow)
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is None

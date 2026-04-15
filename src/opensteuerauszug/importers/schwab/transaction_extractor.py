@@ -16,7 +16,7 @@ KNOWN_ACTIONS = {
     "ADR Mgmt Fee", "Adjustment", "Bond Interest", "Div Adjustment", "Foreign Tax Paid", "Funds Received", "IRS Withhold Adj", "Long Term Cap Gain",
     "Misc Cash Entry", "MoneyLink Adj", "MoneyLink Deposit", "MoneyLink Transfer",
     "NRA Tax Adj", "NRA Withholding", "Non-Qualified Div", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell",
-    "Service Fee", "Short Term Cap Gain", "Special Qual Div", "Stock Plan Activity", "Stock Split",
+    "Service Fee", "Short Term Cap Gain", "Special Qual Div", "Spin-off", "Stock Plan Activity", "Stock Split",
     "Visa Purchase", "Wire Funds", "Wire Funds Received", "Wire Sent",
     "Tax Reversal", "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
 }
@@ -410,6 +410,17 @@ class TransactionExtractor:
                     name=name
                 )
         
+        elif action == "Spin-off":
+            # Corporate action: new shares appear in the account (no cash flow)
+            if schwab_qty and schwab_qty > 0 and isinstance(pos_object, SecurityPosition):
+                sec_stock = SecurityStock(
+                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
+                    quantity=schwab_qty, balanceCurrency=currency,
+                    name="Spin-off",
+                )
+            else:
+                raise ValueError(f"Spin-off action requires a positive quantity and a valid SecurityPosition. Quantity: {schwab_qty}, Position: {pos_object}")
+
         elif action == "Deposit": # Shares deposited into account
             if schwab_qty and schwab_qty > 0 and isinstance(pos_object, SecurityPosition):
                 award_details_str = ""
