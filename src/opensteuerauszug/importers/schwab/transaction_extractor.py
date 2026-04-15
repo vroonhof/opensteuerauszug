@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 KNOWN_ACTIONS = {
     "Buy", "Cash Dividend", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
     "Journaled Shares",
-    "ADR Mgmt Fee", "Bond Interest", "Div Adjustment", "Foreign Tax Paid", "Funds Received", "IRS Withhold Adj", "Long Term Cap Gain",
+    "ADR Mgmt Fee", "Adjustment", "Bond Interest", "Div Adjustment", "Foreign Tax Paid", "Funds Received", "IRS Withhold Adj", "Long Term Cap Gain",
     "Misc Cash Entry", "MoneyLink Adj", "MoneyLink Deposit", "MoneyLink Transfer",
     "NRA Tax Adj", "NRA Withholding", "Non-Qualified Div", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell",
     "Service Fee", "Short Term Cap Gain", "Special Qual Div", "Stock Plan Activity", "Stock Split",
@@ -491,7 +491,7 @@ class TransactionExtractor:
         elif action in ("Wire Transfer", "MoneyLink Transfer", "MoneyLink Adj",
                         "Misc Cash Entry", "Service Fee", "Wire Funds", "Wire Sent",
                         "Funds Received", "Visa Purchase", "MoneyLink Deposit", "Wire Funds Received",
-                        "ADR Mgmt Fee"):
+                        "ADR Mgmt Fee", "Adjustment"):
             if schwab_amount:
                 cash_stock = create_cash_stock(schwab_amount, f"{action}{' ' + pos_object.symbol if isinstance(pos_object, SecurityPosition) else ''}")
 

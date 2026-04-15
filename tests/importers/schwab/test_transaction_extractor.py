@@ -1424,3 +1424,31 @@ class TestSchwabTransactionExtractor:
         assert stock.mutation is True
         assert stock.quantity == Decimal("-2.50")
         assert "ADR Mgmt Fee" in stock.name
+
+    def test_action_adjustment(self):
+        """Adjustment with positive and negative amounts creates cash mutations."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [
+                {
+                    "Date": "03/15/2024", "Action": "Adjustment",
+                    "Description": "POSITIVE ADJUSTMENT", "Amount": "$25.00"
+                },
+                {
+                    "Date": "06/15/2024", "Action": "Adjustment",
+                    "Description": "NEGATIVE ADJUSTMENT", "Amount": "-$10.00"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 1)  # Both merge into 1 CashPosition
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 2
+        quantities = sorted([s.quantity for s in stocks])
+        assert quantities == [Decimal("-10.00"), Decimal("25.00")]
