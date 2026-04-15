@@ -1145,3 +1145,51 @@ class TestSchwabTransactionExtractor:
         cash_pos, cash_stocks, _ = cash_data
         assert len(cash_stocks) == 1
         assert cash_stocks[0].quantity == Decimal("35.00")
+
+    def test_action_moneylink_transfer_positive(self):
+        """MoneyLink Transfer with positive amount creates a cash mutation."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2016", "ToDate": "12/31/2016",
+            "BrokerageTransactions": [{
+                "Date": "03/01/2016", "Action": "MoneyLink Transfer",
+                "Description": "Tfr BANK", "Amount": "$10000.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2016, 3, 1)
+        assert stock.mutation is True
+        assert stock.quantity == Decimal("10000.00")
+        assert "MoneyLink Transfer" in stock.name
+
+    def test_action_moneylink_transfer_negative(self):
+        """MoneyLink Transfer with negative amount creates a cash outflow mutation."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2016", "ToDate": "12/31/2016",
+            "BrokerageTransactions": [{
+                "Date": "03/15/2016", "Action": "MoneyLink Transfer",
+                "Description": "Tfr BANK OUT", "Amount": "-$5000.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == Decimal("-5000.00")
+        assert "MoneyLink Transfer" in stock.name
