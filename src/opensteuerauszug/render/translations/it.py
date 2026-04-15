@@ -92,6 +92,7 @@ TRANSLATIONS = {
     "total_da1_usa": "Totale del computo delle imposte estere prelevate alla fonte / trattenuta supplementare USA",
     "foreign_tax_credit": "<b>Imposta alla fonte<br/>estera ammissibile</b><br/>in CHF",
     "usa_withholding": "<b>Ritenuta<br/>d'acconto USA</b><br/>in CHF",
+    'country_total': 'Totale {country}',
 
     # === LIABILITIES TABLE ===
     "designation_liabilities_interest": "Descrizione<br/>Debiti<br/>Interessi",
