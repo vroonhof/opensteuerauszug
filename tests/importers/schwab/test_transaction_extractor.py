@@ -1521,3 +1521,43 @@ class TestSchwabTransactionExtractor:
         assert cash_stocks is not None
         assert len(cash_stocks) == 1
         assert cash_stocks[0].quantity == Decimal("1000")
+
+    def test_action_full_redemption(self):
+        """Full Redemption creates cash inflow; Full Redemption Adj removes shares from the SecurityPosition."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2023", "ToDate": "12/31/2023",
+            "BrokerageTransactions": [
+                {
+                    "Date": "06/01/2023", "Action": "Full Redemption", "Symbol": "BOND1",
+                    "Description": "BOND INC", "Amount": "$5000"
+                },
+                {
+                    "Date": "06/01/2023", "Action": "Full Redemption Adj", "Symbol": "BOND1",
+                    "Description": "BOND INC", "Quantity": "-50"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 2)  # BOND1 SecurityPosition + CashPosition
+        assert result is not None
+        bond_data = find_position(result, SecurityPosition, "BOND1")
+        cash_data = find_position(result, CashPosition)
+        assert bond_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = bond_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "BOND1"
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == Decimal("-50")
+        assert stock.name == "Full Redemption"
+
+        cash_pos, cash_stocks, cash_payments = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert cash_payments is None
+        assert cash_stocks is not None
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("5000")
