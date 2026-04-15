@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 KNOWN_ACTIONS = {
     "Buy", "Cash Dividend", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
     "Journaled Shares",
-    "Bond Interest", "Div Adjustment", "Foreign Tax Paid", "IRS Withhold Adj", "MoneyLink Adj", "MoneyLink Transfer",
+    "Bond Interest", "Div Adjustment", "Foreign Tax Paid", "IRS Withhold Adj", "Long Term Cap Gain", "MoneyLink Adj", "MoneyLink Transfer",
     "NRA Tax Adj", "NRA Withholding", "Non-Qualified Div", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell",
-    "Special Qual Div", "Stock Plan Activity", "Stock Split",
+    "Short Term Cap Gain", "Special Qual Div", "Stock Plan Activity", "Stock Split",
     "Tax Reversal", "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
 }
 
@@ -368,6 +368,20 @@ class TransactionExtractor:
             else:
                 raise ValueError(f"Dividend action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}")
                 
+        elif action in ("Short Term Cap Gain", "Long Term Cap Gain"):
+            # Capital gain distributions — treat like a dividend payment attached to the security
+            if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
+                sec_payment = SecurityPayment(
+                    paymentDate=tx_date, quotationType="PIECE",
+                    quantity=UNINITIALIZED_QUANTITY, amountCurrency=currency,
+                    amount=schwab_amount, name="Capital Gain",
+                    grossRevenueB=schwab_amount,
+                    broker_label_original=action,
+                )
+                cash_stock = create_cash_stock(schwab_amount, f"Cash in for Capital Gain {pos_object.symbol}")
+            else:
+                raise ValueError(f"Capital gain action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}")
+
         elif action == "Bond Interest":
             # Bond interest has a Symbol (CUSIP) — payment attaches to the security position
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
