@@ -3,7 +3,7 @@ from math import floor
 import sys
 import hashlib
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, List
 from decimal import Decimal, ROUND_HALF_UP
 import zlib
 from PIL import Image as PILImage
