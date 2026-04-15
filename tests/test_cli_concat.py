@@ -1,7 +1,7 @@
 import pytest
 from typer.testing import CliRunner
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from pypdf import PdfReader
 from reportlab.pdfgen import canvas
 
@@ -71,29 +71,22 @@ def test_cli_concatenation(tmp_path, dummy_xml, pre_amble_pdf, post_amble_pdf):
 
         mock_render.side_effect = side_effect
 
-        # Mock ConfigManager and TotalCalculator
-        with patch("opensteuerauszug.steuerauszug.calculate_settings") as MockConfigManager, \
-             patch("opensteuerauszug.steuerauszug.TotalCalculator") as MockTotalCalculator:
+        with patch("opensteuerauszug.steuerauszug.TotalCalculator") as MockTotalCalculator:
+            MockTotalCalculator.return_value.calculate.side_effect = lambda x: x
 
-             MockConfigManager.return_value.general_settings = None
-             MockConfigManager.return_value.calculate_settings = MagicMock()
-             MockConfigManager.return_value.calculate_settings.keep_existing_payments = False
-
-             MockTotalCalculator.return_value.calculate.side_effect = lambda x: x
-
-             result = runner.invoke(app, [
-                 "process",
-                 str(dummy_xml),
-                 "--output", str(output_pdf),
-                 "--raw-import",
-                 "--phases", "render",
-                 "--pre-amble", str(pre_amble_pdf),
-                 "--post-amble", str(post_amble_pdf),
-                 "--tax-year", "2023",
-                 "--period-from", "2023-01-01",
-                 "--period-to", "2023-12-31",
-                 "--tax-calculation-level", "none"
-             ])
+            result = runner.invoke(app, [
+                "process",
+                str(dummy_xml),
+                "--output", str(output_pdf),
+                "--raw-import",
+                "--phases", "render",
+                "--pre-amble", str(pre_amble_pdf),
+                "--post-amble", str(post_amble_pdf),
+                "--tax-year", "2023",
+                "--period-from", "2023-01-01",
+                "--period-to", "2023-12-31",
+                "--tax-calculation-level", "none"
+            ])
 
     print(result.stdout)
     assert result.exit_code == 0
@@ -117,25 +110,21 @@ def test_cli_concatenation_failure_cleanup(tmp_path, dummy_xml, pre_amble_pdf):
         # Simulate failure during merge
         MockPdfWriter.return_value.append.side_effect = Exception("Merge failed")
 
-        with patch("opensteuerauszug.steuerauszug.calculate_settings") as MockConfigManager, \
-             patch("opensteuerauszug.steuerauszug.TotalCalculator") as MockTotalCalculator:
+        with patch("opensteuerauszug.steuerauszug.TotalCalculator") as MockTotalCalculator:
+            MockTotalCalculator.return_value.calculate.side_effect = lambda x: x
 
-             MockConfigManager.return_value.general_settings = None
-             MockConfigManager.return_value.calculate_settings = MagicMock()
-             MockTotalCalculator.return_value.calculate.side_effect = lambda x: x
-
-             result = runner.invoke(app, [
-                 "process",
-                 str(dummy_xml),
-                 "--output", str(output_pdf),
-                 "--raw-import",
-                 "--phases", "render",
-                 "--pre-amble", str(pre_amble_pdf),
-                 "--tax-year", "2023",
-                 "--period-from", "2023-01-01",
-                 "--period-to", "2023-12-31",
-                 "--tax-calculation-level", "none"
-             ])
+            result = runner.invoke(app, [
+                "process",
+                str(dummy_xml),
+                "--output", str(output_pdf),
+                "--raw-import",
+                "--phases", "render",
+                "--pre-amble", str(pre_amble_pdf),
+                "--tax-year", "2023",
+                "--period-from", "2023-01-01",
+                "--period-to", "2023-12-31",
+                "--tax-calculation-level", "none"
+            ])
 
     assert result.exit_code == 1
     assert "Error during PDF concatenation: Merge failed" in result.stdout
