@@ -1257,3 +1257,40 @@ class TestSchwabTransactionExtractor:
         assert stock.mutation is True
         assert stock.quantity == Decimal("10.00")
         assert "MoneyLink Adj" in stock.name
+
+    def test_action_dividend_variants(self):
+        """Non-Qualified Div, Special Qual Div, and Div Adjustment are all handled like Dividend."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [
+                {
+                    "Date": "03/15/2024", "Action": "Non-Qualified Div", "Symbol": "MSFT",
+                    "Description": "MICROSOFT CORP", "Amount": "$25.00"
+                },
+                {
+                    "Date": "06/15/2024", "Action": "Special Qual Div", "Symbol": "GOOG",
+                    "Description": "ALPHABET INC", "Amount": "$50.00"
+                },
+                {
+                    "Date": "09/15/2024", "Action": "Div Adjustment", "Symbol": "AAPL",
+                    "Description": "APPLE INC", "Amount": "$10.00"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 4)  # 3 SecurityPositions + 1 CashPosition
+        assert result is not None
+
+        for symbol, action_str, amount in [("MSFT", "Non-Qualified Div", "25.00"),
+                                           ("GOOG", "Special Qual Div", "50.00"),
+                                           ("AAPL", "Div Adjustment", "10.00")]:
+            sec_data = find_position(result, SecurityPosition, symbol)
+            assert sec_data is not None, f"SecurityPosition for {symbol} not found"
+            pos, stocks, payments = sec_data
+            assert isinstance(pos, SecurityPosition)
+            assert not stocks
+            assert payments is not None and len(payments) == 1
+            payment = payments[0]
+            assert payment.name == "Dividend", f"Payment name for {action_str} should be 'Dividend'"
+            assert payment.broker_label_original == action_str
+            assert payment.grossRevenueB == Decimal(amount)
