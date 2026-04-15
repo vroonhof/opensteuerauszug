@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 KNOWN_ACTIONS = {
     "Buy", "Cash Dividend", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
     "Journaled Shares",
-    "ADR Mgmt Fee", "Adjustment", "Bond Interest", "Div Adjustment", "Foreign Tax Paid", "Funds Received", "IRS Withhold Adj", "Long Term Cap Gain",
+    "ADR Mgmt Fee", "Adjustment", "Bond Interest", "Cash Merger", "Cash Merger Adj", "Div Adjustment", "Foreign Tax Paid", "Funds Received", "IRS Withhold Adj", "Long Term Cap Gain",
     "Misc Cash Entry", "MoneyLink Adj", "MoneyLink Deposit", "MoneyLink Transfer",
     "NRA Tax Adj", "NRA Withholding", "Non-Qualified Div", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell",
     "Service Fee", "Short Term Cap Gain", "Special Qual Div", "Spin-off", "Stock Plan Activity", "Stock Split",
@@ -464,6 +464,20 @@ class TransactionExtractor:
                 )
                 # Cash stock reflects the actual cash movement
                 cash_stock = create_cash_stock(schwab_amount, f"Cash flow for {action} {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
+
+        elif action == "Cash Merger":
+            # Forced sale: cash received for the shares. Cash-only flow.
+            if schwab_amount and schwab_amount > 0:
+                cash_stock = create_cash_stock(schwab_amount, f"Cash in for Cash Merger {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
+
+        elif action == "Cash Merger Adj":
+            # Shares removed as part of a cash merger (quantity is negative)
+            if schwab_qty and isinstance(pos_object, SecurityPosition):
+                sec_stock = SecurityStock(
+                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
+                    quantity=schwab_qty, balanceCurrency=currency,
+                    name="Cash Merger",
+                )
 
         elif action == "Cash In Lieu":
              if schwab_amount and schwab_amount > 0:

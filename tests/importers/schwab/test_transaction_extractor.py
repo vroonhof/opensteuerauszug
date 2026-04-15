@@ -1481,3 +1481,43 @@ class TestSchwabTransactionExtractor:
         # No cash position expected (no cash flow)
         cash_data = find_position(result, CashPosition)
         assert cash_data is None
+
+    def test_action_cash_merger(self):
+        """Cash Merger creates cash inflow; Cash Merger Adj creates negative SecurityStock for shares removed."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2021", "ToDate": "12/31/2021",
+            "BrokerageTransactions": [
+                {
+                    "Date": "03/02/2021", "Action": "Cash Merger", "Symbol": "FOO",
+                    "Description": "FOO INC", "Amount": "$1000"
+                },
+                {
+                    "Date": "03/02/2021", "Action": "Cash Merger Adj", "Symbol": "FOO",
+                    "Description": "FOO INC", "Quantity": "-100"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 2)  # FOO SecurityPosition + CashPosition
+        assert result is not None
+        foo_data = find_position(result, SecurityPosition, "FOO")
+        cash_data = find_position(result, CashPosition)
+        assert foo_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = foo_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "FOO"
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == Decimal("-100")
+        assert stock.name == "Cash Merger"
+
+        cash_pos, cash_stocks, cash_payments = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert cash_payments is None
+        assert cash_stocks is not None
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("1000")
