@@ -7,7 +7,7 @@ from typing import List, Optional
 from datetime import date, datetime
 from pypdf import PdfReader, PdfWriter
 
-from .config.models import SchwabAccountSettings, IbkrAccountSettings, GeneralSettings, CalculateSettings
+from .config.models import SchwabAccountSettings, IbkrAccountSettings
 from .render.translations import DEFAULT_LANGUAGE
 from .core.identifier_loader import SecurityIdentifierMapLoader
 
@@ -80,8 +80,7 @@ default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RECONCILE
 _COMMAND_DEFAULT_PHASES = {
     'verify': [Phase.VERIFY],
 }
-general_config_settings: Optional[GeneralSettings] = None
-calculate_settings: Optional[CalculateSettings] = None
+
 @app.command("process")
 def process(
     ctx: typer.Context,
