@@ -1294,3 +1294,40 @@ class TestSchwabTransactionExtractor:
             assert payment.name == "Dividend", f"Payment name for {action_str} should be 'Dividend'"
             assert payment.broker_label_original == action_str
             assert payment.grossRevenueB == Decimal(amount)
+
+    def test_action_tax_withholding_variants(self):
+        """NRA Withholding, Foreign Tax Paid, and IRS Withhold Adj map to the tax withholding branch."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [
+                {
+                    "Date": "03/15/2024", "Action": "NRA Withholding", "Symbol": "MSFT",
+                    "Description": "NRA WITHHOLDING", "Amount": "-$10.00"
+                },
+                {
+                    "Date": "06/15/2024", "Action": "Foreign Tax Paid", "Symbol": "GOOG",
+                    "Description": "FOREIGN TAX PAID", "Amount": "-$20.00"
+                },
+                {
+                    "Date": "09/15/2024", "Action": "IRS Withhold Adj", "Symbol": "AAPL",
+                    "Description": "IRS WITHHOLDING ADJ", "Amount": "-$5.00"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 4)  # 3 SecurityPositions + 1 CashPosition
+        assert result is not None
+
+        for symbol, action_str, amount in [("MSFT", "NRA Withholding", "-10.00"),
+                                           ("GOOG", "Foreign Tax Paid", "-20.00"),
+                                           ("AAPL", "IRS Withhold Adj", "-5.00")]:
+            sec_data = find_position(result, SecurityPosition, symbol)
+            assert sec_data is not None, f"SecurityPosition for {symbol} not found"
+            pos, stocks, payments = sec_data
+            assert isinstance(pos, SecurityPosition)
+            assert not stocks
+            assert payments is not None and len(payments) == 1
+            payment = payments[0]
+            assert payment.nonRecoverableTax == abs(Decimal(amount)), f"nonRecoverableTax for {action_str} should be set"
+            assert payment.grossRevenueB is None
+            assert payment.broker_label_original == action_str

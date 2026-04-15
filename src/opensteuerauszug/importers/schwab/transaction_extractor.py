@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 KNOWN_ACTIONS = {
     "Buy", "Cash Dividend", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
     "Journaled Shares",
-    "Bond Interest", "Div Adjustment", "MoneyLink Adj", "MoneyLink Transfer",
-    "NRA Tax Adj", "Non-Qualified Div", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell",
+    "Bond Interest", "Div Adjustment", "Foreign Tax Paid", "IRS Withhold Adj", "MoneyLink Adj", "MoneyLink Transfer",
+    "NRA Tax Adj", "NRA Withholding", "Non-Qualified Div", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell",
     "Special Qual Div", "Stock Plan Activity", "Stock Split",
     "Tax Reversal", "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
 }
@@ -423,7 +423,7 @@ class TransactionExtractor:
                 # if cash_flow:
                 #     cash_stock = create_cash_stock(cash_flow, f"Implied cash out for Deposit {pos_object.symbol}")
         
-        elif action in ("Tax Withholding", "NRA Tax Adj", "Tax Reversal"):
+        elif action in ("Tax Withholding", "NRA Tax Adj", "Tax Reversal", "NRA Withholding", "Foreign Tax Paid", "IRS Withhold Adj"):
             # Creates a Payment for the security AND a cash stock mutation
             if schwab_amount and schwab_amount != 0:
                 sec_payment = SecurityPayment(
