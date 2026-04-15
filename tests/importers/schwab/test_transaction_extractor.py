@@ -1232,3 +1232,28 @@ class TestSchwabTransactionExtractor:
         assert len(cash_stocks) == 1
         assert cash_stocks[0].quantity == Decimal("500.00")
         assert cash_stocks[0].name == "Cash in for Bond Interest 912828YW8"
+
+    def test_action_moneylink_adj(self):
+        """MoneyLink Adj creates a cash mutation, same as MoneyLink Transfer."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2016", "ToDate": "12/31/2016",
+            "BrokerageTransactions": [{
+                "Date": "07/01/2016", "Action": "MoneyLink Adj",
+                "Description": "Tfr BANK", "Amount": "$10.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2016, 7, 1)
+        assert stock.mutation is True
+        assert stock.quantity == Decimal("10.00")
+        assert "MoneyLink Adj" in stock.name

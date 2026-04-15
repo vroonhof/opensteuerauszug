@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 KNOWN_ACTIONS = {
     "Buy", "Cash Dividend", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
     "Journaled Shares",
-    "Bond Interest", "MoneyLink Transfer",
+    "Bond Interest", "MoneyLink Adj", "MoneyLink Transfer",
     "NRA Tax Adj", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell", "Stock Plan Activity", "Stock Split",
     "Tax Reversal", "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
 }
@@ -470,7 +470,7 @@ class TransactionExtractor:
                  # Just generate cash stock mutation
                  cash_stock = create_cash_stock(schwab_amount, "Cash Journal")
 
-        elif action in ("Wire Transfer", "MoneyLink Transfer"):
+        elif action in ("Wire Transfer", "MoneyLink Transfer", "MoneyLink Adj"):
             if schwab_amount:
                 cash_stock = create_cash_stock(schwab_amount, f"{action}{' ' + pos_object.symbol if isinstance(pos_object, SecurityPosition) else ''}")
 
