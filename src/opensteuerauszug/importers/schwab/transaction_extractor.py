@@ -372,16 +372,11 @@ class TransactionExtractor:
                 raise ValueError(f"Dividend action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}")
                 
         elif action in ("Short Term Cap Gain", "Long Term Cap Gain"):
-            # Capital gain distributions — treat like a dividend payment attached to the security
+            # Capital gain distributions are not recoverable or taxable in
+            # Switzerland (capital gains are tax-free for private investors), so
+            # we record only the cash flow without a taxable payment entry.
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
-                sec_payment = SecurityPayment(
-                    paymentDate=tx_date, quotationType="PIECE",
-                    quantity=UNINITIALIZED_QUANTITY, amountCurrency=currency,
-                    amount=schwab_amount, name="Capital Gain",
-                    grossRevenueB=schwab_amount,
-                    broker_label_original=action,
-                )
-                cash_stock = create_cash_stock(schwab_amount, f"Cash in for Capital Gain {pos_object.symbol}")
+                cash_stock = create_cash_stock(schwab_amount, f"Cash in for {action} {pos_object.symbol}")
             else:
                 raise ValueError(f"Capital gain action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}")
 
@@ -396,6 +391,8 @@ class TransactionExtractor:
                     broker_label_original=action,
                 )
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Bond Interest {pos_object.symbol}")
+            else:
+                raise ValueError(f"Bond Interest action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}")
 
         elif action == "Stock Split":
             if schwab_qty and schwab_qty != 0 and isinstance(pos_object, SecurityPosition):
@@ -412,7 +409,13 @@ class TransactionExtractor:
                 )
         
         elif action == "Spin-off":
-            # Corporate action: new shares appear in the account (no cash flow)
+            # Corporate action: new shares appear in the account. We don't model
+            # a cash component here, so reject any non-empty Amount loudly
+            # rather than silently dropping cash.
+            if schwab_amount is not None and schwab_amount != 0:
+                raise NotImplementedError(
+                    f"Spin-off with cash component is not handled. Amount: {schwab_amount}, transaction: {schwab_tx}"
+                )
             if schwab_qty and schwab_qty > 0 and isinstance(pos_object, SecurityPosition):
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
@@ -452,33 +455,58 @@ class TransactionExtractor:
                 #     cash_stock = create_cash_stock(cash_flow, f"Implied cash out for Deposit {pos_object.symbol}")
         
         elif action in ("Tax Withholding", "NRA Tax Adj", "Tax Reversal", "NRA Withholding", "Foreign Tax Paid", "IRS Withhold Adj"):
-            # Creates a Payment for the security AND a cash stock mutation
+            # Withholding-tax related entries only ever influence nonRecoverableTax,
+            # never grossRevenueB. A negative schwab_amount means tax was withheld
+            # (positive nonRecoverableTax); a positive schwab_amount means a
+            # reversal/refund (negative nonRecoverableTax) so it offsets a prior
+            # withholding for the same payment date.
+            # TODO: investigate whether IRS Withhold Adj and NRA Withholding need
+            # distinct handling from generic withholding (file an issue if so).
             if schwab_amount and schwab_amount != 0:
+                tax_amount = -schwab_amount
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE",
                     quantity=UNINITIALIZED_QUANTITY, amountCurrency=currency, # Use currency string
                     amount=schwab_amount, name=f"{action}",
-                    nonRecoverableTax=abs(schwab_amount) if schwab_amount < 0 else None,
-                    grossRevenueB=schwab_amount if schwab_amount > 0 else None,
+                    nonRecoverableTax=tax_amount,
                     broker_label_original=action,
-                    nonRecoverableTaxAmountOriginal=abs(schwab_amount) if schwab_amount < 0 else None,
+                    nonRecoverableTaxAmountOriginal=tax_amount,
                 )
                 # Cash stock reflects the actual cash movement
                 cash_stock = create_cash_stock(schwab_amount, f"Cash flow for {action} {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
+            else:
+                raise ValueError(f"Withholding tax action '{action}' requires a non-zero amount in transaction: {schwab_tx}")
 
         elif action in ("Cash Merger", "Full Redemption"):
-            # Forced sale/redemption: cash received for the shares. Cash-only flow.
-            if schwab_amount and schwab_amount > 0:
-                cash_stock = create_cash_stock(schwab_amount, f"Cash in for {action} {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
+            # Forced sale/redemption: cash received for the shares. Cash-only
+            # flow — the share removal arrives in a separate "... Adj" entry.
+            if schwab_qty is not None and schwab_qty != 0:
+                raise ValueError(
+                    f"{action} should not carry a quantity component. Quantity: {schwab_qty}, transaction: {schwab_tx}"
+                )
+            if not schwab_amount or schwab_amount <= 0:
+                raise ValueError(
+                    f"{action} requires a positive amount. Amount: {schwab_amount}, transaction: {schwab_tx}"
+                )
+            cash_stock = create_cash_stock(schwab_amount, f"Cash in for {action} {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
 
         elif action in ("Cash Merger Adj", "Full Redemption Adj"):
-            # Shares removed as part of a cash merger or full redemption (quantity is negative)
-            if schwab_qty and isinstance(pos_object, SecurityPosition):
-                sec_stock = SecurityStock(
-                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                    quantity=schwab_qty, balanceCurrency=currency,
-                    name=action.replace(" Adj", ""),
+            # Shares removed as part of a cash merger or full redemption. The
+            # cash side arrives in the matching non-Adj entry, so this row must
+            # not also carry an Amount.
+            if schwab_amount is not None and schwab_amount != 0:
+                raise ValueError(
+                    f"{action} should not carry a cash amount (handled by matching '{action.replace(' Adj', '')}' entry). Amount: {schwab_amount}, transaction: {schwab_tx}"
                 )
+            if not schwab_qty or not isinstance(pos_object, SecurityPosition):
+                raise ValueError(
+                    f"{action} requires a non-zero quantity and a valid SecurityPosition. Quantity: {schwab_qty}, Position: {pos_object}, transaction: {schwab_tx}"
+                )
+            sec_stock = SecurityStock(
+                referenceDate=tx_date, mutation=True, quotationType="PIECE",
+                quantity=schwab_qty, balanceCurrency=currency,
+                name=action.replace(" Adj", ""),
+            )
 
         elif action == "Cash In Lieu":
              if schwab_amount and schwab_amount > 0:

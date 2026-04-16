@@ -517,14 +517,14 @@ class TestSchwabTransactionExtractor:
         assert cash_stock_entry.balance == Decimal("-22.50")
         assert cash_stock_entry.name == "Cash flow for Tax Withholding JNJ"
 
-    def test_action_nra_tax_adj_positive(self): 
+    def test_action_nra_tax_adj_positive(self):
         extractor = create_extractor()
         data = {
             "FromDate": "01/01/2024", "ToDate": "12/31/2024",
             "BrokerageTransactions": [{
                 "Date": "10/01/2024", "Action": "NRA Tax Adj", "Symbol": "MSFT",
-                "Description": "TAX ADJUSTMENT RECEIVED", 
-                "Amount": "$5.00" 
+                "Description": "TAX ADJUSTMENT RECEIVED",
+                "Amount": "$5.00"
             }]
         }
         result = run_extraction_test(extractor, data, 2) # MSFT + Cash
@@ -542,7 +542,10 @@ class TestSchwabTransactionExtractor:
         assert len(payments) == 1
         payment = payments[0]
         assert payment.amount == Decimal("5.00")
-        assert payment.grossRevenueB == Decimal("5.00") 
+        # Positive amount = withholding reversal, recorded as negative nonRecoverableTax.
+        assert payment.grossRevenueB is None
+        assert payment.nonRecoverableTax == Decimal("-5.00")
+        assert payment.nonRecoverableTaxAmountOriginal == Decimal("-5.00")
         assert payment.name is not None
         assert payment.name == "NRA Tax Adj"
         
@@ -1049,7 +1052,7 @@ class TestSchwabTransactionExtractor:
         assert stock.name == "Stock Plan Activity"
 
     def test_action_tax_reversal(self):
-        """Tax Reversal with positive amount generates SecurityPayment + cash mutation (like NRA Tax Adj positive)."""
+        """Tax Reversal with positive amount records a negative nonRecoverableTax (offsetting prior withholding)."""
         extractor = create_extractor()
         data = {
             "FromDate": "01/01/2024", "ToDate": "12/31/2024",
@@ -1075,8 +1078,9 @@ class TestSchwabTransactionExtractor:
         assert len(payments) == 1
         payment = payments[0]
         assert payment.amount == Decimal("11.20")
-        assert payment.grossRevenueB == Decimal("11.20")
-        assert payment.nonRecoverableTax is None
+        assert payment.grossRevenueB is None
+        assert payment.nonRecoverableTax == Decimal("-11.20")
+        assert payment.nonRecoverableTaxAmountOriginal == Decimal("-11.20")
         assert payment.name == "Tax Reversal"
 
         cash_pos, cash_stocks, _ = cash_data
@@ -1333,7 +1337,7 @@ class TestSchwabTransactionExtractor:
             assert payment.broker_label_original == action_str
 
     def test_action_capital_gain_distributions(self):
-        """Short Term Cap Gain and Long Term Cap Gain create SecurityPayment with name 'Capital Gain'."""
+        """Cap-gain distributions create only a cash mutation (not taxable in Switzerland)."""
         extractor = create_extractor()
         data = {
             "FromDate": "01/01/2024", "ToDate": "12/31/2024",
@@ -1348,21 +1352,25 @@ class TestSchwabTransactionExtractor:
                 },
             ]
         }
-        result = run_extraction_test(extractor, data, 3)  # 2 SecurityPositions + 1 CashPosition
+        # Cap-gain distributions are not taxable income in CH; no SecurityPayment
+        # is generated, so the security positions have no stocks/payments and
+        # only the aggregated CashPosition appears in the output.
+        result = run_extraction_test(extractor, data, 1)
         assert result is not None
 
-        for symbol, action_str, amount in [("MSFT", "Short Term Cap Gain", "100.00"),
-                                           ("GOOG", "Long Term Cap Gain", "200.00")]:
-            sec_data = find_position(result, SecurityPosition, symbol)
-            assert sec_data is not None, f"SecurityPosition for {symbol} not found"
-            pos, stocks, payments = sec_data
-            assert isinstance(pos, SecurityPosition)
-            assert not stocks
-            assert payments is not None and len(payments) == 1
-            payment = payments[0]
-            assert payment.name == "Capital Gain", f"Payment name for {action_str} should be 'Capital Gain'"
-            assert payment.broker_label_original == action_str
-            assert payment.grossRevenueB == Decimal(amount)
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        cash_pos, cash_stocks, cash_payments = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert cash_payments is None
+        assert cash_stocks is not None
+        assert sorted(s.quantity for s in cash_stocks) == [Decimal("100.00"), Decimal("200.00")]
+        names = {s.name for s in cash_stocks}
+        assert "Cash in for Short Term Cap Gain MSFT" in names
+        assert "Cash in for Long Term Cap Gain GOOG" in names
+
+        for symbol in ("MSFT", "GOOG"):
+            assert find_position(result, SecurityPosition, symbol) is None
 
     def test_action_cash_transfer_variants(self):
         """Misc Cash Entry, Service Fee, Wire Funds, Wire Sent, Funds Received, Visa Purchase, MoneyLink Deposit, Wire Funds Received are all cash-only."""
