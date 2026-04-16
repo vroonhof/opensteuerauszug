@@ -528,11 +528,16 @@ class TransactionExtractor:
                 if schwab_amount and schwab_amount != 0:
                      calculated_value = schwab_amount
                      # If qty > 0 (in), cash is out? If qty < 0 (out), cash is in?
-                     cash_flow = -schwab_amount if schwab_qty > 0 else abs(schwab_amount) 
-                     
+                     cash_flow = -schwab_amount if schwab_qty > 0 else abs(schwab_amount)
+
+                # In equity awards files, a Journal (not "Journaled Shares") represents
+                # shares moving OUT to the brokerage account, so the sign is inverted
+                # relative to a brokerage Journal where positive qty = shares coming in.
+                final_qty = -schwab_qty if (action == "Journal" and pos_object.depot == "AWARDS") else schwab_qty
+
                 sec_stock = SecurityStock(
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                    quantity=schwab_qty, balanceCurrency=currency, # Use currency string
+                    quantity=final_qty, balanceCurrency=currency, # Use currency string
                     name=f"{action} (Shares)"
                 )
                 if cash_flow:

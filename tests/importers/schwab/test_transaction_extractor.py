@@ -1530,6 +1530,36 @@ class TestSchwabTransactionExtractor:
         assert len(cash_stocks) == 1
         assert cash_stocks[0].quantity == Decimal("1000")
 
+    def test_action_journal_awards_share_transfer_out(self):
+        """In equity awards files, a Journal with positive quantity is a share transfer OUT (inverse of brokerage Journals)."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "Transactions": [{
+                "Date": "03/15/2025", "Action": "Journal", "Symbol": "ACME",
+                "Quantity": "42.500", "Description": "Share Transfer",
+                "FeesAndCommissions": None, "DisbursementElection": None,
+                "Amount": None, "TransactionDetails": []
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        acme_data = find_position(result, SecurityPosition, "ACME")
+        assert acme_data is not None
+
+        pos, stocks, payments = acme_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "ACME"
+        assert pos.depot == "AWARDS"
+        assert payments is None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2025, 3, 15)
+        assert stock.mutation is True
+        # Awards Journal with positive Schwab qty = shares leaving the awards account → negative
+        assert stock.quantity == Decimal("-42.500")
+        assert stock.name == "Journal (Shares)"
+
     def test_action_full_redemption(self):
         """Full Redemption creates cash inflow; Full Redemption Adj removes shares from the SecurityPosition."""
         extractor = create_extractor()
