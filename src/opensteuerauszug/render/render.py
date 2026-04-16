@@ -3,7 +3,7 @@ from math import floor
 import sys
 import hashlib
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, List
 from decimal import Decimal, ROUND_HALF_UP
 import zlib
 from PIL import Image as PILImage
@@ -22,7 +22,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 import logging
 
-from opensteuerauszug.model.ech0196 import TaxStatement
+from opensteuerauszug.model.ech0196 import TaxStatement, Security, CountryIdISO2Type
 from .onedee import OneDeeBarCode
 from opensteuerauszug.core.organisation import compute_org_nr
 from opensteuerauszug.core.security import determine_security_type, SecurityType
@@ -81,6 +81,14 @@ class BarcodeDocTemplate(BaseDocTemplate):
         self.client_info: Dict[str, str] = {}
         self.summary_table_last_col_width: float = 0.0
         self.tax_statement: Optional[TaxStatement] = None
+
+    def afterFlowable(self, flowable):
+        "Registers bookmark entries."
+        if flowable.__class__.__name__ == 'Paragraph':
+            text = flowable.getPlainText()
+            style = flowable.style.name
+            if style == 'SectionTitle':
+                self.canv.add_bookmark(text)
 
 # --- Helper Function for Currency Formatting ---
 def format_currency_rounded(value: Decimal, default='0'):
@@ -423,6 +431,8 @@ class NumberedCanvas(canvas.Canvas):
 
     def __init__(self, *args, **kwargs):
         self._saved_page_states = []
+        self._bookmarks = []
+        self.show_outline = kwargs.pop("show_outline", False)
         self.left_margin = kwargs.pop("left_margin", 0)
         self.right_margin = kwargs.pop("right_margin", 0)
         self.bottom_margin = kwargs.pop("bottom_margin", 0)
@@ -431,6 +441,7 @@ class NumberedCanvas(canvas.Canvas):
 
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
+        self._bookmarks = []
         self._startPage()
 
     def save(self):
@@ -438,7 +449,16 @@ class NumberedCanvas(canvas.Canvas):
         for state in self._saved_page_states:
             self.__dict__.update(state)
             self._draw_page_number(num_pages)
+            if self._bookmarks:
+                bookmark_id = 1
+                for bookmark in self._bookmarks:
+                    bookmark_key = f"page_{self.getPageNumber()}_{bookmark_id}"
+                    self.bookmarkPage(bookmark_key)
+                    self.addOutlineEntry(bookmark, bookmark_key, level=0, closed=False)
+                    bookmark_id = bookmark_id+1
             canvas.Canvas.showPage(self)
+        if self.show_outline:
+            self.showOutline()
         canvas.Canvas.save(self)
 
     def _draw_page_number(self, page_count: int) -> None:
@@ -449,6 +469,8 @@ class NumberedCanvas(canvas.Canvas):
         page_width = self._pagesize[0]
         self.drawRightString(page_width - self.right_margin, footer_y, text)
 
+    def add_bookmark(self, title):
+        self._bookmarks.append(title)
 
 # --- Table Creation Functions ---
 
@@ -1295,7 +1317,7 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     
     return images
     
-def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxStatement, title_style: ParagraphStyle) -> None:
+def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxStatement, title_style: ParagraphStyle, barcode_style: ParagraphStyle) -> None:
     """
     Configure the document for barcode pages and add barcode page content to the story.
     
@@ -1332,7 +1354,7 @@ def make_barcode_pages(doc: BarcodeDocTemplate, story: list, tax_statement: TaxS
         story.append(PageBreak('barcode'))
 
         story.append(DocAssign("section_name", f"'{t('barcode_page').format(page=page_num + 1, total=barcode_pages)}'"))
-        story.append(Paragraph(t('barcode_page').format(page=page_num + 1, total=barcode_pages), title_style))
+        story.append(Paragraph(t('barcode_page').format(page=page_num + 1, total=barcode_pages), title_style if page_num == 0 else barcode_style))   # only use title_style for first page to exclude  others from bookmarks
         story.append(Spacer(0.1*cm, 0.5*cm))
         
         # Calculate start and end indices for this page
@@ -1549,7 +1571,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
     return bank_table
 
 # --- Securities/Depots Table Function ---
-def create_securities_table(tax_statement, styles, usable_width, security_type: SecurityType):
+def create_securities_table(tax_statement: TaxStatement, styles, usable_width, security_type: SecurityType):
     """
     Creates a table displaying securities information filtered by security type.
     
@@ -1629,9 +1651,56 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
     intermediate_total_rows = []
     depot_header_rows = []
     country_header_rows = []  # Track country header rows for DA1 securities
+    country_total_rows = []   # Track country total rows for DA1 securities
     current_row = 1  # Start after header
 
+    class RunningTotals:
+        def __init__(self):
+            self.totalGrossRevenueB = Decimal('0')
+            self.totalNonRecoverableTax = Decimal('0')
+            self.totalAdditionalWithHoldingTaxUSA = Decimal('0')
+            self.totalTaxValue = Decimal('0')
+
+        def add_security(self, security: Security):
+            self.totalGrossRevenueB += security.totalGrossRevenueB or Decimal('0')
+            self.totalNonRecoverableTax += security.totalNonRecoverableTax or Decimal('0')
+            self.totalAdditionalWithHoldingTaxUSA += security.totalAdditionalWithHoldingTaxUSA or Decimal('0')
+            if security.taxValue and security.taxValue.value:
+                self.totalTaxValue += security.taxValue.value
+
+    previous_country: CountryIdISO2Type = None
+    def render_country_total(last: bool = False):
+        if running_totals is None:
+            return
+        
+        nonlocal current_row
+        country_total_row = [
+            Paragraph('', val_left),
+            Paragraph(t('country_total').format(country=previous_country or ''), bold_left),
+            Paragraph('', val_right),
+            Paragraph('', val_right),
+            Paragraph('', val_right),
+            Paragraph('', val_left),
+            Paragraph('', val_right),
+            Paragraph(format_currency_2dp(running_totals.totalTaxValue), bold_right),
+            Paragraph('', val_left),
+            Paragraph('', bold_right),
+            Paragraph('', val_left),
+            Paragraph(format_currency_2dp(running_totals.totalGrossRevenueB), bold_right),
+            Paragraph(format_currency_2dp(running_totals.totalNonRecoverableTax), bold_right),
+            Paragraph(format_currency_2dp(running_totals.totalAdditionalWithHoldingTaxUSA), bold_right),
+        ] 
+        table_data.append(country_total_row)
+        country_total_rows.append(current_row)
+        current_row += 1
+        # Separator row - use non-breaking space for height
+        table_data.append([Paragraph('&nbsp;')]*len(table_header))
+        current_row += 1
+        if not last:
+            table_data.append([Paragraph('&nbsp;')]*len(table_header))
+            current_row += 1
     
+    securities_in_depot: List[Security]
     for depot, securities_in_depot in filtered_securities_by_depot:
         # Add depot header row
         depot_header_text = t('depot').format(number=depot.depotNumber or '')
@@ -1655,11 +1724,14 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
 
         securities_in_depot.sort(key=securities_in_depot_sort_key)
         previous_country = None
+        running_totals: RunningTotals = None
         for security in securities_in_depot:
             # For DA1, add country header row when country changes
             if security_type == "DA1":
                 current_country = security.country if security.country is not None else ''
                 if current_country != previous_country:
+                    render_country_total()
+                    running_totals = RunningTotals()  
                     # Add country header row
                     country_header_row = [
                         Paragraph('', val_left),
@@ -1791,6 +1863,10 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             # Separator row - use non-breaking space for height
             table_data.append([Paragraph('&nbsp;')]*len(table_header))
             current_row += 1
+            if running_totals:
+                running_totals.add_security(security)
+
+    render_country_total(last=True)
 
     if security_type == "A":
         total_tax_value = tax_statement.svTaxValueA
@@ -1853,6 +1929,12 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#f3f3f3')))
         table_style.append(('TOPPADDING', (0, idx), (-1, idx), 1)),
         table_style.append(('BOTTOMPADDING', (0, idx), (-1, idx), 1)),
+    # Country total rows for DA1
+    for idx in country_total_rows:
+        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#d3d3d3')))
+        table_style.append(('TOPPADDING', (0, idx), (-1, idx), 1)),
+        table_style.append(('BOTTOMPADDING', (0, idx), (-1, idx), 1)),
+
     for idx in intermediate_total_rows:
         table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#f0f0f0')))
         table_style.append(('TOPPADDING', (0, idx), (-1, idx), 1)),
@@ -2066,6 +2148,7 @@ def render_tax_statement(
 
     # --- Sections ---
     title_style = ParagraphStyle(name='SectionTitle', parent=styles['HeaderTitle'],  spaceAfter=6*mm)
+    barcode_style = ParagraphStyle(name='BarcodeTitle', parent=title_style)  # add seperate style to exclude from bookmarks
     # Would love to use this, but following text then overlaps.
     # title_style = styles['HeaderTitle']
 
@@ -2219,7 +2302,7 @@ def render_tax_statement(
         story.extend(criticial_warnings_flowables)
 
     # Add the barcode page
-    make_barcode_pages(doc, story, tax_statement, title_style)
+    make_barcode_pages(doc, story, tax_statement, title_style, barcode_style)
     
     # Build the PDF
     def _canvas_maker(*args, **kwargs):
@@ -2228,6 +2311,7 @@ def render_tax_statement(
             left_margin=left_margin,
             right_margin=right_margin,
             bottom_margin=bottom_margin,
+            show_outline=True if tax_statement.payment_reconciliation_report is not None else False,  # Show outline only if reconciliation report exists
             **kwargs,
         )
 

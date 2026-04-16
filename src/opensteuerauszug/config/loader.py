@@ -11,6 +11,7 @@ except ImportError:
 
 from .paths import resolve_config_file
 from .models import (
+    IbkrAccountSettings,
     SchwabAccountSettings,
     IbkrAccountSettings,
     FidelityAccountSettings,
@@ -239,6 +240,9 @@ class ConfigManager:
         if broker_name.lower() == "schwab":
             specific_settings = SchwabAccountSettings(**current_config)
             kind_literal = "schwab"
+        elif broker_name.lower() == "ibkr":
+            specific_settings = IbkrAccountSettings(**current_config)
+            kind_literal = "ibkr"
         # Example for future expansion:
         # elif broker_name.lower() == "ubs":
         #     specific_settings = UBSAccountSettings(**current_config)
