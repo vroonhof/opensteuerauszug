@@ -7,7 +7,7 @@ from typing import List, Optional
 from datetime import date, datetime
 from pypdf import PdfReader, PdfWriter
 
-from .config.models import SchwabAccountSettings, IbkrAccountSettings
+from .config.models import SchwabAccountSettings, IbkrAccountSettings, FidelityAccountSettings
 from .render.translations import DEFAULT_LANGUAGE
 from .core.identifier_loader import SecurityIdentifierMapLoader
 
@@ -56,6 +56,7 @@ class Phase(str, Enum):
 class ImporterType(str, Enum):
     SCHWAB = "schwab"
     IBKR = "ibkr"
+    FIDELITY = "fidelity"
     NONE = "none"
 
 class TaxCalculationLevel(str, Enum):
@@ -91,8 +92,8 @@ def process(
     final_xml_path: Optional[Path] = typer.Option(None, "--xml-output", help="Write the final tax statement XML to this file."),
     raw_import: bool = typer.Option(False, "--raw-import", help="Import directly from XML model dump instead of using an importer."),
     importer_type: ImporterType = typer.Option(ImporterType.NONE, "--importer", help="Specify the importer to use."),
-    period_from_str: Optional[str] = typer.Option(None, "--period-from", help="Start date of the tax period (YYYY-MM-DD), required for some importers like Schwab."),
-    period_to_str: Optional[str] = typer.Option(None, "--period-to", help="End date of the tax period (YYYY-MM-DD), required for some importers like Schwab."),
+    period_from_str: Optional[str] = typer.Option(None, "--period-from", help="Start date of the tax period (YYYY-MM-DD), required for some importers like Schwab and Fidelity."),
+    period_to_str: Optional[str] = typer.Option(None, "--period-to", help="End date of the tax period (YYYY-MM-DD), required for some importers like Schwab and Fidelity."),
     tax_year: Optional[int] = typer.Option(None, "--tax-year", help="Specify the tax year (e.g., 2023). If provided, period-from and period-to will default to the start/end of this year unless explicitly set. If period-from/to are set, they must fall within this tax year."),
     identifiers_csv_path_opt: Optional[str] = typer.Option(
         None,
@@ -187,6 +188,7 @@ def process(
     # ... (rest of date printing)
 
     # --- Configuration Loading ---
+    all_fidelity_account_settings_models: List[FidelityAccountSettings] = []
     all_schwab_account_settings_models: List[SchwabAccountSettings] = []
     all_ibkr_account_settings_models: List[IbkrAccountSettings] = [] # New list for IBKR
     effective_config_file = resolve_config_file(config_file)
@@ -208,6 +210,8 @@ def process(
     )
 
     target_broker_kind_for_config_loading = None
+    if importer_type == ImporterType.FIDELITY:
+        target_broker_kind_for_config_loading = "fidelity"
     if importer_type == ImporterType.SCHWAB:
         target_broker_kind_for_config_loading = "schwab"
     elif importer_type == ImporterType.IBKR:
@@ -231,18 +235,24 @@ def process(
                 print(f"No accounts configured for broker kind '{target_broker_kind_for_config_loading}' in {config_file}. Importer will proceed with defaults if possible.")
 
             for acc_settings in concrete_accounts_list:
-                if acc_settings.kind == "schwab":
+                if acc_settings.kind == "fidelity":
+                    all_fidelity_account_settings_models.append(acc_settings.settings)
+                elif acc_settings.kind == "schwab":
                     all_schwab_account_settings_models.append(acc_settings.settings)
                 elif acc_settings.kind == "ibkr":
                     all_ibkr_account_settings_models.append(acc_settings.settings)
                 else:
                     print(f"Warning: Received unhandled account configuration kind '{acc_settings.kind}' for broker '{target_broker_kind_for_config_loading}'. Skipping.")
             
+            if target_broker_kind_for_config_loading == "fidelity" and not all_fidelity_account_settings_models and concrete_accounts_list:
+                raise ValueError(f"No valid Fidelity account configurations found for broker 'fidelity', though other configurations might exist.")
             if target_broker_kind_for_config_loading == "schwab" and not all_schwab_account_settings_models and concrete_accounts_list:
                 raise ValueError(f"No valid Schwab account configurations found for broker 'schwab', though other configurations might exist.")
             if target_broker_kind_for_config_loading == "ibkr" and not all_ibkr_account_settings_models and concrete_accounts_list:
                 logger.debug(f"Warning: No valid IBKR account configurations loaded for broker 'ibkr', though other configurations might exist.")
 
+            if all_fidelity_account_settings_models:
+                print(f"Successfully loaded {len(all_fidelity_account_settings_models)} Fidelity account(s).")
             if all_schwab_account_settings_models:
                 print(f"Successfully loaded {len(all_schwab_account_settings_models)} Schwab account(s).")
             if all_ibkr_account_settings_models:
@@ -331,6 +341,25 @@ def process(
                 statement = schwab_importer.import_dir(str(input_file))
                 print(f"Schwab import complete.")
 
+            elif importer_type == ImporterType.FIDELITY:
+                if not parsed_period_from or not parsed_period_to:
+                    raise typer.BadParameter("--period-from and --period-to are required for the Fidelity importer.")
+                if not input_file.is_dir():
+                    raise typer.BadParameter(f"Input for Fidelity importer must be a directory, but got: {input_file}")
+                if not all_fidelity_account_settings_models:
+                    print(f"Error: No valid Fidelity account configurations loaded/found for broker 'fidelity'. Check config.toml or provide --broker fidelity if settings are under a different name.")
+                    raise typer.Exit(code=1)
+                print(f"Initializing FidelityImporter with {len(all_fidelity_account_settings_models)} Fidelity account configuration(s).")
+                from .importers.fidelity.fidelity_importer import FidelityImporter
+                fidelity_importer = FidelityImporter(
+                    period_from=parsed_period_from,
+                    period_to=parsed_period_to,
+                    account_settings_list=all_fidelity_account_settings_models,
+                    strict_consistency=strict_consistency_flag
+                )
+                statement = fidelity_importer.import_dir(str(input_file))
+                print(f"Fidelity import complete.")
+ 
             elif importer_type == ImporterType.IBKR:
                 if not parsed_period_from or not parsed_period_to:
                     raise typer.BadParameter("--period-from and --period-to are required for the IBKR importer.")
