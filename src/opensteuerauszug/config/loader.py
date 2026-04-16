@@ -13,6 +13,8 @@ from .paths import resolve_config_file
 from .models import (
     IbkrAccountSettings,
     SchwabAccountSettings,
+    IbkrAccountSettings,
+    FidelityAccountSettings,
     ConcreteAccountSettings,
     SpecificAccountSettingsUnion,
     CalculateSettings,
@@ -229,6 +231,12 @@ class ConfigManager:
         specific_settings: SpecificAccountSettingsUnion
         kind_literal: str
 
+        if broker_name.lower() == "ibkr":
+            specific_settings = IbkrAccountSettings(**current_config)
+            kind_literal = "schwab"
+        if broker_name.lower() == "fidelity":
+            specific_settings = FidelityAccountSettings(**current_config)
+            kind_literal = "schwab"
         if broker_name.lower() == "schwab":
             specific_settings = SchwabAccountSettings(**current_config)
             kind_literal = "schwab"
