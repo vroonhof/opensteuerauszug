@@ -3,7 +3,7 @@ from math import floor
 import sys
 import hashlib
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, List
 from decimal import Decimal, ROUND_HALF_UP
 import zlib
 from PIL import Image as PILImage
@@ -22,7 +22,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 import logging
 
-from opensteuerauszug.model.ech0196 import TaxStatement
+from opensteuerauszug.model.ech0196 import TaxStatement, Security, CountryIdISO2Type
 from .onedee import OneDeeBarCode
 from opensteuerauszug.core.organisation import compute_org_nr
 from opensteuerauszug.core.security import determine_security_type, SecurityType
@@ -1549,7 +1549,7 @@ def create_bank_accounts_table(tax_statement, styles, usable_width):
     return bank_table
 
 # --- Securities/Depots Table Function ---
-def create_securities_table(tax_statement, styles, usable_width, security_type: SecurityType):
+def create_securities_table(tax_statement: TaxStatement, styles, usable_width, security_type: SecurityType):
     """
     Creates a table displaying securities information filtered by security type.
     
@@ -1629,9 +1629,56 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
     intermediate_total_rows = []
     depot_header_rows = []
     country_header_rows = []  # Track country header rows for DA1 securities
+    country_total_rows = []   # Track country total rows for DA1 securities
     current_row = 1  # Start after header
 
+    class RunningTotals:
+        def __init__(self):
+            self.totalGrossRevenueB = Decimal('0')
+            self.totalNonRecoverableTax = Decimal('0')
+            self.totalAdditionalWithHoldingTaxUSA = Decimal('0')
+            self.totalTaxValue = Decimal('0')
+
+        def add_security(self, security: Security):
+            self.totalGrossRevenueB += security.totalGrossRevenueB or Decimal('0')
+            self.totalNonRecoverableTax += security.totalNonRecoverableTax or Decimal('0')
+            self.totalAdditionalWithHoldingTaxUSA += security.totalAdditionalWithHoldingTaxUSA or Decimal('0')
+            if security.taxValue and security.taxValue.value:
+                self.totalTaxValue += security.taxValue.value
+
+    previous_country: CountryIdISO2Type = None
+    def render_country_total(last: bool = False):
+        if running_totals is None:
+            return
+        
+        nonlocal current_row
+        country_total_row = [
+            Paragraph('', val_left),
+            Paragraph(t('country_total').format(country=previous_country or ''), bold_left),
+            Paragraph('', val_right),
+            Paragraph('', val_right),
+            Paragraph('', val_right),
+            Paragraph('', val_left),
+            Paragraph('', val_right),
+            Paragraph(format_currency_2dp(running_totals.totalTaxValue), bold_right),
+            Paragraph('', val_left),
+            Paragraph('', bold_right),
+            Paragraph('', val_left),
+            Paragraph(format_currency_2dp(running_totals.totalGrossRevenueB), bold_right),
+            Paragraph(format_currency_2dp(running_totals.totalNonRecoverableTax), bold_right),
+            Paragraph(format_currency_2dp(running_totals.totalAdditionalWithHoldingTaxUSA), bold_right),
+        ] 
+        table_data.append(country_total_row)
+        country_total_rows.append(current_row)
+        current_row += 1
+        # Separator row - use non-breaking space for height
+        table_data.append([Paragraph('&nbsp;')]*len(table_header))
+        current_row += 1
+        if not last:
+            table_data.append([Paragraph('&nbsp;')]*len(table_header))
+            current_row += 1
     
+    securities_in_depot: List[Security]
     for depot, securities_in_depot in filtered_securities_by_depot:
         # Add depot header row
         depot_header_text = t('depot').format(number=depot.depotNumber or '')
@@ -1655,11 +1702,14 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
 
         securities_in_depot.sort(key=securities_in_depot_sort_key)
         previous_country = None
+        running_totals: RunningTotals = None
         for security in securities_in_depot:
             # For DA1, add country header row when country changes
             if security_type == "DA1":
                 current_country = security.country if security.country is not None else ''
                 if current_country != previous_country:
+                    render_country_total()
+                    running_totals = RunningTotals()  
                     # Add country header row
                     country_header_row = [
                         Paragraph('', val_left),
@@ -1791,6 +1841,10 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
             # Separator row - use non-breaking space for height
             table_data.append([Paragraph('&nbsp;')]*len(table_header))
             current_row += 1
+            if running_totals:
+                running_totals.add_security(security)
+
+    render_country_total(last=True)
 
     if security_type == "A":
         total_tax_value = tax_statement.svTaxValueA
@@ -1853,6 +1907,12 @@ def create_securities_table(tax_statement, styles, usable_width, security_type: 
         table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#f3f3f3')))
         table_style.append(('TOPPADDING', (0, idx), (-1, idx), 1)),
         table_style.append(('BOTTOMPADDING', (0, idx), (-1, idx), 1)),
+    # Country total rows for DA1
+    for idx in country_total_rows:
+        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#d3d3d3')))
+        table_style.append(('TOPPADDING', (0, idx), (-1, idx), 1)),
+        table_style.append(('BOTTOMPADDING', (0, idx), (-1, idx), 1)),
+
     for idx in intermediate_total_rows:
         table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.HexColor('#f0f0f0')))
         table_style.append(('TOPPADDING', (0, idx), (-1, idx), 1)),
