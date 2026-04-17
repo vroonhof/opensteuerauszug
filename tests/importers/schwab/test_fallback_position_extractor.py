@@ -199,7 +199,7 @@ def test_extract_positions_valid_csv_awards_security(managed_temp_csv_path):
     assert stock.quotationType == "PIECE"
     assert stock.name == "Manual Security Position for AAPL from CSV"
 
-@pytest.mark.parametrize("managed_temp_csv_path", ["Depot,Date,Symbol,Quantity\nSCHWABACC789,2023-03-10,CASH,5000.75\n"], indirect=True)
+@pytest.mark.parametrize("managed_temp_csv_path", ["Depot,Date,Symbol,Quantity\nSCHWABACC789,2023-03-10,CASH 789,5000.75\n"], indirect=True)
 def test_extract_positions_valid_csv_numeric_depot_cash(managed_temp_csv_path):
     extractor = FallbackPositionExtractor(managed_temp_csv_path)
     results = extractor.extract_positions()
@@ -211,7 +211,7 @@ def test_extract_positions_valid_csv_numeric_depot_cash(managed_temp_csv_path):
     assert isinstance(pos, CashPosition)
     assert pos.depot == "789" # Last 3 digits
     assert pos.currentCy == "USD"
-    assert pos.cash_account_id is None
+    assert pos.cash_account_id == "789"
 
     assert isinstance(stock, SecurityStock)
     assert stock.referenceDate == date(2023, 3, 10)
@@ -360,7 +360,7 @@ def test_extract_positions_empty_symbol_skips_row(managed_temp_csv_path):
 @pytest.mark.parametrize("managed_temp_csv_path", [(
             "Depot,Date,Symbol,Quantity\n"
             "AWARDS,2023-01-01,AAPL,10\n"
-            "ACC123,2023-01-15,CASH,1000.00\n"
+            "ACC123,2023-01-15,CASH 123,1000.00\n"
             "AWARDS,2023-02-01,MSFT,25.5\n"
         )], indirect=True)
 def test_extract_positions_multiple_valid_entries(managed_temp_csv_path):
@@ -382,6 +382,7 @@ def test_extract_positions_multiple_valid_entries(managed_temp_csv_path):
     pos2, stock2 = results[1]
     assert isinstance(pos2, CashPosition)
     assert pos2.depot == "123"
+    assert pos2.cash_account_id == "123"
     assert stock2.quantity == Decimal("1000.00")
     assert stock2.referenceDate == date(2023,1,15)
 
@@ -392,6 +393,17 @@ def test_extract_positions_multiple_valid_entries(managed_temp_csv_path):
     assert pos3.symbol == "MSFT"
     assert stock3.quantity == Decimal("25.5")
     assert stock3.referenceDate == date(2023,2,1)
+
+@pytest.mark.parametrize("managed_temp_csv_path", ["Depot,Date,Symbol,Quantity\nACC123,2023-01-15,CASH,1000.00\n"], indirect=True)
+def test_extract_positions_bare_cash_unsupported(managed_temp_csv_path):
+    extractor = FallbackPositionExtractor(managed_temp_csv_path)
+    log_capture = StringIO()
+    with contextlib.redirect_stdout(log_capture):
+        results = extractor.extract_positions()
+    
+    assert results is None
+    assert "Bare 'CASH' symbol in row 1 is no longer supported" in log_capture.getvalue()
+    assert "Please use 'CASH <account_id>'" in log_capture.getvalue()
 
 @pytest.mark.parametrize("managed_temp_csv_path", [
     # UTF-8 BOM is \xef\xbb\xbf
