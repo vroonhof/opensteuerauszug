@@ -1380,7 +1380,7 @@ def test_bank_account_names_always_set(sample_ibkr_settings):
             
             # Check the naming pattern: "<AccountId> <Currency> position"
             currency = bank_account.bankAccountCurrency
-            expected_name = f"U7890123 {currency} position"
+            expected_name = f"U7890123 {currency}"
             assert bank_account.bankAccountName == expected_name
 
         # Verify specific accounts
@@ -1395,7 +1395,7 @@ def test_bank_account_names_always_set(sample_ibkr_settings):
         # Verify EUR account has no payments but still has name
         eur_account = next(ba for ba in tax_statement.listOfBankAccounts.bankAccount if ba.bankAccountCurrency == "EUR")
         assert len(eur_account.payment) == 0
-        assert eur_account.bankAccountName == "U7890123 EUR position"
+        assert eur_account.bankAccountName == "U7890123 EUR"
 
     finally:
         if os.path.exists(xml_file_path):

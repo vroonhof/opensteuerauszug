@@ -10,6 +10,7 @@ from opensteuerauszug.core.exchange_rate_provider import ExchangeRateProvider
 
 
 from opensteuerauszug.core.flag_override_provider import FlagOverrideProvider
+from opensteuerauszug.render.translations import Language, DEFAULT_LANGUAGE
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,8 @@ class FillInTaxValueCalculator(KurslisteTaxValueCalculator):
     Calculator that fills in missing values based on other available data,
     potentially after Kursliste and minimal calculations have been performed.
     """
-    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, flag_override_provider: Optional[FlagOverrideProvider] = None, keep_existing_payments: bool = False):
-        super().__init__(mode, exchange_rate_provider, flag_override_provider=flag_override_provider, keep_existing_payments=keep_existing_payments)
+    def __init__(self, mode: CalculationMode, exchange_rate_provider: ExchangeRateProvider, flag_override_provider: Optional[FlagOverrideProvider] = None, keep_existing_payments: bool = False, render_language: Language = DEFAULT_LANGUAGE):
+        super().__init__(mode, exchange_rate_provider, flag_override_provider=flag_override_provider, keep_existing_payments=keep_existing_payments, render_language=render_language)
         logger.info(
             "FillInTaxValueCalculator initialized with mode: %s and provider: %s",
             mode.value,

@@ -326,7 +326,8 @@ def process(
                     period_from=parsed_period_from,
                     period_to=parsed_period_to,
                     account_settings_list=all_schwab_account_settings_models,
-                    strict_consistency=strict_consistency_flag
+                    strict_consistency=strict_consistency_flag,
+                    render_language=render_language
                 )
                 statement = schwab_importer.import_dir(str(input_file))
                 print(f"Schwab import complete.")
@@ -354,7 +355,8 @@ def process(
                 ibkr_importer = IbkrImporter(
                     period_from=parsed_period_from,
                     period_to=parsed_period_to,
-                    account_settings_list=all_ibkr_account_settings_models
+                    account_settings_list=all_ibkr_account_settings_models,
+                    render_language=render_language
                 )
                 corrections_files = [str(p) for p in corrections_flex] if corrections_flex else None
                 statement = ibkr_importer.import_files([str(input_file)], corrections_filenames=corrections_files)
@@ -412,7 +414,8 @@ def process(
                 enable_filtering=filter_to_period_flag,
                 importer_name=importer_type.value,
                 override_org_nr=org_nr,
-                config_settings=general_config_settings
+                config_settings=general_config_settings,
+                render_language=render_language
             )
             statement = cleanup_calculator.calculate(statement)
             print(f"CleanupCalculator finished. Summary: Modified fields count: {len(cleanup_calculator.modified_fields)}")
@@ -445,12 +448,12 @@ def process(
             elif tax_calculation_level == TaxCalculationLevel.KURSLISTE:
                 print("Running KurslisteTaxValueCalculator...")
                 calculator_name = "KurslisteTaxValueCalculator"
-                tax_value_calculator = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=calculate_settings.keep_existing_payments)
+                tax_value_calculator = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=calculate_settings.keep_existing_payments, render_language=render_language)
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 print("Running FillInTaxValueCalculator...")
                 calculator_name = "FillInTaxValueCalculator"
-                tax_value_calculator = FillInTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=calculate_settings.keep_existing_payments)
-            
+                tax_value_calculator = FillInTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=exchange_rate_provider, keep_existing_payments=calculate_settings.keep_existing_payments, render_language=render_language)
+
             if tax_value_calculator and calculator_name:
                 statement = tax_value_calculator.calculate(statement)
                 print(f"{calculator_name} finished. Modified fields: {len(tax_value_calculator.modified_fields) if tax_value_calculator.modified_fields else '0'}, Errors: {len(tax_value_calculator.errors)}")
@@ -514,10 +517,10 @@ def process(
                 tax_value_verifier = MinimalTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=calculate_settings.keep_existing_payments)
             elif tax_calculation_level == TaxCalculationLevel.KURSLISTE:
                 verifier_name = "KurslisteTaxValueCalculator"
-                tax_value_verifier = KurslisteTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=calculate_settings.keep_existing_payments)
+                tax_value_verifier = KurslisteTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=calculate_settings.keep_existing_payments, render_language=render_language)
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 verifier_name = "FillInTaxValueCalculator"
-                tax_value_verifier = FillInTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=calculate_settings.keep_existing_payments)
+                tax_value_verifier = FillInTaxValueCalculator(mode=CalculationMode.VERIFY, exchange_rate_provider=exchange_rate_provider_verify, keep_existing_payments=calculate_settings.keep_existing_payments, render_language=render_language)
 
             if tax_value_verifier and verifier_name:
                 print(f"Running {verifier_name} (Verify Mode)...")

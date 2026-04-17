@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from opensteuerauszug.model.position import Position, SecurityPosition, CashPosition
 from opensteuerauszug.model.ech0196 import SecurityStock, SecurityPayment
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
+from opensteuerauszug.render.translations import Language, DEFAULT_LANGUAGE
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,13 @@ class TransactionExtractor:
     """
     Extracts transaction data from Schwab JSON files in the expected format.
     """
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, render_language: Language = DEFAULT_LANGUAGE):
         self.filename = filename
+        self.render_language = render_language
+
+    def _translate(self, key: str) -> str:
+        from opensteuerauszug.render.translations import get_text
+        return get_text(key, self.render_language)
 
     def extract_transactions(self) -> Optional[List[Tuple[Position, List[SecurityStock], Optional[List[SecurityPayment]], str, Tuple[date, date]]]]:
         """
@@ -346,7 +352,8 @@ class TransactionExtractor:
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE", 
                     quantity=UNINITIALIZED_QUANTITY, amountCurrency=currency, # Use currency string
-                    amount=schwab_amount, name="Credit Interest",
+                    amount=schwab_amount,
+                    name=self._translate("credit_interest"),
                     grossRevenueB=schwab_amount,
                     broker_label_original=action,
                 )
@@ -362,7 +369,7 @@ class TransactionExtractor:
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE",
                     quantity=payment_quantity, amountCurrency=currency, # Use currency string
-                    amount=schwab_amount, name="Dividend",
+                    amount=schwab_amount, name=self._translate("dividend"),
                     grossRevenueB=schwab_amount,
                     broker_label_original=action,
                     # TODO: Withholding tax check might generate cash_stock here later
@@ -398,9 +405,9 @@ class TransactionExtractor:
             if schwab_qty and schwab_qty != 0 and isinstance(pos_object, SecurityPosition):
                 # TODOD: Format date string in swiss format
                 if as_of_date_parsed:
-                    name=f"Stock Split (As of {as_of_date_parsed})"
+                    name=f"{self._translate('stock_split')} ({as_of_date_parsed})"
                 else:
-                    name="Stock Split"
+                    name=self._translate("stock_split")
                 sec_stock = SecurityStock(
                     # TODO format date string in swiss format
                     referenceDate=tx_date, mutation=True, quotationType="PIECE",
