@@ -48,7 +48,6 @@ def test_convert_cash_positions_to_list_of_bank_accounts():
     assert result.bankAccount[0].taxValue is not None
     assert isinstance(result.bankAccount[0].taxValue, BankAccountTaxValue)
     assert result.bankAccount[0].taxValue.referenceDate == period_to_date
-    assert result.bankAccount[0].taxValue.name == "Closing Balance"
     assert result.bankAccount[0].taxValue.balance == Decimal(1000)
     assert result.bankAccount[0].taxValue.balanceCurrency == "USD"
 
@@ -96,6 +95,5 @@ def test_create_tax_statement_from_positions():
     assert bank_account.taxValue is not None
     assert isinstance(bank_account.taxValue, BankAccountTaxValue)
     assert bank_account.taxValue.referenceDate == test_period_to
-    assert bank_account.taxValue.name == "Closing Balance"
     assert bank_account.taxValue.balance == Decimal(1000)
     assert bank_account.taxValue.balanceCurrency == "USD"

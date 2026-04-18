@@ -6,6 +6,7 @@ from opensteuerauszug.model.ech0196 import (
     BankAccountName, Institution, ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, BankAccountTaxValue, Client, ClientNumber
 )
 from opensteuerauszug.model.position import BasePosition, SecurityPosition, CashPosition
+from opensteuerauszug.render.translations import Language, DEFAULT_LANGUAGE
 from .statement_extractor import StatementExtractor
 from datetime import date, timedelta
 from .fallback_position_extractor import FallbackPositionExtractor
@@ -62,7 +63,8 @@ class SchwabImporter:
                  period_from: date, 
                  period_to: date, 
                  account_settings_list: List[SchwabAccountSettings], # MODIFIED
-                 strict_consistency: bool = True):
+                 strict_consistency: bool = True,
+                 render_language: Language = DEFAULT_LANGUAGE):
         """
         Initialize the importer with a tax period defined by a start and end date.
 
@@ -71,11 +73,13 @@ class SchwabImporter:
             period_to (date): The end date of the tax period.
             strict_consistency (bool): If True, raises an error on position reconciliation
                                        inconsistencies. If False, logs a warning.
+            render_language (Language): Language for translations.
         """
         self.period_from = period_from
         self.period_to = period_to
         self.account_settings_list = account_settings_list # MODIFIED
         self.strict_consistency = strict_consistency
+        self.render_language = render_language
 
         # If there's any immediate use of a single account setting (e.g. for logging, or a default identifier)
         # it needs to be adapted. For now, we'll assume most logic will be adapted later.
@@ -151,8 +155,7 @@ class SchwabImporter:
                     mutation=False,
                     quantity=qty_to_set_at_start,
                     balanceCurrency=currency_at_start,
-                    quotationType=q_type_at_start,
-                    name=f"{balance_name_prefix}Opening Balance (Tax Period Start)".strip()
+                    quotationType=q_type_at_start
                 )
                 live_stocks_list.append(start_balance_stock)
                 print(f"[{current_identifier}] Added/updated start-of-period balance for {self.period_from}.")
@@ -181,8 +184,7 @@ class SchwabImporter:
                 mutation=False,
                 quantity=end_pos_synth.quantity,
                 balanceCurrency=currency_at_end,
-                quotationType=q_type_at_end,
-                name=f"{balance_name_prefix}Closing Balance (Tax Period End+1)".strip()
+                quotationType=q_type_at_end
             )
             live_stocks_list.append(end_balance_stock)
             live_stocks_list = sorted(live_stocks_list, key=lambda s: (s.referenceDate, s.mutation))
@@ -224,7 +226,7 @@ class SchwabImporter:
                     for pos, stock in positions:
                         all_positions.append((pos, stock, None))
             elif ext == ".json":
-                extractor = TransactionExtractor(filename)
+                extractor = TransactionExtractor(filename, self.render_language)
                 transactions = extractor.extract_transactions()
                 if transactions is not None:
                     newly_covered_segments = defaultdict(list)
@@ -557,7 +559,6 @@ def convert_cash_positions_to_list_of_bank_accounts(
         if closing_stock_entry:
             bank_account.taxValue = BankAccountTaxValue(
                 referenceDate=period_to, # Tax value is as of end of period_to
-                name="Closing Balance",
                 balanceCurrency=closing_stock_entry.balanceCurrency,
                 balance=closing_stock_entry.quantity # Quantity of cash is its balance
             )

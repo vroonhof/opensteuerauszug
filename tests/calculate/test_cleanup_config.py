@@ -254,7 +254,8 @@ class TestCleanupCalculatorConfig:
         
         # Act
         calculator = CleanupCalculator(
-            period_from, period_to, "TestImporter"
+            period_from, period_to, "TestImporter",
+            render_language='de'
         )
         result = calculator.calculate(statement)
         
@@ -288,7 +289,8 @@ class TestCleanupCalculatorConfig:
         # Act
         calculator = CleanupCalculator(
             period_from, period_to, "TestImporter", 
-            config_settings=config_settings
+            config_settings=config_settings,
+            render_language='de'
         )
         result = calculator.calculate(statement)
         
@@ -322,7 +324,8 @@ class TestCleanupCalculatorConfig:
         # Act & Assert
         calculator = CleanupCalculator(
             period_from, period_to, "TestImporter", 
-            config_settings=config_settings
+            config_settings=config_settings,
+            render_language='de'
         )
         
         with pytest.raises(ValueError) as exc_info:

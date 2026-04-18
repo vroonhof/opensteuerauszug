@@ -30,6 +30,7 @@ from opensteuerauszug.model.kursliste import (
     PaymentShare,
     Share,
 )
+from opensteuerauszug.render.translations import DEFAULT_LANGUAGE
 
 
 def _make_statement(isin="US0000000000", name="Test Security", tax_year=2024):
@@ -137,6 +138,7 @@ def test_previous_year_exdate_generates_critical_warning():
     calculator = KurslisteTaxValueCalculator(
         mode=CalculationMode.OVERWRITE,
         exchange_rate_provider=provider,
+        render_language=DEFAULT_LANGUAGE,
     )
     statement = _make_statement()
     result = calculator.calculate(statement)
@@ -165,6 +167,7 @@ def test_current_year_exdate_generates_no_warning():
     calculator = KurslisteTaxValueCalculator(
         mode=CalculationMode.OVERWRITE,
         exchange_rate_provider=provider,
+        render_language=DEFAULT_LANGUAGE,
     )
     statement = _make_statement()
     result = calculator.calculate(statement)
@@ -189,6 +192,7 @@ def test_no_exdate_generates_no_warning():
     calculator = KurslisteTaxValueCalculator(
         mode=CalculationMode.OVERWRITE,
         exchange_rate_provider=provider,
+        render_language=DEFAULT_LANGUAGE,
     )
     statement = _make_statement()
     result = calculator.calculate(statement)
@@ -213,6 +217,7 @@ def test_warning_message_contains_key_information():
     calculator = KurslisteTaxValueCalculator(
         mode=CalculationMode.OVERWRITE,
         exchange_rate_provider=provider,
+        render_language=DEFAULT_LANGUAGE,
     )
     statement = _make_statement()
     result = calculator.calculate(statement)
@@ -255,6 +260,7 @@ def test_previous_year_exdate_warning_dismissed_when_reconciliation_matches():
     calculator = KurslisteTaxValueCalculator(
         mode=CalculationMode.OVERWRITE,
         exchange_rate_provider=provider,
+        render_language=DEFAULT_LANGUAGE,
     )
     statement = _make_statement(isin=isin, name=name)
     result = calculator.calculate(statement)
@@ -309,6 +315,7 @@ def test_previous_year_exdate_warning_kept_when_reconciliation_mismatches():
     calculator = KurslisteTaxValueCalculator(
         mode=CalculationMode.OVERWRITE,
         exchange_rate_provider=provider,
+        render_language=DEFAULT_LANGUAGE,
     )
     statement = _make_statement(isin=isin, name=name)
     result = calculator.calculate(statement)

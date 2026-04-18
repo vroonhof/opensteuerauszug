@@ -14,6 +14,7 @@ from opensteuerauszug.config.models import GeneralSettings
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 from opensteuerauszug.core.organisation import compute_org_nr
+from opensteuerauszug.render.translations import get_text, Language, DEFAULT_LANGUAGE
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,8 @@ class CleanupCalculator:
                  identifier_map: Optional[Dict[str, Dict[str, Any]]] = None,
                  enable_filtering: bool = True,
                  override_org_nr: Optional[str] = None,
-                 config_settings: Optional[GeneralSettings] = None):
+                 config_settings: Optional[GeneralSettings] = None,
+                 render_language: Language = DEFAULT_LANGUAGE):
         self.period_from = period_from
         self.period_to = period_to
         self.importer_name = importer_name # Store importer_name
@@ -40,6 +42,7 @@ class CleanupCalculator:
         self.enable_filtering = enable_filtering
         self.override_org_nr = override_org_nr
         self.config_settings = config_settings
+        self.render_language = render_language
         self.modified_fields: List[str] = []
 
         # Log if an identifier map was provided
@@ -388,7 +391,7 @@ class CleanupCalculator:
                                 totalGrossRevenueB=sum(abs(p.amount) for p in liability_payments if p.amount),
                                 taxValue=LiabilityAccountTaxValue(
                                     referenceDate=self.period_to,
-                                    name="Interest Payments",
+                                    name=get_text("debit_interest", self.render_language),
                                     balanceCurrency=currency,
                                     balance=Decimal("0"),
                                     value=Decimal("0")

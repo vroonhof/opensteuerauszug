@@ -10,7 +10,7 @@ from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 # Helper to create a TransactionExtractor instance with a dummy filename
 def create_extractor(filename_for_depot_test: str = "Individual_XXX123_Transactions_20240101-000000.json") -> TransactionExtractor:
-    return TransactionExtractor(filename_for_depot_test)
+    return TransactionExtractor(filename_for_depot_test, render_language='en')
 
 # Helper to run extraction and perform common checks
 def run_extraction_test(extractor: TransactionExtractor, data: dict, expected_count: int) -> Optional[List[Tuple[Position, List[SecurityStock], Optional[List[SecurityPayment]], str, Tuple[date, date]]]]:

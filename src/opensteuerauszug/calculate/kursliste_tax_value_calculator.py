@@ -15,6 +15,7 @@ from opensteuerauszug.core.constants import WITHHOLDING_TAX_RATE
 from .base import CalculationMode
 from .minimal_tax_value import MinimalTaxValueCalculator
 from opensteuerauszug.util.converters import security_tax_value_to_stock
+from opensteuerauszug.render.translations import get_text, DEFAULT_LANGUAGE, Language
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         exchange_rate_provider: ExchangeRateProvider,
         flag_override_provider: Optional[FlagOverrideProvider] = None,
         keep_existing_payments: bool = False,
+        render_language: Language = DEFAULT_LANGUAGE,
     ):
         super().__init__(
             mode, exchange_rate_provider, keep_existing_payments=keep_existing_payments
@@ -99,12 +101,16 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         if isinstance(exchange_rate_provider, KurslisteExchangeRateProvider):
             self.kursliste_manager = exchange_rate_provider.kursliste_manager
         self.flag_override_provider = flag_override_provider
+        self.render_language = render_language
         self._current_kursliste_security = None
         self._current_security_is_zero_balance_option = False
         self._missing_kursliste_entries = []
         self._stock_split_warnings: List[dict] = []
         self._previous_year_exdate_warnings = []
         self._all_securities: List[Security] = []
+
+    def _translate(self, key: str) -> str:
+        return get_text(key, self.render_language)
 
     def calculate(self, tax_statement):
         self._missing_kursliste_entries = []
@@ -681,17 +687,17 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             payment_name = f"KL:{security.securityName}"
             if pay.paymentType is None or pay.paymentType == PaymentTypeESTV.STANDARD:
                 if kl_sec.securityGroup == "SHARE":
-                    payment_name = "Dividend"
+                    payment_name = self._translate("dividend")
                 else:
-                    payment_name = "Distribution"
+                    payment_name = self._translate("distribution")
             elif pay.paymentType == PaymentTypeESTV.GRATIS:
-                payment_name = "Stock Dividend"
+                payment_name = self._translate("stock_dividend")
             elif pay.paymentType == PaymentTypeESTV.OTHER_BENEFIT:
-                payment_name = "Other Monetary Benefits"
+                payment_name = self._translate("other_monetary_benefits")
             elif pay.paymentType == PaymentTypeESTV.AGIO:
-                payment_name = "Premium/Agio"
+                payment_name = self._translate("premium_agio")
             elif pay.paymentType == PaymentTypeESTV.FUND_ACCUMULATION:
-                payment_name = "Taxable Income from Accumulating Fund"
+                payment_name = self._translate("taxable_income_from_accumulating_fund")
 
             # Preserve the original payment subtype only when it is explicitly non-standard.
             # Standard is the default and should remain unset so VERIFY mode does not fail
