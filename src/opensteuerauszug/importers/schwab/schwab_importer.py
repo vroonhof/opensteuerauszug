@@ -2,6 +2,7 @@ import logging
 from typing import List, Dict, Optional, Tuple
 import os
 from decimal import Decimal
+from functools import lru_cache
 from opensteuerauszug.model.ech0196 import (
     BankAccountName, Institution, ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, BankAccountTaxValue, Client, ClientNumber
 )
@@ -17,6 +18,7 @@ from collections import defaultdict
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import SchwabAccountSettings
 from opensteuerauszug.util.sorting import sort_security_stocks
+import holidays
 
 logger = logging.getLogger(__name__)
 
@@ -24,18 +26,26 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Settlement date helpers
 # ---------------------------------------------------------------------------
-# These functions are intentionally kept modular so that holiday calendars
-# (e.g. US federal holidays, NYSE holidays) can be plugged in later without
-# changing the calling code.
+
+@lru_cache(maxsize=None)
+def _nyse_holidays(year: int) -> holidays.NYSE:
+    """Return cached NYSE holiday calendar for *year*."""
+    return holidays.NYSE(years=year)
+
+
+def _is_nyse_holiday(d: date) -> bool:
+    """Return True if *d* is a NYSE exchange holiday (weekends excluded)."""
+    return d in _nyse_holidays(d.year)
+
 
 def next_business_day(d: date) -> date:
-    """Return the next calendar day that is a business day (Mon–Fri).
+    """Return the next calendar day that is a NYSE trading day.
 
-    Currently only skips weekends.  To add holiday support, replace this
-    function or inject a custom calendar predicate.
+    Skips weekends and US exchange (NYSE) holidays so that settlement dates
+    accurately reflect days on which the exchange is open for business.
     """
     result = d + timedelta(days=1)
-    while result.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+    while result.weekday() >= 5 or _is_nyse_holiday(result):
         result += timedelta(days=1)
     return result
 
@@ -44,8 +54,8 @@ def settlement_date(trade_date: date) -> date:
     """Return the T+1 settlement date for a trade.
 
     US equities settled T+2 until May 2024, then switched to T+1.
-    We use T+1 as the conservative default.  Replace or extend
-    ``next_business_day`` to handle exchange/product-specific rules.
+    We use T+1 as the conservative default, skipping weekends and NYSE
+    exchange holidays.
     """
     return next_business_day(trade_date)
 
