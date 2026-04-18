@@ -729,9 +729,23 @@ class TestNextBusinessDay(unittest.TestCase):
     def test_sunday_to_monday(self):
         self.assertEqual(next_business_day(date(2025, 12, 28)), date(2025, 12, 29))  # Sun → Mon
 
-    def test_wednesday_to_thursday(self):
-        # Dec 31 2025 is a Wednesday
-        self.assertEqual(next_business_day(date(2025, 12, 31)), date(2026, 1, 1))   # Wed → Thu
+    def test_wednesday_before_new_years_skips_holiday(self):
+        # Dec 31 2025 is a Wednesday; Jan 1 2026 is a NYSE holiday (New Year's Day)
+        # so the next trading day is Jan 2 2026 (Friday)
+        self.assertEqual(next_business_day(date(2025, 12, 31)), date(2026, 1, 2))   # Wed → Fri (skip holiday)
+
+    def test_christmas_eve_skips_christmas(self):
+        # Dec 24 2025 is a Wednesday; Dec 25 is a NYSE holiday (Christmas)
+        # so the next trading day is Dec 26 2025 (Friday)
+        self.assertEqual(next_business_day(date(2025, 12, 24)), date(2025, 12, 26))  # Wed → Fri (skip holiday)
+
+    def test_day_before_thanksgiving_skips_holiday(self):
+        # Thanksgiving 2025 is Nov 27 (Thursday); next trading day after Nov 26 is Nov 28 (Friday)
+        self.assertEqual(next_business_day(date(2025, 11, 26)), date(2025, 11, 28))  # Wed → Fri (skip holiday)
+
+    def test_regular_trading_day_not_affected(self):
+        # Jan 2 2025 is a regular Thursday trading day
+        self.assertEqual(next_business_day(date(2025, 1, 2)), date(2025, 1, 3))     # Thu → Fri
 
     def test_settlement_date_aliases_next_business_day(self):
         d = date(2025, 12, 30)
@@ -775,7 +789,7 @@ class TestSplitUnsettledCash(unittest.TestCase):
         self.assertEqual(len(settled), 3)
 
     def test_unsettled_trade_on_period_end_weekday(self):
-        # Dec 31 2025 is a Wednesday; settlement is Jan 1 2026 (Thu) > Dec 31 → unsettled
+        # Dec 31 2025 is a Wednesday; settlement is Jan 2 2026 (skip Jan 1 NYSE holiday) > Dec 31 → unsettled
         stocks = [self._bal("2025-01-01", "0"), self._mut("2025-12-31", "1000"), self._bal("2026-01-01", "0")]
         settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
         self.assertEqual(len(unsettled), 1)
@@ -785,7 +799,7 @@ class TestSplitUnsettledCash(unittest.TestCase):
         stocks = [
             self._bal("2025-01-01", "0"),
             self._mut("2025-12-29", "500"),   # settles Dec 30 — settled
-            self._mut("2025-12-31", "1000"),  # settles Jan 1 2026 — unsettled
+            self._mut("2025-12-31", "1000"),  # settles Jan 2 2026 (skip Jan 1 holiday) — unsettled
             self._bal("2026-01-01", "500"),
         ]
         settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
