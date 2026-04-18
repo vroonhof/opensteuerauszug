@@ -1187,6 +1187,10 @@ class SecurityStock(BaseXmlModel):
     # or in the export.
     orderId: Optional[str] = Field(default=None, exclude=True)
 
+    # Settlement hint for importers. True means this mutation represents a T+1-settled
+    # cash flow (e.g. trade proceeds from Buy/Sell). Not serialised to XML or JSON.
+    requires_settlement: bool = Field(default=False, exclude=True)
+
     model_config = {
         "json_schema_extra": {'tag_name': 'stock', 'tag_namespace': NS_MAP['eCH-0196']},
     }

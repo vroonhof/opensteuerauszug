@@ -273,16 +273,20 @@ class TransactionExtractor:
 
         # --- Handle specific actions --- 
         
-        # Helper to create cash stock mutation
-        def create_cash_stock(amount: Decimal, name: str) -> SecurityStock:
+        # Helper to create cash stock mutation.
+        # Set requires_settlement=True for trade-linked cash flows (Buy/Sell/Cash In Lieu)
+        # that settle T+1 under US equity rules.  Same-day items (dividends, interest,
+        # journal entries, wire transfers) should leave it at the default False.
+        def create_cash_stock(amount: Decimal, name: str, requires_settlement: bool = False) -> SecurityStock:
             return SecurityStock(
                 referenceDate=tx_date,
                 mutation=True,
-                quotationType="PIECE", 
+                quotationType="PIECE",
                 quantity=amount, # Positive for inflow, negative for outflow
                 balanceCurrency=currency, # Pass the string directly
                 name=name,
-                balance=amount # For cash, balance change equals quantity change
+                balance=amount, # For cash, balance change equals quantity change
+                requires_settlement=requires_settlement,
             )
 
         if action == "Buy" or action == "Reinvest Shares":
@@ -304,7 +308,7 @@ class TransactionExtractor:
                     unitPrice=schwab_price, name=action,
                 )
                 if cash_flow:
-                     cash_stock = create_cash_stock(cash_flow, f"Cash out for {action} {pos_object.symbol}")
+                     cash_stock = create_cash_stock(cash_flow, f"Cash out for {action} {pos_object.symbol}", requires_settlement=True)
 
         elif action == "Sale" or action == "Sell":
              if schwab_qty and isinstance(pos_object, SecurityPosition):
@@ -333,7 +337,7 @@ class TransactionExtractor:
                     unitPrice=schwab_price, name=action,
                 )
                 if cash_flow:
-                     cash_stock = create_cash_stock(cash_flow, f"Cash in for {action} {pos_object.symbol}")
+                     cash_stock = create_cash_stock(cash_flow, f"Cash in for {action} {pos_object.symbol}", requires_settlement=True)
 
         elif action == "Stock Plan Activity":
             if schwab_qty and schwab_qty > 0 and isinstance(pos_object, SecurityPosition):
