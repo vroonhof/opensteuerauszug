@@ -39,6 +39,7 @@ The importer uses the `ibflex` library to parse the XML, this can be quite sensi
 3.  **Open Positions (`OpenPositions`)**:
     *   Snapshot of securities held, typically at the end of the report period.
     *   Critical fields per position: `reportDate`, `symbol`, `description`, `assetCategory`, `conid`, `isin`, `position` (quantity), `currency`.
+    *   For options/future options: `multiplier`
 
 4.  **Transfers (`Transfers`)**:
     *   Records securities transferred in or out of the account.

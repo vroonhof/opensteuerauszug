@@ -758,6 +758,7 @@ class IbkrImporter:
                     mark_price = None
                     if getattr(open_pos, 'markPrice', None) is not None:
                         mark_price = self._to_decimal(open_pos.markPrice, 'markPrice', f"OpenPosition {symbol}")
+                        mark_price = self._price_apply_multiplier(open_pos, mark_price, f"OpenPosition {symbol}")
                     
                     pos_value = None
                     if getattr(open_pos, 'positionValue', None) is not None:
