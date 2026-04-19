@@ -143,4 +143,6 @@ TRANSLATIONS = {
     "taxable_income_from_accumulating_fund": "Taxable Income from Accumulating Fund",
     "buy": "Buy",
     "sell": "Sell",
+    "option_expiration": "Option expiration",
+    "option_assignment": "Option assignment/exercise",
 }

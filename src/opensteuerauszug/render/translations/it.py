@@ -143,4 +143,6 @@ TRANSLATIONS = {
     "taxable_income_from_accumulating_fund": "Reddito imponibile da fondo di accumulazione",
     "buy": "Compra",
     "sell": "Vendi",
+    "option_expiration": "Scadenza opzione",
+    "option_assignment": "Esercizio/Attribuzione opzione",
 }

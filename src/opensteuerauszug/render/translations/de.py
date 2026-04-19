@@ -145,5 +145,7 @@ Wertschriftenverzeichnis einzusetzen.''',
     "taxable_income_from_accumulating_fund": "Thesaurierung",
     "buy": "Kauf",
     "sell": "Verkauf",
+    "option_expiration": "Optionsverfall",
+    "option_assignment": "Options-Zuweisung/-Ausübung",
 }
 
