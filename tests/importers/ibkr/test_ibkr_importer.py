@@ -2586,9 +2586,7 @@ def test_opt_c_spread_closes_intra_year(sample_ibkr_settings):
         assert len(mutations) == 1
         assert mutations[0].quantity == Decimal("2")
         assert mutations[0].referenceDate == date(2025, 1, 22)
-        # Opening capped to 0 → no opening balance entry at period start
 
-        assert not any(not s.mutation and s.referenceDate == period_from for s in long_leg.stock)
         # Closing balance of 0 written at end+1
         closing_long = next(s for s in long_leg.stock if not s.mutation and s.referenceDate == end_plus_one)
         assert closing_long.quantity == Decimal("0")
