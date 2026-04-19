@@ -6,7 +6,7 @@ import lxml.etree as ET
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from filter_ibflex_xml import filter_statement, parse_isins
+from filter_ibflex_xml import filter_statement, parse_filter_ids
 
 SAMPLE_IBFLEX_XML = """<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <FlexQueryResponse queryName=\"Annual Tax Report\" type=\"AF\">
@@ -37,7 +37,8 @@ def run_filter_script(tmp_path: Path, *extra_args: str) -> Path:
     output_file = tmp_path / "output.xml"
     input_file.write_text(SAMPLE_IBFLEX_XML, encoding="utf-8")
 
-    target_isins = parse_isins(["US0000000001"])
+    target_isins = parse_filter_ids(["US0000000001"])
+    target_conids = set()  # No conids specified, so only ISIN-based filtering applies
 
     parser = ET.XMLParser(remove_blank_text=True)
     tree = ET.parse(str(input_file), parser)
@@ -45,12 +46,31 @@ def run_filter_script(tmp_path: Path, *extra_args: str) -> Path:
 
     for statement in root.iter():
         if isinstance(statement.tag, str) and statement.tag.endswith("FlexStatement"):
-            filter_statement(statement, target_isins)
+            filter_statement(statement, target_isins, target_conids)
 
     tree.write(str(output_file), encoding="UTF-8", xml_declaration=True, pretty_print=True)
     assert output_file.exists()
     return output_file
 
+def run_filter_script_conids(tmp_path: Path, *extra_args: str) -> Path:
+    input_file = tmp_path / "input.xml"
+    output_file = tmp_path / "output.xml"
+    input_file.write_text(SAMPLE_IBFLEX_XML, encoding="utf-8")
+
+    target_isins = set()  # No ISINs specified, so only conid-based filtering applies
+    target_conids = parse_filter_ids(["1,3"])  # Specify conids to filter by
+
+    parser = ET.XMLParser(remove_blank_text=True)
+    tree = ET.parse(str(input_file), parser)
+    root = tree.getroot()
+
+    for statement in root.iter():
+        if isinstance(statement.tag, str) and statement.tag.endswith("FlexStatement"):
+            filter_statement(statement, target_isins, target_conids)
+
+    tree.write(str(output_file), encoding="UTF-8", xml_declaration=True, pretty_print=True)
+    assert output_file.exists()
+    return output_file
 
 def test_non_selected_isins_are_removed_from_minimal_ibflex_xml(tmp_path):
     output_file = run_filter_script(tmp_path)
@@ -68,6 +88,16 @@ def test_non_selected_isins_are_removed_from_minimal_ibflex_xml(tmp_path):
     }
     assert output_isins == {"US0000000001"}
 
+def test_non_selected_conids_are_removed_from_minimal_ibflex_xml(tmp_path):
+    output_file = run_filter_script_conids(tmp_path)
+    tree = ET.parse(str(output_file))
+
+    assert tree.xpath("count(.//Trade[@conid='1'])") == 1.0
+    assert tree.xpath("count(.//Trade[@conid='3'])") == 1.0
+    assert tree.xpath("count(.//Trade[@conid='2'])") == 0.0
+
+    assert tree.xpath("count(.//CashTransaction[@conid='3'])") == 1.0
+    assert tree.xpath("count(.//CashTransaction[@conid='2'])") == 0.0
 
 def test_account_information_keeps_only_allowed_attributes(tmp_path):
     output_file = run_filter_script(tmp_path)
