@@ -2531,7 +2531,7 @@ SAMPLE_IBKR_FLEX_XML_OPT_P_OPEN = """
         <Trade accountId="U1234567" currency="USD" assetCategory="OPT" subCategory="P" symbol="CBOE  260116P00150000" description="CBOE 16JAN26 150 P" conid="666235415" securityID="" isin="" issuerCountryCode="" tradeID="7327996184" multiplier="100" strike="150" expiry="20260116" putCall="P" tradeDate="20250227" settleDateTarget="20250228" quantity="1" tradePrice="2.2" tradeMoney="220" buySell="BUY" ibCommission="-1.05525" ibCommissionCurrency="USD" netCash="-221.05525" ibOrderID="3856460807" transactionID="31600220491" levelOfDetail="EXECUTION" />
       </Trades>
       <OpenPositions>
-        <OpenPosition accountId="U1234567" assetCategory="OPT" subCategory="P" symbol="CBOE  260116P00150000" description="CBOE 16JAN26 150 P" conid="666235415" isin="" issuerCountryCode="" currency="USD" position="1" markPrice="2.1781" positionValue="217.81" reportDate="2025-12-31" levelOfDetail="SUMMARY" />
+        <OpenPosition accountId="U1234567" assetCategory="OPT" subCategory="P" symbol="CBOE  260116P00150000" description="CBOE 16JAN26 150 P" conid="666235415" isin="" issuerCountryCode="" currency="USD" position="1" markPrice="2.1781" positionValue="217.81" multiplier="100" reportDate="2025-12-31" levelOfDetail="SUMMARY" />
       </OpenPositions>
       <CashReport>
         <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2025-01-01" toDate="2025-12-31" />
