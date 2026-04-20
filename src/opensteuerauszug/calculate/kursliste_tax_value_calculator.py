@@ -558,12 +558,21 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
         payments = [p for p in kl_sec.payment if not p.deleted]
 
+        # Narrow to payments that will actually be processed, mirroring the
+        # early-exit conditions in the main loop so that the variant conflict
+        # check below only considers payments that contribute to output.
+        eligible_payments = [
+            p for p in payments
+            if p.paymentDate
+            and not (hasattr(p, "capitalGain") and p.capitalGain)
+            and (p.sign if hasattr(p, "sign") else None) not in NON_TAXABLE_SIGNS
+        ]
+
         # Detect payments with multiple variants for the same event.
-        # The variant attribute on a payment means that only ONE of the distinct variant
-        # numbers should be applied (OR-choice, e.g. cash dividend vs. stock dividend).
-        # We have no mechanical way to make this choice, so we raise an error.
-        _variants_by_event: dict[date | None, set[int]] = {}
-        for _pay in payments:
+        # The variant attribute signals an OR-choice (e.g. cash vs. stock
+        # dividend); we have no mechanical way to resolve it.
+        _variants_by_event: dict[date, set[int]] = {}
+        for _pay in eligible_payments:
             if _pay.variant is None:
                 continue
             _event_key = _pay.exDate or _pay.paymentDate
@@ -591,24 +600,17 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         )
         accessor = self.kursliste_manager.get_kurslisten_for_year(ref_year)
 
-        # Pre-compute all tax-event dates across this security's payments so that
+        # Pre-compute all tax-event dates across eligible payments so that
         # _validate_stock_split can skip fallback dates that would cross another event.
         all_kl_tax_event_dates: Set[date] = {
             d
-            for p in payments
-            if p.paymentDate and p.taxEvent
+            for p in eligible_payments
+            if p.taxEvent
             for d in (p.exDate, p.paymentDate)
             if d is not None
         }
 
-        for pay in payments:
-            if not pay.paymentDate:
-                continue
-
-            # Capital gains are not relevant for personal income tax and can be omitted.
-            if hasattr(pay, "capitalGain") and pay.capitalGain:
-                continue
-
+        for pay in eligible_payments:
             reconciliation_date = pay.exDate or pay.paymentDate
 
             # Warn if exDate is in the previous year (before the tax period)
@@ -692,16 +694,6 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     f"for {security.isin or security.securityName}. "
                     f"Please add handling for this sign type."
                 )
-
-            # Skip non-taxable payments (return of capital, capital gains)
-            if current_sign in NON_TAXABLE_SIGNS:
-                logger.debug(
-                    "Skipping non-taxable payment with sign '%s' on %s for %s",
-                    current_sign,
-                    pay.paymentDate,
-                    security.isin or security.securityName,
-                )
-                continue
 
             payment_name = f"KL:{security.securityName}"
             if pay.paymentType is None or pay.paymentType == PaymentTypeESTV.STANDARD:
