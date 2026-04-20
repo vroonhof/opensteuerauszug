@@ -127,13 +127,13 @@ If you cannot obtain accurate position files, or if you need to provide initial 
             *   If the last three characters are digits (e.g., "Schwab123"), "123" is used as the identifier.
             *   Otherwise, the raw string is used (a warning may be logged).
         2.  `Date`: Position date in `YYYY-MM-DD` format (e.g., `2023-12-31`). This represents the balance at the **beginning** of this day. For year-end 2023 positions, use `2024-01-01`. 
-        3.  `Symbol`: Ticker symbol. Use "CASH" (case-insensitive) for cash positions.
+        3.  `Symbol`: Ticker symbol. Use "CASH <account_id>" (e.g., "CASH 789") for cash positions. Bare "CASH" is no longer supported to allow for multiple cash accounts.
         4.  `Quantity`: Number of shares/units or cash amount.
 *   **Example CSV**:
     ```csv
     Depot,Date,Symbol,Quantity
     AWARDS,2024-01-01,AAPL,100.5
-    Schwab789,2024-01-01,CASH,5000.75
+    Schwab789,2024-01-01,CASH 789,5000.75
     MyBroker123,2024-01-01,GOOG,20.0
     ```
 *   **Currency**: Currently defaults to "USD" for positions from this fallback CSV. All Cash is USD.

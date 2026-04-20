@@ -3,19 +3,29 @@ from unittest.mock import patch
 from datetime import date, timedelta
 from decimal import Decimal
 
-from opensteuerauszug.importers.schwab.schwab_importer import SchwabImporter, convert_security_positions_to_list_of_securities
+from opensteuerauszug.importers.schwab.schwab_importer import (
+    SchwabImporter,
+    _get_configured_account_info,
+    convert_cash_positions_to_list_of_bank_accounts,
+    convert_security_positions_to_list_of_securities,
+    create_tax_statement_from_positions,
+    next_business_day,
+    settlement_date,
+    split_unsettled_cash,
+)
 from opensteuerauszug.model.ech0196 import (
-    TaxStatement,
+    BankAccountName,
+    BankAccountNumber,
+    ClientNumber,
+    DepotNumber,
+    ListOfBankAccounts,
+    ListOfSecurities,
     SecurityPayment,
     SecurityStock,
-    DepotNumber,
-    ListOfSecurities
+    TaxStatement,
 )
-from opensteuerauszug.model.position import SecurityPosition
-
-from opensteuerauszug.importers.schwab.schwab_importer import _get_configured_account_info, create_tax_statement_from_positions
+from opensteuerauszug.model.position import CashPosition, SecurityPosition
 from opensteuerauszug.config.models import SchwabAccountSettings
-from opensteuerauszug.model.ech0196 import ClientNumber
 
 
 class TestGetConfiguredAccountInfo(unittest.TestCase):
@@ -89,10 +99,6 @@ class TestGetConfiguredAccountInfo(unittest.TestCase):
     # The case for non_awards_match_with_no_alias_in_setting is implicitly covered
     # by test_non_awards_unique_match, as account_name_alias is mandatory.
     # The warning message for multiple matches also correctly references the alias.
-
-from opensteuerauszug.importers.schwab.schwab_importer import convert_cash_positions_to_list_of_bank_accounts
-from opensteuerauszug.model.position import CashPosition
-from opensteuerauszug.model.ech0196 import BankAccountNumber, BankAccountName, ListOfBankAccounts
 
 
 class TestSchwabImporterAccountResolution(unittest.TestCase):
@@ -706,6 +712,296 @@ class TestSchwabImporterBankAccountNames(unittest.TestCase):
         
         # Bank account number should be None for awards (no configured account number)
         assert bank_account.bankAccountNumber is None
+
+
+class TestNextBusinessDay(unittest.TestCase):
+    """Unit tests for the next_business_day / settlement_date helpers."""
+
+    def test_monday_to_tuesday(self):
+        self.assertEqual(next_business_day(date(2025, 12, 29)), date(2025, 12, 30))  # Mon → Tue
+
+    def test_friday_to_monday(self):
+        self.assertEqual(next_business_day(date(2025, 12, 26)), date(2025, 12, 29))  # Fri → Mon
+
+    def test_saturday_to_monday(self):
+        self.assertEqual(next_business_day(date(2025, 12, 27)), date(2025, 12, 29))  # Sat → Mon
+
+    def test_sunday_to_monday(self):
+        self.assertEqual(next_business_day(date(2025, 12, 28)), date(2025, 12, 29))  # Sun → Mon
+
+    def test_wednesday_before_new_years_skips_holiday(self):
+        # Dec 31 2025 is a Wednesday; Jan 1 2026 is a NYSE holiday (New Year's Day)
+        # so the next trading day is Jan 2 2026 (Friday)
+        self.assertEqual(next_business_day(date(2025, 12, 31)), date(2026, 1, 2))   # Wed → Fri (skip holiday)
+
+    def test_christmas_eve_skips_christmas(self):
+        # Dec 24 2025 is a Wednesday; Dec 25 is a NYSE holiday (Christmas)
+        # so the next trading day is Dec 26 2025 (Friday)
+        self.assertEqual(next_business_day(date(2025, 12, 24)), date(2025, 12, 26))  # Wed → Fri (skip holiday)
+
+    def test_day_before_thanksgiving_skips_holiday(self):
+        # Thanksgiving 2025 is Nov 27 (Thursday); next trading day after Nov 26 is Nov 28 (Friday)
+        self.assertEqual(next_business_day(date(2025, 11, 26)), date(2025, 11, 28))  # Wed → Fri (skip holiday)
+
+    def test_regular_trading_day_not_affected(self):
+        # Jan 2 2025 is a regular Thursday trading day
+        self.assertEqual(next_business_day(date(2025, 1, 2)), date(2025, 1, 3))     # Thu → Fri
+
+    def test_settlement_date_aliases_next_business_day(self):
+        d = date(2025, 12, 30)
+        self.assertEqual(settlement_date(d), next_business_day(d))
+
+
+class TestSplitUnsettledCash(unittest.TestCase):
+    """Unit tests for split_unsettled_cash."""
+
+    def _bal(self, d: str, qty: str) -> SecurityStock:
+        return SecurityStock(
+            referenceDate=date.fromisoformat(d),
+            mutation=False,
+            quantity=Decimal(qty),
+            balanceCurrency="USD",
+            quotationType="PIECE",
+        )
+
+    def _mut(self, d: str, qty: str, requires_settlement: bool = True) -> SecurityStock:
+        """Create a trade cash mutation (requires_settlement=True by default)."""
+        return SecurityStock(
+            referenceDate=date.fromisoformat(d),
+            mutation=True,
+            quantity=Decimal(qty),
+            balanceCurrency="USD",
+            quotationType="PIECE",
+            requires_settlement=requires_settlement,
+        )
+
+    def test_no_mutations(self):
+        stocks = [self._bal("2025-01-01", "0"), self._bal("2026-01-01", "0")]
+        settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
+        self.assertEqual(len(settled), 2)
+        self.assertEqual(len(unsettled), 0)
+
+    def test_settled_trade_before_period_end(self):
+        # Dec 29 (Mon) trade settles Dec 30 (Tue) ≤ Dec 31 → settled
+        stocks = [self._bal("2025-01-01", "0"), self._mut("2025-12-29", "500"), self._bal("2026-01-01", "500")]
+        settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
+        self.assertEqual(len(unsettled), 0)
+        self.assertEqual(len(settled), 3)
+
+    def test_unsettled_trade_on_period_end_weekday(self):
+        # Dec 31 2025 is a Wednesday; settlement is Jan 2 2026 (skip Jan 1 NYSE holiday) > Dec 31 → unsettled
+        stocks = [self._bal("2025-01-01", "0"), self._mut("2025-12-31", "1000"), self._bal("2026-01-01", "0")]
+        settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
+        self.assertEqual(len(unsettled), 1)
+        self.assertEqual(unsettled[0].quantity, Decimal("1000"))
+
+    def test_split_mixed(self):
+        stocks = [
+            self._bal("2025-01-01", "0"),
+            self._mut("2025-12-29", "500"),   # settles Dec 30 — settled
+            self._mut("2025-12-31", "1000"),  # settles Jan 2 2026 (skip Jan 1 holiday) — unsettled
+            self._bal("2026-01-01", "500"),
+        ]
+        settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
+        self.assertEqual(len(settled), 3)   # opening bal + Dec29 mutation + closing bal
+        self.assertEqual(len(unsettled), 1)  # Dec31 mutation
+        self.assertEqual(unsettled[0].referenceDate, date(2025, 12, 31))
+
+    def test_non_trade_mutation_never_unsettled(self):
+        """A mutation without requires_settlement=True (e.g. dividend, interest) is
+        always placed in the settled bucket even if it occurs on the last day."""
+        dividend = self._mut("2025-12-31", "50", requires_settlement=False)
+        stocks = [self._bal("2025-01-01", "0"), dividend, self._bal("2026-01-01", "50")]
+        settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
+        self.assertEqual(len(unsettled), 0)
+        self.assertEqual(len(settled), 3)
+
+    def test_balance_entries_always_settled(self):
+        """Balance (non-mutation) entries always go to the settled bucket."""
+        stocks = [self._bal("2025-12-31", "999")]
+        settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
+        self.assertEqual(len(settled), 1)
+        self.assertEqual(len(unsettled), 0)
+
+    def test_intra_period_checkpoint_shifts_date(self):
+        """A trade on the last day of a quarterly period (Sep 30) settles Oct 1.
+        The Oct 1 balance snapshot (Q3 close_date_plus1) does NOT yet include it,
+        so split_unsettled_cash must shift the mutation's referenceDate to Oct 1
+        (settlement date) so it appears AFTER the Oct 1 balance checkpoint in the
+        reconciler's sorted sequence.  The trade is NOT put in the unsettled bucket."""
+        # Q3 close: Oct 1 balance present; period ends Dec 31
+        q3_close = self._bal("2025-10-01", "1000")  # Q3 settled balance (no T+1)
+        q4_close = self._bal("2026-01-01", "1500")  # year-end balance (includes settlement)
+        trade = self._mut("2025-09-30", "500")       # settles Oct 1 — intra-period unsettled
+        stocks = [q3_close, trade, q4_close]
+
+        settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
+
+        self.assertEqual(len(unsettled), 0, "Intra-period unsettled trade must NOT go to separate account")
+        self.assertEqual(len(settled), 3)
+        # The trade's referenceDate must have been shifted to the settlement date (Oct 1)
+        mutations = [s for s in settled if s.mutation]
+        self.assertEqual(len(mutations), 1)
+        self.assertEqual(mutations[0].referenceDate, date(2025, 10, 1),
+                         "Trade referenceDate must be shifted to settlement date (Oct 1)")
+
+    def test_settled_trade_always_shifted_to_settlement_date(self):
+        """ALL T+1 mutations are unconditionally re-dated to settlement_date.
+        A Sep 29 trade settles Sep 30; even though Sep 30 < Oct 1 checkpoint,
+        the referenceDate is still shifted to Sep 30 (cash moves on settlement day)."""
+        q3_close = self._bal("2025-10-01", "1500")
+        trade = self._mut("2025-09-29", "500")  # settles Sep 30
+        stocks = [q3_close, trade]
+
+        settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
+
+        self.assertEqual(len(unsettled), 0)
+        mutations = [s for s in settled if s.mutation]
+        self.assertEqual(mutations[0].referenceDate, date(2025, 9, 30),
+                         "referenceDate must be shifted to settlement date (Sep 30)")
+
+
+class TestUnsettledCashAccountGeneration(unittest.TestCase):
+    """End-to-end tests for the unsettled cash account generation."""
+
+    def _make_importer_with_mocks(self, mock_tx, mock_stmt, settings=None):
+        """Helper that sets up the mock patching and returns the tax statement."""
+        period_from = date(2025, 1, 1)
+        period_to = date(2025, 12, 31)
+        if settings is None:
+            settings = [SchwabAccountSettings(
+                account_number="AWARDS", account_name_alias="awards_alias",
+                broker_name="schwab", canton="ZH", full_name="Test User"
+            )]
+        with patch('opensteuerauszug.importers.schwab.schwab_importer.TransactionExtractor') as MockTX:
+            MockTX.return_value.extract_transactions.return_value = mock_tx
+            with patch('opensteuerauszug.importers.schwab.schwab_importer.StatementExtractor') as MockStmt:
+                MockStmt.return_value.extract_positions.return_value = mock_stmt
+                importer = SchwabImporter(
+                    period_from=period_from,
+                    period_to=period_to,
+                    account_settings_list=settings,
+                    strict_consistency=True,
+                )
+                return importer.import_files(['dummy.json', 'dummy.pdf'])
+
+    def test_unsettled_trade_creates_separate_account(self):
+        """A trade on Dec 31 (settles Jan 1) should produce two accounts:
+        one settled (PDF balance = $0) and one unsettled ($1000)."""
+        period_from = date(2025, 1, 1)
+        period_to = date(2025, 12, 31)
+        depot = "AWARDS"
+        cash_pos = CashPosition(depot=depot, currentCy="USD", cash_account_id="GOOG")
+
+        opening = SecurityStock(referenceDate=period_from, mutation=False, quantity=Decimal("0"),
+                                balanceCurrency="USD", quotationType="PIECE")
+        sale = SecurityStock(referenceDate=period_to, mutation=True, quantity=Decimal("1000"),
+                             balanceCurrency="USD", quotationType="PIECE", name="Sale proceeds",
+                             requires_settlement=True)
+        # PDF reports $0 because trade hasn't settled
+        closing_pdf = SecurityStock(referenceDate=period_to + timedelta(days=1), mutation=False,
+                                    quantity=Decimal("0"), balanceCurrency="USD", quotationType="PIECE")
+
+        mock_tx = [(cash_pos, [sale], [], depot, (period_from, period_to))]
+        mock_stmt = ([(cash_pos, opening), (cash_pos, closing_pdf)],
+                     period_from, period_to + timedelta(days=1), depot)
+
+        tax_stmt = self._make_importer_with_mocks(mock_tx, mock_stmt)
+        accounts = tax_stmt.listOfBankAccounts.bankAccount
+
+        self.assertEqual(len(accounts), 2, "Expected main + unsettled account")
+
+        # Identify settled vs unsettled account by balance
+        balances = {a.taxValue.balance for a in accounts if a.taxValue}
+        self.assertIn(Decimal("0"), balances)     # settled (PDF) account
+        self.assertIn(Decimal("1000"), balances)  # unsettled account
+
+        # The unsettled account name should contain "(Unsettled)"
+        names = [str(a.bankAccountName) for a in accounts]
+        self.assertTrue(any("Unsettled" in n for n in names),
+                        f"Expected one name to contain 'Unsettled', got: {names}")
+
+    def test_fully_settled_trade_no_unsettled_account(self):
+        """A trade on Dec 29 (settles Dec 30) should NOT produce an unsettled account."""
+        period_from = date(2025, 1, 1)
+        period_to = date(2025, 12, 31)
+        depot = "AWARDS"
+        cash_pos = CashPosition(depot=depot, currentCy="USD", cash_account_id="GOOG")
+
+        opening = SecurityStock(referenceDate=period_from, mutation=False, quantity=Decimal("0"),
+                                balanceCurrency="USD", quotationType="PIECE")
+        # Dec 29 is a Monday; settlement = Dec 30 ≤ Dec 31 → fully settled
+        sale = SecurityStock(referenceDate=date(2025, 12, 29), mutation=True, quantity=Decimal("500"),
+                             balanceCurrency="USD", quotationType="PIECE", requires_settlement=True)
+        # PDF correctly shows $500 (trade settled by year-end)
+        closing_pdf = SecurityStock(referenceDate=period_to + timedelta(days=1), mutation=False,
+                                    quantity=Decimal("500"), balanceCurrency="USD", quotationType="PIECE")
+
+        mock_tx = [(cash_pos, [sale], [], depot, (period_from, period_to))]
+        mock_stmt = ([(cash_pos, opening), (cash_pos, closing_pdf)],
+                     period_from, period_to + timedelta(days=1), depot)
+
+        tax_stmt = self._make_importer_with_mocks(mock_tx, mock_stmt)
+        accounts = tax_stmt.listOfBankAccounts.bankAccount
+
+        self.assertEqual(len(accounts), 1, "Expected only the main account (no unsettled)")
+        self.assertFalse(any("Unsettled" in str(a.bankAccountName) for a in accounts))
+
+    def test_unsettled_account_name_for_awards(self):
+        """The unsettled account for an awards position is named 'Equity Awards X (Unsettled)'."""
+        period_from = date(2025, 1, 1)
+        period_to = date(2025, 12, 31)
+        depot = "AWARDS"
+        cash_pos = CashPosition(depot=depot, currentCy="USD", cash_account_id="MSFT")
+
+        opening = SecurityStock(referenceDate=period_from, mutation=False, quantity=Decimal("0"),
+                                balanceCurrency="USD", quotationType="PIECE")
+        # Dec 31 trade (Wed) settles Jan 1 → unsettled
+        sale = SecurityStock(referenceDate=date(2025, 12, 31), mutation=True, quantity=Decimal("200"),
+                             balanceCurrency="USD", quotationType="PIECE", requires_settlement=True)
+        closing_pdf = SecurityStock(referenceDate=period_to + timedelta(days=1), mutation=False,
+                                    quantity=Decimal("0"), balanceCurrency="USD", quotationType="PIECE")
+
+        mock_tx = [(cash_pos, [sale], [], depot, (period_from, period_to))]
+        mock_stmt = ([(cash_pos, opening), (cash_pos, closing_pdf)],
+                     period_from, period_to + timedelta(days=1), depot)
+
+        tax_stmt = self._make_importer_with_mocks(mock_tx, mock_stmt)
+        accounts = tax_stmt.listOfBankAccounts.bankAccount
+
+        unsettled_names = [str(a.bankAccountName) for a in accounts if "Unsettled" in str(a.bankAccountName)]
+        self.assertEqual(len(unsettled_names), 1)
+        self.assertIn("Equity Awards MSFT", unsettled_names[0])
+        self.assertIn("Unsettled", unsettled_names[0])
+
+    def test_multiple_unsettled_trades_merged_into_one_account(self):
+        """Multiple unsettled trades at period end → one unsettled account with summed balance."""
+        period_from = date(2025, 1, 1)
+        period_to = date(2025, 12, 31)
+        depot = "AWARDS"
+        cash_pos = CashPosition(depot=depot, currentCy="USD", cash_account_id="GOOG")
+
+        opening = SecurityStock(referenceDate=period_from, mutation=False, quantity=Decimal("0"),
+                                balanceCurrency="USD", quotationType="PIECE")
+        # Two unsettled trades on Dec 31 (Wed → settles Jan 1)
+        sale1 = SecurityStock(referenceDate=date(2025, 12, 31), mutation=True, quantity=Decimal("600"),
+                              balanceCurrency="USD", quotationType="PIECE", requires_settlement=True)
+        sale2 = SecurityStock(referenceDate=date(2025, 12, 31), mutation=True, quantity=Decimal("400"),
+                              balanceCurrency="USD", quotationType="PIECE", requires_settlement=True)
+        closing_pdf = SecurityStock(referenceDate=period_to + timedelta(days=1), mutation=False,
+                                    quantity=Decimal("0"), balanceCurrency="USD", quotationType="PIECE")
+
+        mock_tx = [(cash_pos, [sale1, sale2], [], depot, (period_from, period_to))]
+        mock_stmt = ([(cash_pos, opening), (cash_pos, closing_pdf)],
+                     period_from, period_to + timedelta(days=1), depot)
+
+        tax_stmt = self._make_importer_with_mocks(mock_tx, mock_stmt)
+        accounts = tax_stmt.listOfBankAccounts.bankAccount
+
+        self.assertEqual(len(accounts), 2)
+        unsettled_accounts = [a for a in accounts if a.taxValue and a.taxValue.balance == Decimal("1000")]
+        self.assertEqual(len(unsettled_accounts), 1, "Both unsettled trades should sum to 1000 in one account")
+
 
 if __name__ == '__main__':
     unittest.main()

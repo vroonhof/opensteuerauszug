@@ -7,15 +7,17 @@ Falls back to German ('de') if a translation is missing in the requested languag
 
 import importlib
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Literal
 
 logger = logging.getLogger(__name__)
+
+# Supported languages
+Language = Literal['de', 'en', 'fr', 'it']
 
 # Cache for loaded translation modules
 _translation_cache: Dict[str, Dict[str, str]] = {}
 
-# Default language
-DEFAULT_LANGUAGE = 'de'
+DEFAULT_LANGUAGE: Language = 'de'
 
 
 def _load_translations(lang: str) -> Optional[Dict[str, str]]:

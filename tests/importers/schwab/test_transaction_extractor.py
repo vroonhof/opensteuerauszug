@@ -10,7 +10,7 @@ from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 # Helper to create a TransactionExtractor instance with a dummy filename
 def create_extractor(filename_for_depot_test: str = "Individual_XXX123_Transactions_20240101-000000.json") -> TransactionExtractor:
-    return TransactionExtractor(filename_for_depot_test)
+    return TransactionExtractor(filename_for_depot_test, render_language='en')
 
 # Helper to run extraction and perform common checks
 def run_extraction_test(extractor: TransactionExtractor, data: dict, expected_count: int) -> Optional[List[Tuple[Position, List[SecurityStock], Optional[List[SecurityPayment]], str, Tuple[date, date]]]]:
@@ -517,14 +517,14 @@ class TestSchwabTransactionExtractor:
         assert cash_stock_entry.balance == Decimal("-22.50")
         assert cash_stock_entry.name == "Cash flow for Tax Withholding JNJ"
 
-    def test_action_nra_tax_adj_positive(self): 
+    def test_action_nra_tax_adj_positive(self):
         extractor = create_extractor()
         data = {
             "FromDate": "01/01/2024", "ToDate": "12/31/2024",
             "BrokerageTransactions": [{
                 "Date": "10/01/2024", "Action": "NRA Tax Adj", "Symbol": "MSFT",
-                "Description": "TAX ADJUSTMENT RECEIVED", 
-                "Amount": "$5.00" 
+                "Description": "TAX ADJUSTMENT RECEIVED",
+                "Amount": "$5.00"
             }]
         }
         result = run_extraction_test(extractor, data, 2) # MSFT + Cash
@@ -542,7 +542,10 @@ class TestSchwabTransactionExtractor:
         assert len(payments) == 1
         payment = payments[0]
         assert payment.amount == Decimal("5.00")
-        assert payment.grossRevenueB == Decimal("5.00") 
+        # Positive amount = withholding reversal, recorded as negative nonRecoverableTax.
+        assert payment.grossRevenueB is None
+        assert payment.nonRecoverableTax == Decimal("-5.00")
+        assert payment.nonRecoverableTaxAmountOriginal == Decimal("-5.00")
         assert payment.name is not None
         assert payment.name == "NRA Tax Adj"
         
@@ -1047,3 +1050,552 @@ class TestSchwabTransactionExtractor:
         assert stock.quantity == Decimal("15.0")
         assert stock.unitPrice is None
         assert stock.name == "Stock Plan Activity"
+
+    def test_action_tax_reversal(self):
+        """Tax Reversal with positive amount records a negative nonRecoverableTax (offsetting prior withholding)."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "07/12/2024", "Action": "Tax Reversal", "Symbol": "GOOG",
+                "Quantity": None, "Description": "Credit",
+                "FeesAndCommissions": None, "Amount": "$11.20",
+                "TransactionDetails": []
+            }]
+        }
+        result = run_extraction_test(extractor, data, 2)  # GOOG + Cash
+        assert result is not None
+        goog_data = find_position(result, SecurityPosition, "GOOG")
+        cash_data = find_position(result, CashPosition)
+        assert goog_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = goog_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "GOOG"
+        assert not stocks
+        assert payments is not None
+        assert len(payments) == 1
+        payment = payments[0]
+        assert payment.amount == Decimal("11.20")
+        assert payment.grossRevenueB is None
+        assert payment.nonRecoverableTax == Decimal("-11.20")
+        assert payment.nonRecoverableTaxAmountOriginal == Decimal("-11.20")
+        assert payment.name == "Tax Reversal"
+
+        cash_pos, cash_stocks, _ = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("11.20")
+
+    def test_action_qualified_dividend(self):
+        """Qualified Dividend is handled like a regular Dividend."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "06/15/2024", "Action": "Qualified Dividend", "Symbol": "AAPL",
+                "Description": "Qualified Dividend", "Amount": "$50.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 2)  # AAPL + Cash
+        assert result is not None
+        aapl_data = find_position(result, SecurityPosition, "AAPL")
+        cash_data = find_position(result, CashPosition)
+        assert aapl_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = aapl_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "AAPL"
+        assert not stocks
+        assert payments is not None
+        assert len(payments) == 1
+        payment = payments[0]
+        assert payment.grossRevenueB == Decimal("50.00")
+        assert payment.name == "Dividend"
+        assert payment.broker_label_original == "Qualified Dividend"
+
+        cash_pos, cash_stocks, _ = cash_data
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("50.00")
+
+    def test_action_cash_dividend(self):
+        """Cash Dividend is handled like a regular Dividend."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "06/15/2024", "Action": "Cash Dividend", "Symbol": "MSFT",
+                "Description": "Cash Dividend", "Amount": "$35.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 2)  # MSFT + Cash
+        assert result is not None
+        msft_data = find_position(result, SecurityPosition, "MSFT")
+        cash_data = find_position(result, CashPosition)
+        assert msft_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = msft_data
+        assert not stocks
+        assert payments is not None
+        assert len(payments) == 1
+        payment = payments[0]
+        assert payment.grossRevenueB == Decimal("35.00")
+        assert payment.name == "Dividend"
+        assert payment.broker_label_original == "Cash Dividend"
+
+        cash_pos, cash_stocks, _ = cash_data
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("35.00")
+
+    def test_action_moneylink_transfer_positive(self):
+        """MoneyLink Transfer with positive amount creates a cash mutation."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2016", "ToDate": "12/31/2016",
+            "BrokerageTransactions": [{
+                "Date": "03/01/2016", "Action": "MoneyLink Transfer",
+                "Description": "Tfr BANK", "Amount": "$10000.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2016, 3, 1)
+        assert stock.mutation is True
+        assert stock.quantity == Decimal("10000.00")
+        assert "MoneyLink Transfer" in stock.name
+
+    def test_action_moneylink_transfer_negative(self):
+        """MoneyLink Transfer with negative amount creates a cash outflow mutation."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2016", "ToDate": "12/31/2016",
+            "BrokerageTransactions": [{
+                "Date": "03/15/2016", "Action": "MoneyLink Transfer",
+                "Description": "Tfr BANK OUT", "Amount": "-$5000.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == Decimal("-5000.00")
+        assert "MoneyLink Transfer" in stock.name
+
+    def test_action_bond_interest(self):
+        """Bond Interest creates a SecurityPayment on the CUSIP position and a cash mutation."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2023", "ToDate": "12/31/2023",
+            "BrokerageTransactions": [{
+                "Date": "03/15/2023", "Action": "Bond Interest", "Symbol": "912828YW8",
+                "Description": "US TREASURY NOTE", "Amount": "$500.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 2)  # SecurityPosition for CUSIP + CashPosition
+        assert result is not None
+        bond_data = find_position(result, SecurityPosition, "912828YW8")
+        cash_data = find_position(result, CashPosition)
+        assert bond_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = bond_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "912828YW8"
+        assert not stocks
+        assert payments is not None
+        assert len(payments) == 1
+        payment = payments[0]
+        assert payment.paymentDate == date(2023, 3, 15)
+        assert payment.amount == Decimal("500.00")
+        assert payment.grossRevenueB == Decimal("500.00")
+        assert payment.name == "Bond Interest"
+        assert payment.broker_label_original == "Bond Interest"
+        assert payment.quantity == UNINITIALIZED_QUANTITY
+
+        cash_pos, cash_stocks, cash_payments = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert cash_payments is None
+        assert cash_stocks is not None
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("500.00")
+        assert cash_stocks[0].name == "Cash in for Bond Interest 912828YW8"
+
+    def test_action_moneylink_adj(self):
+        """MoneyLink Adj creates a cash mutation, same as MoneyLink Transfer."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2016", "ToDate": "12/31/2016",
+            "BrokerageTransactions": [{
+                "Date": "07/01/2016", "Action": "MoneyLink Adj",
+                "Description": "Tfr BANK", "Amount": "$10.00"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2016, 7, 1)
+        assert stock.mutation is True
+        assert stock.quantity == Decimal("10.00")
+        assert "MoneyLink Adj" in stock.name
+
+    def test_action_dividend_variants(self):
+        """Non-Qualified Div, Special Qual Div, and Div Adjustment are all handled like Dividend."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [
+                {
+                    "Date": "03/15/2024", "Action": "Non-Qualified Div", "Symbol": "MSFT",
+                    "Description": "MICROSOFT CORP", "Amount": "$25.00"
+                },
+                {
+                    "Date": "06/15/2024", "Action": "Special Qual Div", "Symbol": "GOOG",
+                    "Description": "ALPHABET INC", "Amount": "$50.00"
+                },
+                {
+                    "Date": "09/15/2024", "Action": "Div Adjustment", "Symbol": "AAPL",
+                    "Description": "APPLE INC", "Amount": "$10.00"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 4)  # 3 SecurityPositions + 1 CashPosition
+        assert result is not None
+
+        for symbol, action_str, amount in [("MSFT", "Non-Qualified Div", "25.00"),
+                                           ("GOOG", "Special Qual Div", "50.00"),
+                                           ("AAPL", "Div Adjustment", "10.00")]:
+            sec_data = find_position(result, SecurityPosition, symbol)
+            assert sec_data is not None, f"SecurityPosition for {symbol} not found"
+            pos, stocks, payments = sec_data
+            assert isinstance(pos, SecurityPosition)
+            assert not stocks
+            assert payments is not None and len(payments) == 1
+            payment = payments[0]
+            assert payment.name == "Dividend", f"Payment name for {action_str} should be 'Dividend'"
+            assert payment.broker_label_original == action_str
+            assert payment.grossRevenueB == Decimal(amount)
+
+    def test_action_tax_withholding_variants(self):
+        """NRA Withholding, Foreign Tax Paid, and IRS Withhold Adj map to the tax withholding branch."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [
+                {
+                    "Date": "03/15/2024", "Action": "NRA Withholding", "Symbol": "MSFT",
+                    "Description": "NRA WITHHOLDING", "Amount": "-$10.00"
+                },
+                {
+                    "Date": "06/15/2024", "Action": "Foreign Tax Paid", "Symbol": "GOOG",
+                    "Description": "FOREIGN TAX PAID", "Amount": "-$20.00"
+                },
+                {
+                    "Date": "09/15/2024", "Action": "IRS Withhold Adj", "Symbol": "AAPL",
+                    "Description": "IRS WITHHOLDING ADJ", "Amount": "-$5.00"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 4)  # 3 SecurityPositions + 1 CashPosition
+        assert result is not None
+
+        for symbol, action_str, amount in [("MSFT", "NRA Withholding", "-10.00"),
+                                           ("GOOG", "Foreign Tax Paid", "-20.00"),
+                                           ("AAPL", "IRS Withhold Adj", "-5.00")]:
+            sec_data = find_position(result, SecurityPosition, symbol)
+            assert sec_data is not None, f"SecurityPosition for {symbol} not found"
+            pos, stocks, payments = sec_data
+            assert isinstance(pos, SecurityPosition)
+            assert not stocks
+            assert payments is not None and len(payments) == 1
+            payment = payments[0]
+            assert payment.nonRecoverableTax == abs(Decimal(amount)), f"nonRecoverableTax for {action_str} should be set"
+            assert payment.grossRevenueB is None
+            assert payment.broker_label_original == action_str
+
+    def test_action_capital_gain_distributions(self):
+        """Cap-gain distributions create only a cash mutation (not taxable in Switzerland)."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [
+                {
+                    "Date": "03/15/2024", "Action": "Short Term Cap Gain", "Symbol": "MSFT",
+                    "Description": "MICROSOFT CORP", "Amount": "$100.00"
+                },
+                {
+                    "Date": "06/15/2024", "Action": "Long Term Cap Gain", "Symbol": "GOOG",
+                    "Description": "ALPHABET INC", "Amount": "$200.00"
+                },
+            ]
+        }
+        # Cap-gain distributions are not taxable income in CH; no SecurityPayment
+        # is generated, so the security positions have no stocks/payments and
+        # only the aggregated CashPosition appears in the output.
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        cash_pos, cash_stocks, cash_payments = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert cash_payments is None
+        assert cash_stocks is not None
+        assert sorted(s.quantity for s in cash_stocks) == [Decimal("100.00"), Decimal("200.00")]
+        names = {s.name for s in cash_stocks}
+        assert "Cash in for Short Term Cap Gain MSFT" in names
+        assert "Cash in for Long Term Cap Gain GOOG" in names
+
+        for symbol in ("MSFT", "GOOG"):
+            assert find_position(result, SecurityPosition, symbol) is None
+
+    def test_action_cash_transfer_variants(self):
+        """Misc Cash Entry, Service Fee, Wire Funds, Wire Sent, Funds Received, Visa Purchase, MoneyLink Deposit, Wire Funds Received are all cash-only."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [
+                {
+                    "Date": "03/15/2024", "Action": "Service Fee",
+                    "Description": "SERVICE FEE", "Amount": "-$5.00"
+                },
+                {
+                    "Date": "06/15/2024", "Action": "Funds Received",
+                    "Description": "ACH DEPOSIT", "Amount": "$1000.00"
+                },
+                {
+                    "Date": "09/15/2024", "Action": "Wire Funds",
+                    "Description": "WIRE OUT", "Amount": "-$500.00"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 1)  # All merge into 1 CashPosition
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 3
+        service_fee_stock = next(s for s in stocks if "Service Fee" in s.name)
+        assert service_fee_stock.quantity == Decimal("-5.00")
+        funds_received_stock = next(s for s in stocks if "Funds Received" in s.name)
+        assert funds_received_stock.quantity == Decimal("1000.00")
+        wire_funds_stock = next(s for s in stocks if "Wire Funds" in s.name)
+        assert wire_funds_stock.quantity == Decimal("-500.00")
+
+    def test_action_adr_mgmt_fee(self):
+        """ADR Mgmt Fee with negative amount creates a cash outflow mutation."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "06/15/2024", "Action": "ADR Mgmt Fee",
+                "Description": "ADR FEE", "Amount": "-$2.50"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2024, 6, 15)
+        assert stock.mutation is True
+        assert stock.quantity == Decimal("-2.50")
+        assert "ADR Mgmt Fee" in stock.name
+
+    def test_action_adjustment(self):
+        """Adjustment with positive and negative amounts creates cash mutations."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [
+                {
+                    "Date": "03/15/2024", "Action": "Adjustment",
+                    "Description": "POSITIVE ADJUSTMENT", "Amount": "$25.00"
+                },
+                {
+                    "Date": "06/15/2024", "Action": "Adjustment",
+                    "Description": "NEGATIVE ADJUSTMENT", "Amount": "-$10.00"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 1)  # Both merge into 1 CashPosition
+        assert result is not None
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is not None
+        pos, stocks, payments = cash_data
+        assert isinstance(pos, CashPosition)
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 2
+        quantities = sorted([s.quantity for s in stocks])
+        assert quantities == [Decimal("-10.00"), Decimal("25.00")]
+
+    def test_action_spin_off(self):
+        """Spin-off creates a SecurityStock with positive quantity and no cash flow."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2024", "ToDate": "12/31/2024",
+            "BrokerageTransactions": [{
+                "Date": "05/01/2024", "Action": "Spin-off", "Symbol": "NEWCO",
+                "Description": "NEWCO INC SPINOFF", "Quantity": "10"
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)  # Just the SecurityPosition
+        assert result is not None
+        newco_data = find_position(result, SecurityPosition, "NEWCO")
+        assert newco_data is not None
+        pos, stocks, payments = newco_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "NEWCO"
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2024, 5, 1)
+        assert stock.mutation is True
+        assert stock.quantity == Decimal("10")
+        assert stock.name == "Spin-off"
+        # No cash position expected (no cash flow)
+        cash_data = find_position(result, CashPosition)
+        assert cash_data is None
+
+    def test_action_cash_merger(self):
+        """Cash Merger creates cash inflow; Cash Merger Adj creates negative SecurityStock for shares removed."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2021", "ToDate": "12/31/2021",
+            "BrokerageTransactions": [
+                {
+                    "Date": "03/02/2021", "Action": "Cash Merger", "Symbol": "FOO",
+                    "Description": "FOO INC", "Amount": "$1000"
+                },
+                {
+                    "Date": "03/02/2021", "Action": "Cash Merger Adj", "Symbol": "FOO",
+                    "Description": "FOO INC", "Quantity": "-100"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 2)  # FOO SecurityPosition + CashPosition
+        assert result is not None
+        foo_data = find_position(result, SecurityPosition, "FOO")
+        cash_data = find_position(result, CashPosition)
+        assert foo_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = foo_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "FOO"
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == Decimal("-100")
+        assert stock.name == "Cash Merger"
+
+        cash_pos, cash_stocks, cash_payments = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert cash_payments is None
+        assert cash_stocks is not None
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("1000")
+
+    def test_action_journal_awards_share_transfer_out(self):
+        """In equity awards files, a Journal with positive quantity is a share transfer OUT (inverse of brokerage Journals)."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "Transactions": [{
+                "Date": "03/15/2025", "Action": "Journal", "Symbol": "ACME",
+                "Quantity": "42.500", "Description": "Share Transfer",
+                "FeesAndCommissions": None, "DisbursementElection": None,
+                "Amount": None, "TransactionDetails": []
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        acme_data = find_position(result, SecurityPosition, "ACME")
+        assert acme_data is not None
+
+        pos, stocks, payments = acme_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "ACME"
+        assert pos.depot == "AWARDS"
+        assert payments is None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2025, 3, 15)
+        assert stock.mutation is True
+        # Awards Journal with positive Schwab qty = shares leaving the awards account → negative
+        assert stock.quantity == Decimal("-42.500")
+        assert stock.name == "Journal (Shares)"
+
+    def test_action_full_redemption(self):
+        """Full Redemption creates cash inflow; Full Redemption Adj removes shares from the SecurityPosition."""
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2023", "ToDate": "12/31/2023",
+            "BrokerageTransactions": [
+                {
+                    "Date": "06/01/2023", "Action": "Full Redemption", "Symbol": "BOND1",
+                    "Description": "BOND INC", "Amount": "$5000"
+                },
+                {
+                    "Date": "06/01/2023", "Action": "Full Redemption Adj", "Symbol": "BOND1",
+                    "Description": "BOND INC", "Quantity": "-50"
+                },
+            ]
+        }
+        result = run_extraction_test(extractor, data, 2)  # BOND1 SecurityPosition + CashPosition
+        assert result is not None
+        bond_data = find_position(result, SecurityPosition, "BOND1")
+        cash_data = find_position(result, CashPosition)
+        assert bond_data is not None
+        assert cash_data is not None
+
+        pos, stocks, payments = bond_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "BOND1"
+        assert payments is None
+        assert stocks is not None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == Decimal("-50")
+        assert stock.name == "Full Redemption"
+
+        cash_pos, cash_stocks, cash_payments = cash_data
+        assert isinstance(cash_pos, CashPosition)
+        assert cash_payments is None
+        assert cash_stocks is not None
+        assert len(cash_stocks) == 1
+        assert cash_stocks[0].quantity == Decimal("5000")

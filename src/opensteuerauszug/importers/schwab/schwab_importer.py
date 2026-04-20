@@ -2,10 +2,12 @@ import logging
 from typing import List, Dict, Optional, Tuple
 import os
 from decimal import Decimal
+from functools import lru_cache
 from opensteuerauszug.model.ech0196 import (
     BankAccountName, Institution, ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, BankAccountTaxValue, Client, ClientNumber
 )
 from opensteuerauszug.model.position import BasePosition, SecurityPosition, CashPosition
+from opensteuerauszug.render.translations import Language, DEFAULT_LANGUAGE
 from .statement_extractor import StatementExtractor
 from datetime import date, timedelta
 from .fallback_position_extractor import FallbackPositionExtractor
@@ -15,8 +17,90 @@ from opensteuerauszug.util.date_coverage import DateRangeCoverage
 from collections import defaultdict
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import SchwabAccountSettings
+from opensteuerauszug.util.sorting import sort_security_stocks
+import holidays
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Settlement date helpers
+# ---------------------------------------------------------------------------
+
+@lru_cache(maxsize=None)
+def _nyse_holidays(year: int) -> holidays.NYSE:
+    """Return cached NYSE holiday calendar for *year*."""
+    return holidays.NYSE(years=year)
+
+
+def _is_nyse_holiday(d: date) -> bool:
+    """Return True if *d* is a NYSE exchange holiday (weekends excluded)."""
+    return d in _nyse_holidays(d.year)
+
+
+def next_business_day(d: date) -> date:
+    """Return the next calendar day that is a NYSE trading day.
+
+    Skips weekends and US exchange (NYSE) holidays so that settlement dates
+    accurately reflect days on which the exchange is open for business.
+    """
+    result = d + timedelta(days=1)
+    while result.weekday() >= 5 or _is_nyse_holiday(result):
+        result += timedelta(days=1)
+    return result
+
+
+def settlement_date(trade_date: date) -> date:
+    """Return the T+1 settlement date for a trade.
+
+    US equities settled T+2 until May 2024, then switched to T+1.
+    We use T+1 as the conservative default, skipping weekends and NYSE
+    exchange holidays.
+    """
+    return next_business_day(trade_date)
+
+
+def split_unsettled_cash(
+    stocks: List[SecurityStock],
+    period_end: date,
+) -> Tuple[List[SecurityStock], List[SecurityStock]]:
+    """Partition *stocks* into settled and unsettled at *period_end*.
+
+    For every T+1 mutation (``requires_settlement=True``) that settles within
+    the period, the mutation's ``referenceDate`` is unconditionally shifted to
+    the settlement date.  Cash moves on settlement day, not trade day, so this
+    is the semantically correct date for cash-account entries.  It also
+    naturally handles intra-period balance checkpoints: because balance entries
+    sort before mutations on the same date, a settlement-dated mutation always
+    appears *after* any same-day balance snapshot in the reconciler's sequence.
+
+    Mutations that settle strictly after *period_end* are placed in the
+    unsettled bucket; the caller reports them as a separate account.
+
+    Balance entries (mutation=False) and non-settlement mutations are placed
+    in the settled bucket unchanged.
+
+    Args:
+        stocks: All SecurityStock entries for a cash position.
+        period_end: The last day of the reporting period (inclusive).
+
+    Returns:
+        (settled_stocks, unsettled_stocks)
+    """
+    settled: List[SecurityStock] = []
+    unsettled: List[SecurityStock] = []
+    for s in stocks:
+        if s.mutation and s.requires_settlement:
+            settle = settlement_date(s.referenceDate)
+            if settle > period_end:
+                # Will not settle within the period → separate unsettled account.
+                unsettled.append(s)
+            else:
+                # Always date cash at settlement, not trade date.
+                settled.append(s.model_copy(update={"referenceDate": settle}))
+        else:
+            settled.append(s)
+    return settled, unsettled
 
 
 
@@ -62,7 +146,8 @@ class SchwabImporter:
                  period_from: date, 
                  period_to: date, 
                  account_settings_list: List[SchwabAccountSettings], # MODIFIED
-                 strict_consistency: bool = True):
+                 strict_consistency: bool = True,
+                 render_language: Language = DEFAULT_LANGUAGE):
         """
         Initialize the importer with a tax period defined by a start and end date.
 
@@ -71,11 +156,13 @@ class SchwabImporter:
             period_to (date): The end date of the tax period.
             strict_consistency (bool): If True, raises an error on position reconciliation
                                        inconsistencies. If False, logs a warning.
+            render_language (Language): Language for translations.
         """
         self.period_from = period_from
         self.period_to = period_to
         self.account_settings_list = account_settings_list # MODIFIED
         self.strict_consistency = strict_consistency
+        self.render_language = render_language
 
         # If there's any immediate use of a single account setting (e.g. for logging, or a default identifier)
         # it needs to be adapted. For now, we'll assume most logic will be adapted later.
@@ -151,8 +238,7 @@ class SchwabImporter:
                     mutation=False,
                     quantity=qty_to_set_at_start,
                     balanceCurrency=currency_at_start,
-                    quotationType=q_type_at_start,
-                    name=f"{balance_name_prefix}Opening Balance (Tax Period Start)".strip()
+                    quotationType=q_type_at_start
                 )
                 live_stocks_list.append(start_balance_stock)
                 print(f"[{current_identifier}] Added/updated start-of-period balance for {self.period_from}.")
@@ -181,8 +267,7 @@ class SchwabImporter:
                 mutation=False,
                 quantity=end_pos_synth.quantity,
                 balanceCurrency=currency_at_end,
-                quotationType=q_type_at_end,
-                name=f"{balance_name_prefix}Closing Balance (Tax Period End+1)".strip()
+                quotationType=q_type_at_end
             )
             live_stocks_list.append(end_balance_stock)
             live_stocks_list = sorted(live_stocks_list, key=lambda s: (s.referenceDate, s.mutation))
@@ -191,6 +276,59 @@ class SchwabImporter:
             print(f"[{current_identifier}] Could not synthesize end-of-period balance for {effective_period_end_date}. It might be missing.")
 
         return pos_obj, live_stocks_list, associated_pos_payments
+
+    def _make_unsettled_position_tuple(
+        self,
+        pos_obj: CashPosition,
+        unsettled_stocks: List[SecurityStock],
+    ) -> Tuple[CashPosition, List[SecurityStock], List[SecurityPayment]]:
+        """Build a self-consistent position tuple for unsettled (in-transit) cash.
+
+        The returned tuple contains:
+        - A *new* CashPosition flagged with ``is_unsettled_balance=True``.
+        - A synthetic stock list: zero opening balance, the original unsettled
+          mutation entries, and a synthetic closing balance equal to the sum of
+          those mutations.
+        - An empty payments list (unsettled cash has no dividend events).
+
+        This tuple can be fed directly into ``convert_cash_positions_to_list_of_bank_accounts``
+        without passing through ``_reconcile_and_ensure_boundary_stocks_for_position`` because
+        the balances are already manufactured to be consistent.
+        """
+        total_unsettled: Decimal = sum((s.quantity for s in unsettled_stocks), Decimal("0"))
+        currency = unsettled_stocks[0].balanceCurrency if unsettled_stocks else pos_obj.currentCy
+        q_type = unsettled_stocks[0].quotationType if unsettled_stocks else "PIECE"
+
+        opening = SecurityStock(
+            referenceDate=self.period_from,
+            mutation=False,
+            quantity=Decimal("0"),
+            balanceCurrency=currency,
+            quotationType=q_type,
+            name="Unsettled Cash Opening Balance",
+        )
+        closing = SecurityStock(
+            referenceDate=self.period_to + timedelta(days=1),
+            mutation=False,
+            quantity=total_unsettled,
+            balanceCurrency=currency,
+            quotationType=q_type,
+            name="Unsettled Cash (T+1 pending settlement)",
+        )
+
+        all_stocks = sort_security_stocks([opening] + list(unsettled_stocks) + [closing])
+
+        unsettled_pos = CashPosition(
+            depot=pos_obj.depot,
+            currentCy=pos_obj.currentCy,
+            cash_account_id=pos_obj.cash_account_id,
+            is_unsettled_balance=True,
+        )
+        logger.info(
+            f"[{unsettled_pos.get_processing_identifier()}] Created unsettled cash account "
+            f"with {len(unsettled_stocks)} trade(s) totalling {total_unsettled} {currency}."
+        )
+        return unsettled_pos, all_stocks, []
 
     def import_files(self, filenames: List[str]) -> TaxStatement:
         """
@@ -224,7 +362,7 @@ class SchwabImporter:
                     for pos, stock in positions:
                         all_positions.append((pos, stock, None))
             elif ext == ".json":
-                extractor = TransactionExtractor(filename)
+                extractor = TransactionExtractor(filename, self.render_language)
                 transactions = extractor.extract_transactions()
                 if transactions is not None:
                     newly_covered_segments = defaultdict(list)
@@ -385,14 +523,37 @@ class SchwabImporter:
                     current_payments.append(payments)
 
         tax_year = self.period_from.year
-        
-        # --- Reconcile and ensure period boundary stock records --- 
+
+        # --- Reconcile and ensure period boundary stock records ---
         all_processed_tuples = []
         for pos_obj, (initial_stocks, associated_payments) in position_map.items():
-            processed_tuple = self._reconcile_and_ensure_boundary_stocks_for_position(
-                pos_obj, initial_stocks, associated_payments
-            )
-            all_processed_tuples.append(processed_tuple)
+            if isinstance(pos_obj, CashPosition):
+                # Split cash into settled and unsettled at period end.
+                # Unsettled = trades whose T+1 settlement date falls after period_to
+                # (i.e. the broker's statement would not yet reflect them).
+                settled_stocks, unsettled_stocks = split_unsettled_cash(initial_stocks, self.period_to)
+
+                processed_tuple = self._reconcile_and_ensure_boundary_stocks_for_position(
+                    pos_obj, settled_stocks, associated_payments
+                )
+                all_processed_tuples.append(processed_tuple)
+
+                # Generate a separate unsettled account only when there is a non-zero balance
+                if unsettled_stocks:
+                    total_unsettled = sum((s.quantity for s in unsettled_stocks), Decimal("0"))
+                    if total_unsettled != Decimal("0"):
+                        logger.info(
+                            f"[{pos_obj.get_processing_identifier()}] {len(unsettled_stocks)} "
+                            f"unsettled trade(s) at period end {self.period_to} "
+                            f"(net {total_unsettled}); will be reported as a separate account."
+                        )
+                        unsettled_tuple = self._make_unsettled_position_tuple(pos_obj, unsettled_stocks)
+                        all_processed_tuples.append(unsettled_tuple)
+            else:
+                processed_tuple = self._reconcile_and_ensure_boundary_stocks_for_position(
+                    pos_obj, initial_stocks, associated_payments
+                )
+                all_processed_tuples.append(processed_tuple)
 
         # Now, filter the processed tuples into security and cash lists
         final_security_tuples = []
@@ -529,6 +690,13 @@ def convert_cash_positions_to_list_of_bank_accounts(
             else: # No match in config, display_id_from_helper is "...<depot>"
                 final_account_number_str = f"{pos.currentCy} Account {display_id_from_helper}"
 
+        # Append an unsettled marker for positions that represent in-transit cash.
+        # Truncate the base name first so the suffix always fits within 40 chars.
+        if pos.is_unsettled_balance:
+            suffix = " (Unsettled)"
+            base = final_account_number_str[: 40 - len(suffix)]
+            final_account_number_str = base + suffix
+
         bank_payments = [BankAccountPayment(
             paymentDate=payment.paymentDate,
             name=payment.name,
@@ -557,7 +725,6 @@ def convert_cash_positions_to_list_of_bank_accounts(
         if closing_stock_entry:
             bank_account.taxValue = BankAccountTaxValue(
                 referenceDate=period_to, # Tax value is as of end of period_to
-                name="Closing Balance",
                 balanceCurrency=closing_stock_entry.balanceCurrency,
                 balance=closing_stock_entry.quantity # Quantity of cash is its balance
             )

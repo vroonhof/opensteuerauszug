@@ -30,7 +30,7 @@ class TestCleanupCalculatorStandardValues:
         )
         
         # Act
-        calculator = CleanupCalculator(period_from, period_to, "TestImporter")
+        calculator = CleanupCalculator(period_from, period_to, "TestImporter", render_language='de')
         result = calculator.calculate(statement)
         
         # Assert
@@ -61,7 +61,7 @@ class TestCleanupCalculatorStandardValues:
         )
         
         # Act
-        calculator = CleanupCalculator(period_from, period_to, "TestImporter")
+        calculator = CleanupCalculator(period_from, period_to, "TestImporter", render_language='de')
         result = calculator.calculate(statement)
         
         # Assert
@@ -91,7 +91,7 @@ class TestCleanupCalculatorStandardValues:
         )
         
         # Act
-        calculator = CleanupCalculator(period_from, period_to, "TestImporter")
+        calculator = CleanupCalculator(period_from, period_to, "TestImporter", render_language='de')
         result = calculator.calculate(statement)
         
         # Assert
@@ -117,7 +117,7 @@ class TestCleanupCalculatorStandardValues:
         )
         
         # Act
-        calculator = CleanupCalculator(period_from, period_to, "TestImporter")
+        calculator = CleanupCalculator(period_from, period_to, "TestImporter", render_language='de')
         result = calculator.calculate(statement)
         
         # Assert - Only ID should be in modified_fields since standard values are not tracked
@@ -155,7 +155,7 @@ class TestCleanupCalculatorStandardValues:
         before_time = datetime.now()
         
         # Act
-        calculator = CleanupCalculator(period_from, period_to, "TestImporter")
+        calculator = CleanupCalculator(period_from, period_to, "TestImporter", render_language='de')
         result = calculator.calculate(statement)
         
         # Get time after calculation

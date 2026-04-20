@@ -33,11 +33,13 @@ The importer uses the `ibflex` library to parse the XML, this can be quite sensi
 
 2.  **Trades (`Trades`)**:
     *   Details all buy and sell transactions.
-    *   Critical fields per trade: `tradeDate`, `settleDateTarget`, `symbol`, `description`, `assetCategory` (STK, OPT, FUT, BOND, ETF, FUND are processed), `conid` (Contract ID), `isin`, `quantity`, `tradePrice`, `tradeMoney`, `currency`, `buySell`, `ibCommission`.
+    *   Critical fields per trade: `tradeDate`, `settleDateTarget`, `symbol`, `description`, `assetCategory` (STK, OPT, FOP, FUT, BOND, ETF, FUND are processed), `conid` (Contract ID), `isin`, `quantity`, `tradePrice`, `tradeMoney`, `currency`, `buySell`, `ibCommission`.
+    *   For options/future options: `multiplier`, and to determine assignment/exercise: `transactionType`, `closePrice`, `expiry`
 
 3.  **Open Positions (`OpenPositions`)**:
     *   Snapshot of securities held, typically at the end of the report period.
     *   Critical fields per position: `reportDate`, `symbol`, `description`, `assetCategory`, `conid`, `isin`, `position` (quantity), `currency`.
+    *   For options/future options: `multiplier`
 
 4.  **Transfers (`Transfers`)**:
     *   Records securities transferred in or out of the account.

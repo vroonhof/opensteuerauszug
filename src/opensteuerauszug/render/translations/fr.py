@@ -130,4 +130,19 @@ TRANSLATIONS = {
     "warning": "avertissement",
     "warnings": "avertissements",
     "critical_warnings_hint": "Cet extrait contient <b>{count}</b> {plural} critique(s). Veuillez consulter les pages d'information à la fin de ce document.",
+
+    # === XML TRANSLATIONS ===
+    "debit_interest": "Paiements d'intérêts",
+    "credit_interest": "Intérêts créditeurs",
+    "dividend": "Dividende",
+    "stock_split": "Fractionnement d'actions",
+    "distribution": "Distribution",
+    "stock_dividend": "Dividende en actions",
+    "other_monetary_benefits": "Autres avantages monétaires",
+    "premium_agio": "Prime/Agio",
+    "taxable_income_from_accumulating_fund": "Revenus imposables du fonds d'accumulation",
+    "buy": "Acheter",
+    "sell": "Vendre",
+    "option_expiration": "Expiration d'option",
+    "option_assignment": "Exercice/Attribution d'option",
 }

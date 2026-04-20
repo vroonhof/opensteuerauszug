@@ -120,9 +120,13 @@ class FallbackPositionExtractor:
                 # This CSV format does not specify currency, so defaulting to USD.
                 default_currency = "USD"
 
-                if symbol_str == "CASH":
-                    pos = CashPosition(depot=processed_depot, currentCy=default_currency, cash_account_id=None)
+                if symbol_str.startswith("CASH "):
+                    pos = CashPosition(depot=processed_depot, currentCy=default_currency,
+                                       cash_account_id=symbol_str[5:])
                     stock_name = "Manual Cash Position from CSV"
+                elif symbol_str == "CASH":
+                    print(f"FallbackPositionExtractor: Bare 'CASH' symbol in row {i+1} is no longer supported. Please use 'CASH <account_id>' (e.g., 'CASH 123'). Skipping row.")
+                    continue
                 else:
                     pos = SecurityPosition(depot=processed_depot, symbol=symbol_str, description=None)
                     stock_name = f"Manual Security Position for {symbol_str} from CSV"

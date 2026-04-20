@@ -96,7 +96,7 @@ def test_gratis_stock_dividend_has_no_da1_withholding():
 
     provider = KurslisteExchangeRateProvider(kursliste_manager)
     calc = KurslisteTaxValueCalculator(
-        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider, render_language='en'
     )
 
     # Create a security with stock mutation on payment date (not ex-date)
@@ -229,7 +229,7 @@ def test_gratis_stock_dividend_warning_uses_correct_date():
 
     provider = KurslisteExchangeRateProvider(kursliste_manager)
     calc = KurslisteTaxValueCalculator(
-        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider, render_language='en'
     )
 
     # Create a security WITHOUT the mutation - should trigger warning
@@ -336,7 +336,7 @@ def test_regular_stock_split_still_uses_split_terminology():
 
     provider = KurslisteExchangeRateProvider(kursliste_manager)
     calc = KurslisteTaxValueCalculator(
-        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider, render_language='en'
     )
 
     # Create security without mutation to trigger warning
@@ -432,7 +432,7 @@ def _make_calc_with_gratis_payment(ex_date, payment_date):
     kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
     provider = KurslisteExchangeRateProvider(kursliste_manager)
     calc = KurslisteTaxValueCalculator(
-        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider, render_language='en'
     )
     return calc, share
 
@@ -553,7 +553,7 @@ def test_stock_split_mutation_on_next_business_day_fallback_accepted():
     kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
     provider = KurslisteExchangeRateProvider(kursliste_manager)
     calc = KurslisteTaxValueCalculator(
-        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider, render_language='en'
     )
 
     quantity = Decimal("100")
@@ -670,7 +670,7 @@ def test_fallback_blocked_by_intervening_tax_event():
     kursliste_manager.kurslisten[2025] = KurslisteAccessor([kursliste], 2025)
     provider = KurslisteExchangeRateProvider(kursliste_manager)
     calc = KurslisteTaxValueCalculator(
-        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider, render_language='en'
     )
 
     quantity = Decimal("2310")

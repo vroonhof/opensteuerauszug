@@ -30,6 +30,7 @@ dependencies = [
     "markdown>=3.0.0",
     "platformdirs>=3.0.0",
     "requests>=2.33.0", # actually an undeclared dependecy of ibflex [not as optional as it says on the tin]
+    "holidays>=0.62",
 ]
 
 [project.scripts]

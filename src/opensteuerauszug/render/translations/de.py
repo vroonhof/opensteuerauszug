@@ -132,5 +132,20 @@ Wertschriftenverzeichnis einzusetzen.''',
     'warning': 'Warnung',
     'warnings': 'Warnungen',
     'critical_warnings_hint': 'Dieser Steuerauszug enthält <b>{count}</b> kritische {plural}. Bitte überprüfen Sie die Informationsseiten am Ende dieses Dokuments.',
+
+    # === XML TRANSLATIONS ===
+    "debit_interest": "Sollzinsen",
+    "credit_interest": "Habenzinsen",
+    "dividend": "Dividende",
+    "stock_split": "Aktiensplit",
+    "distribution": "Ausschüttung",
+    "stock_dividend": "Aktien-Dividende",
+    "other_monetary_benefits": "Andere monetäre Vorteile",
+    "premium_agio": "Prämie/Agio",
+    "taxable_income_from_accumulating_fund": "Thesaurierung",
+    "buy": "Kauf",
+    "sell": "Verkauf",
+    "option_expiration": "Optionsverfall",
+    "option_assignment": "Options-Zuweisung/-Ausübung",
 }
 
