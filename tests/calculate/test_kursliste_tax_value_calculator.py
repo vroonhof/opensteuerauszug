@@ -2430,6 +2430,12 @@ def test_compute_payments_single_variant_does_not_raise(kursliste_manager):
     Test that payments where every payment for an event shares the same single variant
     value do not raise an error (they all belong to the same chosen option).
     """
+    # computePayments flows all the way through the DA-1 lookup which calls
+    # accessor.get_da1_rate unconditionally; require the year's data to exist.
+    ensure_kursliste_year_available(
+        kursliste_manager, 2024, "test_compute_payments_single_variant_does_not_raise"
+    )
+
     provider = KurslisteExchangeRateProvider(kursliste_manager)
     calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
 

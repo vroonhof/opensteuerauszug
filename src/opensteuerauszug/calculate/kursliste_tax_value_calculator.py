@@ -558,25 +558,13 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
         payments = [p for p in kl_sec.payment if not p.deleted]
 
-        # Detect payments with multiple variants for the same event.
-        # The variant attribute on a payment means that only ONE of the distinct variant
-        # numbers should be applied (OR-choice, e.g. cash dividend vs. stock dividend).
-        # We have no mechanical way to make this choice, so we raise an error.
-        _variants_by_event: dict[date | None, set[int]] = {}
-        for _pay in payments:
-            if _pay.variant is None:
-                continue
-            _event_key = _pay.exDate or _pay.paymentDate
-            _variants_by_event.setdefault(_event_key, set()).add(_pay.variant)
-        for _event_key, _variants in _variants_by_event.items():
-            if len(_variants) > 1:
-                sec_ident = security.isin or security.securityName
-                raise NotImplementedError(
-                    f"Payment on {_event_key} for '{sec_ident}' has multiple variants "
-                    f"({sorted(_variants)}). Manual selection of a variant is required."
-                )
-
         result: List[SecurityPayment] = []
+
+        # Track variant numbers seen per event key so we can detect payments that
+        # represent an OR-choice (e.g. cash dividend vs. stock dividend). The check
+        # is woven into the main loop so it only considers payments that are
+        # actually processed (respecting the paymentDate and capitalGain filters).
+        variants_by_event: dict[date, set[int]] = {}
 
         stock = list(security.stock)
         if security.taxValue:
@@ -610,6 +598,20 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 continue
 
             reconciliation_date = pay.exDate or pay.paymentDate
+
+            # The variant attribute marks an OR-choice between mutually exclusive
+            # payment alternatives (e.g. cash dividend vs. stock dividend). If we
+            # encounter more than one distinct variant for the same event, there
+            # is no mechanical way to choose — surface this to the user.
+            if pay.variant is not None:
+                seen = variants_by_event.setdefault(reconciliation_date, set())
+                seen.add(pay.variant)
+                if len(seen) > 1:
+                    sec_ident = security.isin or security.securityName
+                    raise NotImplementedError(
+                        f"Payment on {reconciliation_date} for '{sec_ident}' has multiple variants "
+                        f"({sorted(seen)}). Manual selection of a variant is required."
+                    )
 
             # Warn if exDate is in the previous year (before the tax period)
             if pay.exDate and security.taxValue and security.taxValue.referenceDate:
