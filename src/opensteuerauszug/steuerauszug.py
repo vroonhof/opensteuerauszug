@@ -243,7 +243,6 @@ def process(
                     all_ibkr_account_settings_models.append(acc_settings.settings)
                 else:
                     print(f"Warning: Received unhandled account configuration kind '{acc_settings.kind}' for broker '{target_broker_kind_for_config_loading}'. Skipping.")
-            
             if target_broker_kind_for_config_loading == "fidelity" and not all_fidelity_account_settings_models and concrete_accounts_list:
                 raise ValueError(f"No valid Fidelity account configurations found for broker 'fidelity', though other configurations might exist.")
             if target_broker_kind_for_config_loading == "schwab" and not all_schwab_account_settings_models and concrete_accounts_list:
@@ -356,7 +355,8 @@ def process(
                     period_from=parsed_period_from,
                     period_to=parsed_period_to,
                     account_settings_list=all_fidelity_account_settings_models,
-                    strict_consistency=strict_consistency_flag
+                    strict_consistency=strict_consistency_flag,
+                    render_language=render_language
                 )
                 statement = fidelity_importer.import_dir(str(input_file))
                 print(f"Fidelity import complete.")
@@ -585,7 +585,7 @@ def process(
             if not statement:
                 raise ValueError("TaxStatement model not loaded. Cannot run payment reconciliation phase.")
 
-            reconciliation_calculator = PaymentReconciliationCalculator(allow_above_treaty_withholding=calculate_settings.allow_above_treaty_withholding)
+            reconciliation_calculator = PaymentReconciliationCalculator(tolerance_chf=calculate_settings.tolerance,allow_above_treaty_withholding=calculate_settings.allow_above_treaty_withholding)
             statement = reconciliation_calculator.calculate(statement)
             report = statement.payment_reconciliation_report
             if report:
