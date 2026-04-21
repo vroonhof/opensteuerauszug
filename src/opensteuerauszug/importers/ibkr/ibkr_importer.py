@@ -16,13 +16,14 @@ from opensteuerauszug.model.ech0196 import (
 )
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
-from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 from opensteuerauszug.importers.common import (
     CashPositionData,
     SecurityNameRegistry,
     SecurityPositionData,
     aggregate_mutations,
+    apply_withholding_tax_fields,
     build_client,
+    build_security_payment,
     parse_swiss_canton,
     resolve_first_last_name,
     to_decimal,
@@ -277,13 +278,7 @@ class IbkrImporter:
     ) -> None:
         if tx_type != ibflex.CashAction.WHTAX:
             return
-        if amount < 0:
-            if currency == "CHF":
-                payment.withHoldingTaxClaim = abs(amount)
-            else:
-                payment.nonRecoverableTaxAmountOriginal = abs(amount)
-        elif amount > 0:
-            payment.nonRecoverableTaxAmountOriginal = -amount
+        apply_withholding_tax_fields(payment, amount, currency)
 
     def _build_security_payment(
         self,
@@ -294,28 +289,15 @@ class IbkrImporter:
         amount: Decimal,
         tx_type: ibflex.CashAction,
     ) -> SecurityPayment:
-        tx_type_str = tx_type.value
-
-        payment = SecurityPayment(
-            paymentDate=payment_date,
-            name=description,
-            amountCurrency=currency,
+        return build_security_payment(
+            payment_date=payment_date,
+            description=description,
+            currency=currency,
             amount=amount,
-            quotationType='PIECE',
-            quantity=UNINITIALIZED_QUANTITY,
-            broker_label_original=tx_type_str,
+            broker_label=tx_type.value,
+            is_withholding=tx_type == ibflex.CashAction.WHTAX,
+            is_securities_lending=tx_type == ibflex.CashAction.PAYMENTINLIEU,
         )
-
-        if tx_type == ibflex.CashAction.PAYMENTINLIEU:
-            payment.securitiesLending = True
-
-        self._apply_withholding_tax_fields(
-            payment,
-            amount,
-            currency,
-            tx_type,
-        )
-        return payment
 
     def _import_corrections_flex_files(
         self,
