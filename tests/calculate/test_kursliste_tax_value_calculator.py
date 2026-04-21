@@ -2350,3 +2350,145 @@ def test_missing_kursliste_warning_for_security_with_no_tax_value_but_stock_tran
     ]
     assert len(missing_warnings) == 1
     assert missing_warnings[0].identifier == "US1234567890"
+
+
+def test_compute_payments_raises_error_for_multiple_variants_same_event(kursliste_manager):
+    """
+    Test that payments with multiple distinct variants for the same event raise a
+    NotImplementedError. The variant field signals an OR-choice between alternatives
+    (e.g. cash dividend vs. stock dividend) that we cannot resolve mechanically.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    ex_date = date(2024, 5, 10)
+    # Two payments for the same event (same exDate) with different variant numbers.
+    kl_sec = Share(
+        id=1,
+        securityGroup=SecurityGroupESTV.SHARE,
+        country="CH",
+        currency="CHF",
+        institutionId=123,
+        institutionName="Test Bank",
+        payment=[
+            PaymentShare(
+                id=101,
+                paymentDate=date(2024, 5, 15),
+                exDate=ex_date,
+                currency="CHF",
+                paymentValue=Decimal("2.50"),
+                paymentValueCHF=Decimal("2.50"),
+                exchangeRate=Decimal("1.0"),
+                variant=1,  # Cash dividend option
+            ),
+            PaymentShare(
+                id=102,
+                paymentDate=date(2024, 5, 15),
+                exDate=ex_date,
+                currency="CHF",
+                paymentValue=Decimal("0"),
+                paymentValueCHF=Decimal("0"),
+                paymentType=PaymentTypeESTV.GRATIS,
+                variant=2,  # Stock dividend option
+            ),
+        ],
+    )
+
+    sec = Security(
+        country="CH",
+        securityName="Test Security",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("CH0000000001"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="CHF",
+            )
+        ],
+    )
+
+    calc._current_kursliste_security = kl_sec
+
+    with pytest.raises(NotImplementedError, match="multiple variants"):
+        calc.computePayments(sec, "sec")
+
+
+def test_compute_payments_single_variant_does_not_raise(kursliste_manager):
+    """
+    Test that payments where every payment for an event shares the same single variant
+    value do not raise an error (they all belong to the same chosen option).
+    """
+    # computePayments flows all the way through the DA-1 lookup which calls
+    # accessor.get_da1_rate unconditionally; require the year's data to exist.
+    ensure_kursliste_year_available(
+        kursliste_manager, 2024, "test_compute_payments_single_variant_does_not_raise"
+    )
+
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    ex_date = date(2024, 5, 10)
+    # Two payments for the same event with the SAME variant number - this is fine (AND).
+    kl_sec = Share(
+        id=1,
+        securityGroup=SecurityGroupESTV.SHARE,
+        country="CH",
+        currency="CHF",
+        institutionId=123,
+        institutionName="Test Bank",
+        payment=[
+            PaymentShare(
+                id=101,
+                paymentDate=date(2024, 5, 15),
+                exDate=ex_date,
+                currency="CHF",
+                paymentValue=Decimal("2.50"),
+                paymentValueCHF=Decimal("2.50"),
+                exchangeRate=Decimal("1.0"),
+                variant=1,
+            ),
+        ],
+    )
+
+    sec = Security(
+        country="CH",
+        securityName="Test Security",
+        positionId=1,
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("CH0000000001"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="CHF",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="CHF",
+            )
+        ],
+    )
+
+    calc._current_kursliste_security = kl_sec
+
+    # Should not raise - only one variant value present
+    calc.computePayments(sec, "sec")
+    assert len(sec.payment) == 1
