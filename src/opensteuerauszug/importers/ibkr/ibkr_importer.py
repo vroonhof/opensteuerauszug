@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Final, List, Any, Dict, Optional, Sequence, TypedDict, get_args, cast
+from typing import Final, List, Any, Dict, Optional, Sequence, get_args, cast
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
@@ -17,6 +17,11 @@ from opensteuerauszug.model.ech0196 import (
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
+from opensteuerauszug.importers.common import (
+    CashPositionData,
+    SecurityNameMetadata,
+    SecurityPositionData,
+)
 from opensteuerauszug.render.translations import get_text, Language, DEFAULT_LANGUAGE
 
 IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Final[Dict[str, SecurityCategory]] = {
@@ -32,21 +37,6 @@ IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Final[Dict[str, SecurityCategory]]
 import ibflex
 from ibflex.parser import FlexParserError
 from ibflex.enums import TradeType
-
-
-class SecurityPositionData(TypedDict):
-    stocks: list[SecurityStock]
-    payments: list[SecurityPayment]
-
-
-class CashPositionData(TypedDict):
-    stocks: list[SecurityStock]
-    payments: list[BankAccountPayment]
-
-
-class SecurityNameMetadata(TypedDict):
-    best_name: str | None
-    priority: int
 
 
 def is_summary_level(entry: object) -> bool:
