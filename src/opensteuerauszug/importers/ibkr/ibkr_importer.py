@@ -19,7 +19,7 @@ from opensteuerauszug.config.models import IbkrAccountSettings
 from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 from opensteuerauszug.importers.common import (
     CashPositionData,
-    SecurityNameMetadata,
+    SecurityNameRegistry,
     SecurityPositionData,
     aggregate_mutations,
     to_decimal,
@@ -451,9 +451,8 @@ class IbkrImporter:
         processed_security_positions: defaultdict[SecurityPosition, SecurityPositionData] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
 
-        # Metadata for security names: {SecurityPosition: {'best_name': str, 'priority': int}}
-        security_name_metadata: defaultdict[SecurityPosition, SecurityNameMetadata] = \
-            defaultdict(lambda: {'best_name': None, 'priority': -1})
+        # Best-name-wins registry for security display names.
+        security_name_registry = SecurityNameRegistry()
 
         processed_cash_positions: defaultdict[tuple, CashPositionData] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
@@ -462,16 +461,6 @@ class IbkrImporter:
         # Map to store assetCategory and subCategory for each security
         security_asset_category_map: Dict[SecurityPosition, tuple[str, Optional[str]]] = {}
         rights_issue_positions: set[SecurityPosition] = set()
-
-        def _update_security_name_metadata(
-            sec_pos: SecurityPosition,
-            name: str,
-            priority: int,
-        ) -> None:
-            entry = security_name_metadata[sec_pos]
-            if priority > entry['priority']:
-                entry['best_name'] = name
-                entry['priority'] = priority
 
         for stmt in all_flex_statements:
             account_id = self._get_required_field(
@@ -570,7 +559,7 @@ class IbkrImporter:
                     )
 
                     # Update name metadata (Priority: 8 for Trades)
-                    _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 8)
+                    security_name_registry.update(sec_pos, f"{description} ({symbol})", 8)
 
                     # Store assetCategory and subCategory
                     sub_category = getattr(trade, 'subCategory', None)
@@ -677,7 +666,7 @@ class IbkrImporter:
                     )
 
                     # Update name metadata (Priority: 10 for OpenPositions)
-                    _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 10)
+                    security_name_registry.update(sec_pos, f"{description} ({symbol})", 10)
 
                     # Store assetCategory and subCategory
                     sub_category = getattr(open_pos, 'subCategory', None)
@@ -784,7 +773,7 @@ class IbkrImporter:
                     )
 
                     # Update name metadata (Priority: 5 for Transfers)
-                    _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 5)
+                    security_name_registry.update(sec_pos, f"{description} ({symbol})", 5)
 
                     stock_mutation = SecurityStock(
                         referenceDate=tx_date,
@@ -863,7 +852,7 @@ class IbkrImporter:
                         ca_name = f"{description} ({symbol})"
                         ca_priority = 3
 
-                    _update_security_name_metadata(sec_pos, ca_name, ca_priority)
+                    security_name_registry.update(sec_pos, ca_name, ca_priority)
 
                     sub_category = getattr(action, "subCategory", None)
                     if sub_category == "RIGHT":
@@ -943,7 +932,7 @@ class IbkrImporter:
                         # Use description or symbol if description is generic?
                         # Usually description in CashTx is like "Dividend ...". Not great for security name.
                         # But if it's the only source, it's better than nothing.
-                        _update_security_name_metadata(
+                        security_name_registry.update(
                             sec_pos_key,
                             f"{description} ({sym_attr})" if sym_attr else description,
                             0
@@ -1139,18 +1128,8 @@ class IbkrImporter:
                 sorted_stocks, key=lambda s: (s.referenceDate, s.mutation)
             )
 
-            # Determine best security name
-            name_metadata = security_name_metadata[sec_pos_obj]
-            best_name = name_metadata['best_name']
-
-            if best_name:
-                final_security_name = best_name
-            else:
-                # Fallback to description from position key or just symbol
-                if sec_pos_obj.description:
-                    final_security_name = sec_pos_obj.description
-                else:
-                    final_security_name = sec_pos_obj.symbol
+            # Determine best security name (registry falls back to description, then symbol)
+            final_security_name = security_name_registry.resolve(sec_pos_obj)
 
             sec = Security(
                 positionId=sec_pos_idx,
