@@ -9,10 +9,14 @@ The helpers here are intentionally plain functions or small value objects,
 composed into the importers rather than imposed via inheritance.
 """
 
+from .parsing import to_decimal
+from .stock_aggregation import aggregate_mutations
 from .types import CashPositionData, SecurityNameMetadata, SecurityPositionData
 
 __all__ = [
     "CashPositionData",
     "SecurityPositionData",
     "SecurityNameMetadata",
+    "aggregate_mutations",
+    "to_decimal",
 ]

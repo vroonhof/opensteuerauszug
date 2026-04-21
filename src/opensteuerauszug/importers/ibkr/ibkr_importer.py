@@ -2,7 +2,7 @@ import os
 import logging
 from typing import Final, List, Any, Dict, Optional, Sequence, get_args, cast
 from datetime import date, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -21,6 +21,8 @@ from opensteuerauszug.importers.common import (
     CashPositionData,
     SecurityNameMetadata,
     SecurityPositionData,
+    aggregate_mutations,
+    to_decimal,
 )
 from opensteuerauszug.render.translations import get_text, Language, DEFAULT_LANGUAGE
 
@@ -115,18 +117,7 @@ class IbkrImporter:
     def _to_decimal(self, value: object | None, field_name: str,
                     object_description: str) -> Decimal:
         """Converts a value to Decimal, raising ValueError on failure."""
-        if value is None:  # Should be caught by _get_required_field if required
-            raise ValueError(
-                f"Cannot convert None to Decimal for field '{field_name}' "
-                f"in {object_description}"
-            )
-        try:
-            return Decimal(str(value))
-        except InvalidOperation:
-            raise ValueError(
-                f"Invalid value for Decimal conversion: '{value}' for field "
-                f"'{field_name}' in {object_description}"
-            )
+        return to_decimal(value, field_name, object_description)
 
     def _normalize_country_code(self, value: object | None) -> str | None:
         if value is None:
@@ -191,49 +182,7 @@ class IbkrImporter:
 
     def _aggregate_stocks(self, stocks: List[SecurityStock]) -> List[SecurityStock]:
         """Aggregate buy and sell entries on the same date with equal order id if present without reordering."""
-
-        aggregated: List[SecurityStock] = []
-        pending: SecurityStock | None = None
-
-        for stock in stocks:
-            if stock.mutation:
-                if (
-                    pending
-                    and pending.referenceDate == stock.referenceDate
-                    and pending.orderId == stock.orderId
-                    and pending.balanceCurrency == stock.balanceCurrency
-                    and pending.quotationType == stock.quotationType
-                    # test for same sign of quantity
-                    and (pending.quantity * stock.quantity) > 0
-                ):
-                    total_quantity = pending.quantity + stock.quantity
-                    if pending.unitPrice != stock.unitPrice:
-                        pending.unitPrice = (pending.quantity * pending.unitPrice + stock.quantity * stock.unitPrice) / total_quantity
-
-                    pending.quantity = total_quantity
-                else:
-                    if pending:
-                        aggregated.append(pending)
-                    pending = SecurityStock(
-                        referenceDate=stock.referenceDate,
-                        mutation=True,
-                        quantity=stock.quantity,
-                        unitPrice=stock.unitPrice,
-                        name=stock.name,
-                        orderId=stock.orderId,
-                        balanceCurrency=stock.balanceCurrency,
-                        quotationType=stock.quotationType,
-                    )
-            else:
-                if pending:
-                    aggregated.append(pending)
-                    pending = None
-                aggregated.append(stock)
-
-        if pending:
-            aggregated.append(pending)
-
-        return aggregated
+        return aggregate_mutations(stocks)
 
     def _parse_flex_statements(
         self,
