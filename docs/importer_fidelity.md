@@ -91,7 +91,7 @@ Transactions Can be downloaded for up to a year (they say 365 days).
        ```
 However... sometimes the date we need is in the description (something handled correctly by the importer) or sometimes,
 seen for a reverse split there is no symbol, in which case the best solution is to edit the CSV directly.
-Rows with missing required headers, incorrect column counts, invalid date formats, non-numeric quantities, or empty symbols will be skipped with a logged warning. The currency for these manually added positions is currently defaulted to "USD".
+Rows with missing required headers, incorrect column counts, invalid date formats, non-numeric quantities, or empty symbols will be skipped with a logged warning.
 
 ## Configuration 
 
