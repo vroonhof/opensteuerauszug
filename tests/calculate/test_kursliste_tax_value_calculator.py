@@ -1882,6 +1882,48 @@ def test_compute_payments_skip_zero_quantity(kursliste_manager):
     # Should not generate any payments since quantity is zero on payment dates
     assert len(sec.payment) == 0
 
+def test_compute_payments_negative_quantity(kursliste_manager):
+    """
+    Test that payment value is set to 0 when the quantity of outstanding
+    securities is negative on the payment date.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    # Create a security with stock that is short on the payment date
+    sec = Security(
+        country="US",
+        securityName="Vanguard Total Stock Market ETF",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="FUND",
+        isin=ISINType("US9229087690"),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 3, 21),
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("-100"),
+                balanceCurrency="USD",
+            ),
+            SecurityStock(
+                referenceDate=date(2024, 3, 22),
+                mutation=True,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="USD",
+            ),
+        ],
+    )
+
+    calc._handle_Security(sec, "sec")
+    assert len(sec.payment) == 1
+    payment = sec.payment[0]
+    assert payment.quantity == Decimal("-100")
+    assert payment.amount == Decimal("0")
+    assert payment.amountPerUnit > Decimal("0")
+
 
 def test_compute_payments_capital_gain_scenario(kursliste_manager):
     """

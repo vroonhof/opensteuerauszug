@@ -41,6 +41,7 @@ class _KurslisteAgg:
     allows_broker_above_kursliste: bool = False
     has_capped_payment: bool = False
     original_withholding_chf: Optional[Decimal] = None
+    short_stock: Optional[bool] = None
 
 
 class PaymentReconciliationCalculator:
@@ -247,6 +248,10 @@ class PaymentReconciliationCalculator:
                             f'W8-BEN. delta={w_diff} CHF.')
                 matched = not (div_diff or w_diff)
                 status = "match" if matched else "mismatch"
+                if kurs.short_stock and div_diff < Decimal("0") and not kurs.dividend_chf:
+                    matched = True
+                    status = "expected"
+                    note += " Short stock dividend set to 0."
             elif not has_kurs and has_broker:
                 note = "Broker payment has no Kursliste entry."
             elif has_kurs and not has_broker:
@@ -352,6 +357,9 @@ class PaymentReconciliationCalculator:
 
         if self._is_broker_above_kursliste_allowlisted(payment):
             agg.allows_broker_above_kursliste = True
+
+        if payment.quantity < Decimal("0"):
+            agg.short_stock = True
 
         # Detect payments that were already capped by WithholdingCapCalculator.
         if payment.withholding_capped:
