@@ -836,6 +836,60 @@ def test_explicit_zero_kursliste_entry_with_broker_cash_is_mismatch_without_allo
     assert row.matched is False
 
 
+def test_short_stock_zero_payment_is_expected():
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="VT",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("0"),
+                                    amountPerUnit=Decimal("25"),
+                                    exchangeRate=Decimal("1"),
+                                    grossRevenueB=Decimal("0"),
+                                    withHoldingTaxClaim=Decimal("0"),
+                                    kursliste=True,
+                                )
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("-25"),
+                                    name="Dividend",
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator().calculate(statement)
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.status == "expected"
+    assert row.matched is True
+    assert row.note is not None
+    assert "Short stock" in row.note
+
+
 # --------------------------------------------------------------------------- #
 #  Issue #308: Withholding-tax cap for (Q)-signed payments
 # --------------------------------------------------------------------------- #
