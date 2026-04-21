@@ -1,5 +1,6 @@
 from typing import Dict, Any, Union, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
+from decimal import Decimal
 
 from opensteuerauszug.render.translations import DEFAULT_LANGUAGE
 
@@ -68,13 +69,22 @@ class IbkrAccountSettings(AccountSettingsBase):
 # class UBSAccountSettings(AccountSettingsBase):
 #     ubs_specific_feature_enabled: bool = False
 
+class FidelityAccountSettings(AccountSettingsBase):
+    '''Specific configuration settings for a Fidelity account.'''
+    # Add any Fidelity-specific fields here if needed in the future.
+    # For example:
+    # Fidelity_specific_option: bool = True
+    pass
+
 class CalculateSettings(BaseModel):
     """Settings for the calculation process."""
     keep_existing_payments: bool = Field(default=False, description="If True, keep existing payments when calculating tax values.")
     allow_above_treaty_withholding: bool = Field(default=False, description = "Allow broker withholding > KL calculation")
+    tolerance: Decimal = Field(default=Decimal('0.05'), description="Tolerance (in CHF) for "
+                                                                    "PaymentReconciliationCalculator")
 
 # A type union for all possible specific account settings models
-SpecificAccountSettingsUnion = Union[SchwabAccountSettings, IbkrAccountSettings] # Add other types like UBSAccountSettings here
+SpecificAccountSettingsUnion = Union[SchwabAccountSettings, IbkrAccountSettings,FidelityAccountSettings] # Add other types like UBSAccountSettings here
 
 class ConcreteAccountSettings(BaseModel):
     '''
@@ -83,7 +93,7 @@ class ConcreteAccountSettings(BaseModel):
     The 'settings' field will contain an instance of SchwabAccountSettings,
     or other specific types in the future.
     '''
-    kind: Literal["schwab", "ibkr"] # Add other literals like "ubs" when more types are supported
+    kind: Literal["schwab", "ibkr", "fidelity"] # Add other literals like "ubs" when more types are supported
     settings: SpecificAccountSettingsUnion
     
     # Delegate attribute access to the underlying specific settings model

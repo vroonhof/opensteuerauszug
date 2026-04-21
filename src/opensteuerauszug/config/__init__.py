@@ -7,6 +7,8 @@ __all__ = [
     "BrokerSettings",
     "AccountSettingsBase",
     "SchwabAccountSettings",
+    "IbkrAccountSettings",
+    "FidelityAccountSettings",
     "ConcreteAccountSettings",
     "ConfigManager",
 ]
