@@ -136,6 +136,7 @@ TRANSLATIONS = {
     "credit_interest": "Credit Interest",
     "dividend": "Dividend",
     "stock_split": "Stock Split",
+    "reverse_stock_split": "Reverse Stock Split",
     "distribution": "Distribution",
     "stock_dividend": "Stock Dividend",
     "other_monetary_benefits": "Other Monetary Benefits",
@@ -145,4 +146,5 @@ TRANSLATIONS = {
     "sell": "Sell",
     "option_expiration": "Option expiration",
     "option_assignment": "Option assignment/exercise",
+    "transfer": "Transfer",
 }
