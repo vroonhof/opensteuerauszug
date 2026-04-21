@@ -1099,7 +1099,7 @@ class FidelityImporter:
 if __name__ == "__main__":
     import argparse
     from datetime import datetime
-    from opensteuerauszug.config import ConfigManager, ConcreteAccountSettings
+    from opensteuerauszug.config import ConfigManager
     from opensteuerauszug.config.paths import resolve_config_file
 
     logging.basicConfig(filename='fidelity_importer.log', level=logging.INFO)
@@ -1110,6 +1110,8 @@ if __name__ == "__main__":
     parser.add_argument("period_from", type=str, help="Start date of tax period (YYYY-MM-DD)")
     parser.add_argument("period_to", type=str, help="End date of tax period (YYYY-MM-DD)")
     parser.add_argument('--config_file', type=str,default='config.toml', help="config file path",required=False)
+    parser.add_argument('-strict_consistency', action='store_true', help='Enable/disable strict consistency '
+                                                     'checks in importers. Defaults to strict.',required=False)
     args = parser.parse_args()
 
     # Parse dates
@@ -1127,7 +1129,7 @@ if __name__ == "__main__":
             all_fidelity_account_settings_models.append(acc_settings.settings)
     if len(all_fidelity_account_settings_models) < 1:
         logger.info('No Fidelity Account Setting Found')
-    importer = FidelityImporter(period_from, period_to,all_fidelity_account_settings_models)
+    importer = FidelityImporter(period_from, period_to,all_fidelity_account_settings_models,strict_consistency=args.strict_consistency)
     tax_statement = importer.import_dir(args.directory)
     if logging.DEBUG >= logging.root.level:
         from devtools import debug
