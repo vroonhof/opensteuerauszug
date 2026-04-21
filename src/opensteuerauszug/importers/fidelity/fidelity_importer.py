@@ -1,3 +1,4 @@
+import os
 import logging
 from typing import Final, List, Any, Dict, Sequence, get_args, cast
 from datetime import datetime, date, timedelta
@@ -1098,7 +1099,6 @@ class FidelityImporter:
 if __name__ == "__main__":
     import argparse
     from datetime import datetime
-    import sys
     from opensteuerauszug.config import ConfigManager, ConcreteAccountSettings
     from opensteuerauszug.config.paths import resolve_config_file
 
@@ -1129,7 +1129,7 @@ if __name__ == "__main__":
         logger.info('No Fidelity Account Setting Found')
     importer = FidelityImporter(period_from, period_to,all_fidelity_account_settings_models)
     tax_statement = importer.import_dir(args.directory)
-
-    from devtools import debug
-    #logger.debug(debug(tax_statement))
+    if logging.DEBUG >= logging.root.level:
+        from devtools import debug
+        debug(tax_statement)
     logger.info('Finished')
