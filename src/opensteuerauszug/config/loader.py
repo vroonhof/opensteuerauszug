@@ -229,11 +229,10 @@ class ConfigManager:
         # Determine the specific Pydantic model based on broker_name
         specific_settings: SpecificAccountSettingsUnion
         kind_literal: str
-
         if broker_name.lower() == "fidelity":
             specific_settings = FidelityAccountSettings(**current_config)
-            kind_literal = "schwab"
-        if broker_name.lower() == "schwab":
+            kind_literal = "fidelity"
+        elif broker_name.lower() == "schwab":
             specific_settings = SchwabAccountSettings(**current_config)
             kind_literal = "schwab"
         elif broker_name.lower() == "ibkr":

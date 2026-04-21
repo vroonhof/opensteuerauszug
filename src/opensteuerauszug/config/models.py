@@ -1,5 +1,6 @@
 from typing import Dict, Any, Union, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
+from decimal import Decimal
 
 from opensteuerauszug.render.translations import DEFAULT_LANGUAGE
 
@@ -79,6 +80,8 @@ class CalculateSettings(BaseModel):
     """Settings for the calculation process."""
     keep_existing_payments: bool = Field(default=False, description="If True, keep existing payments when calculating tax values.")
     allow_above_treaty_withholding: bool = Field(default=False, description = "Allow broker withholding > KL calculation")
+    tolerance: Decimal = Field(default=Decimal('0.05'), description="Tolerance (in CHF) for "
+                                                                    "PaymentReconciliationCalculator")
 
 # A type union for all possible specific account settings models
 SpecificAccountSettingsUnion = Union[SchwabAccountSettings, IbkrAccountSettings,FidelityAccountSettings] # Add other types like UBSAccountSettings here
