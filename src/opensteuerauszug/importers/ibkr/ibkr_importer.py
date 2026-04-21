@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Final, List, Any, Dict, Optional, Sequence, get_args, cast
+from typing import Final, List, Any, Dict, Optional, Sequence
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from collections import defaultdict
@@ -9,10 +9,10 @@ logger = logging.getLogger(__name__)
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    BankAccountName, ClientNumber, Institution, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
+    BankAccountName, Institution, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
     Security, SecurityStock, SecurityPayment,
     BankAccount, BankAccountPayment, BankAccountTaxValue,
-    QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client, CantonAbbreviation
+    QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client
 )
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
@@ -22,6 +22,9 @@ from opensteuerauszug.importers.common import (
     SecurityNameRegistry,
     SecurityPositionData,
     aggregate_mutations,
+    build_client,
+    parse_swiss_canton,
+    resolve_first_last_name,
     to_decimal,
 )
 from opensteuerauszug.render.translations import get_text, Language, DEFAULT_LANGUAGE
@@ -1313,74 +1316,28 @@ class IbkrImporter:
         )
 
         # --- Create Client object ---
-        # TOOD: Handle joint accounts
-        client_obj = None
+        # TODO: Handle joint accounts
+        client_obj: Optional[Client] = None
         if all_flex_statements:
             first_statement = all_flex_statements[0]
-            if hasattr(first_statement, 'AccountInformation') and first_statement.AccountInformation:
-                acc_info = first_statement.AccountInformation
-                account_id = getattr(acc_info, 'accountId', None)
-                name = getattr(acc_info, 'name', None)
-                first_name = getattr(acc_info, 'firstName', None)
-                last_name = getattr(acc_info, 'lastName', None)
-                account_holder_name = getattr(acc_info, 'accountHolderName', None)
-                state_residential_address = getattr(acc_info, 'stateResidentialAddress', None)
-                # address1 = getattr(acc_info, 'address1', None)
-                # address2 = getattr(acc_info, 'address2', None)
-                # city = getattr(acc_info, 'city', None)
-                # state = getattr(acc_info, 'state', None)
-                # country = getattr(acc_info, 'country', None)
-                # postalCode = getattr(acc_info, 'postalCode', None)
-                
-                # Extract canton from stateResidentialAddress (format: "CH-ZH")
-                if state_residential_address and isinstance(state_residential_address, str):
-                    state_addr = state_residential_address.strip()
-                    if '-' in state_addr:
-                        parts = state_addr.split('-')
-                        if len(parts) == 2 and parts[0].upper() == 'CH':
-                            canton = parts[1].strip().upper()
-                            valid_cantons = get_args(CantonAbbreviation)
-                            if canton in valid_cantons:
-                                tax_statement.canton = cast(CantonAbbreviation, canton)
-                                logger.info(f"Set canton from IBKR stateResidentialAddress: {canton}")
-                            else:
-                                logger.warning(f"Invalid canton extracted from stateResidentialAddress: '{canton}'. Valid cantons are: {', '.join(valid_cantons)}")
-                        else:
-                            logger.debug(f"stateResidentialAddress '{state_addr}' does not match expected format 'CH-XX'")
-                    else:
-                        logger.debug(f"stateResidentialAddress '{state_addr}' does not contain a dash separator")
+            acc_info = getattr(first_statement, 'AccountInformation', None)
+            if acc_info:
+                canton = parse_swiss_canton(getattr(acc_info, 'stateResidentialAddress', None))
+                if canton:
+                    tax_statement.canton = canton
+                    logger.info(f"Set canton from IBKR stateResidentialAddress: {canton}")
 
-                client_first_name = None
-                client_last_name = None
-
-                # Helper function to check if a string value is valid (not None, not empty, not just whitespace)
-                def is_valid_string(value):
-                    return value is not None and isinstance(value, str) and value.strip()
-
-                def split_full_name(value):
-                    parts = str(value).strip().split()
-                    if len(parts) > 1:
-                        return parts[0], " ".join(parts[1:])
-                    return None, str(value).strip()
-
-                if is_valid_string(first_name) and is_valid_string(last_name):
-                    client_first_name = str(first_name).strip()
-                    client_last_name = str(last_name).strip()
-                elif is_valid_string(first_name) and is_valid_string(name):
-                    client_first_name = str(first_name).strip()
-                    _, client_last_name = split_full_name(name)
-                elif is_valid_string(name):
-                    client_first_name, client_last_name = split_full_name(name)
-                elif is_valid_string(account_holder_name):
-                    client_first_name, client_last_name = split_full_name(account_holder_name)
-
-                if account_id:
-                    client_obj = Client(
-                        clientNumber=ClientNumber(account_id),
-                        firstName=client_first_name,
-                        lastName=client_last_name,
-                        # Other fields like tin, salutation are not yet mapped
-                    )
+                client_first_name, client_last_name = resolve_first_last_name(
+                    first_name=getattr(acc_info, 'firstName', None),
+                    last_name=getattr(acc_info, 'lastName', None),
+                    full_name=getattr(acc_info, 'name', None),
+                    account_holder_name=getattr(acc_info, 'accountHolderName', None),
+                )
+                client_obj = build_client(
+                    client_number=getattr(acc_info, 'accountId', None),
+                    first_name=client_first_name,
+                    last_name=client_last_name,
+                )
         if client_obj:
             tax_statement.client = [client_obj]
         # --- End Client object ---
