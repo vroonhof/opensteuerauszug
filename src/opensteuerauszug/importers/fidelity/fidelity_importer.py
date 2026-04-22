@@ -9,21 +9,23 @@ logger = logging.getLogger(__name__)
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    BankAccountName, Institution, DepotNumber, TaxStatement,
-    ListOfBankAccounts, BankAccount, BankAccountPayment, BankAccountTaxValue,
-    ListOfSecurities, SecurityCategory, Security, SecurityStock, SecurityPayment,
-    QuotationType, BankAccountNumber, Depot,
+    BankAccountPayment, Institution, SecurityCategory, SecurityPayment,
+    SecurityStock, TaxStatement,
 )
-from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import FidelityAccountSettings
 from opensteuerauszug.importers.common import (
+    CashAccountEntry,
     CashPositionData,
+    PositionHints,
     SecurityNameRegistry,
     SecurityPositionData,
     aggregate_mutations,
     apply_withholding_tax_fields,
+    augment_list_of_bank_accounts,
+    augment_list_of_securities,
     build_client,
     build_security_payment,
+    fold_cash_payments,
     parse_swiss_canton,
     resolve_first_last_name,
     to_decimal,
@@ -645,279 +647,87 @@ class FidelityImporter:
                     )
 
 
-        # --- Construct ListOfSecurities ---
-        # account_id -> list of Security objects
-        depot_securities_map: defaultdict[str, List[Security]] = defaultdict(list)
-        sec_pos_idx = 0
-        for sec_pos_obj, data in processed_security_positions.items():
-            sec_pos_idx += 1
-            sorted_stocks = self._aggregate_stocks(data['stocks'])
-            sorted_payments = sorted(
-                data['payments'], key=lambda p: p.paymentDate
-            )
-
-            # Determine currency and quotation type from stocks or defaults
-            primary_currency = "USD"
-            primary_quotation_type: QuotationType = "PIECE" # Default
-            if sorted_stocks:
-                # Try balance entry first, then any entry
-                balance_stocks = [
-                    s for s in sorted_stocks if not s.mutation and s.balanceCurrency
-                ]
-                if balance_stocks:
-                    primary_currency = balance_stocks[0].balanceCurrency
-                    primary_quotation_type = balance_stocks[0].quotationType
-                else:  # Try any stock
-                    primary_currency = sorted_stocks[0].balanceCurrency
-                    primary_quotation_type = sorted_stocks[0].quotationType
-
-            if not primary_currency:  # Fallback if no stocks or no currency
-                if sorted_payments:
-                    primary_currency = sorted_payments[0].amountCurrency
-                else:
-                    raise ValueError(
-                        f"Cannot determine currency for security "
-                        f"{sec_pos_obj.symbol} (Desc: {sec_pos_obj.description}). "
-                        f"No stocks or payments with currency info."
-                    )
-
-            # TODO: Map assetCategory to eCH-0196 SecurityCategory
-            # Get assetCategory and subCategory from the map, default to "STK"
-            asset_cat = security_asset_category_map[sec_pos_obj] if sec_pos_obj in security_asset_category_map else \
-                'SHARE'
-
-
-            # Initial Consistency Check
-            initial_reconciler = PositionReconciler(list(sorted_stocks), identifier=f"{sec_pos_obj.symbol}-initial_check")
-            is_consistent_initial, _ = initial_reconciler.check_consistency(
-                print_log=True,
-                raise_on_error=self.strict_consistency,
-                assume_zero_if_no_balances=True
-            )
-            if not is_consistent_initial and not self.strict_consistency:
-                logger.warning(
-                    f"{sec_pos_obj.symbol}] Initial consistency check on raw data failed. Review logs. Proceeding with synthesis.")
-
-            # --- Ensure balance at period start and period end + 1 using PositionReconciler ---
-            reconciler = PositionReconciler(list(sorted_stocks), identifier=f"{sec_pos_obj.symbol}-reconcile", )
-            end_plus_one = self.period_to + timedelta(days=1)
-            end_pos = reconciler.synthesize_position_at_date(end_plus_one)
-            closing_balance = end_pos.quantity if end_pos else Decimal("0")
-            trades_quantity_total = sum(
-                s.quantity for s in sorted_stocks if s.mutation
-            )
-
-            start_pos = reconciler.synthesize_position_at_date(self.period_from)
-            if start_pos:
-                opening_balance = start_pos.quantity
-            else:
-                tentative_opening = closing_balance - trades_quantity_total
-                opening_balance = tentative_opening if tentative_opening >= 0 else Decimal("0")
-
-            if opening_balance < 0 or closing_balance < 0:
-                raise ValueError(
-                    f"Negative balance computed for security {sec_pos_obj.symbol} with {asset_cat}. In case you expect short positions, please report this to the developers for further investigation."
-                    f" (start {opening_balance}, end {closing_balance})"
-                )
-
-            # Find settings for this account
-            account_settings = next(
-                (s for s in self.account_settings_list if s.account_number == sec_pos_obj.depot),
-                None
-            )
-
-            start_exists = any(
-                (not s.mutation and s.referenceDate == self.period_from)
-                for s in sorted_stocks
-            )
-            if not start_exists and opening_balance != 0:
-                sorted_stocks.append(
-                    SecurityStock(
-                        referenceDate=self.period_from,
-                        mutation=False,
-                        quotationType=primary_quotation_type,
-                        quantity=opening_balance,
-                        balanceCurrency=primary_currency,
-                        name="Opening balance",
-                    )
-                )
-
-            end_exists = any(
-                (not s.mutation and s.referenceDate == end_plus_one)
-                for s in sorted_stocks
-            )
-            if not end_exists:
-                sorted_stocks.append(
-                    SecurityStock(
-                        referenceDate=end_plus_one,
-                        mutation=False,
-                        quotationType=primary_quotation_type,
-                        quantity=closing_balance,
-                        balanceCurrency=primary_currency,
-                        name="Closing balance",
-                    )
-                )
-
-            sorted_stocks = sorted(
-                sorted_stocks, key=lambda s: (s.referenceDate, s.mutation)
-            )
-
-            final_security_name = security_name_registry.resolve(sec_pos_obj)
-
-            sec = Security(
-                positionId=sec_pos_idx,
-                currency=primary_currency,
-                quotationType=primary_quotation_type,
-                securityCategory=asset_cat,
-                securityName=final_security_name,
-                stock=sorted_stocks,
-                payment=sorted_payments,
-                symbol=sec_pos_obj.symbol if sec_pos_obj.symbol is not None else None,
-                country = 'US' #stub
-            )
-
-            depot_securities_map[sec_pos_obj.depot].append(sec)
-
-        final_depots = []
-        if depot_securities_map:
-            for depot_id, securities_in_depot in depot_securities_map.items():
-                if securities_in_depot:
-                    final_depots.append(
-                        Depot(depotNumber=DepotNumber(depot_id),
-                              security=securities_in_depot)
-                    )
-
-        list_of_securities = (ListOfSecurities(depot=final_depots)
-                              if final_depots else None)
-
-        # --- Construct ListOfBankAccounts ---
-        final_bank_accounts: List[BankAccount] = []
-        
-        # First, collect all currencies from CashReport that have closing balances
-        all_currencies_with_balances: Dict[tuple, Dict[str, Any]] = {}
-        
-        for stmt in all_statements:
-            summary = self._get_required_field(
-                stmt, 'Summary', 'Statement'
-            )
-            account_id = self._get_required_field(
-                summary, 'Account', 'Statement Summary'
-            )
-            end_date = self._get_required_field(stmt, 'Date', 'Statement')
-            #if should_skip_entry(statement_summary):
-            #    logger.info(
-            #        "Skipping CashReport entry with pseudo accountId in account %s",
-            #        account_id,
-            #    )
-            #    continue
-            curr = "USD"
-            # Skip BASE_SUMMARY entries (Fidelity internal aggregation, not a real currency)
-            if curr == "BASE_SUMMARY":
-                continue
-            key = (str(account_id), str(curr))
-
-            # Extract closing balance
-            closing_net_value = None
-            closing_mkt_value = None
-            if summary.get('Ending Net Value') is not None:
-                closing_net_value = self._to_decimal(self._get_required_field(summary,
-                    'Ending Net Value', 'Account Summary'),'Ending Net Value',
-                    f"Statement Summary Net Value:{account_id}"
-                )
-            else:
-                closing_net_value = Decimal(0)
-            if summary.get('Ending mkt Value') is not None:
-                closing_mkt_value = self._to_decimal(self._get_required_field(
-                    summary,
-                    'Ending mkt Value', 'Account Summary'),'Ending mkt Value',
-                    f"Statement Summary mkt Value:{account_id}"
-                )
-            else:
-                closing_mkt_value = Decimal(0)
-
-            closing_balance_value = closing_net_value - closing_mkt_value
-
-            if closing_balance_value is not None:
-                if key not in all_currencies_with_balances.keys() or  end_date > all_currencies_with_balances[key][
-                    'date']:
-                    all_currencies_with_balances[key] = {
-                        'account_id': account_id,
-                        'currency': curr,
-                        'closing_balance': closing_balance_value,
-                        'payments': [],
-                        'date': end_date
-                    }
-
-        # Now add payments from cash transactions to the relevant currencies
-        for (stmt_account_id, currency_code, _), data in processed_cash_positions.items():
-            key = (stmt_account_id, currency_code)
-            if key in all_currencies_with_balances:
-                all_currencies_with_balances[key]['payments'].extend(data['payments'])
-            else:
-                # This currency has transactions but no closing balance in CashReport
-                # Still create an entry for it
-                all_currencies_with_balances[key] = {
-                    'account_id': stmt_account_id,
-                    'currency': currency_code,
-                    'closing_balance': None,
-                    'payments': data['payments']
-                }
-
-        # Create bank accounts for all currencies
-        for key, data_dict in all_currencies_with_balances.items():
-            acc_id = data_dict['account_id']
-            curr = data_dict['currency']
-            payments = data_dict['payments']
-            closing_balance_value = data_dict['closing_balance']
-
-            # Ensure payments is a list before sorting
-            sorted_payments = sorted(payments or [], key=lambda p: p.paymentDate)
-
-            bank_account_tax_value_obj = None
-            if closing_balance_value is not None:
-                bank_account_tax_value_obj = BankAccountTaxValue(
-                    referenceDate=self.period_to,
-                    name="Closing balance",
-                    balanceCurrency=curr,
-                    balance=closing_balance_value
-                )
-            else:
-                logger.warning(
-                    f"No closing cash balance found in CashReport "
-                    f"for account {acc_id}, currency {curr} for date "
-                    f"{self.period_to}."
-                )
-                raise ValueError(
-                    f"No closing cash balance found in CashReport "
-                    f"for account {acc_id}, currency {curr} for date "
-                    f"{self.period_to}."
-                )
-
-            bank_account_num_str = f"{acc_id}-{curr}"
-            bank_account_name_str = f"{acc_id} {curr} position"
-
-            # Look up dates for this specific account
-            ba = BankAccount(
-                bankAccountName=BankAccountName(bank_account_name_str),
-                bankAccountNumber=BankAccountNumber(bank_account_num_str),
-                bankAccountCountry="US",
-                bankAccountCurrency=curr,
-                payment=sorted_payments,
-                taxValue=bank_account_tax_value_obj # Adjusted to single obj
-            )
-            final_bank_accounts.append(ba)
-
-        list_of_bank_accounts = (ListOfBankAccounts(bankAccount=final_bank_accounts)
-                                 if final_bank_accounts else None)
-
+        # --- Partial TaxStatement + shared post-processing ---
         tax_statement = TaxStatement(
             minorVersion=1,
             periodFrom=self.period_from,
             periodTo=self.period_to,
             taxPeriod=self.period_from.year,
-            listOfSecurities=list_of_securities,
-            listOfBankAccounts=list_of_bank_accounts
         )
+
+        def _hints_for(sec_pos: SecurityPosition) -> PositionHints:
+            asset_cat = security_asset_category_map.get(sec_pos, "SHARE") or "SHARE"
+            return PositionHints(
+                security_category=asset_cat,
+                country="US",
+            )
+
+        augment_list_of_securities(
+            tax_statement,
+            processed_security_positions,
+            name_registry=security_name_registry,
+            hints_for=_hints_for,
+            strict_consistency=self.strict_consistency,
+            run_initial_consistency_check=True,
+            opening_stock_name="Opening balance",
+            closing_stock_name="Closing balance",
+        )
+
+        # --- Seed bank account entries from the per-statement summary ---
+        # Fidelity doesn't publish a per-currency CashReport; the closing
+        # balance is derived from the latest statement's (Ending Net Value
+        # - Ending mkt Value). Only one currency ("USD") is supported.
+        seed_entries_by_key: Dict[tuple, CashAccountEntry] = {}
+        latest_end_date_by_key: Dict[tuple, date] = {}
+        curr = "USD"
+        for stmt in all_statements:
+            summary = self._get_required_field(stmt, 'Summary', 'Statement')
+            stmt_account_id = self._get_required_field(
+                summary, 'Account', 'Statement Summary'
+            )
+            end_date = self._get_required_field(stmt, 'Date', 'Statement')
+            key = (str(stmt_account_id), curr)
+
+            closing_net_value = (
+                self._to_decimal(
+                    self._get_required_field(
+                        summary, 'Ending Net Value', 'Account Summary'
+                    ),
+                    'Ending Net Value',
+                    f"Statement Summary Net Value:{stmt_account_id}",
+                )
+                if summary.get('Ending Net Value') is not None
+                else Decimal(0)
+            )
+            closing_mkt_value = (
+                self._to_decimal(
+                    self._get_required_field(
+                        summary, 'Ending mkt Value', 'Account Summary'
+                    ),
+                    'Ending mkt Value',
+                    f"Statement Summary mkt Value:{stmt_account_id}",
+                )
+                if summary.get('Ending mkt Value') is not None
+                else Decimal(0)
+            )
+            closing_balance_value = closing_net_value - closing_mkt_value
+
+            if (
+                key not in seed_entries_by_key
+                or end_date > latest_end_date_by_key[key]
+            ):
+                seed_entries_by_key[key] = CashAccountEntry(
+                    account_id=str(stmt_account_id),
+                    currency=curr,
+                    closing_balance=closing_balance_value,
+                    name=f"{stmt_account_id} {curr} position",
+                )
+                latest_end_date_by_key[key] = end_date
+
+        cash_entries = fold_cash_payments(
+            seed_entries_by_key.values(), processed_cash_positions
+        )
+        augment_list_of_bank_accounts(tax_statement, cash_entries)
         logger.info(
             "Partial TaxStatement created with Trades, OpenPositions, "
             "and basic CashTransactions mapping."
