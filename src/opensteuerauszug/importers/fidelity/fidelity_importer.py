@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import logging
 from typing import Final, List, Any, Dict, Sequence
@@ -59,6 +61,7 @@ def should_skip_entry(entry: Any, entry_label: str) -> bool:
     symbol=symbol.strip() if symbol else symbol
     account_id = entry.get('Account Number') if (
         entry.get('Account Number')) else entry.get('Account')
+
     if entry_label in ['Trade','Position']:
         description = entry.get('Description')
         if entry_label in ['Position']:
@@ -462,16 +465,11 @@ class FidelityImporter:
                     processed_security_positions[sec_pos]['stocks'].append(
                         balance_stock
                     )
-                else:
-                    if should_skip_entry(position, "Position") or symbol==account_id:
+                elif should_skip_entry(position, "Position") or symbol==account_id:
                         continue
-                    logger.warning(
-                        f"Skipping position without recognisable symbol: {symbol}\n"
-                        f"position: {position}"
-                        f"from statement dated: {end_date}"
-                    )
-
-
+                else:
+                    raise NotImplementedError(f"Fidelity Importer:Importing position {position} not implemented "
+                                              "yet.")
 
         logger.info(f"Processing Transactions for account: {account_id}")
         for transaction in all_transactions:
@@ -515,6 +513,9 @@ class FidelityImporter:
                 if should_skip_entry(transaction, "Trade"):
                     continue
                 if not transaction['Symbol'] or len(transaction['Symbol']) < 1:
+                    logger.warning(
+                        f"Skipping transaction without recognisable symbol: {transaction}\n"
+                    )
                     continue
 
                 symbol = self._get_required_field(
@@ -531,7 +532,7 @@ class FidelityImporter:
                     'Price', f"Trade {symbol}"
                     )
                 else:
-                    trade_price = self._to_decimal(trade_money / quantity, 'Price', f"{action} {symbol}")
+                    trade_price = (trade_money / quantity)
 
                 commission = self._to_decimal(
                     transaction['Commission ($)'] if 'Commission' in transaction else 0,
@@ -635,8 +636,8 @@ class FidelityImporter:
                     cash_pos_key = (account_id, currency, "MAIN_CASH")
                     bank_payment = BankAccountPayment(
                         paymentDate=trade_date,
-                        name=get_text(transaction['Action'].replace("INTEREST EARNED", get_text("credit_interest",
-                                                                                    self.render_language))),
+                        name=transaction['Action'].replace("INTEREST EARNED", get_text("credit_interest",
+                                                                                    self.render_language)),
                         amountCurrency=currency,
                         amount=amount
                     )
@@ -804,16 +805,7 @@ class FidelityImporter:
                 summary, 'Account', 'Statement Summary'
             )
             end_date = self._get_required_field(stmt, 'Date', 'Statement')
-            #if should_skip_entry(statement_summary):
-            #    logger.info(
-            #        "Skipping CashReport entry with pseudo accountId in account %s",
-            #        account_id,
-            #    )
-            #    continue
             curr = "USD"
-            # Skip BASE_SUMMARY entries (Fidelity internal aggregation, not a real currency)
-            if curr == "BASE_SUMMARY":
-                continue
             key = (str(account_id), str(curr))
 
             # Extract closing balance
@@ -947,10 +939,11 @@ class FidelityImporter:
             ),
             None,
         )
-        account_holder_name = (
-            getattr(matching_settings, 'full_name', None)
-            if matching_settings is not None else None
+
+        first_name, last_name = resolve_first_last_name(
+            full_name=getattr(matching_settings, 'full_name', None) if matching_settings is not None else None
         )
+
         canton_raw = (
             getattr(matching_settings, 'canton', None)
             if matching_settings is not None else None
@@ -965,9 +958,7 @@ class FidelityImporter:
                 "Invalid canton in account settings: %r", canton_raw
             )
 
-        first_name, last_name = resolve_first_last_name(
-            account_holder_name=account_holder_name,
-        )
+
         client_obj = build_client(
             client_number=account_id,
             first_name=first_name,
@@ -999,7 +990,7 @@ class FidelityImporter:
                 logger.warning(f"Skipping file: {fname} This type of file is not supported")
         return self.import_files(files)
 
-if __name__ == "__main__":
+def main():
     import argparse
     from datetime import datetime
     from opensteuerauszug.config import ConfigManager
@@ -1038,3 +1029,7 @@ if __name__ == "__main__":
         from devtools import debug
         debug(tax_statement)
     logger.info('Finished')
+
+if __name__ == "__main__":
+    main()
+
