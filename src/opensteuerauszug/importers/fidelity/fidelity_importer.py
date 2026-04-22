@@ -468,8 +468,9 @@ class FidelityImporter:
                 elif should_skip_entry(position, "Position") or symbol==account_id:
                         continue
                 else:
+                    print (symbol, account_id)
                     raise NotImplementedError(f"Fidelity Importer:Importing position {position} not implemented "
-                                              "yet.")
+                                              f"yet.")
 
         logger.info(f"Processing Transactions for account: {account_id}")
         for transaction in all_transactions:
