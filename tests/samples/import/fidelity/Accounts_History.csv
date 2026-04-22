@@ -1,0 +1,32 @@
+Run Date,Account,Account Number,Action,Symbol,Description,Type,Price ($),Quantity,Commission ($),Fees ($),Accrued Interest ($),Amount ($),Settlement Date
+12/31/2025,"My Fidelity Account","U12349876","INTEREST EARNED as of Dec-30-2025 (Cash)",,"No Description",Cash,,0.000,,,,0.04,
+12/31/2025,"My Fidelity Account","U12349876","INTEREST EARNED as of Dec-22-2025 (Cash)",,"No Description",Cash,,0.000,,,,0.04,
+12/31/2025,"My Fidelity Account","U12349876","INTEREST EARNED as of Dec-29-2025 (Cash)",,"No Description",Cash,,0.000,,,,0.28,
+12/24/2025,"My Fidelity Account","U12349876","YOU BOUGHT VANGUARD INTL EQUITY INDEX FDS TT WR... (VT) (Cash)",VT,"VANGUARD INTL EQUITY INDEX FDS TT WRLD ",Cash,142.035,28,,,,-3976.96,12/15/2025
+12/24/2025,"My Fidelity Account","U12349876","YOU BOUGHT VANGUARD INTL EQUITY INDEX FDS TT WR... (VT) (Cash)",VT,"VANGUARD INTL EQUITY INDEX FDS TT WRLD ",Cash,142.035,10,,,,-1420.35,12/15/2025
+12/24/2025,"My Fidelity Account","U12349876","YOU BOUGHT VANGUARD INTL EQUITY INDEX FDS TT WR... (VT) (Cash)",VT,"VANGUARD INTL EQUITY INDEX FDS TT WRLD ",Cash,142.035,10,,,,-1420.35,12/15/2025
+12/24/2025,"My Fidelity Account","U12349876","YOU BOUGHT VANGUARD INTL EQUITY INDEX FDS TT WR... (VT) (Cash)",VT,"VANGUARD INTL EQUITY INDEX FDS TT WRLD ",Cash,142.035,22,,,,-3124.77,12/15/2025
+12/23/2025,"My Fidelity Account","U12349876","REINVESTMENT VANGUARD INTL EQUITY INDEX FDS TT WR... (VT) (Cash)",VT,"VANGUARD INTL EQUITY INDEX FDS TT WRLD ",Cash,141.26,0.8724,,,,-123.23,
+12/23/2025,"My Fidelity Account","U12349876","DIVIDEND RECEIVED VANGUARD INTL EQUITY INDEX FDS TT WR... (VT) (Cash)",VT,"VANGUARD INTL EQUITY INDEX FDS TT WRLD ",Cash,,0.000,,,,144.98,
+12/23/2025,"My Fidelity Account","U12349876","NON-RESIDENT TAX VANGUARD INTL EQUITY INDEX FDS TT WR... (VT) (Cash)",VT,"VANGUARD INTL EQUITY INDEX FDS TT WRLD ",Cash,,0.000,,,,-21.75,
+12/22/2025,"My Fidelity Account","U12349876","INTEREST EARNED as of Nov-24-2025 (Cash)",,"No Description",Cash,,0.000,,,,0.17,
+12/22/2025,"My Fidelity Account","U12349876","INTEREST EARNED as of Dec-21-2025 (Cash)",,"No Description",Cash,,0.000,,,,0.24,
+12/22/2025,"My Fidelity Account","U12349876","INTEREST EARNED as of Dec-15-2025 (Cash)",,"No Description",Cash,,0.000,,,,0.28,
+12/22/2025,"My Fidelity Account","U12349876","INTEREST EARNED as of Dec-01-2025 (Cash)",,"No Description",Cash,,0.000,,,,0.3,
+12/22/2025,"My Fidelity Account","U12349876","INTEREST EARNED as of Dec-08-2025 (Cash)",,"No Description",Cash,,0.000,,,,0.3,
+12/15/2025,"My Fidelity Account","U12349876","YOU BOUGHT VANGUARD INTL EQUITY INDEX FDS TT WR... (VT) (Cash)",VT,"VANGUARD INTL EQUITY INDEX FDS TT WRLD ",Cash,141.795,130,,,,-18433.35,12/15/2025
+
+
+
+
+"The data and information in this spreadsheet is provided to you solely for your use and is not for distribution. The spreadsheet is provided for"
+"informational purposes only, and is not intended to provide advice, nor should it be construed as an offer to sell, a solicitation of an offer to buy or a"
+"recommendation for any security or insurance product by Fidelity or any third party. Data and information shown is based on information known to Fidelity as of the date it was"
+"exported and is subject to change. It should not be used in place of your account statements or trade confirmations and is not intended for tax reporting"
+"purposes. For more information on the data included in this spreadsheet, including any limitations thereof, go to Fidelity.com."
+
+"Brokerage services are provided by Fidelity Brokerage Services LLC (FBS), 900 Salem Street, Smithfield, RI 02917. Custody and other services provided by National"
+"Financial Services LLC (NFS). Both are Fidelity Investment companies and members SIPC, NYSE. Insurance products at Fidelity are distributed by"
+"Fidelity Insurance Agency, Inc., and, for certain products, by Fidelity Brokerage Services, Member NYSE, SIPC."
+
+Date downloaded 04/11/2026 11:54 am
