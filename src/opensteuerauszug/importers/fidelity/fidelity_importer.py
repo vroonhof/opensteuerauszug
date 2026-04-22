@@ -1,24 +1,33 @@
 import os
 import logging
-from typing import Final, List, Any, Dict, Sequence, get_args, cast
+from typing import Final, List, Any, Dict, Sequence
 from datetime import datetime, date, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    BankAccountName, ClientNumber, Institution, DepotNumber, TaxStatement,
-    ListOfBankAccounts,BankAccount, BankAccountPayment, BankAccountTaxValue,
-    ListOfSecurities, SecurityCategory, Security, SecurityStock,
-    QuotationType, BankAccountNumber, Depot, Client, CantonAbbreviation
+    BankAccountName, Institution, DepotNumber, TaxStatement,
+    ListOfBankAccounts, BankAccount, BankAccountPayment, BankAccountTaxValue,
+    ListOfSecurities, SecurityCategory, Security, SecurityStock, SecurityPayment,
+    QuotationType, BankAccountNumber, Depot,
 )
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import FidelityAccountSettings
-from opensteuerauszug.importers.ibkr.ibkr_importer import (CashPositionData, SecurityPositionData,
-                                                           SecurityNameMetadata, SecurityPayment)
-from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
+from opensteuerauszug.importers.common import (
+    CashPositionData,
+    SecurityNameRegistry,
+    SecurityPositionData,
+    aggregate_mutations,
+    apply_withholding_tax_fields,
+    build_client,
+    build_security_payment,
+    parse_swiss_canton,
+    resolve_first_last_name,
+    to_decimal,
+)
 from opensteuerauszug.render.translations import get_text, Language, DEFAULT_LANGUAGE
 
 KNOWN_ACTIONS = [ # actions that we know how to deal with
@@ -39,14 +48,6 @@ ACTIONS_DICT:Final[Dict[str,str]]=dict(zip(ACTION_STRINGS,KNOWN_ACTIONS))
 SYMBOLS_TO_IGNORE = ['Subtotal of Core Account','QPIQQ','QPIFQ','Core Account','Subtotal of Stocks']
 #Actions that have no impact on the tax statement
 ACTIONS_TO_IGNORE = ['Cash In Lieu']
-
-
-# Helper function to check if a string value is valid (not None, not empty, not just whitespace)
-def get_valid_string(value):
-    if value is not None and isinstance(value, str) and value.strip():
-        return value.strip()
-    else:
-        return None
 
 
 def should_skip_entry(entry: Any, entry_label: str) -> bool:
@@ -96,7 +97,7 @@ def should_skip_entry(entry: Any, entry_label: str) -> bool:
 
 class FidelityImporter:
     """
-    Imports Interactive Brokers account data for a given tax period
+    Imports Fidelity account data for a given tax period
     from csv files.
     """
     def _get_required_field(self, data_object: dict, field_name: str,
@@ -143,18 +144,7 @@ class FidelityImporter:
     def _to_decimal(self, value: object | None, field_name: str,
                     object_description: str) -> Decimal:
         """Converts a value to Decimal, raising ValueError on failure."""
-        if value is None:  # Should be caught by _get_required_field if required
-            raise ValueError(
-                f"Cannot convert None to Decimal for field '{field_name}' "
-                f"in {object_description}"
-            )
-        try:
-            return Decimal(str(value))
-        except InvalidOperation:
-            raise ValueError(
-                f"Invalid value for Decimal conversion: '{value}' for field "
-                f"'{field_name}' with value {value} in {object_description}"
-            )
+        return to_decimal(value, field_name, object_description)
 
     def __init__(self,
                  period_from: date,
@@ -192,49 +182,7 @@ class FidelityImporter:
 
     def _aggregate_stocks(self, stocks: List[SecurityStock]) -> List[SecurityStock]:
         """Aggregate buy and sell entries on the same date with equal order id if present without reordering."""
-
-        aggregated: List[SecurityStock] = []
-        pending: SecurityStock | None = None
-
-        for stock in stocks:
-            if stock.mutation:
-                if (
-                    pending
-                    and pending.referenceDate == stock.referenceDate
-                    and pending.orderId == stock.orderId
-                    and pending.balanceCurrency == stock.balanceCurrency
-                    and pending.quotationType == stock.quotationType
-                    # test for same sign of quantity
-                    and (pending.quantity * stock.quantity) > 0
-                ):
-                    total_quantity = pending.quantity + stock.quantity
-                    if pending.unitPrice != stock.unitPrice:
-                        pending.unitPrice = (pending.quantity * pending.unitPrice + stock.quantity * stock.unitPrice) / total_quantity
-
-                    pending.quantity = total_quantity
-                else:
-                    if pending:
-                        aggregated.append(pending)
-                    pending = SecurityStock(
-                        referenceDate=stock.referenceDate,
-                        mutation=True,
-                        quantity=stock.quantity,
-                        unitPrice=stock.unitPrice,
-                        name=stock.name,
-                        orderId=stock.orderId,
-                        balanceCurrency=stock.balanceCurrency,
-                        quotationType=stock.quotationType,
-                    )
-            else:
-                if pending:
-                    aggregated.append(pending)
-                    pending = None
-                aggregated.append(stock)
-
-        if pending:
-            aggregated.append(pending)
-
-        return aggregated
+        return aggregate_mutations(stocks)
 
     def _read_statement(self,file_contents: list[str]):
         import csv
@@ -351,6 +299,8 @@ class FidelityImporter:
             ),
         )
 
+    _WITHHOLDING_ACTIONS = frozenset({"Tax Withholding", "NRA Tax Adj"})
+
     def _apply_withholding_tax_fields(
         self,
         payment: SecurityPayment,
@@ -358,15 +308,9 @@ class FidelityImporter:
         currency: str,
         tx_type: str,
     ) -> None:
-        if tx_type not in ["Tax Withholding","NRA Tax Adj"]:
+        if tx_type not in self._WITHHOLDING_ACTIONS:
             return
-        if amount < 0:
-            if currency == "CHF":
-                payment.withHoldingTaxClaim = abs(amount)
-            else:
-                payment.nonRecoverableTaxAmountOriginal = abs(amount)
-        elif amount > 0:
-            payment.nonRecoverableTaxAmountOriginal = -amount
+        apply_withholding_tax_fields(payment, amount, currency)
 
     def _build_security_payment(
         self,
@@ -376,26 +320,15 @@ class FidelityImporter:
         amount: Decimal,
         tx_type: str,
     ) -> SecurityPayment:
-        payment = SecurityPayment(
-            paymentDate=payment_date,
-            name=description, #get_text(description, self.render_language),
-            amountCurrency=currency,
+        return build_security_payment(
+            payment_date=payment_date,
+            description=description,
+            currency=currency,
             amount=amount,
-            quotationType='PIECE',
-            quantity=UNINITIALIZED_QUANTITY,
-            broker_label_original=tx_type,
+            broker_label=tx_type,
+            is_withholding=tx_type in self._WITHHOLDING_ACTIONS,
+            is_securities_lending=tx_type == "Cash In Lieu",
         )
-
-        if tx_type == "Cash In Lieu":
-            payment.securitiesLending = True
-
-        self._apply_withholding_tax_fields(
-            payment,
-            amount,
-            currency,
-            tx_type,
-        )
-        return payment
 
     def import_files(self, filenames: List[str]) -> TaxStatement:
         """
@@ -428,9 +361,8 @@ class FidelityImporter:
                 listOfBankAccounts=None
             )
 
-        # Metadata for security names: {SecurityPosition: {'best_name': str, 'priority': int}}
-        security_name_metadata: defaultdict[SecurityPosition, SecurityNameMetadata] = \
-            defaultdict(lambda: {'best_name': None, 'priority': -1})
+        # Best-name-wins registry for security display names.
+        security_name_registry = SecurityNameRegistry()
 
         # Key: SecurityPosition or tuple for cash. Value: dict with 'stocks', 'payments'
         processed_security_positions: defaultdict[SecurityPosition, SecurityPositionData] = \
@@ -438,16 +370,6 @@ class FidelityImporter:
 
         processed_cash_positions: defaultdict[tuple, CashPositionData] = \
             defaultdict(lambda: CashPositionData({'stocks': [], 'payments': []}))
-
-        def _update_security_name_metadata(
-            sec_pos: SecurityPosition,
-            name: str,
-            priority: int,
-        ) -> None:
-            entry = security_name_metadata[sec_pos]
-            if priority > entry['priority']:
-                entry['best_name'] = name
-                entry['priority'] = priority
 
 
         # Map to store assetCategory and subCategory for each security
@@ -513,7 +435,7 @@ class FidelityImporter:
                     )
 
                     # Update name metadata (Priority: 10 for OpenPositions)
-                    _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 10)
+                    security_name_registry.update(sec_pos, f"{description} ({symbol})", 10)
 
                     if sec_pos not in security_asset_category_map:
                         logger.debug(f"Adding security position {sec_pos} asset category"
@@ -633,7 +555,7 @@ class FidelityImporter:
                         f"for (Symbol: {symbol})"
                     )
                 # Update name metadata (Priority: 8 for Trades)
-                _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 8)
+                security_name_registry.update(sec_pos, f"{description} ({symbol})", 8)
                 if quantity < 0 and action=="stock_split":
                     action="reverse_stock_split"
 
@@ -680,11 +602,12 @@ class FidelityImporter:
                     # Use description or symbol if description is generic?
                     # Usually description in CashTx is like "Dividend ...". Not great for security name.
                     # But if it's the only source, it's better than nothing.
-                    _update_security_name_metadata(
-                        sec_pos_key,
-                        f"{description} ({description})",
-                        0
-                    )
+                    if sec_pos_key is not None:
+                        security_name_registry.update(
+                            sec_pos_key,
+                            f"{description} ({description})",
+                            0,
+                        )
 
                     if sec_pos_key is None:
                         sec_pos_key = self._build_cash_transaction_security_position(
@@ -838,18 +761,7 @@ class FidelityImporter:
                 sorted_stocks, key=lambda s: (s.referenceDate, s.mutation)
             )
 
-            # Determine best security name
-            name_metadata = security_name_metadata[sec_pos_obj]
-            best_name = name_metadata['best_name']
-
-            if best_name:
-                final_security_name = best_name
-            else:
-                # Fallback to description from position key or just symbol
-                if sec_pos_obj.description:
-                    final_security_name = sec_pos_obj.description
-                else:
-                    final_security_name = sec_pos_obj.symbol
+            final_security_name = security_name_registry.resolve(sec_pos_obj)
 
             sec = Security(
                 positionId=sec_pos_idx,
@@ -1016,63 +928,53 @@ class FidelityImporter:
         tax_statement.institution = Institution(
             name="Fidelity Investments",
         )
-        account_id=None
-        account_id_from_statement = None
-        account_id_from_config = None
         # --- Create Client object ---
-        # TOOD: Handle joint accounts
-        client_obj = None
-        if all_statements[0].get('Summary') is not None:
-            try:
-                account_id_from_statement = all_statements[0].get('Summary').get('Account') if all_statements[0].get(
-                                                                                        'Summary').get(
-                    'Account') is not None else None
-            except IndexError as e:
-                logger.warning('Account ID not found in statement:%s',all_statements[0].get('Summary'))
-        account_id_from_config = getattr(self.account_settings_list, 'account_id', None)
-
-        if (account_id_from_statement is not None and account_id_from_config is not None and not
-        account_id_from_statement==account_id_from_config):
-            logger.warning('Account ID from statement:%s for not match account ID from settings file:%s',
-                           account_id_from_statement,account_id_from_config)
-            account_id=account_id_from_statement
-
-        account_id = account_id_from_statement if account_id_from_statement else account_id_from_config if account_id_from_config else None
-        for settings in self.account_settings_list:
-            if getattr(settings, 'account_number', None)==account_id:
-                logger.info("Found matching account number %s in account settings", account_id)
-                account_holder_name = getattr(settings, 'full_name', None)
-                canton = getattr(settings, 'canton', None)
-
-        # Extract canton from stateResidentialAddress (format: "CH-ZH")
-        valid_cantons = get_args(CantonAbbreviation)
-        if canton in valid_cantons:
-            tax_statement.canton = cast(CantonAbbreviation, canton)
-            logger.info(f"Set canton from account settings: {canton}")
-        else:
-            logger.warning(f"Invalid canton extracted from account settings: '{canton}'. Valid cantons are:"
-                           f" {', '.join(valid_cantons)}")
-
-        def split_full_name(value):
-            parts = value.split()
-            if len(parts) > 1:
-                return parts[0], " ".join(parts[1:])
-            return None, str(value).strip()
-
-        client_first_name, client_last_name = split_full_name(get_valid_string(account_holder_name))
-
-        if account_id:
-            client_obj = Client(
-                clientNumber=ClientNumber(account_id),
-                firstName=client_first_name,
-                lastName=client_last_name,
-                # Other fields like tin, salutation are not yet mapped
+        # TODO: Handle joint accounts
+        account_id = None
+        summary = all_statements[0].get('Summary') if all_statements else None
+        if summary is not None:
+            account_id = summary.get('Account')
+        if not account_id:
+            logger.warning(
+                'Account ID not found in first statement: %s', summary
             )
-        if client_obj:
+
+        matching_settings = next(
+            (
+                s for s in self.account_settings_list
+                if getattr(s, 'account_number', None) == account_id
+            ),
+            None,
+        )
+        account_holder_name = (
+            getattr(matching_settings, 'full_name', None)
+            if matching_settings is not None else None
+        )
+        canton_raw = (
+            getattr(matching_settings, 'canton', None)
+            if matching_settings is not None else None
+        )
+
+        canton = parse_swiss_canton(canton_raw)
+        if canton:
+            tax_statement.canton = canton
+            logger.info("Set canton from account settings: %s", canton)
+        elif canton_raw:
+            logger.warning(
+                "Invalid canton in account settings: %r", canton_raw
+            )
+
+        first_name, last_name = resolve_first_last_name(
+            account_holder_name=account_holder_name,
+        )
+        client_obj = build_client(
+            client_number=account_id,
+            first_name=first_name,
+            last_name=last_name,
+        )
+        if client_obj is not None:
             tax_statement.client = [client_obj]
-            logger.info(
-                "Client Object added to TaxStatement"
-            )
+            logger.info("Client Object added to TaxStatement")
         # --- End Client object ---
         return tax_statement
 
