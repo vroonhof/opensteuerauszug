@@ -168,7 +168,6 @@ class FidelityImporter:
         self.strict_consistency = strict_consistency
         self.render_language = render_language
 
-        self.account_settings_list = account_settings_list
         if not self.account_settings_list:
             # Currently no account info is used so we keep stump.
             logger.debug(
@@ -424,9 +423,11 @@ class FidelityImporter:
                         'position', f"Position {symbol}"
                     )
 
-                    # Store assetCategory and subCategory
-                    asset_category = 'FUND' if (description.find('ETF')  or description.find(
-                        'INDEX')> 0) else default_category
+                    asset_category = (
+                        'FUND'
+                        if ('ETF' in description or 'INDEX' in description)
+                        else default_category
+                    )
 
                     sec_pos = SecurityPosition(
                         depot=account_id,
