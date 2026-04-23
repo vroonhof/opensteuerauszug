@@ -229,6 +229,7 @@ def test_augment_bank_accounts_builds_list():
         currency="USD",
         closing_balance=Decimal("100"),
         payments=[pay],
+        number="A1-USD",
     )
     augment_list_of_bank_accounts(statement, [entry])
 
@@ -239,3 +240,19 @@ def test_augment_bank_accounts_builds_list():
     assert ba.bankAccountCurrency == "USD"
     assert ba.taxValue.balance == Decimal("100")
     assert ba.payment == [pay]
+
+
+def test_augment_bank_accounts_leaves_number_unset_when_none():
+    statement = _partial_statement()
+    entry = CashAccountEntry(
+        account_id="Equity Awards GOOG",
+        currency="USD",
+        closing_balance=Decimal("0"),
+        name="Equity Awards GOOG",
+        number=None,
+    )
+    augment_list_of_bank_accounts(statement, [entry])
+
+    (ba,) = statement.listOfBankAccounts.bankAccount
+    assert ba.bankAccountName == "Equity Awards GOOG"
+    assert ba.bankAccountNumber is None

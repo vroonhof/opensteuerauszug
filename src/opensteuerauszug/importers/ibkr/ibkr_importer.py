@@ -1087,6 +1087,8 @@ class IbkrImporter:
                         account_id=account_id,
                         currency=curr,
                         closing_balance=closing_balance_value,
+                        name=f"{account_id} {curr}",
+                        number=f"{account_id}-{curr}",
                         opening_date=dates_for_account.get('dateOpened'),
                         closing_date=dates_for_account.get('dateClosed'),
                     )

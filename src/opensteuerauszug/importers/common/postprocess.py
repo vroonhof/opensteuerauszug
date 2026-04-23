@@ -418,7 +418,11 @@ def augment_list_of_bank_accounts(
                 f"currency {entry.currency} for date {period_to}."
             )
         name = entry.name or f"{entry.account_id} {entry.currency}"
-        number = entry.number or f"{entry.account_id}-{entry.currency}"
+        # Number is passed through verbatim; importers that want the default
+        # `<id>-<curr>` form must set it explicitly. This lets callers with a
+        # different eCH profile (e.g. Schwab stock-plan accounts) keep
+        # ``bankAccountNumber=None``.
+        number = entry.number
         sorted_payments = sorted(
             entry.payments or [], key=lambda p: p.paymentDate
         )
@@ -430,7 +434,7 @@ def augment_list_of_bank_accounts(
         bank_accounts.append(
             BankAccount(
                 bankAccountName=BankAccountName(name),
-                bankAccountNumber=BankAccountNumber(number),
+                bankAccountNumber=BankAccountNumber(number) if number else None,
                 bankAccountCountry=entry.country,
                 bankAccountCurrency=entry.currency,
                 openingDate=entry.opening_date,
