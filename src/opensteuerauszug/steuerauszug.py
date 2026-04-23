@@ -196,6 +196,15 @@ def process(
 
     general_settings_data = config_manager.get_general_settings_dict(overrides=override_configs)
     general_config_settings = config_manager.resolve_general_settings(overrides=override_configs)
+    experimental_importers_enabled = general_config_settings.experimental_importers if general_config_settings else False
+
+    # --- Validation of Importer Type based on experimental flag ---
+    if not experimental_importers_enabled:
+        if importer_type not in [ImporterType.SCHWAB, ImporterType.IBKR, ImporterType.NONE]:
+            raise typer.BadParameter(
+                f"Importer '{importer_type.value}' is experimental and requires 'experimental_importers = true' in configuration (general section) to be used."
+            )
+
     try:
         calculate_settings = config_manager.resolve_calculate_settings(overrides=override_configs)
     except ValueError as e:

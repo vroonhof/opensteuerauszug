@@ -17,6 +17,10 @@ class GeneralSettings(BaseModel):
             "page with a placeholder notice and different info texts."
         ),
     )
+    experimental_importers: bool = Field(
+        default=False,
+        description="If True, experimental importers (like Fidelity) are enabled."
+    )
 
     model_config = ConfigDict(extra="allow")
 
