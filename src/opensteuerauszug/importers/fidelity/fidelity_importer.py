@@ -188,9 +188,12 @@ class FidelityImporter:
 
     def _read_statement(self,file_contents: list[str]):
         import csv
-        transaction_start_index_str = "Symbol/CUSIP,Description,Quantity,Price,Beginning Value,Ending Value,Cost Basis\n"
+        transaction_start_header = "Symbol/CUSIP,Description,Quantity,Price,Beginning Value,Ending Value,Cost Basis"
         summary_data = list(csv.DictReader(file_contents[:2], skipinitialspace=True))[0]
-        transaction_start_index = (file_contents.index(transaction_start_index_str))
+        transaction_start_index = next(
+            index for index, line in enumerate(file_contents)
+            if line.strip() == transaction_start_header
+        )
 
         #transaction_start_index = file_contents.index(
         #    "Symbol/CUSIP,Description,Quantity,Price,Beginning Value,Ending Value,Cost Basis")
@@ -205,13 +208,17 @@ class FidelityImporter:
                 "Successfully parsed statement for  account: %s, with number: %s",
                 summary_data['Account Type'], summary_data['Account']
             )
-            return summary_data, position_data
+            return summary_data, skimmed_position_data
         else:
             return None, None
 
     def _read_transactions(self,file_contents: list[str]):
         import csv
-        data = list(csv.DictReader(file_contents[:file_contents.index('\n')], skipinitialspace=True))
+        separator_index = next(
+            (i for i, line in enumerate(file_contents) if not line.strip()),
+            len(file_contents),
+        )
+        data = list(csv.DictReader(file_contents[:separator_index], skipinitialspace=True))
         if len(data) > 0:
             logger.info(
                 "Successfully parsed transactions for account: %s, with number: %s",
@@ -607,7 +614,7 @@ class FidelityImporter:
                     if sec_pos_key is not None:
                         security_name_registry.update(
                             sec_pos_key,
-                            f"{description} ({description})",
+                            f"{description} ({symbol})",
                             0,
                         )
 

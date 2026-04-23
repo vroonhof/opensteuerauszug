@@ -136,7 +136,7 @@ TRANSLATIONS = {
     "credit_interest": "Intérêts créditeurs",
     "dividend": "Dividende",
     "stock_split": "Fractionnement d'actions",
-    "reverse_stock_split": "Regroupement d'actions.",
+    "reverse_stock_split": "Regroupement d'actions",
     "distribution": "Distribution",
     "stock_dividend": "Dividende en actions",
     "other_monetary_benefits": "Autres avantages monétaires",

@@ -21,7 +21,7 @@ All data files should be downloaded in a single directory. The software will det
 In general, one should  obtain:
    * The monthly statement for the final month of the tax period.
         * Any single statement will work except for the final cash value in your account (explained further below).
-        * One may use any number of monthly statements where the positions at the end of the month will be used by the PositonReconciler.
+        * One may use any number of monthly statements where the positions at the end of the month will be used by the PositionReconciler.
           * however: the cash value in the account is determined by the statement with the latest date.
    * transaction data that overlaps the tax year and the dates of the position statements.
 
