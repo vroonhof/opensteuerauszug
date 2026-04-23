@@ -223,6 +223,7 @@ Currently supported brokers and their specific guides:
 
 *   **[Charles Schwab](importer_schwab.md)**: For brokerage and equity award accounts.
 *   **[Interactive Brokers (IBKR)](importer_ibkr.md)**: For brokerage accounts.
+*   **[Fidelity Investments](importer_fidelity.md)**: For brokerage accounts.
 
 Please refer to the documentation for your specific broker by clicking the links above to understand what files to download, their formats, and any specific configurations required in `config.toml`.
 
