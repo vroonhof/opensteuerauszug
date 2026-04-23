@@ -54,9 +54,8 @@ ACTIONS_TO_IGNORE = ['Cash In Lieu']
 
 def should_skip_entry(entry: Any, entry_label: str) -> bool:
     """Skip pseudo rows where accountId='-' or mapped-to-None SUMMARY rows."""
-    # ibflex maps accountId="-" to None on some entry types, so
-    # we only treat missing accountId rows as pseudo entries when they
-    # are marked as SUMMARY.
+    # Some rows might have missing accountId or be marked as SUMMARY, 
+    # which we treat as pseudo entries.
     symbol = entry.get('Symbol/CUSIP') if entry.get('Symbol/CUSIP')  else entry.get('Symbol')
     symbol=symbol.strip() if symbol else symbol
     account_id = entry.get('Account Number') if (
@@ -405,8 +404,7 @@ class FidelityImporter:
                 logger.debug("position: %s for stmt in all_statements", position)
                 if should_skip_entry(position, "Position"):
                     continue
-                # Ignore the reportDate from the Flex statement and
-                # use period end + 1 as reference date for the balance
+                # Use period end + 1 as reference date for the balance
                 # entry. This avoids creating a separate stock entry on
                 # the period end itself which would later result in a
                 # duplicate closing balance.
