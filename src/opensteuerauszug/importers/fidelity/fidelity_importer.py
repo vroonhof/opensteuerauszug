@@ -199,7 +199,7 @@ class FidelityImporter:
         position_data = list(csv.DictReader(file_contents[transaction_start_index:], skipinitialspace=True))
         skimmed_position_data = []
         for line in position_data:
-            if not should_skip_entry(line, "Position reader"):
+            if not should_skip_entry(line, "Position"):
                 skimmed_position_data.append(line)
 
         if len(position_data) and len(summary_data):
@@ -221,7 +221,7 @@ class FidelityImporter:
         if len(data) > 0:
             logger.info(
                 "Successfully parsed transactions for account: %s, with number: %s",
-                data[1]['Account'], data[1]['Account Number']
+                data[0]['Account'], data[0]['Account Number']
             )
         return data
 
@@ -977,20 +977,18 @@ class FidelityImporter:
 
     def import_dir(self, directory: str) -> TaxStatement:
         """
-    Import all PDF and JSON files in the given directory and return a TaxStatement.
+        Import all CSV files in the given directory and return a TaxStatement.
 
-    Args:
-        directory (str): Path to the directory containing files to import.
+        Args:
+            directory (str): Path to the directory containing files to import.
 
-    Returns:
-        TaxStatement: The imported tax statement.
-    """
+        Returns:
+            TaxStatement: The imported tax statement.
+        """
         files = []
         for fname in os.listdir(directory):
             if fname.lower().endswith('.csv'):
                 files.append(os.path.join(directory, fname))
-            #elif fname.lower().endswith('.pdf') for later implementation (maybe)
-            #    files.append(os.path.join(directory, fname))
             else:
                 logger.warning(f"Skipping file: {fname} This type of file is not supported")
         return self.import_files(files)
