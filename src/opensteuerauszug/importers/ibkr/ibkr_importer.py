@@ -1048,19 +1048,14 @@ class IbkrImporter:
                 opening_balance = start_pos.quantity
             else:
                 tentative_opening = closing_balance - trades_quantity_total
-                opening_balance = tentative_opening if tentative_opening >= 0 or asset_cat in ["OPT", "FOP"] else Decimal("0")
+                opening_balance = tentative_opening
 
             if opening_balance < 0 or closing_balance < 0:
-                if (asset_cat == "OPT" or asset_cat == "FOP") and (sub_category == "C" or sub_category == "P"):
-                    logger.warning(
-                        f"Negative balance computed for security {sec_pos_obj.symbol} with {asset_cat}/{sub_category}. In case you expect short positions, this is fine. Otherwise, please report this to the developers for further investigation."
-                        f" (start {opening_balance}, end {closing_balance})"
-                    )
-                else:
-                    raise ValueError(
-                        f"Negative balance computed for security {sec_pos_obj.symbol} with {asset_cat}/{sub_category}. In case you expect short positions, please report this to the developers for further investigation."
-                        f" (start {opening_balance}, end {closing_balance})"
-                    )
+                logger.debug(
+                    f"Negative balance for {sec_pos_obj.symbol} ({asset_cat}/{sub_category}): "
+                    f"start={opening_balance}, end={closing_balance}. "
+                    f"Passing through — calculation stage will enforce tax treatment."
+                )
 
             # Check if this is a rights issue and if we should skip it
             is_rights_issue = sec_pos_obj in rights_issue_positions
