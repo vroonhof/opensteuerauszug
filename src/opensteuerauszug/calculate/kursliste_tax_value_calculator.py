@@ -235,8 +235,15 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     "Suppressing missing Kursliste warning for option %s with zero balance.",
                     ident,
                 )
-                if closing_balance == 0:
-                    self._current_security_is_zero_balance_option = True
+                self._current_security_is_zero_balance_option = True
+            elif closing_balance == 0 and not security.payment:
+                # Security fully closed before year-end with no broker payments: no tax impact.
+                # If payments exist (e.g. dividends paid intra-year), keep the warning so the
+                # user knows Kursliste-based income enrichment was skipped.
+                logger.debug(
+                    "Suppressing missing Kursliste warning for %s with zero balance and no payments.",
+                    ident,
+                )
             else:
                 self._missing_kursliste_entries.append(ident)
 
