@@ -556,6 +556,16 @@ class SchwabImporter:
             ),
             strict_consistency=self.strict_consistency,
             run_initial_consistency_check=True,
+            # Mutation-only symbols (e.g. awards that never appear on a
+            # position snapshot) must be reconciled by walking mutations
+            # from an implicit zero; otherwise their net closing balance
+            # would be dropped to 0.
+            assume_zero_if_no_balances=True,
+            # Schwab extractors emit one row per real event (a vesting
+            # grant, a transfer, a sale) whose ``name`` carries unique
+            # per-event text (grant date, wash-sale note, ...). Merging
+            # same-day rows would silently drop that information.
+            aggregate_same_day_mutations=False,
         )
         augment_list_of_bank_accounts(tax_statement, cash_entries)
         return tax_statement

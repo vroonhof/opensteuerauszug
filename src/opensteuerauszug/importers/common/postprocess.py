@@ -138,6 +138,7 @@ def _synthesize_boundary_balances(
     identifier: str,
     strict_consistency: bool,
     run_initial_consistency_check: bool,
+    assume_zero_if_no_balances: bool,
 ) -> Tuple[Decimal, Decimal, date]:
     end_plus_one = period_to + timedelta(days=1)
 
@@ -160,10 +161,14 @@ def _synthesize_boundary_balances(
     reconciler = PositionReconciler(
         list(stocks), identifier=f"{identifier}-reconcile"
     )
-    end_pos = reconciler.synthesize_position_at_date(end_plus_one)
+    end_pos = reconciler.synthesize_position_at_date(
+        end_plus_one, assume_zero_if_no_balances=assume_zero_if_no_balances
+    )
     closing_balance = end_pos.quantity if end_pos else Decimal("0")
 
-    start_pos = reconciler.synthesize_position_at_date(period_from)
+    start_pos = reconciler.synthesize_position_at_date(
+        period_from, assume_zero_if_no_balances=assume_zero_if_no_balances
+    )
     if start_pos:
         opening_balance = start_pos.quantity
     else:
@@ -229,6 +234,8 @@ def augment_list_of_securities(
     hints_for: Optional[Callable[[SecurityPosition], PositionHints]] = None,
     strict_consistency: bool = True,
     run_initial_consistency_check: bool = False,
+    assume_zero_if_no_balances: bool = False,
+    aggregate_same_day_mutations: bool = True,
     opening_stock_name: Optional[str] = None,
     closing_stock_name: Optional[str] = None,
 ) -> None:
@@ -242,6 +249,17 @@ def augment_list_of_securities(
     ``opening_stock_name`` / ``closing_stock_name`` are attached to the
     synthetic balance rows when the caller wants a human-readable label
     (Fidelity does; IBKR leaves them unnamed).
+
+    ``assume_zero_if_no_balances`` walks mutations from zero when a
+    position has no balance checkpoints at all — needed by brokers
+    whose transaction-only statements are the sole source of data for
+    some symbols (Schwab awards).
+
+    ``aggregate_same_day_mutations`` combines same-day / same-``orderId``
+    / same-sign mutations into one row with a quantity-weighted
+    ``unitPrice``. Off-by-default for importers like Schwab where the
+    per-row ``name`` carries information that would be lost in the
+    merge (e.g. per-vesting grant descriptions on awards accounts).
     """
     period_from = statement.periodFrom
     period_to = statement.periodTo
@@ -257,7 +275,11 @@ def augment_list_of_securities(
         position_id += 1
         hints = _hints_for(sec_pos_obj, hints_for)
 
-        sorted_stocks = aggregate_mutations(data["stocks"])
+        sorted_stocks = (
+            aggregate_mutations(data["stocks"])
+            if aggregate_same_day_mutations
+            else list(data["stocks"])
+        )
         sorted_payments = sorted(data["payments"], key=lambda p: p.paymentDate)
 
         identifier = sec_pos_obj.symbol or sec_pos_obj.description or "<unknown>"
@@ -273,6 +295,7 @@ def augment_list_of_securities(
             identifier=identifier,
             strict_consistency=strict_consistency,
             run_initial_consistency_check=run_initial_consistency_check,
+            assume_zero_if_no_balances=assume_zero_if_no_balances,
         )
 
         if hints.skip_if_zero and opening_balance == 0 and closing_balance == 0:

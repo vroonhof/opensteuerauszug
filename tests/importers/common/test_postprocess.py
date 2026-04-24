@@ -256,3 +256,131 @@ def test_augment_bank_accounts_leaves_number_unset_when_none():
     (ba,) = statement.listOfBankAccounts.bankAccount
     assert ba.bankAccountName == "Equity Awards GOOG"
     assert ba.bankAccountNumber is None
+
+
+def test_augment_securities_assume_zero_walks_mutations_without_balances():
+    """Mutation-only history reconciles to the correct net closing balance
+    when the caller opts in via ``assume_zero_if_no_balances=True``.
+
+    Without the flag the shared reconciler has no balance entries to start
+    from, so both opening and closing collapse to zero; with it, the
+    reconciler walks mutations from an implicit 0 and the closing balance
+    reflects the actual net holdings.
+    """
+    statement = _partial_statement()
+    sec_pos = SecurityPosition(depot="D1", symbol="VEST", description="Vest")
+    buy = SecurityStock(
+        referenceDate=date(2024, 6, 1),
+        mutation=True,
+        quantity=Decimal("10"),
+        unitPrice=Decimal("100"),
+        balanceCurrency="USD",
+        quotationType="PIECE",
+    )
+    positions = {sec_pos: SecurityPositionData(stocks=[buy], payments=[])}
+
+    augment_list_of_securities(
+        statement,
+        positions,
+        name_registry=SecurityNameRegistry(),
+        hints_for=lambda _: PositionHints(
+            allow_negative_opening=True, allow_negative_balance=True
+        ),
+        assume_zero_if_no_balances=True,
+    )
+
+    (depot,) = statement.listOfSecurities.depot
+    (security,) = depot.security
+    closing_balances = [
+        s.quantity
+        for s in security.stock
+        if not s.mutation and s.referenceDate == date(2025, 1, 1)
+    ]
+    assert closing_balances == [Decimal("10")]
+
+
+def test_augment_securities_preserves_same_day_mutations_when_aggregation_off():
+    """Each raw mutation row survives as a distinct SecurityStock entry
+    when the caller asks for ``aggregate_same_day_mutations=False``.
+
+    Covers Schwab awards accounts, where the per-vesting ``name`` field
+    carries unique grant descriptions that the default aggregator would
+    silently drop.
+    """
+    statement = _partial_statement()
+    sec_pos = SecurityPosition(depot="AWARDS", symbol="GOOG", description="Google")
+    vest_a = SecurityStock(
+        referenceDate=date(2024, 5, 15),
+        mutation=True,
+        quantity=Decimal("2"),
+        unitPrice=Decimal("150"),
+        balanceCurrency="USD",
+        quotationType="PIECE",
+        name="Grant A vesting",
+    )
+    vest_b = SecurityStock(
+        referenceDate=date(2024, 5, 15),
+        mutation=True,
+        quantity=Decimal("3"),
+        unitPrice=Decimal("150"),
+        balanceCurrency="USD",
+        quotationType="PIECE",
+        name="Grant B vesting",
+    )
+    positions = {sec_pos: SecurityPositionData(stocks=[vest_a, vest_b], payments=[])}
+
+    augment_list_of_securities(
+        statement,
+        positions,
+        name_registry=SecurityNameRegistry(),
+        hints_for=lambda _: PositionHints(
+            allow_negative_opening=True, allow_negative_balance=True
+        ),
+        assume_zero_if_no_balances=True,
+        aggregate_same_day_mutations=False,
+    )
+
+    (depot,) = statement.listOfSecurities.depot
+    (security,) = depot.security
+    mutation_names = [s.name for s in security.stock if s.mutation]
+    assert mutation_names == ["Grant A vesting", "Grant B vesting"]
+
+
+def test_augment_securities_aggregates_same_day_mutations_by_default():
+    """Sanity check that the default aggregation still folds same-day,
+    same-sign mutations — the IBKR / Fidelity expectation."""
+    statement = _partial_statement()
+    sec_pos = SecurityPosition(depot="D1", symbol="AAPL")
+    buy_1 = SecurityStock(
+        referenceDate=date(2024, 3, 1),
+        mutation=True,
+        quantity=Decimal("4"),
+        unitPrice=Decimal("100"),
+        balanceCurrency="USD",
+        quotationType="PIECE",
+    )
+    buy_2 = SecurityStock(
+        referenceDate=date(2024, 3, 1),
+        mutation=True,
+        quantity=Decimal("6"),
+        unitPrice=Decimal("100"),
+        balanceCurrency="USD",
+        quotationType="PIECE",
+    )
+    positions = {sec_pos: SecurityPositionData(stocks=[buy_1, buy_2], payments=[])}
+
+    augment_list_of_securities(
+        statement,
+        positions,
+        name_registry=SecurityNameRegistry(),
+        hints_for=lambda _: PositionHints(
+            allow_negative_opening=True, allow_negative_balance=True
+        ),
+        assume_zero_if_no_balances=True,
+    )
+
+    (depot,) = statement.listOfSecurities.depot
+    (security,) = depot.security
+    mutations = [s for s in security.stock if s.mutation]
+    assert len(mutations) == 1
+    assert mutations[0].quantity == Decimal("10")
