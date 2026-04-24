@@ -1,0 +1,18 @@
+Account Type,Account,Beginning mkt Value,Change in Investment,Ending mkt Value,Short Balance,Ending Net Value,Dividends This Period,Dividends Year to Date,Interest This Year,Interest Year to Date,Total This Period,Total Year to Date
+My Fidelity Account,U12349876,0.,-83.800,28295.80,,28495.80,298.81,298.81,1.65,1.65,300.46,300.46
+ 
+
+Symbol/CUSIP,Description,Quantity,Price,Beginning Value,Ending Value,Cost Basis
+ 
+
+U12349876
+Stocks 
+
+VT,VANGUARD INTL EQUITY INDEX FDS TT WRLD ST ETF ,200.8724,141.06000,28295.80,28335.06,28295.80
+Subtotal of Stocks,,,,,28335.06,28295.80,,,,
+
+U12349876
+Core Account 
+QPIFQ,FDIC INSURED DEPOSIT  AT TRUIST BANK NOT COVERED BY SIPC q,0.61000,1.00000,0.61,0.61,not applicable
+QPIQQ,FDIC INSURED DEPOSIT AT WELLS FARGO BK NOT COVERED BY SIPC q,0.10000,1.00000,0.10,0.10,not applicable
+Subtotal of Core Account,,,,,0.71,,,,,

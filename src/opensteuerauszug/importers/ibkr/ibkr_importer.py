@@ -1,22 +1,33 @@
 import os
 import logging
-from typing import Final, List, Any, Dict, Optional, Sequence, TypedDict, get_args, cast
+from typing import Final, List, Any, Dict, Optional, Sequence
 from datetime import date, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    BankAccountName, ClientNumber, Institution, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
+    BankAccountName, Institution, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
     Security, SecurityStock, SecurityPayment,
     BankAccount, BankAccountPayment, BankAccountTaxValue,
-    QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client, CantonAbbreviation
+    QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client
 )
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
-from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
+from opensteuerauszug.importers.common import (
+    CashPositionData,
+    SecurityNameRegistry,
+    SecurityPositionData,
+    aggregate_mutations,
+    apply_withholding_tax_fields,
+    build_client,
+    build_security_payment,
+    parse_swiss_canton,
+    resolve_first_last_name,
+    to_decimal,
+)
 from opensteuerauszug.render.translations import get_text, Language, DEFAULT_LANGUAGE
 
 IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Final[Dict[str, SecurityCategory]] = {
@@ -32,21 +43,6 @@ IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Final[Dict[str, SecurityCategory]]
 import ibflex
 from ibflex.parser import FlexParserError
 from ibflex.enums import TradeType
-
-
-class SecurityPositionData(TypedDict):
-    stocks: list[SecurityStock]
-    payments: list[SecurityPayment]
-
-
-class CashPositionData(TypedDict):
-    stocks: list[SecurityStock]
-    payments: list[BankAccountPayment]
-
-
-class SecurityNameMetadata(TypedDict):
-    best_name: str | None
-    priority: int
 
 
 def is_summary_level(entry: object) -> bool:
@@ -125,18 +121,7 @@ class IbkrImporter:
     def _to_decimal(self, value: object | None, field_name: str,
                     object_description: str) -> Decimal:
         """Converts a value to Decimal, raising ValueError on failure."""
-        if value is None:  # Should be caught by _get_required_field if required
-            raise ValueError(
-                f"Cannot convert None to Decimal for field '{field_name}' "
-                f"in {object_description}"
-            )
-        try:
-            return Decimal(str(value))
-        except InvalidOperation:
-            raise ValueError(
-                f"Invalid value for Decimal conversion: '{value}' for field "
-                f"'{field_name}' in {object_description}"
-            )
+        return to_decimal(value, field_name, object_description)
 
     def _normalize_country_code(self, value: object | None) -> str | None:
         if value is None:
@@ -201,49 +186,7 @@ class IbkrImporter:
 
     def _aggregate_stocks(self, stocks: List[SecurityStock]) -> List[SecurityStock]:
         """Aggregate buy and sell entries on the same date with equal order id if present without reordering."""
-
-        aggregated: List[SecurityStock] = []
-        pending: SecurityStock | None = None
-
-        for stock in stocks:
-            if stock.mutation:
-                if (
-                    pending
-                    and pending.referenceDate == stock.referenceDate
-                    and pending.orderId == stock.orderId
-                    and pending.balanceCurrency == stock.balanceCurrency
-                    and pending.quotationType == stock.quotationType
-                    # test for same sign of quantity
-                    and (pending.quantity * stock.quantity) > 0
-                ):
-                    total_quantity = pending.quantity + stock.quantity
-                    if pending.unitPrice != stock.unitPrice:
-                        pending.unitPrice = (pending.quantity * pending.unitPrice + stock.quantity * stock.unitPrice) / total_quantity
-
-                    pending.quantity = total_quantity
-                else:
-                    if pending:
-                        aggregated.append(pending)
-                    pending = SecurityStock(
-                        referenceDate=stock.referenceDate,
-                        mutation=True,
-                        quantity=stock.quantity,
-                        unitPrice=stock.unitPrice,
-                        name=stock.name,
-                        orderId=stock.orderId,
-                        balanceCurrency=stock.balanceCurrency,
-                        quotationType=stock.quotationType,
-                    )
-            else:
-                if pending:
-                    aggregated.append(pending)
-                    pending = None
-                aggregated.append(stock)
-
-        if pending:
-            aggregated.append(pending)
-
-        return aggregated
+        return aggregate_mutations(stocks)
 
     def _parse_flex_statements(
         self,
@@ -335,13 +278,7 @@ class IbkrImporter:
     ) -> None:
         if tx_type != ibflex.CashAction.WHTAX:
             return
-        if amount < 0:
-            if currency == "CHF":
-                payment.withHoldingTaxClaim = abs(amount)
-            else:
-                payment.nonRecoverableTaxAmountOriginal = abs(amount)
-        elif amount > 0:
-            payment.nonRecoverableTaxAmountOriginal = -amount
+        apply_withholding_tax_fields(payment, amount, currency)
 
     def _build_security_payment(
         self,
@@ -352,28 +289,15 @@ class IbkrImporter:
         amount: Decimal,
         tx_type: ibflex.CashAction,
     ) -> SecurityPayment:
-        tx_type_str = tx_type.value
-
-        payment = SecurityPayment(
-            paymentDate=payment_date,
-            name=description,
-            amountCurrency=currency,
+        return build_security_payment(
+            payment_date=payment_date,
+            description=description,
+            currency=currency,
             amount=amount,
-            quotationType='PIECE',
-            quantity=UNINITIALIZED_QUANTITY,
-            broker_label_original=tx_type_str,
+            broker_label=tx_type.value,
+            is_withholding=tx_type == ibflex.CashAction.WHTAX,
+            is_securities_lending=tx_type == ibflex.CashAction.PAYMENTINLIEU,
         )
-
-        if tx_type == ibflex.CashAction.PAYMENTINLIEU:
-            payment.securitiesLending = True
-
-        self._apply_withholding_tax_fields(
-            payment,
-            amount,
-            currency,
-            tx_type,
-        )
-        return payment
 
     def _import_corrections_flex_files(
         self,
@@ -512,9 +436,8 @@ class IbkrImporter:
         processed_security_positions: defaultdict[SecurityPosition, SecurityPositionData] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
 
-        # Metadata for security names: {SecurityPosition: {'best_name': str, 'priority': int}}
-        security_name_metadata: defaultdict[SecurityPosition, SecurityNameMetadata] = \
-            defaultdict(lambda: {'best_name': None, 'priority': -1})
+        # Best-name-wins registry for security display names.
+        security_name_registry = SecurityNameRegistry()
 
         processed_cash_positions: defaultdict[tuple, CashPositionData] = \
             defaultdict(lambda: {'stocks': [], 'payments': []})
@@ -523,16 +446,6 @@ class IbkrImporter:
         # Map to store assetCategory and subCategory for each security
         security_asset_category_map: Dict[SecurityPosition, tuple[str, Optional[str]]] = {}
         rights_issue_positions: set[SecurityPosition] = set()
-
-        def _update_security_name_metadata(
-            sec_pos: SecurityPosition,
-            name: str,
-            priority: int,
-        ) -> None:
-            entry = security_name_metadata[sec_pos]
-            if priority > entry['priority']:
-                entry['best_name'] = name
-                entry['priority'] = priority
 
         for stmt in all_flex_statements:
             account_id = self._get_required_field(
@@ -631,7 +544,7 @@ class IbkrImporter:
                     )
 
                     # Update name metadata (Priority: 8 for Trades)
-                    _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 8)
+                    security_name_registry.update(sec_pos, f"{description} ({symbol})", 8)
 
                     # Store assetCategory and subCategory
                     sub_category = getattr(trade, 'subCategory', None)
@@ -738,7 +651,7 @@ class IbkrImporter:
                     )
 
                     # Update name metadata (Priority: 10 for OpenPositions)
-                    _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 10)
+                    security_name_registry.update(sec_pos, f"{description} ({symbol})", 10)
 
                     # Store assetCategory and subCategory
                     sub_category = getattr(open_pos, 'subCategory', None)
@@ -845,7 +758,7 @@ class IbkrImporter:
                     )
 
                     # Update name metadata (Priority: 5 for Transfers)
-                    _update_security_name_metadata(sec_pos, f"{description} ({symbol})", 5)
+                    security_name_registry.update(sec_pos, f"{description} ({symbol})", 5)
 
                     stock_mutation = SecurityStock(
                         referenceDate=tx_date,
@@ -924,7 +837,7 @@ class IbkrImporter:
                         ca_name = f"{description} ({symbol})"
                         ca_priority = 3
 
-                    _update_security_name_metadata(sec_pos, ca_name, ca_priority)
+                    security_name_registry.update(sec_pos, ca_name, ca_priority)
 
                     sub_category = getattr(action, "subCategory", None)
                     if sub_category == "RIGHT":
@@ -1004,7 +917,7 @@ class IbkrImporter:
                         # Use description or symbol if description is generic?
                         # Usually description in CashTx is like "Dividend ...". Not great for security name.
                         # But if it's the only source, it's better than nothing.
-                        _update_security_name_metadata(
+                        security_name_registry.update(
                             sec_pos_key,
                             f"{description} ({sym_attr})" if sym_attr else description,
                             0
@@ -1200,18 +1113,8 @@ class IbkrImporter:
                 sorted_stocks, key=lambda s: (s.referenceDate, s.mutation)
             )
 
-            # Determine best security name
-            name_metadata = security_name_metadata[sec_pos_obj]
-            best_name = name_metadata['best_name']
-
-            if best_name:
-                final_security_name = best_name
-            else:
-                # Fallback to description from position key or just symbol
-                if sec_pos_obj.description:
-                    final_security_name = sec_pos_obj.description
-                else:
-                    final_security_name = sec_pos_obj.symbol
+            # Determine best security name (registry falls back to description, then symbol)
+            final_security_name = security_name_registry.resolve(sec_pos_obj)
 
             sec = Security(
                 positionId=sec_pos_idx,
@@ -1395,74 +1298,28 @@ class IbkrImporter:
         )
 
         # --- Create Client object ---
-        # TOOD: Handle joint accounts
-        client_obj = None
+        # TODO: Handle joint accounts
+        client_obj: Optional[Client] = None
         if all_flex_statements:
             first_statement = all_flex_statements[0]
-            if hasattr(first_statement, 'AccountInformation') and first_statement.AccountInformation:
-                acc_info = first_statement.AccountInformation
-                account_id = getattr(acc_info, 'accountId', None)
-                name = getattr(acc_info, 'name', None)
-                first_name = getattr(acc_info, 'firstName', None)
-                last_name = getattr(acc_info, 'lastName', None)
-                account_holder_name = getattr(acc_info, 'accountHolderName', None)
-                state_residential_address = getattr(acc_info, 'stateResidentialAddress', None)
-                # address1 = getattr(acc_info, 'address1', None)
-                # address2 = getattr(acc_info, 'address2', None)
-                # city = getattr(acc_info, 'city', None)
-                # state = getattr(acc_info, 'state', None)
-                # country = getattr(acc_info, 'country', None)
-                # postalCode = getattr(acc_info, 'postalCode', None)
-                
-                # Extract canton from stateResidentialAddress (format: "CH-ZH")
-                if state_residential_address and isinstance(state_residential_address, str):
-                    state_addr = state_residential_address.strip()
-                    if '-' in state_addr:
-                        parts = state_addr.split('-')
-                        if len(parts) == 2 and parts[0].upper() == 'CH':
-                            canton = parts[1].strip().upper()
-                            valid_cantons = get_args(CantonAbbreviation)
-                            if canton in valid_cantons:
-                                tax_statement.canton = cast(CantonAbbreviation, canton)
-                                logger.info(f"Set canton from IBKR stateResidentialAddress: {canton}")
-                            else:
-                                logger.warning(f"Invalid canton extracted from stateResidentialAddress: '{canton}'. Valid cantons are: {', '.join(valid_cantons)}")
-                        else:
-                            logger.debug(f"stateResidentialAddress '{state_addr}' does not match expected format 'CH-XX'")
-                    else:
-                        logger.debug(f"stateResidentialAddress '{state_addr}' does not contain a dash separator")
+            acc_info = getattr(first_statement, 'AccountInformation', None)
+            if acc_info:
+                canton = parse_swiss_canton(getattr(acc_info, 'stateResidentialAddress', None))
+                if canton:
+                    tax_statement.canton = canton
+                    logger.info(f"Set canton from IBKR stateResidentialAddress: {canton}")
 
-                client_first_name = None
-                client_last_name = None
-
-                # Helper function to check if a string value is valid (not None, not empty, not just whitespace)
-                def is_valid_string(value):
-                    return value is not None and isinstance(value, str) and value.strip()
-
-                def split_full_name(value):
-                    parts = str(value).strip().split()
-                    if len(parts) > 1:
-                        return parts[0], " ".join(parts[1:])
-                    return None, str(value).strip()
-
-                if is_valid_string(first_name) and is_valid_string(last_name):
-                    client_first_name = str(first_name).strip()
-                    client_last_name = str(last_name).strip()
-                elif is_valid_string(first_name) and is_valid_string(name):
-                    client_first_name = str(first_name).strip()
-                    _, client_last_name = split_full_name(name)
-                elif is_valid_string(name):
-                    client_first_name, client_last_name = split_full_name(name)
-                elif is_valid_string(account_holder_name):
-                    client_first_name, client_last_name = split_full_name(account_holder_name)
-
-                if account_id:
-                    client_obj = Client(
-                        clientNumber=ClientNumber(account_id),
-                        firstName=client_first_name,
-                        lastName=client_last_name,
-                        # Other fields like tin, salutation are not yet mapped
-                    )
+                client_first_name, client_last_name = resolve_first_last_name(
+                    first_name=getattr(acc_info, 'firstName', None),
+                    last_name=getattr(acc_info, 'lastName', None),
+                    full_name=getattr(acc_info, 'name', None),
+                    account_holder_name=getattr(acc_info, 'accountHolderName', None),
+                )
+                client_obj = build_client(
+                    client_number=getattr(acc_info, 'accountId', None),
+                    first_name=client_first_name,
+                    last_name=client_last_name,
+                )
         if client_obj:
             tax_statement.client = [client_obj]
         # --- End Client object ---

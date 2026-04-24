@@ -13,6 +13,7 @@ from .paths import resolve_config_file
 from .models import (
     IbkrAccountSettings,
     SchwabAccountSettings,
+    FidelityAccountSettings,
     ConcreteAccountSettings,
     SpecificAccountSettingsUnion,
     CalculateSettings,
@@ -228,8 +229,10 @@ class ConfigManager:
         # Determine the specific Pydantic model based on broker_name
         specific_settings: SpecificAccountSettingsUnion
         kind_literal: str
-
-        if broker_name.lower() == "schwab":
+        if broker_name.lower() == "fidelity":
+            specific_settings = FidelityAccountSettings(**current_config)
+            kind_literal = "fidelity"
+        elif broker_name.lower() == "schwab":
             specific_settings = SchwabAccountSettings(**current_config)
             kind_literal = "schwab"
         elif broker_name.lower() == "ibkr":
