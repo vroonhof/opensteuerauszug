@@ -4,7 +4,8 @@ import os
 from decimal import Decimal
 from functools import lru_cache
 from opensteuerauszug.model.ech0196 import (
-    BankAccountName, Institution, ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, BankAccountTaxValue, Client, ClientNumber
+    BankAccountPayment, Client, ClientNumber, Institution, SecurityPayment,
+    SecurityStock, TaxStatement,
 )
 from opensteuerauszug.model.position import SecurityPosition, CashPosition
 from opensteuerauszug.render.translations import Language, DEFAULT_LANGUAGE
@@ -195,6 +196,41 @@ def _resolve_cash_account_identity(
     name = base_name[:40]
     number = config_acc_num[:32] if config_acc_num else None
     return name, number
+
+
+def _pick_primary_client_number(
+    account_settings_list: List[SchwabAccountSettings],
+) -> Optional[str]:
+    """Return the ``account_number`` that should drive ``TaxStatement.client``.
+
+    Schwab's "awards" depot (stock-plan activity) is reported as a separate
+    account but is never used for tax-statement client identification.  We
+    pick the first settings row whose ``account_name_alias`` is not, case
+    insensitively, ``"awards"``.  If every row is flagged as awards we
+    return ``None`` and the caller leaves ``TaxStatement.client`` empty.
+    """
+    for setting in account_settings_list:
+        alias = setting.account_name_alias
+        if alias and alias.lower() != "awards":
+            return setting.account_number
+    return None
+
+
+def _schwab_security_display_name(pos: SecurityPosition) -> Optional[str]:
+    """Schwab's OpenPosition-priority display name for the name registry.
+
+    Returns ``"<description> (<symbol>)"`` when both are available, or just
+    the symbol when the description is missing, matching the legacy
+    convert-to-ListOfSecurities behaviour.  Returns ``None`` when neither
+    is present, in which case the caller should skip the name-registry
+    update so the shared postprocess falls back to ``pos.description`` /
+    ``pos.symbol`` on its own.
+    """
+    if pos.description:
+        return f"{pos.description} ({pos.symbol})"
+    if pos.symbol:
+        return pos.symbol
+    return None
 
 
 def is_date_in_valid_transaction_range(date_to_check: date, transaction_range: Tuple[date, date]) -> bool:
@@ -452,12 +488,9 @@ class SchwabImporter:
                     stocks=list(initial_stocks),
                     payments=list(associated_payments),
                 )
-                if pos_obj.description:
-                    name_registry.update(
-                        rekeyed, f"{pos_obj.description} ({pos_obj.symbol})", 10
-                    )
-                elif pos_obj.symbol:
-                    name_registry.update(rekeyed, pos_obj.symbol, 10)
+                display_name = _schwab_security_display_name(pos_obj)
+                if display_name is not None:
+                    name_registry.update(rekeyed, display_name, 10)
             elif isinstance(pos_obj, CashPosition):
                 # Cash needs its own reconciliation to derive the closing
                 # balance that augment_list_of_bank_accounts expects on the
@@ -501,14 +534,13 @@ class SchwabImporter:
             institution=Institution(name="Charles Schwab"),
         )
 
-        # Client: first non-"awards" alias, preserving legacy behaviour.
-        for setting in self.account_settings_list:
-            alias = setting.account_name_alias
-            if alias and alias.lower() != "awards":
-                tax_statement.client = [
-                    Client(clientNumber=ClientNumber(setting.account_number))
-                ]
-                break
+        primary_client_number = _pick_primary_client_number(
+            self.account_settings_list
+        )
+        if primary_client_number is not None:
+            tax_statement.client = [
+                Client(clientNumber=ClientNumber(primary_client_number))
+            ]
 
         augment_list_of_securities(
             tax_statement,
@@ -637,183 +669,6 @@ class SchwabImporter:
             elif fname.lower().endswith('.csv'):
                 files.append(os.path.join(directory, fname))
         return self.import_files(files)
-
-def convert_security_positions_to_list_of_securities(
-    security_tuples: list[tuple[SecurityPosition, list[SecurityStock], list[SecurityPayment] | None]],
-    account_settings_list: List[SchwabAccountSettings]
-) -> ListOfSecurities:
-    """
-    Convert a list of (SecurityPosition, List[SecurityStock], Optional[List[SecurityPayment]]) tuples
-    into a ListOfSecurities object. Minimal stub: one depot, one security per position.
-    """
-    depots: Dict[str, Depot] = {} # Uses the final_depot_id_str as key
-    position_counter = 0
-    for pos, stocks, payments in security_tuples:
-        depot_key = pos.depot # This is the short form, e.g., "123" or "AWARDS"
-
-        final_depot_id_str: str
-        if depot_key == 'AWARDS':
-            final_depot_id_str = "AWARDS"
-        else:
-            # For non-AWARDS, get the configured full account number or ...<depot_key>
-            _matched_config_acc_num, display_id_from_helper = _get_configured_account_info(
-                depot_key, account_settings_list, False
-            )
-            final_depot_id_str = display_id_from_helper
-
-        if final_depot_id_str not in depots:
-            depots[final_depot_id_str] = Depot(depotNumber=DepotNumber(final_depot_id_str), security=[])
-        
-        # Determine security name based on description and symbol
-        security_name: str
-        if pos.description:
-            security_name = f"{pos.description} ({pos.symbol})"
-        else:
-            security_name = pos.symbol
-            
-        if not stocks:
-            print(f"WARNING: Security {security_name} has no stocks after reconciliation and will be skipped.")
-            continue
-
-        first_stock = stocks[0]
-        position_counter += 1
-        sec = Security(
-            positionId=position_counter,
-            country="US",  # Stub
-            currency=first_stock.balanceCurrency,
-            quotationType=first_stock.quotationType,
-            securityCategory="SHARE",  # Stub
-            securityName=security_name,
-            stock=stocks,
-            payment=payments or [],
-            symbol=pos.symbol
-        )
-        depots[final_depot_id_str].security.append(sec) # Use final_depot_id_str as key
-    return ListOfSecurities(depot=list(depots.values()))
-
-def convert_cash_positions_to_list_of_bank_accounts(
-    cash_tuples: list[tuple[CashPosition, list[SecurityStock], list[SecurityPayment] | None]],
-    period_to: date,
-    account_settings_list: List[SchwabAccountSettings]
-) -> ListOfBankAccounts:
-    """
-    Convert a list of (CashPosition, List[SecurityStock], Optional[List[SecurityPayment]]) tuples into a ListOfBankAccounts object.
-    """
-    accounts: List[BankAccount] = []
-    for pos, stocks, payments in cash_tuples:
-        currency = "USD" # Fallback if no stock items
-        if stocks:
-            currency = stocks[0].balanceCurrency
-        else:
-            print(f"Warning: CashPosition for depot {pos.depot} / cash_id {pos.cash_account_id} has no stock items. Using default currency.")
-
-        is_awards = pos.depot == 'AWARDS'
-        # Ensure cash_account_id is a string if it's None and is_awards is true, or handle None in _get_configured_account_info
-        depot_identifier_for_lookup = pos.cash_account_id if is_awards else pos.depot
-        if is_awards and depot_identifier_for_lookup is None:
-            # This case might indicate an issue or require a default, e.g., "UNKNOWN_AWARD_ID"
-            # For now, let's use a placeholder to ensure _get_configured_account_info receives a string.
-            print(f"WARNING: Awards depot for {pos.depot} has a None cash_account_id. Using 'UNKNOWN' for lookup.")
-            depot_identifier_for_lookup = "UNKNOWN"
-
-        # Ensure depot_identifier_for_lookup is always a string
-        depot_identifier_for_lookup = depot_identifier_for_lookup or "UNKNOWN"
-
-        config_acc_num, display_id_from_helper = _get_configured_account_info(
-            depot_identifier_for_lookup,
-            account_settings_list,
-            is_awards
-        )
-
-        final_account_number_str: str
-        if is_awards:
-            final_account_number_str = display_id_from_helper  # Expected: "Equity Awards <cash_account_id>" or "Equity Awards UNKNOWN"
-        else: # Not awards
-            if config_acc_num is not None: # Full account number from config
-                final_account_number_str = display_id_from_helper # This is the full account number as per _get_configured_account_info logic
-            else: # No match in config, display_id_from_helper is "...<depot>"
-                final_account_number_str = f"{pos.currentCy} Account {display_id_from_helper}"
-
-        # Append an unsettled marker for positions that represent in-transit cash.
-        # Truncate the base name first so the suffix always fits within 40 chars.
-        if pos.is_unsettled_balance:
-            suffix = " (Unsettled)"
-            base = final_account_number_str[: 40 - len(suffix)]
-            final_account_number_str = base + suffix
-
-        bank_payments = [BankAccountPayment(
-            paymentDate=payment.paymentDate,
-            name=payment.name,
-            amountCurrency=payment.amountCurrency,
-            amount=payment.amount,
-        ) for payment in payments] if payments else []
-            
-        bank_account = BankAccount(
-                bankAccountName=BankAccountName(final_account_number_str[:40]),
-                bankAccountNumber=BankAccountNumber(config_acc_num[:32]) if config_acc_num else None,
-                bankAccountCountry="US", # Assume Schwab is always US based
-                bankAccountCurrency=currency,
-                payment=bank_payments
-        )
-
-        # Find the closing balance stock for the period_to date
-        # The reconciliation ensures a stock exists for period_to + 1 day (start of next day)
-        closing_stock_date = period_to + timedelta(days=1)
-        closing_stock_entry = None
-        if stocks:
-            for stock_item in stocks:
-                if stock_item.referenceDate == closing_stock_date and not stock_item.mutation:
-                    closing_stock_entry = stock_item
-                    break
-        
-        if closing_stock_entry:
-            bank_account.taxValue = BankAccountTaxValue(
-                referenceDate=period_to, # Tax value is as of end of period_to
-                balanceCurrency=closing_stock_entry.balanceCurrency,
-                balance=closing_stock_entry.quantity # Quantity of cash is its balance
-            )
-        accounts.append(bank_account)
-    return ListOfBankAccounts(bankAccount=accounts)
-
-def create_tax_statement_from_positions(
-    security_tuples: list[tuple[SecurityPosition, list[SecurityStock], list[SecurityPayment] | None]],
-    cash_tuples: list[tuple[CashPosition, list[SecurityStock], list[SecurityPayment] | None]],
-    period_from: date,
-    period_to: date,
-    tax_period: int,
-    account_settings_list: List[SchwabAccountSettings]
-) -> TaxStatement:
-    """
-    Create a TaxStatement from security and cash tuples.
-    """
-    client_id_value: Optional[str] = None
-    for setting in account_settings_list:
-        if setting.account_name_alias and setting.account_name_alias.lower() != "awards":
-            client_id_value = setting.account_number
-            break
-
-    client_list_for_statement: List[Client] = []
-    if client_id_value:
-        main_client = Client(clientNumber=ClientNumber(client_id_value)) # Use ClientNumber type
-        client_list_for_statement.append(main_client)
-
-    list_of_securities = convert_security_positions_to_list_of_securities(security_tuples, account_settings_list)
-    # Pass account_settings_list to convert_cash_positions_to_list_of_bank_accounts
-    list_of_bank_accounts = convert_cash_positions_to_list_of_bank_accounts(cash_tuples, period_to, account_settings_list)
-    return TaxStatement(
-        minorVersion=1,
-        periodFrom=period_from,
-        periodTo=period_to,
-        taxPeriod=tax_period,
-        client=client_list_for_statement,
-        listOfSecurities=list_of_securities,
-        listOfBankAccounts=list_of_bank_accounts,
-        # Name is sufficient. Avoid setting legal identifiers avoid implying this is
-        # officially from the broker.
-        institution = Institution(
-            name="Charles Schwab"
-        )
-    )
 
 if __name__ == "__main__":
     import argparse
