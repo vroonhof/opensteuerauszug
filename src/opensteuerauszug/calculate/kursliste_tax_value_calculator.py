@@ -105,6 +105,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         self.render_language = render_language
         self._current_kursliste_security = None
         self._current_security_is_zero_balance_option = False
+        self._current_security_is_missing_open_option = False
         self._missing_kursliste_entries = []
         self._stock_split_warnings: List[dict] = []
         self._previous_year_exdate_warnings = []
@@ -164,6 +165,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
     def _handle_Security(self, security: Security, path_prefix: str) -> None:
         self._current_kursliste_security = None
         self._current_security_is_zero_balance_option = False
+        self._current_security_is_missing_open_option = False
 
         if not self.kursliste_manager:
             super()._handle_Security(security, path_prefix)
@@ -235,8 +237,16 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     "Suppressing missing Kursliste warning for option %s with zero balance.",
                     ident,
                 )
-                if closing_balance == 0:
-                    self._current_security_is_zero_balance_option = True
+                self._current_security_is_zero_balance_option = True
+            elif is_option and closing_balance != 0:
+                # Open option position not in Kursliste (US equity options have no ISIN):
+                # fall back to broker's reported position value converted to CHF.
+                logger.debug(
+                    "Option %s not in Kursliste but has open position (qty=%s); using broker balance as fallback.",
+                    ident,
+                    closing_balance,
+                )
+                self._current_security_is_missing_open_option = True
             else:
                 self._missing_kursliste_entries.append(ident)
 
@@ -273,6 +283,29 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 self._set_field_value(sec_tax_value, "value", Decimal("0"), path_prefix)
                 self._set_field_value(sec_tax_value, "exchangeRate", rate, path_prefix)
             return
+        elif self._current_security_is_missing_open_option:
+            # Open option not in Kursliste: use broker's reported position value converted to CHF.
+            # Requires positionValue to be included in the IBKR flex query.
+            if sec_tax_value.balance is not None and sec_tax_value.balanceCurrency and sec_tax_value.referenceDate:
+                chf_value, rate = self._convert_to_chf(
+                    sec_tax_value.balance, sec_tax_value.balanceCurrency, path_prefix, sec_tax_value.referenceDate
+                )
+                if chf_value is not None:
+                    quantity = sec_tax_value.quantity if sec_tax_value.quantity else Decimal("1")
+                    unit_price = chf_value / quantity if quantity != 0 else Decimal("0")
+                    self._set_field_value(sec_tax_value, "unitPrice", unit_price, path_prefix)
+                    self._set_field_value(sec_tax_value, "value", chf_value, path_prefix)
+                    self._set_field_value(sec_tax_value, "balance", chf_value, path_prefix)
+                    self._set_field_value(sec_tax_value, "exchangeRate", rate, path_prefix)
+                    self._set_field_value(sec_tax_value, "balanceCurrency", "CHF", path_prefix)
+                    return
+            logger.warning(
+                "Option %s has an open position but no broker balance available. "
+                "Ensure positionValue is included in your IBKR flex query. "
+                "Tax value will be marked undefined.",
+                path_prefix,
+            )
+            self._set_field_value(sec_tax_value, "undefined", True, path_prefix)
         else:
             self._set_field_value(sec_tax_value, "undefined", True, path_prefix)
 
