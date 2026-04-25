@@ -293,6 +293,30 @@ class BaseXmlModel(BaseModel):
     # Mark as excluded so it doesn't show up in XML
     strict_parsing: bool = Field(default=False, exclude=True, repr=False)
 
+    def _validate_output_required_fields(self, path: str = "") -> List[str]:
+        """Collect missing fields flagged as required for final output."""
+        errors: List[str] = []
+        current_path = path or self.__class__.__name__
+
+        for field_name, field_info in self.__class__.model_fields.items():
+            value = getattr(self, field_name)
+            field_path = f"{current_path}.{field_name}"
+            extra = field_info.json_schema_extra or {}
+
+            if extra.get("required_for_output") and value is None:
+                errors.append(f"{field_path} is required for final output but is None")
+
+            if isinstance(value, BaseXmlModel):
+                errors.extend(value._validate_output_required_fields(path=field_path))
+            elif isinstance(value, list):
+                for index, item in enumerate(value):
+                    if isinstance(item, BaseXmlModel):
+                        errors.extend(
+                            item._validate_output_required_fields(path=f"{field_path}[{index}]")
+                        )
+
+        return errors
+
     @staticmethod
     def _iter_element(element: ET._Element) -> List[ET._Element]:
         """Helper method to get list of child elements, addressing lxml typing issue.
@@ -1116,7 +1140,10 @@ class SecurityPayment(BaseXmlModel):
     # Required attributes
     paymentDate: date = Field(..., json_schema_extra={'is_attribute': True})
     quotationType: QuotationType = Field(..., json_schema_extra={'is_attribute': True})
-    quantity: Decimal = Field(..., json_schema_extra={'is_attribute': True})
+    quantity: Optional[Decimal] = Field(
+        default=None,
+        json_schema_extra={'is_attribute': True, 'required_for_output': True},
+    )
     amountCurrency: CurrencyId = Field(..., json_schema_extra={'is_attribute': True})
     
     # Optional attributes
@@ -1342,6 +1369,14 @@ class TaxStatementBase(BaseXmlModel):
 
         specs_dir = Path("specs")
         xsd_path = specs_dir / "eCH-0196-2-2.xsd"
+
+        output_required_errors = self._validate_output_required_fields()
+        if output_required_errors:
+            error_message = "Internal output-required field validation failed:\n  " + "\n  ".join(
+                output_required_errors
+            )
+            logger.error(error_message)
+            raise ValueError(error_message)
 
         if not xsd_path.exists():
             logger.warning(f"XSD schema file not found at {xsd_path}. Skipping validation.")

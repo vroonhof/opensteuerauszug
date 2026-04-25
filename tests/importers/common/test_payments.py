@@ -5,7 +5,6 @@ from opensteuerauszug.importers.common import (
     apply_withholding_tax_fields,
     build_security_payment,
 )
-from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 from opensteuerauszug.model.ech0196 import SecurityPayment
 
 
@@ -16,7 +15,7 @@ def _blank_payment() -> SecurityPayment:
         amountCurrency="USD",
         amount=Decimal("10"),
         quotationType="PIECE",
-        quantity=UNINITIALIZED_QUANTITY,
+        quantity=None,
     )
 
 

@@ -69,6 +69,32 @@ def test_tax_statement_creation(sample_tax_statement_data):
     assert statement.client[0].lastName == "Muster"
     assert statement.totalTaxValue == Decimal("1000.5")
 
+
+def test_security_payment_quantity_is_marked_required_for_output():
+    payment = SecurityPayment(
+        paymentDate=date(2024, 1, 1),
+        quotationType="PIECE",
+        quantity=None,
+        amountCurrency="USD",
+        amount=Decimal("10"),
+    )
+
+    errors = payment._validate_output_required_fields()
+    assert len(errors) == 1
+    assert "SecurityPayment.quantity is required for final output but is None" in errors[0]
+
+
+def test_security_payment_quantity_with_value_passes_output_required_validation():
+    payment = SecurityPayment(
+        paymentDate=date(2024, 1, 1),
+        quotationType="PIECE",
+        quantity=Decimal("5"),
+        amountCurrency="USD",
+        amount=Decimal("10"),
+    )
+
+    assert payment._validate_output_required_fields() == []
+
 def test_tax_statement_to_xml(sample_tax_statement_data):
     """Tests serialization to XML bytes and checks basic structure."""
     statement = sample_tax_statement_data
