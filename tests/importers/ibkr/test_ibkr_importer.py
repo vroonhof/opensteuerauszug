@@ -2472,9 +2472,12 @@ SAMPLE_IBKR_FLEX_XML_SHORT_POSITION = """
 """
 
 
-def test_short_stock_position_negative_balance_raises(sample_ibkr_settings):
+def test_short_stock_position_propagates_negative_balance(sample_ibkr_settings):
     """
-    A short stock position (negative OpenPosition) must raise a ValueError.
+    A short stock position (negative OpenPosition) is propagated as-is.
+    The IBKR importer is unopinionated: it surfaces whatever the Flex
+    report contains. Sanity-checking now lives in
+    :class:`CleanupCalculator` which logs a warning rather than raising.
     """
     period_from = date(2025, 1, 1)
     period_to = date(2025, 12, 31)
@@ -2490,11 +2493,24 @@ def test_short_stock_position_negative_balance_raises(sample_ibkr_settings):
         xml_file_path = tmp_file.name
 
     try:
-        with pytest.raises(ValueError, match="Negative balance computed"):
-            importer.import_files([xml_file_path])
+        statement = importer.import_files([xml_file_path])
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+    assert statement.listOfSecurities is not None
+    securities = [
+        sec
+        for depot in statement.listOfSecurities.depot
+        for sec in depot.security
+    ]
+    aapl = next(sec for sec in securities if sec.isin == "US0378331005")
+    closing_balances = [
+        s.quantity
+        for s in aapl.stock
+        if not s.mutation and s.referenceDate == date(2026, 1, 1)
+    ]
+    assert closing_balances == [Decimal("-5")]
 
 
 # OPT/C call-spread: both legs expire/close intra-year (2025-01-22, expiry 2025-01-24).

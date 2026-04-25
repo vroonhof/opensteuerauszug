@@ -549,10 +549,6 @@ class SchwabImporter:
             hints_for=lambda _sp: PositionHints(
                 security_category="SHARE",
                 country="US",
-                # Schwab historically never raised on negative balances; keep
-                # that contract to avoid regressing on edge cases.
-                allow_negative_opening=True,
-                allow_negative_balance=True,
             ),
             strict_consistency=self.strict_consistency,
             run_initial_consistency_check=True,

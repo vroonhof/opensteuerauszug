@@ -76,17 +76,14 @@ class PositionHints:
     Fidelity's bare category string).  Everything on this record has a
     sensible default so callers only need to override what differs from
     the common case.
+
+    Negative-balance sanity checks live in the downstream
+    :class:`CleanupCalculator`; the post-processing layer is unopinionated
+    and propagates whatever the importer extracted.
     """
 
     security_category: SecurityCategory = "SHARE"
     country: str = "US"
-    # Whether a negative tentative opening balance should be kept as-is
-    # (short positions / written options) rather than clamped to zero.
-    allow_negative_opening: bool = False
-    # Whether a final negative opening/closing balance should only warn
-    # instead of raising. Distinct from ``allow_negative_opening`` since
-    # IBKR distinguishes OPT/FOP vs OPT/FOP with sub C/P.
-    allow_negative_balance: bool = False
     # Mark the synthesized Security as a rights issue.
     is_rights_issue: bool = False
     # Drop the security entirely when both opening and closing are zero.
@@ -134,7 +131,6 @@ def _synthesize_boundary_balances(
     *,
     period_from: date,
     period_to: date,
-    hints: PositionHints,
     identifier: str,
     strict_consistency: bool,
     run_initial_consistency_check: bool,
@@ -175,24 +171,7 @@ def _synthesize_boundary_balances(
         trades_quantity_total = sum(
             (s.quantity for s in stocks if s.mutation), Decimal("0")
         )
-        tentative = closing_balance - trades_quantity_total
-        opening_balance = (
-            tentative
-            if tentative >= 0 or hints.allow_negative_opening
-            else Decimal("0")
-        )
-
-    if opening_balance < 0 or closing_balance < 0:
-        message = (
-            f"Negative balance computed for security {identifier} "
-            f"(start {opening_balance}, end {closing_balance}). "
-            "In case you expect short positions, please report this to "
-            "the developers for further investigation."
-        )
-        if hints.allow_negative_balance:
-            logger.warning(message)
-        else:
-            raise ValueError(message)
+        opening_balance = closing_balance - trades_quantity_total
 
     return opening_balance, closing_balance, end_plus_one
 
@@ -291,7 +270,6 @@ def augment_list_of_securities(
             sorted_stocks,
             period_from=period_from,
             period_to=period_to,
-            hints=hints,
             identifier=identifier,
             strict_consistency=strict_consistency,
             run_initial_consistency_check=run_initial_consistency_check,

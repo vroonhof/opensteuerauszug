@@ -1005,14 +1005,12 @@ class IbkrImporter:
         }
 
         def _hints_for(sec_pos: SecurityPosition) -> PositionHints:
-            asset_cat, sub_category = security_asset_category_map.get(
+            asset_cat, _sub_category = security_asset_category_map.get(
                 sec_pos, ("STK", None)
             )
             sec_category = IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY.get(asset_cat)
             if not sec_category:
                 raise ValueError(f"Unknown asset category: {asset_cat}")
-            is_option = asset_cat in ("OPT", "FOP")
-            is_short_option_like = is_option and sub_category in ("C", "P")
             is_rights = sec_pos in rights_issue_positions
             skip_if_zero = is_rights and ignore_rights_issues_by_account.get(
                 sec_pos.depot, False
@@ -1020,8 +1018,6 @@ class IbkrImporter:
             return PositionHints(
                 security_category=sec_category,
                 country=security_country_map.get(sec_pos, "US"),
-                allow_negative_opening=is_option,
-                allow_negative_balance=is_short_option_like,
                 is_rights_issue=is_rights,
                 skip_if_zero=skip_if_zero,
             )
