@@ -61,12 +61,14 @@ class CleanupCalculator:
 
 
     def _check_negative_balances(self, security: Security, pos_id: str) -> None:
-        """Warn when a security carries a negative non-mutation balance.
+        """Surface negative non-mutation balances on a security.
 
         The post-processing layer is unopinionated and lets short positions
-        flow through; this is the single place where we surface them. The
-        message points the user at the relevant tracking issue based on the
-        eCH security category.
+        flow through; this is the single place where we sanity-check them.
+        We log a warning (with a pointer to the relevant tracking issue
+        based on the eCH security category) and then raise so processing
+        stops on data that the downstream calculators can't meaningfully
+        handle.
         """
         negative_balances = [
             s for s in (security.stock or [])
@@ -83,7 +85,7 @@ class CleanupCalculator:
             issue_ref = (
                 "https://github.com/vroonhof/opensteuerauszug/issues/309"
             )
-        warning_msg = (
+        message = (
             f"Negative balance(s) for security '{pos_id}' "
             f"(category {security.securityCategory}): "
             + ", ".join(
@@ -92,7 +94,8 @@ class CleanupCalculator:
             + ". Please double-check the data; "
             f"if you are intentionally holding a short position, see {issue_ref}."
         )
-        logger.warning("  Security %s: %s", pos_id, warning_msg)
+        logger.warning("  Security %s: %s", pos_id, message)
+        raise ValueError(message)
 
     def _generate_tax_statement_id(self, statement: TaxStatement) -> str:
         """

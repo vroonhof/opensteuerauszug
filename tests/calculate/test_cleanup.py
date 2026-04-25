@@ -2731,7 +2731,7 @@ class TestCleanupCalculatorNegativeBalanceWarnings:
             listOfSecurities=ListOfSecurities(depot=[depot]),
         )
 
-    def test_negative_share_balance_warns_with_issue_309(self, sample_period_from, sample_period_to, caplog):
+    def test_negative_share_balance_raises_with_issue_309(self, sample_period_from, sample_period_to, caplog):
         closing_balance_date = sample_period_to + timedelta(days=1)
         sell = create_security_stock(date(2023, 6, 1), Decimal("-5"), mutation=True, name="Short Sell")
         closing = create_security_stock(closing_balance_date, Decimal("-5"), mutation=False, name="Closing")
@@ -2743,14 +2743,14 @@ class TestCleanupCalculatorNegativeBalanceWarnings:
         statement = self._build_statement(security, sample_period_from, sample_period_to)
         calculator = CleanupCalculator(sample_period_from, sample_period_to, "ShortImporter", enable_filtering=False)
 
-        with caplog.at_level("WARNING"):
+        with caplog.at_level("WARNING"), pytest.raises(ValueError, match="issues/309"):
             calculator.calculate(statement)
 
         assert "Negative balance" in caplog.text
         assert "issues/309" in caplog.text
         assert "issues/261" not in caplog.text
 
-    def test_negative_option_balance_warns_with_issue_261(self, sample_period_from, sample_period_to, caplog):
+    def test_negative_option_balance_raises_with_issue_261(self, sample_period_from, sample_period_to, caplog):
         closing_balance_date = sample_period_to + timedelta(days=1)
         sell = create_security_stock(date(2023, 6, 1), Decimal("-1"), mutation=True, name="Write Call")
         closing = create_security_stock(closing_balance_date, Decimal("-1"), mutation=False, name="Closing")
@@ -2762,7 +2762,7 @@ class TestCleanupCalculatorNegativeBalanceWarnings:
         statement = self._build_statement(security, sample_period_from, sample_period_to)
         calculator = CleanupCalculator(sample_period_from, sample_period_to, "ShortImporter", enable_filtering=False)
 
-        with caplog.at_level("WARNING"):
+        with caplog.at_level("WARNING"), pytest.raises(ValueError, match="issues/261"):
             calculator.calculate(statement)
 
         assert "Negative balance" in caplog.text
