@@ -4,9 +4,10 @@ import os
 from decimal import Decimal
 from functools import lru_cache
 from opensteuerauszug.model.ech0196 import (
-    BankAccountName, Institution, ListOfSecurities, ListOfBankAccounts, TaxStatement, Depot, Security, BankAccount, BankAccountPayment, SecurityStock, SecurityPayment, DepotNumber, BankAccountNumber, BankAccountTaxValue, Client, ClientNumber
+    BankAccountPayment, Client, ClientNumber, Institution, SecurityPayment,
+    SecurityStock, TaxStatement,
 )
-from opensteuerauszug.model.position import BasePosition, SecurityPosition, CashPosition
+from opensteuerauszug.model.position import SecurityPosition, CashPosition
 from opensteuerauszug.render.translations import Language, DEFAULT_LANGUAGE
 from .statement_extractor import StatementExtractor
 from datetime import date, timedelta
@@ -17,7 +18,14 @@ from opensteuerauszug.util.date_coverage import DateRangeCoverage
 from collections import defaultdict
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import SchwabAccountSettings
-from opensteuerauszug.util.sorting import sort_security_stocks
+from opensteuerauszug.importers.common import (
+    CashAccountEntry,
+    PositionHints,
+    SecurityNameRegistry,
+    SecurityPositionData,
+    augment_list_of_bank_accounts,
+    augment_list_of_securities,
+)
 import holidays
 
 logger = logging.getLogger(__name__)
@@ -129,6 +137,102 @@ def _get_configured_account_info(depot_short_id: str, account_settings_list: Lis
         else:
             return None, f"...{depot_short_id}"
 
+def _resolve_security_depot_display_name(
+    depot_short_id: str, account_settings_list: List[SchwabAccountSettings]
+) -> str:
+    """Schwab-specific depot display name for the eCH-0196 ``DepotNumber``.
+
+    * ``AWARDS`` stays verbatim — it is a synthetic depot name for stock-plan
+      activity and predates settings-based resolution.
+    * Otherwise the first settings row whose ``account_number`` ends with the
+      short depot id supplies the full account number; an unmatched depot
+      falls back to ``"...<short_id>"``.
+    """
+    if depot_short_id == "AWARDS":
+        return "AWARDS"
+    _, display = _get_configured_account_info(
+        depot_short_id, account_settings_list, False
+    )
+    return display
+
+
+def _resolve_cash_account_identity(
+    pos: CashPosition, account_settings_list: List[SchwabAccountSettings]
+) -> Tuple[str, Optional[str]]:
+    """Produce ``(bankAccountName, bankAccountNumber)`` for a Schwab cash bucket.
+
+    Mirrors the legacy ``convert_cash_positions_to_list_of_bank_accounts``:
+    awards cash becomes ``"Equity Awards <cash_account_id>"`` with no number,
+    configured cash uses the full account number for both fields, and
+    unmatched cash gets a currency-prefixed fallback. Unsettled cash appends
+    the ``" (Unsettled)"`` marker, truncating the base name so the final
+    string fits within the 40-char eCH limit.
+    """
+    is_awards = pos.depot == "AWARDS"
+    lookup_id = pos.cash_account_id if is_awards else pos.depot
+    if is_awards and lookup_id is None:
+        logger.warning(
+            "Awards depot for %s has a None cash_account_id; using 'UNKNOWN'.",
+            pos.depot,
+        )
+        lookup_id = "UNKNOWN"
+    lookup_id = lookup_id or "UNKNOWN"
+
+    config_acc_num, display_id = _get_configured_account_info(
+        lookup_id, account_settings_list, is_awards
+    )
+
+    if is_awards:
+        base_name = display_id
+    elif config_acc_num is not None:
+        base_name = display_id
+    else:
+        base_name = f"{pos.currentCy} Account {display_id}"
+
+    if pos.is_unsettled_balance:
+        suffix = " (Unsettled)"
+        base_name = base_name[: 40 - len(suffix)] + suffix
+
+    name = base_name[:40]
+    number = config_acc_num[:32] if config_acc_num else None
+    return name, number
+
+
+def _pick_primary_client_number(
+    account_settings_list: List[SchwabAccountSettings],
+) -> Optional[str]:
+    """Return the ``account_number`` that should drive ``TaxStatement.client``.
+
+    Schwab's "awards" depot (stock-plan activity) is reported as a separate
+    account but is never used for tax-statement client identification.  We
+    pick the first settings row whose ``account_name_alias`` is not, case
+    insensitively, ``"awards"``.  If every row is flagged as awards we
+    return ``None`` and the caller leaves ``TaxStatement.client`` empty.
+    """
+    for setting in account_settings_list:
+        alias = setting.account_name_alias
+        if alias and alias.lower() != "awards":
+            return setting.account_number
+    return None
+
+
+def _schwab_security_display_name(pos: SecurityPosition) -> Optional[str]:
+    """Schwab's OpenPosition-priority display name for the name registry.
+
+    Returns ``"<description> (<symbol>)"`` when both are available, or just
+    the symbol when the description is missing, matching the legacy
+    convert-to-ListOfSecurities behaviour.  Returns ``None`` when neither
+    is present, in which case the caller should skip the name-registry
+    update so the shared postprocess falls back to ``pos.description`` /
+    ``pos.symbol`` on its own.
+    """
+    if pos.description:
+        return f"{pos.description} ({pos.symbol})"
+    if pos.symbol:
+        return pos.symbol
+    return None
+
+
 def is_date_in_valid_transaction_range(date_to_check: date, transaction_range: Tuple[date, date]) -> bool:
     """
     Checks if a date is within a given transaction range (inclusive) 
@@ -172,163 +276,6 @@ class SchwabImporter:
         else:
             # This case should ideally be prevented by the CLI loading logic
             logger.warning("SchwabImporter initialized with an empty list of account settings.")
-
-    def _determine_synthesized_stock_currency(
-        self,
-        pos_obj: BasePosition,
-        live_stocks_list: List[SecurityStock],
-        synthesized_value_currency: Optional[str]
-    ) -> str:
-        if synthesized_value_currency:
-            return synthesized_value_currency
-
-        if isinstance(pos_obj, SecurityPosition):
-            if live_stocks_list and hasattr(live_stocks_list[0], 'balanceCurrency') and live_stocks_list[0].balanceCurrency:
-                return live_stocks_list[0].balanceCurrency
-            return "USD"  # Default for securities if no live stocks or first stock has no currency
-        elif isinstance(pos_obj, CashPosition):
-            return pos_obj.currentCy if pos_obj.currentCy else "USD"
-        return "USD"  # Ultimate fallback
-
-    def _reconcile_and_ensure_boundary_stocks_for_position(
-        self,
-        pos_obj: BasePosition,
-        initial_pos_stocks: List[SecurityStock],
-        associated_pos_payments: List[SecurityPayment]
-    ) -> Tuple[BasePosition, List[SecurityStock], List[SecurityPayment]]:
-
-        current_identifier = pos_obj.get_processing_identifier()
-        balance_name_prefix = pos_obj.get_balance_name_prefix()
-
-        # 1. Initial Consistency Check
-        initial_reconciler = PositionReconciler(list(initial_pos_stocks), identifier=f"{current_identifier}-initial_check")
-        is_consistent_initial, _ = initial_reconciler.check_consistency(
-            print_log=True,
-            raise_on_error=self.strict_consistency,
-            assume_zero_if_no_balances=True
-        )
-        if not is_consistent_initial and not self.strict_consistency:
-            logger.warning(f"[{current_identifier}] Initial consistency check on raw data failed. Review logs. Proceeding with synthesis.")
-
-        live_stocks_list = list(initial_pos_stocks) # Use a distinct name for the list being modified
-
-        # 2. Ensure start-of-period balance
-        reconciler_for_start = PositionReconciler(list(live_stocks_list), identifier=f"{current_identifier}-start_synth")
-        start_pos_synth = reconciler_for_start.synthesize_position_at_date(
-            self.period_from, assume_zero_if_no_balances=True
-        )
-        has_start_balance = any(not s.mutation and s.referenceDate == self.period_from for s in live_stocks_list)
-
-        if not has_start_balance:
-            qty_to_set_at_start = Decimal('0')
-            currency_at_start = self._determine_synthesized_stock_currency(
-                pos_obj, live_stocks_list, start_pos_synth.currency if start_pos_synth else None
-            )
-            q_type_at_start = "PIECE"
-            if live_stocks_list:
-                q_type_at_start = live_stocks_list[0].quotationType
-
-            if start_pos_synth:
-                qty_to_set_at_start = start_pos_synth.quantity
-                logger.info(f"[{current_identifier}] Synthesized start position for {self.period_from}: Qty {qty_to_set_at_start} {currency_at_start}")
-
-            if qty_to_set_at_start != 0:
-                start_balance_stock = SecurityStock(
-                    referenceDate=self.period_from,
-                    mutation=False,
-                    quantity=qty_to_set_at_start,
-                    balanceCurrency=currency_at_start,
-                    quotationType=q_type_at_start
-                )
-                live_stocks_list.append(start_balance_stock)
-                print(f"[{current_identifier}] Added/updated start-of-period balance for {self.period_from}.")
-
-            live_stocks_list = sorted(live_stocks_list, key=lambda s: (s.referenceDate, s.mutation))
-
-        # 3. Ensure end-of-period balance
-        effective_period_end_date = self.period_to + timedelta(days=1)
-        reconciler_for_end = PositionReconciler(list(live_stocks_list), identifier=f"{current_identifier}-end_synth")
-        end_pos_synth = reconciler_for_end.synthesize_position_at_date(
-            effective_period_end_date, assume_zero_if_no_balances=True
-        )
-        has_end_balance = any(not s.mutation and s.referenceDate == effective_period_end_date for s in live_stocks_list)
-
-        if not has_end_balance and end_pos_synth:
-            currency_at_end = self._determine_synthesized_stock_currency(
-                pos_obj, live_stocks_list, end_pos_synth.currency if end_pos_synth else None
-            )
-            q_type_at_end = "PIECE"
-            if live_stocks_list:
-                q_type_at_end = live_stocks_list[0].quotationType
-
-            print(f"[{current_identifier}] Synthesized end position for {effective_period_end_date}: Qty {end_pos_synth.quantity} {currency_at_end}")
-            end_balance_stock = SecurityStock(
-                referenceDate=effective_period_end_date,
-                mutation=False,
-                quantity=end_pos_synth.quantity,
-                balanceCurrency=currency_at_end,
-                quotationType=q_type_at_end
-            )
-            live_stocks_list.append(end_balance_stock)
-            live_stocks_list = sorted(live_stocks_list, key=lambda s: (s.referenceDate, s.mutation))
-            print(f"[{current_identifier}] Added end-of-period balance for {effective_period_end_date}.")
-        elif not has_end_balance and not end_pos_synth:
-            print(f"[{current_identifier}] Could not synthesize end-of-period balance for {effective_period_end_date}. It might be missing.")
-
-        return pos_obj, live_stocks_list, associated_pos_payments
-
-    def _make_unsettled_position_tuple(
-        self,
-        pos_obj: CashPosition,
-        unsettled_stocks: List[SecurityStock],
-    ) -> Tuple[CashPosition, List[SecurityStock], List[SecurityPayment]]:
-        """Build a self-consistent position tuple for unsettled (in-transit) cash.
-
-        The returned tuple contains:
-        - A *new* CashPosition flagged with ``is_unsettled_balance=True``.
-        - A synthetic stock list: zero opening balance, the original unsettled
-          mutation entries, and a synthetic closing balance equal to the sum of
-          those mutations.
-        - An empty payments list (unsettled cash has no dividend events).
-
-        This tuple can be fed directly into ``convert_cash_positions_to_list_of_bank_accounts``
-        without passing through ``_reconcile_and_ensure_boundary_stocks_for_position`` because
-        the balances are already manufactured to be consistent.
-        """
-        total_unsettled: Decimal = sum((s.quantity for s in unsettled_stocks), Decimal("0"))
-        currency = unsettled_stocks[0].balanceCurrency if unsettled_stocks else pos_obj.currentCy
-        q_type = unsettled_stocks[0].quotationType if unsettled_stocks else "PIECE"
-
-        opening = SecurityStock(
-            referenceDate=self.period_from,
-            mutation=False,
-            quantity=Decimal("0"),
-            balanceCurrency=currency,
-            quotationType=q_type,
-            name="Unsettled Cash Opening Balance",
-        )
-        closing = SecurityStock(
-            referenceDate=self.period_to + timedelta(days=1),
-            mutation=False,
-            quantity=total_unsettled,
-            balanceCurrency=currency,
-            quotationType=q_type,
-            name="Unsettled Cash (T+1 pending settlement)",
-        )
-
-        all_stocks = sort_security_stocks([opening] + list(unsettled_stocks) + [closing])
-
-        unsettled_pos = CashPosition(
-            depot=pos_obj.depot,
-            currentCy=pos_obj.currentCy,
-            cash_account_id=pos_obj.cash_account_id,
-            is_unsettled_balance=True,
-        )
-        logger.info(
-            f"[{unsettled_pos.get_processing_identifier()}] Created unsettled cash account "
-            f"with {len(unsettled_stocks)} trade(s) totalling {total_unsettled} {currency}."
-        )
-        return unsettled_pos, all_stocks, []
 
     def import_files(self, filenames: List[str]) -> TaxStatement:
         """
@@ -524,56 +471,195 @@ class SchwabImporter:
 
         tax_year = self.period_from.year
 
-        # --- Reconcile and ensure period boundary stock records ---
-        all_processed_tuples = []
-        for pos_obj, (initial_stocks, associated_payments) in position_map.items():
-            if isinstance(pos_obj, CashPosition):
-                # Split cash into settled and unsettled at period end.
-                # Unsettled = trades whose T+1 settlement date falls after period_to
-                # (i.e. the broker's statement would not yet reflect them).
-                settled_stocks, unsettled_stocks = split_unsettled_cash(initial_stocks, self.period_to)
+        # --- Split the aggregator into the shared accumulator shapes and
+        # rewrite Schwab-specific display names so the shared postprocess can
+        # operate directly on SecurityPosition.depot / CashAccountEntry.* ---
+        processed_security_positions: Dict[SecurityPosition, SecurityPositionData] = {}
+        name_registry = SecurityNameRegistry()
+        cash_entries: List[CashAccountEntry] = []
 
-                processed_tuple = self._reconcile_and_ensure_boundary_stocks_for_position(
+        for pos_obj, (initial_stocks, associated_payments) in position_map.items():
+            if isinstance(pos_obj, SecurityPosition):
+                display_depot = _resolve_security_depot_display_name(
+                    pos_obj.depot, self.account_settings_list
+                )
+                rekeyed = pos_obj.model_copy(update={"depot": display_depot})
+                processed_security_positions[rekeyed] = SecurityPositionData(
+                    stocks=list(initial_stocks),
+                    payments=list(associated_payments),
+                )
+                display_name = _schwab_security_display_name(pos_obj)
+                if display_name is not None:
+                    name_registry.update(rekeyed, display_name, 10)
+            elif isinstance(pos_obj, CashPosition):
+                # Cash needs its own reconciliation to derive the closing
+                # balance that augment_list_of_bank_accounts expects on the
+                # CashAccountEntry. Split settled vs unsettled first.
+                settled_stocks, unsettled_stocks = split_unsettled_cash(
+                    initial_stocks, self.period_to
+                )
+                settled_entry = self._build_settled_cash_entry(
                     pos_obj, settled_stocks, associated_payments
                 )
-                all_processed_tuples.append(processed_tuple)
+                if settled_entry is not None:
+                    cash_entries.append(settled_entry)
 
-                # Generate a separate unsettled account only when there is a non-zero balance
                 if unsettled_stocks:
-                    total_unsettled = sum((s.quantity for s in unsettled_stocks), Decimal("0"))
+                    total_unsettled = sum(
+                        (s.quantity for s in unsettled_stocks), Decimal("0")
+                    )
                     if total_unsettled != Decimal("0"):
                         logger.info(
                             f"[{pos_obj.get_processing_identifier()}] {len(unsettled_stocks)} "
                             f"unsettled trade(s) at period end {self.period_to} "
                             f"(net {total_unsettled}); will be reported as a separate account."
                         )
-                        unsettled_tuple = self._make_unsettled_position_tuple(pos_obj, unsettled_stocks)
-                        all_processed_tuples.append(unsettled_tuple)
+                        cash_entries.append(
+                            self._build_unsettled_cash_entry(
+                                pos_obj, unsettled_stocks, total_unsettled
+                            )
+                        )
             else:
-                processed_tuple = self._reconcile_and_ensure_boundary_stocks_for_position(
-                    pos_obj, initial_stocks, associated_payments
+                logger.warning(
+                    "Ignoring unknown position type after aggregation: %s",
+                    type(pos_obj),
                 )
-                all_processed_tuples.append(processed_tuple)
 
-        # Now, filter the processed tuples into security and cash lists
-        final_security_tuples = []
-        final_cash_tuples = []
-        for pos_obj, stocks, payments in all_processed_tuples:
-            if isinstance(pos_obj, SecurityPosition):
-                final_security_tuples.append((pos_obj, stocks, payments))
-            elif isinstance(pos_obj, CashPosition):
-                final_cash_tuples.append((pos_obj, stocks, payments))
-            else:
-                # This case should ideally not be reached if input `all_positions` was validated
-                print(f"WARNING: Unknown position type encountered after reconciliation: {type(pos_obj)}")
+        # --- Partial TaxStatement, then delegate to the shared post-processing ---
+        tax_statement = TaxStatement(
+            minorVersion=1,
+            periodFrom=self.period_from,
+            periodTo=self.period_to,
+            taxPeriod=tax_year,
+            institution=Institution(name="Charles Schwab"),
+        )
 
-        return create_tax_statement_from_positions(
-            final_security_tuples,
-            final_cash_tuples,
-            period_from=self.period_from,
-            period_to=self.period_to,
-            tax_period=tax_year,
-            account_settings_list=self.account_settings_list
+        primary_client_number = _pick_primary_client_number(
+            self.account_settings_list
+        )
+        if primary_client_number is not None:
+            tax_statement.client = [
+                Client(clientNumber=ClientNumber(primary_client_number))
+            ]
+
+        augment_list_of_securities(
+            tax_statement,
+            processed_security_positions,
+            name_registry=name_registry,
+            hints_for=lambda _sp: PositionHints(
+                security_category="SHARE",
+                country="US",
+                # Schwab historically never raised on negative balances; keep
+                # that contract to avoid regressing on edge cases.
+                allow_negative_opening=True,
+                allow_negative_balance=True,
+            ),
+            strict_consistency=self.strict_consistency,
+            run_initial_consistency_check=True,
+            # Mutation-only symbols (e.g. awards that never appear on a
+            # position snapshot) must be reconciled by walking mutations
+            # from an implicit zero; otherwise their net closing balance
+            # would be dropped to 0.
+            assume_zero_if_no_balances=True,
+            # Schwab extractors emit one row per real event (a vesting
+            # grant, a transfer, a sale) whose ``name`` carries unique
+            # per-event text (grant date, wash-sale note, ...). Merging
+            # same-day rows would silently drop that information.
+            aggregate_same_day_mutations=False,
+        )
+        augment_list_of_bank_accounts(tax_statement, cash_entries)
+        return tax_statement
+
+    # ------------------------------------------------------------------
+    # CashAccountEntry builders (Schwab-specific naming lives here)
+    # ------------------------------------------------------------------
+
+    def _build_settled_cash_entry(
+        self,
+        pos_obj: CashPosition,
+        settled_stocks: List[SecurityStock],
+        payments: List[SecurityPayment],
+    ) -> Optional[CashAccountEntry]:
+        """Reconcile *settled_stocks* and wrap the result in a CashAccountEntry.
+
+        Returns ``None`` when the caller provided nothing at all — avoids
+        emitting an empty bank account for a currency we have no data for.
+        """
+        if not settled_stocks and not payments:
+            return None
+
+        # Initial consistency check preserved from the legacy helper.
+        identifier = pos_obj.get_processing_identifier()
+        initial = PositionReconciler(
+            list(settled_stocks), identifier=f"{identifier}-initial_check"
+        )
+        is_consistent, _ = initial.check_consistency(
+            print_log=True,
+            raise_on_error=self.strict_consistency,
+            assume_zero_if_no_balances=True,
+        )
+        if not is_consistent and not self.strict_consistency:
+            logger.warning(
+                f"[{identifier}] Initial consistency check on raw cash data failed. "
+                "Review logs. Proceeding with synthesis.",
+            )
+
+        end_plus_one = self.period_to + timedelta(days=1)
+        reconciler = PositionReconciler(
+            list(settled_stocks), identifier=f"{identifier}-end_synth"
+        )
+        end_pos = reconciler.synthesize_position_at_date(
+            end_plus_one, assume_zero_if_no_balances=True
+        )
+        closing_balance = end_pos.quantity if end_pos else Decimal("0")
+        currency = pos_obj.currentCy or "USD"
+
+        bank_payments = [
+            BankAccountPayment(
+                paymentDate=p.paymentDate,
+                name=p.name,
+                amountCurrency=p.amountCurrency,
+                amount=p.amount,
+            )
+            for p in (payments or [])
+        ]
+
+        name, number = _resolve_cash_account_identity(
+            pos_obj, self.account_settings_list
+        )
+        return CashAccountEntry(
+            account_id=name,
+            currency=currency,
+            closing_balance=closing_balance,
+            payments=bank_payments,
+            name=name,
+            number=number,
+        )
+
+    def _build_unsettled_cash_entry(
+        self,
+        pos_obj: CashPosition,
+        unsettled_stocks: List[SecurityStock],
+        total_unsettled: Decimal,
+    ) -> CashAccountEntry:
+        currency = (
+            unsettled_stocks[0].balanceCurrency
+            if unsettled_stocks
+            else (pos_obj.currentCy or "USD")
+        )
+        # A synthetic CashPosition flagged as unsettled drives the " (Unsettled)"
+        # name suffix below, matching the legacy behaviour.
+        marker = pos_obj.model_copy(update={"is_unsettled_balance": True})
+        name, number = _resolve_cash_account_identity(
+            marker, self.account_settings_list
+        )
+        return CashAccountEntry(
+            account_id=name,
+            currency=currency,
+            closing_balance=total_unsettled,
+            payments=[],
+            name=name,
+            number=number,
         )
 
     def import_dir(self, directory: str) -> TaxStatement:
@@ -593,183 +679,6 @@ class SchwabImporter:
             elif fname.lower().endswith('.csv'):
                 files.append(os.path.join(directory, fname))
         return self.import_files(files)
-
-def convert_security_positions_to_list_of_securities(
-    security_tuples: list[tuple[SecurityPosition, list[SecurityStock], list[SecurityPayment] | None]],
-    account_settings_list: List[SchwabAccountSettings]
-) -> ListOfSecurities:
-    """
-    Convert a list of (SecurityPosition, List[SecurityStock], Optional[List[SecurityPayment]]) tuples
-    into a ListOfSecurities object. Minimal stub: one depot, one security per position.
-    """
-    depots: Dict[str, Depot] = {} # Uses the final_depot_id_str as key
-    position_counter = 0
-    for pos, stocks, payments in security_tuples:
-        depot_key = pos.depot # This is the short form, e.g., "123" or "AWARDS"
-
-        final_depot_id_str: str
-        if depot_key == 'AWARDS':
-            final_depot_id_str = "AWARDS"
-        else:
-            # For non-AWARDS, get the configured full account number or ...<depot_key>
-            _matched_config_acc_num, display_id_from_helper = _get_configured_account_info(
-                depot_key, account_settings_list, False
-            )
-            final_depot_id_str = display_id_from_helper
-
-        if final_depot_id_str not in depots:
-            depots[final_depot_id_str] = Depot(depotNumber=DepotNumber(final_depot_id_str), security=[])
-        
-        # Determine security name based on description and symbol
-        security_name: str
-        if pos.description:
-            security_name = f"{pos.description} ({pos.symbol})"
-        else:
-            security_name = pos.symbol
-            
-        if not stocks:
-            print(f"WARNING: Security {security_name} has no stocks after reconciliation and will be skipped.")
-            continue
-
-        first_stock = stocks[0]
-        position_counter += 1
-        sec = Security(
-            positionId=position_counter,
-            country="US",  # Stub
-            currency=first_stock.balanceCurrency,
-            quotationType=first_stock.quotationType,
-            securityCategory="SHARE",  # Stub
-            securityName=security_name,
-            stock=stocks,
-            payment=payments or [],
-            symbol=pos.symbol
-        )
-        depots[final_depot_id_str].security.append(sec) # Use final_depot_id_str as key
-    return ListOfSecurities(depot=list(depots.values()))
-
-def convert_cash_positions_to_list_of_bank_accounts(
-    cash_tuples: list[tuple[CashPosition, list[SecurityStock], list[SecurityPayment] | None]],
-    period_to: date,
-    account_settings_list: List[SchwabAccountSettings]
-) -> ListOfBankAccounts:
-    """
-    Convert a list of (CashPosition, List[SecurityStock], Optional[List[SecurityPayment]]) tuples into a ListOfBankAccounts object.
-    """
-    accounts: List[BankAccount] = []
-    for pos, stocks, payments in cash_tuples:
-        currency = "USD" # Fallback if no stock items
-        if stocks:
-            currency = stocks[0].balanceCurrency
-        else:
-            print(f"Warning: CashPosition for depot {pos.depot} / cash_id {pos.cash_account_id} has no stock items. Using default currency.")
-
-        is_awards = pos.depot == 'AWARDS'
-        # Ensure cash_account_id is a string if it's None and is_awards is true, or handle None in _get_configured_account_info
-        depot_identifier_for_lookup = pos.cash_account_id if is_awards else pos.depot
-        if is_awards and depot_identifier_for_lookup is None:
-            # This case might indicate an issue or require a default, e.g., "UNKNOWN_AWARD_ID"
-            # For now, let's use a placeholder to ensure _get_configured_account_info receives a string.
-            print(f"WARNING: Awards depot for {pos.depot} has a None cash_account_id. Using 'UNKNOWN' for lookup.")
-            depot_identifier_for_lookup = "UNKNOWN"
-
-        # Ensure depot_identifier_for_lookup is always a string
-        depot_identifier_for_lookup = depot_identifier_for_lookup or "UNKNOWN"
-
-        config_acc_num, display_id_from_helper = _get_configured_account_info(
-            depot_identifier_for_lookup,
-            account_settings_list,
-            is_awards
-        )
-
-        final_account_number_str: str
-        if is_awards:
-            final_account_number_str = display_id_from_helper  # Expected: "Equity Awards <cash_account_id>" or "Equity Awards UNKNOWN"
-        else: # Not awards
-            if config_acc_num is not None: # Full account number from config
-                final_account_number_str = display_id_from_helper # This is the full account number as per _get_configured_account_info logic
-            else: # No match in config, display_id_from_helper is "...<depot>"
-                final_account_number_str = f"{pos.currentCy} Account {display_id_from_helper}"
-
-        # Append an unsettled marker for positions that represent in-transit cash.
-        # Truncate the base name first so the suffix always fits within 40 chars.
-        if pos.is_unsettled_balance:
-            suffix = " (Unsettled)"
-            base = final_account_number_str[: 40 - len(suffix)]
-            final_account_number_str = base + suffix
-
-        bank_payments = [BankAccountPayment(
-            paymentDate=payment.paymentDate,
-            name=payment.name,
-            amountCurrency=payment.amountCurrency,
-            amount=payment.amount,
-        ) for payment in payments] if payments else []
-            
-        bank_account = BankAccount(
-                bankAccountName=BankAccountName(final_account_number_str[:40]),
-                bankAccountNumber=BankAccountNumber(config_acc_num[:32]) if config_acc_num else None,
-                bankAccountCountry="US", # Assume Schwab is always US based
-                bankAccountCurrency=currency,
-                payment=bank_payments
-        )
-
-        # Find the closing balance stock for the period_to date
-        # The reconciliation ensures a stock exists for period_to + 1 day (start of next day)
-        closing_stock_date = period_to + timedelta(days=1)
-        closing_stock_entry = None
-        if stocks:
-            for stock_item in stocks:
-                if stock_item.referenceDate == closing_stock_date and not stock_item.mutation:
-                    closing_stock_entry = stock_item
-                    break
-        
-        if closing_stock_entry:
-            bank_account.taxValue = BankAccountTaxValue(
-                referenceDate=period_to, # Tax value is as of end of period_to
-                balanceCurrency=closing_stock_entry.balanceCurrency,
-                balance=closing_stock_entry.quantity # Quantity of cash is its balance
-            )
-        accounts.append(bank_account)
-    return ListOfBankAccounts(bankAccount=accounts)
-
-def create_tax_statement_from_positions(
-    security_tuples: list[tuple[SecurityPosition, list[SecurityStock], list[SecurityPayment] | None]],
-    cash_tuples: list[tuple[CashPosition, list[SecurityStock], list[SecurityPayment] | None]],
-    period_from: date,
-    period_to: date,
-    tax_period: int,
-    account_settings_list: List[SchwabAccountSettings]
-) -> TaxStatement:
-    """
-    Create a TaxStatement from security and cash tuples.
-    """
-    client_id_value: Optional[str] = None
-    for setting in account_settings_list:
-        if setting.account_name_alias and setting.account_name_alias.lower() != "awards":
-            client_id_value = setting.account_number
-            break
-
-    client_list_for_statement: List[Client] = []
-    if client_id_value:
-        main_client = Client(clientNumber=ClientNumber(client_id_value)) # Use ClientNumber type
-        client_list_for_statement.append(main_client)
-
-    list_of_securities = convert_security_positions_to_list_of_securities(security_tuples, account_settings_list)
-    # Pass account_settings_list to convert_cash_positions_to_list_of_bank_accounts
-    list_of_bank_accounts = convert_cash_positions_to_list_of_bank_accounts(cash_tuples, period_to, account_settings_list)
-    return TaxStatement(
-        minorVersion=1,
-        periodFrom=period_from,
-        periodTo=period_to,
-        taxPeriod=tax_period,
-        client=client_list_for_statement,
-        listOfSecurities=list_of_securities,
-        listOfBankAccounts=list_of_bank_accounts,
-        # Name is sufficient. Avoid setting legal identifiers avoid implying this is
-        # officially from the broker.
-        institution = Institution(
-            name="Charles Schwab"
-        )
-    )
 
 if __name__ == "__main__":
     import argparse
