@@ -104,6 +104,7 @@ def process(
     filter_to_period_flag: bool = typer.Option(True, "--filter-to-period/--no-filter-to-period", help="Filter transactions and stock events to the tax period (with closing balances). Defaults to enabled."),
     tax_calculation_level: TaxCalculationLevel = typer.Option(TaxCalculationLevel.KURSLISTE, "--tax-calculation-level", help="Specify the level of detail for tax value calculations."),
     log_level: LogLevel = typer.Option(LogLevel.INFO, "--log-level", help="Set the log level for console output."),
+    log_file: Optional[Path] = typer.Option(None, "--log-file", help="Write logs to this file."),
     config_file: Optional[Path] = typer.Option(None, "--config", "-c", help="Path to the configuration TOML file. Defaults to config.toml in CWD or XDG config home."),
     broker_name: Optional[str] = typer.Option(None, "--broker", help="Broker name (e.g., 'schwab') from config.toml to use for this run."),
     override_configs: List[str] = typer.Option(None, "--set", help="Override configuration settings using path.to.key=value format. Can be used multiple times."),
@@ -116,7 +117,15 @@ def process(
     post_amble: Optional[List[Path]] = typer.Option(None, "--post-amble", help="List of PDF documents to add after the main steuerauszug."),
 ):
     """Processes financial data to generate a Swiss tax statement (Steuerauszug)."""
-    logging.basicConfig(level=log_level.value)
+    if log_file:
+        logging.basicConfig(level=log_level.value,
+                            filename=str(log_file),
+                            filemode="w",
+                            encoding="utf-8",
+                            format='%(name)s %(levelname)s %(message)s')
+    else:
+        logging.basicConfig(level=log_level.value)
+
     # Suppress pypdf warnings to avoid cluttering output with benign warnings
     # about rotated text and other PDF layout issues
     logging.getLogger('pypdf').setLevel(logging.ERROR)
