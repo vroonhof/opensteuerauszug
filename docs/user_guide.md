@@ -312,12 +312,30 @@ opensteuerauszug process input.xml --importer ibkr --tax-year 2025 \
 
 ---
 
+## Simple Web App
+
+This repository ships a minimal Flask web app. It supports IBKR XML uploads.
+
+### Setup
+
+1. Install dependencies:
+   ```bash
+   pip install ".[web]"
+   ```
+
+2. Start:
+   ```bash
+   python src/opensteuerauszug/webapp/wsgi.py
+   ```
+   
+3. Access via your browser at http://localhost:10000
+
+---
 
 ## Verifying an Existing Steuerauszug
 
 See [docs/verify_existing.md](verify_existing.md) for instructions on verifying or recalculating an existing Steuerauszug (eCH-0196 XML) with OpenSteuerAuszug.
 
----
 ---
 
 ## Limitations
