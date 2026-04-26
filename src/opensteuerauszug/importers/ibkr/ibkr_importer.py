@@ -9,21 +9,23 @@ logger = logging.getLogger(__name__)
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    BankAccountName, Institution, SecurityCategory, TaxStatement, ListOfSecurities, ListOfBankAccounts,
-    Security, SecurityStock, SecurityPayment,
-    BankAccount, BankAccountPayment, BankAccountTaxValue,
-    QuotationType, DepotNumber, BankAccountNumber, Depot, ISINType, Client
+    BankAccountPayment, Institution, ISINType, SecurityCategory,
+    SecurityPayment, SecurityStock, TaxStatement, Client,
 )
-from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.config.models import IbkrAccountSettings
 from opensteuerauszug.importers.common import (
+    CashAccountEntry,
     CashPositionData,
+    PositionHints,
     SecurityNameRegistry,
     SecurityPositionData,
     aggregate_mutations,
     apply_withholding_tax_fields,
+    augment_list_of_bank_accounts,
+    augment_list_of_securities,
     build_client,
     build_security_payment,
+    fold_cash_payments,
     parse_swiss_canton,
     resolve_first_last_name,
     to_decimal,
@@ -986,170 +988,48 @@ class IbkrImporter:
                 processed_security_positions,
             )
 
-        # --- Construct ListOfSecurities ---
-        # account_id -> list of Security objects
-        depot_securities_map: defaultdict[str, List[Security]] = defaultdict(list)
-        sec_pos_idx = 0
-        for sec_pos_obj, data in processed_security_positions.items():
-            sec_pos_idx += 1
-            sorted_stocks = self._aggregate_stocks(data['stocks'])
-            sorted_payments = sorted(
-                data['payments'], key=lambda p: p.paymentDate
+        # --- Assemble the partial TaxStatement and augment it via the shared
+        # post-processing stage. The client/institution/canton block below
+        # continues to write onto the same object.
+        tax_statement = TaxStatement(
+            minorVersion=1,
+            periodFrom=self.period_from,
+            periodTo=self.period_to,
+            taxPeriod=self.period_from.year,
+        )
+
+        ignore_rights_issues_by_account: Dict[str, bool] = {
+            s.account_number: getattr(s, "ignore_rights_issues", False)
+            for s in self.account_settings_list
+            if getattr(s, "account_number", None)
+        }
+
+        def _hints_for(sec_pos: SecurityPosition) -> PositionHints:
+            asset_cat, _sub_category = security_asset_category_map.get(
+                sec_pos, ("STK", None)
             )
-
-            # Determine currency and quotation type from stocks or defaults
-            primary_currency = None
-            primary_quotation_type: QuotationType = "PIECE" # Default
-            if sorted_stocks:
-                # Try balance entry first, then any entry
-                balance_stocks = [
-                    s for s in sorted_stocks if not s.mutation and s.balanceCurrency
-                ]
-                if balance_stocks:
-                    primary_currency = balance_stocks[0].balanceCurrency
-                    primary_quotation_type = balance_stocks[0].quotationType
-                else:  # Try any stock
-                    primary_currency = sorted_stocks[0].balanceCurrency
-                    primary_quotation_type = sorted_stocks[0].quotationType
-
-            if not primary_currency:  # Fallback if no stocks or no currency
-                if sorted_payments:
-                    primary_currency = sorted_payments[0].amountCurrency
-                else:
-                    raise ValueError(
-                        f"Cannot determine currency for security "
-                        f"{sec_pos_obj.symbol} (Desc: {sec_pos_obj.description}). "
-                        f"No stocks or payments with currency info."
-                    )
-
-            # TODO: Map assetCategory to eCH-0196 SecurityCategory
-            # Get assetCategory and subCategory from the map, default to "STK"
-            asset_cat = 'STK'
-            sub_category = None
-            if sec_pos_obj in security_asset_category_map:
-                asset_cat, sub_category = security_asset_category_map[sec_pos_obj]
-
             sec_category = IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY.get(asset_cat)
             if not sec_category:
                 raise ValueError(f"Unknown asset category: {asset_cat}")
-
-            # --- Ensure balance at period start and period end + 1 using PositionReconciler ---
-            reconciler = PositionReconciler(list(sorted_stocks), identifier=f"{sec_pos_obj.symbol}-reconcile")
-            end_plus_one = self.period_to + timedelta(days=1)
-            end_pos = reconciler.synthesize_position_at_date(end_plus_one)
-            closing_balance = end_pos.quantity if end_pos else Decimal("0")
-
-            trades_quantity_total = sum(
-                s.quantity for s in sorted_stocks if s.mutation
+            is_rights = sec_pos in rights_issue_positions
+            skip_if_zero = is_rights and ignore_rights_issues_by_account.get(
+                sec_pos.depot, False
+            )
+            return PositionHints(
+                security_category=sec_category,
+                country=security_country_map.get(sec_pos, "US"),
+                is_rights_issue=is_rights,
+                skip_if_zero=skip_if_zero,
             )
 
-            start_pos = reconciler.synthesize_position_at_date(self.period_from)
-            if start_pos:
-                opening_balance = start_pos.quantity
-            else:
-                tentative_opening = closing_balance - trades_quantity_total
-                opening_balance = tentative_opening if tentative_opening >= 0 or asset_cat in ["OPT", "FOP"] else Decimal("0")
+        augment_list_of_securities(
+            tax_statement,
+            processed_security_positions,
+            name_registry=security_name_registry,
+            hints_for=_hints_for,
+        )
 
-            if opening_balance < 0 or closing_balance < 0:
-                if (asset_cat == "OPT" or asset_cat == "FOP") and (sub_category == "C" or sub_category == "P"):
-                    logger.warning(
-                        f"Negative balance computed for security {sec_pos_obj.symbol} with {asset_cat}/{sub_category}. In case you expect short positions, this is fine. Otherwise, please report this to the developers for further investigation."
-                        f" (start {opening_balance}, end {closing_balance})"
-                    )
-                else:
-                    raise ValueError(
-                        f"Negative balance computed for security {sec_pos_obj.symbol} with {asset_cat}/{sub_category}. In case you expect short positions, please report this to the developers for further investigation."
-                        f" (start {opening_balance}, end {closing_balance})"
-                    )
-
-            # Check if this is a rights issue and if we should skip it
-            is_rights_issue = sec_pos_obj in rights_issue_positions
-
-            # Find settings for this account
-            account_settings = next(
-                (s for s in self.account_settings_list if s.account_number == sec_pos_obj.depot),
-                None
-            )
-            ignore_rights_issues = getattr(account_settings, "ignore_rights_issues", False) if account_settings else False
-
-            if is_rights_issue and ignore_rights_issues and opening_balance == 0 and closing_balance == 0:
-                logger.info(
-                    "Skipping rights issue %s because balances are zero and ignore_rights_issues is set.",
-                    sec_pos_obj.symbol
-                )
-                continue
-
-            start_exists = any(
-                (not s.mutation and s.referenceDate == self.period_from)
-                for s in sorted_stocks
-            )
-            if not start_exists and opening_balance != 0:
-                sorted_stocks.append(
-                    SecurityStock(
-                        referenceDate=self.period_from,
-                        mutation=False,
-                        quotationType=primary_quotation_type,
-                        quantity=opening_balance,
-                        balanceCurrency=primary_currency
-                    )
-                )
-
-            end_exists = any(
-                (not s.mutation and s.referenceDate == end_plus_one)
-                for s in sorted_stocks
-            )
-            if not end_exists:
-                sorted_stocks.append(
-                    SecurityStock(
-                        referenceDate=end_plus_one,
-                        mutation=False,
-                        quotationType=primary_quotation_type,
-                        quantity=closing_balance,
-                        balanceCurrency=primary_currency
-                    )
-                )
-
-            sorted_stocks = sorted(
-                sorted_stocks, key=lambda s: (s.referenceDate, s.mutation)
-            )
-
-            # Determine best security name (registry falls back to description, then symbol)
-            final_security_name = security_name_registry.resolve(sec_pos_obj)
-
-            sec = Security(
-                positionId=sec_pos_idx,
-                currency=primary_currency,
-                quotationType=primary_quotation_type,
-                securityCategory=sec_category,
-                securityName=final_security_name,
-                isin=ISINType(sec_pos_obj.isin) if sec_pos_obj.isin is not None else None,
-                valorNumber=sec_pos_obj.valor,
-                country=security_country_map.get(sec_pos_obj, "US"),
-                stock=sorted_stocks,
-                payment=sorted_payments
-            )
-
-            if is_rights_issue:
-                sec.is_rights_issue = True
-
-            depot_securities_map[sec_pos_obj.depot].append(sec)
-
-        final_depots = []
-        if depot_securities_map:
-            for depot_id, securities_in_depot in depot_securities_map.items():
-                if securities_in_depot:
-                    final_depots.append(
-                        Depot(depotNumber=DepotNumber(depot_id),
-                              security=securities_in_depot)
-                    )
-
-        list_of_securities = (ListOfSecurities(depot=final_depots)
-                              if final_depots else None)
-
-        # --- Extract account opening/closing dates from AccountInformation ---
-        # Build a per-account map so dates are only applied to bank accounts
-        # originating from the same flex statement.
-        # The cleanup calculator will later clear them if they fall outside the reporting window.
+        # --- Collect per-account dateOpened / dateClosed + CashReport seeds ---
         account_dates: Dict[str, Dict[str, date | None]] = {}
         for s_stmt in all_flex_statements:
             stmt_account_id = self._get_required_field(
@@ -1162,129 +1042,57 @@ class IbkrImporter:
                     'dateClosed': acc_info.dateClosed,
                 }
 
-        # --- Construct ListOfBankAccounts ---
-        final_bank_accounts: List[BankAccount] = []
-        
-        # First, collect all currencies from CashReport that have closing balances
-        all_currencies_with_balances: Dict[tuple, Dict[str, Any]] = {}
-        
+        seed_entries: List[CashAccountEntry] = []
         for s_stmt in all_flex_statements:
             account_id = s_stmt.accountId
-            if s_stmt.CashReport:
-                for cash_report_currency_obj in s_stmt.CashReport:
-                    entry_account_id = getattr(cash_report_currency_obj, "accountId", None)
-                    if should_skip_pseudo_account_entry(cash_report_currency_obj):
-                        logger.info(
-                            "Skipping CashReport entry with pseudo accountId in account %s",
-                            account_id,
-                        )
-                        continue
-                    curr = cash_report_currency_obj.currency
+            if not s_stmt.CashReport:
+                continue
+            for cash_report_currency_obj in s_stmt.CashReport:
+                if should_skip_pseudo_account_entry(cash_report_currency_obj):
+                    logger.info(
+                        "Skipping CashReport entry with pseudo accountId in account %s",
+                        account_id,
+                    )
+                    continue
+                curr = cash_report_currency_obj.currency
+                if curr == "BASE_SUMMARY":
+                    continue
 
-                    # Skip BASE_SUMMARY entries (IBKR internal aggregation, not a real currency)
-                    if curr == "BASE_SUMMARY":
-                        continue
+                closing_balance_value: Optional[Decimal] = None
+                if cash_report_currency_obj.endingCash is not None:
+                    closing_balance_value = self._to_decimal(
+                        cash_report_currency_obj.endingCash,
+                        'endingCash',
+                        f"CashReport {account_id} {curr}",
+                    )
+                elif (
+                    cash_report_currency_obj.balance is not None
+                    and cash_report_currency_obj.reportDate == self.period_to
+                ):
+                    closing_balance_value = self._to_decimal(
+                        cash_report_currency_obj.balance,
+                        'balance',
+                        f"CashReport {account_id} {curr}",
+                    )
 
-                    key = (account_id, curr)
-
-                    # Extract closing balance
-                    closing_balance_value = None
-                    if cash_report_currency_obj.endingCash is not None:
-                        closing_balance_value = self._to_decimal(
-                            cash_report_currency_obj.endingCash,
-                            'endingCash',
-                            f"CashReport {account_id} {curr}"
-                        )
-                    elif (
-                        cash_report_currency_obj.balance is not None
-                        and cash_report_currency_obj.reportDate == self.period_to
-                    ):
-                        closing_balance_value = self._to_decimal(
-                            cash_report_currency_obj.balance,
-                            'balance',
-                            f"CashReport {account_id} {curr}"
-                        )
-
-                    if closing_balance_value is not None:
-                        all_currencies_with_balances[key] = {
-                            'account_id': account_id,
-                            'currency': curr,
-                            'closing_balance': closing_balance_value,
-                            'payments': []
-                        }
-
-        # Now add payments from cash transactions to the relevant currencies
-        for (stmt_account_id, currency_code, _), data in processed_cash_positions.items():
-            key = (stmt_account_id, currency_code)
-            if key in all_currencies_with_balances:
-                all_currencies_with_balances[key]['payments'].extend(data['payments'])
-            else:
-                # This currency has transactions but no closing balance in CashReport
-                # Still create an entry for it
-                all_currencies_with_balances[key] = {
-                    'account_id': stmt_account_id,
-                    'currency': currency_code,
-                    'closing_balance': None,
-                    'payments': data['payments']
-                }
-
-        # Create bank accounts for all currencies
-        for key, data_dict in all_currencies_with_balances.items():
-            acc_id = data_dict['account_id']
-            curr = data_dict['currency']
-            payments = data_dict['payments']
-            closing_balance_value = data_dict['closing_balance']
-
-            # Ensure payments is a list before sorting
-            sorted_payments = sorted(payments or [], key=lambda p: p.paymentDate)
-
-            bank_account_tax_value_obj = None
-            if closing_balance_value is not None:
-                bank_account_tax_value_obj = BankAccountTaxValue(
-                    referenceDate=self.period_to,
-                    balanceCurrency=curr,
-                    balance=closing_balance_value
-                )
-            else:
-                logger.warning(
-                    f"No closing cash balance found in CashReport "
-                    f"for account {acc_id}, currency {curr} for date "
-                    f"{self.period_to}."
-                )
-                raise ValueError(
-                    f"No closing cash balance found in CashReport "
-                    f"for account {acc_id}, currency {curr} for date "
-                    f"{self.period_to}."
+                if closing_balance_value is None:
+                    continue
+                dates_for_account = account_dates.get(account_id, {})
+                seed_entries.append(
+                    CashAccountEntry(
+                        account_id=account_id,
+                        currency=curr,
+                        closing_balance=closing_balance_value,
+                        name=f"{account_id} {curr}",
+                        number=f"{account_id}-{curr}",
+                        opening_date=dates_for_account.get('dateOpened'),
+                        closing_date=dates_for_account.get('dateClosed'),
+                    )
                 )
 
-            bank_account_num_str = f"{acc_id}-{curr}"
-            bank_account_name_str = f"{acc_id} {curr}"
+        cash_entries = fold_cash_payments(seed_entries, processed_cash_positions)
+        augment_list_of_bank_accounts(tax_statement, cash_entries)
 
-            # Look up dates for this specific account
-            dates_for_account = account_dates.get(acc_id, {})
-            ba = BankAccount(
-                bankAccountName=BankAccountName(bank_account_name_str),
-                bankAccountNumber=BankAccountNumber(bank_account_num_str),
-                bankAccountCountry="US",
-                bankAccountCurrency=curr,
-                openingDate=dates_for_account.get('dateOpened'),
-                closingDate=dates_for_account.get('dateClosed'),
-                payment=sorted_payments,
-                taxValue=bank_account_tax_value_obj # Adjusted to single obj
-            )
-            final_bank_accounts.append(ba)
-
-        list_of_bank_accounts = (ListOfBankAccounts(bankAccount=final_bank_accounts)
-                                 if final_bank_accounts else None)
-
-        tax_statement = TaxStatement(
-            minorVersion=1,
-            periodFrom=self.period_from,
-            periodTo=self.period_to,
-            taxPeriod=self.period_from.year,
-            listOfSecurities=list_of_securities,
-            listOfBankAccounts=list_of_bank_accounts
-        )
         logger.info(
             "Partial TaxStatement created with Trades, OpenPositions, "
             "and basic CashTransactions mapping."

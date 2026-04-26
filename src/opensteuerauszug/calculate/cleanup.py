@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any, cast, get_args
 from decimal import Decimal
 import logging
 from opensteuerauszug.model.ech0196 import (
-    SecurityTaxValue, TaxStatement, SecurityStock,
+    Security, SecurityTaxValue, TaxStatement, SecurityStock,
     Client, CantonAbbreviation, LiabilityAccount, LiabilityAccountTaxValue,
     ListOfLiabilities, BankAccountName, CountryIdISO2Type, CurrencyId, LiabilityAccountPayment
 )
@@ -58,6 +58,43 @@ class CleanupCalculator:
 
     
 
+
+    def _check_negative_balances(self, security: Security, pos_id: str) -> None:
+        """Surface negative non-mutation balances on a security.
+
+        The post-processing layer is unopinionated and lets short positions
+        flow through; this is the single place where we sanity-check them.
+        We log a warning (with a pointer to the relevant tracking issue
+        based on the eCH security category) and then raise so processing
+        stops on data that the downstream calculators can't meaningfully
+        handle.
+        """
+        negative_balances = [
+            s for s in (security.stock or [])
+            if not s.mutation and s.quantity is not None and s.quantity < 0
+        ]
+        if not negative_balances:
+            return
+
+        if security.securityCategory == "OPTION":
+            issue_ref = (
+                "https://github.com/vroonhof/opensteuerauszug/issues/261"
+            )
+        else:
+            issue_ref = (
+                "https://github.com/vroonhof/opensteuerauszug/issues/309"
+            )
+        message = (
+            f"Negative balance(s) for security '{pos_id}' "
+            f"(category {security.securityCategory}): "
+            + ", ".join(
+                f"{s.quantity} on {s.referenceDate}" for s in negative_balances
+            )
+            + ". Please double-check the data; "
+            f"if you are intentionally holding a short position, see {issue_ref}."
+        )
+        logger.warning("  Security %s: %s", pos_id, message)
+        raise ValueError(message)
 
     def _generate_tax_statement_id(self, statement: TaxStatement) -> str:
         """
@@ -508,6 +545,8 @@ class CleanupCalculator:
                             # Keep the full, sorted stock history for quantity reconciliation
                             # even if we filter security.stock for the final XML representation.
                             full_stock_history = list(security.stock)
+
+                            self._check_negative_balances(security, pos_id)
 
                             # End of period balances are reflected in the tax value
                             if self.period_to:
