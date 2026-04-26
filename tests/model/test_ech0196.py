@@ -95,6 +95,30 @@ def test_security_payment_quantity_with_value_passes_output_required_validation(
 
     assert payment._validate_output_required_fields() == []
 
+
+def test_output_required_validation_skips_excluded_fields():
+    security = Security(
+        positionId=1,
+        country="CH",
+        currency="CHF",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        securityName="Excluded Field Test",
+        broker_payments=[
+            SecurityPayment(
+                paymentDate=date(2024, 1, 1),
+                quotationType="PIECE",
+                quantity=None,
+                amountCurrency="USD",
+                amount=Decimal("10"),
+            )
+        ],
+    )
+
+    # broker_payments is exclude=True, so nested required_for_output checks
+    # inside that internal-only structure must be ignored.
+    assert security._validate_output_required_fields() == []
+
 def test_tax_statement_to_xml(sample_tax_statement_data):
     """Tests serialization to XML bytes and checks basic structure."""
     statement = sample_tax_statement_data

@@ -367,7 +367,7 @@ class TransactionExtractor:
                         "Non-Qualified Div", "Special Qual Div", "Div Adjustment"):
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
                 if schwab_qty is not None and schwab_qty != Decimal(0):
-                    print(f"Warning: Ignoring non-zero quantity ({schwab_qty}) for action '{action}' on symbol {pos_object.symbol}. Payment quantity will be uninitialized.")
+                    print(f"Warning: Ignoring non-zero quantity ({schwab_qty}) for action '{action}' on symbol {pos_object.symbol}. Payment quantity will be left unset and synthesized later.")
                 payment_quantity = None
                 sec_payment = SecurityPayment(
                     paymentDate=tx_date, quotationType="PIECE",

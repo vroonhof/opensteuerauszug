@@ -299,6 +299,9 @@ class BaseXmlModel(BaseModel):
         current_path = path or self.__class__.__name__
 
         for field_name, field_info in self.__class__.model_fields.items():
+            if field_info.exclude:
+                continue
+
             value = getattr(self, field_name)
             field_path = f"{current_path}.{field_name}"
             extra = field_info.json_schema_extra or {}
