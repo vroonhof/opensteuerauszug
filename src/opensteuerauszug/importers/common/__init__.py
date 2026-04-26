@@ -18,19 +18,31 @@ from .client import (
 )
 from .parsing import to_decimal
 from .payments import apply_withholding_tax_fields, build_security_payment
+from .postprocess import (
+    CashAccountEntry,
+    PositionHints,
+    augment_list_of_bank_accounts,
+    augment_list_of_securities,
+    fold_cash_payments,
+)
 from .security_name import SecurityNameRegistry
 from .stock_aggregation import aggregate_mutations
 from .types import CashPositionData, SecurityNameMetadata, SecurityPositionData
 
 __all__ = [
+    "CashAccountEntry",
     "CashPositionData",
+    "PositionHints",
     "SecurityPositionData",
     "SecurityNameMetadata",
     "SecurityNameRegistry",
     "aggregate_mutations",
     "apply_withholding_tax_fields",
+    "augment_list_of_bank_accounts",
+    "augment_list_of_securities",
     "build_client",
     "build_security_payment",
+    "fold_cash_payments",
     "is_nonempty_string",
     "parse_swiss_canton",
     "resolve_first_last_name",
