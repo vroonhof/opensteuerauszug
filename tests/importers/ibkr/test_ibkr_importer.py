@@ -518,8 +518,8 @@ def test_ibkr_import_skips_hyphen_account_entries(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
-def test_security_payment_quantity_is_minus_one(sample_ibkr_settings):
-    """Test that SecurityPayment.quantity is set to -1 for payments derived from CashTransactions."""
+def test_security_payment_quantity_is_none_before_cleanup(sample_ibkr_settings):
+    """Test that SecurityPayment.quantity is None for payments derived from CashTransactions (set by cleanup)."""
     period_from = date(2023, 1, 1)
     period_to = date(2023, 12, 31)
 

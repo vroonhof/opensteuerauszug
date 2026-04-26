@@ -846,7 +846,7 @@ class TestSchwabTransactionExtractor:
         cash_stock_qtys = sorted([s.quantity for s in cash_stocks])
         assert cash_stock_qtys == [Decimal("-3000.00"), Decimal("12.34")]
 
-    def test_security_payment_quantity_is_minus_one(self):
+    def test_security_payment_quantity_is_none_before_cleanup(self):
         extractor = create_extractor()
         data = {
             "FromDate": "01/01/2024", "ToDate": "12/31/2024",
@@ -855,7 +855,7 @@ class TestSchwabTransactionExtractor:
                     "Date": "03/01/2024", "Action": "Credit Interest",
                     "Description": "Bank Interest", "Amount": "$5.00"
                 },
-                { # 2. Dividend (no quantity specified by Schwab -> should be -1)
+                { # 2. Dividend (no quantity specified by Schwab -> quantity stays None until cleanup)
                     "Date": "04/01/2024", "Action": "Dividend", "Symbol": "TGT",
                     "Description": "TARGET CORP DIVIDEND",
                     "Amount": "$50.00"
@@ -871,13 +871,13 @@ class TestSchwabTransactionExtractor:
                     "Amount": "$-7.50"
                 },
                 { # 5. Reinvest Dividend (Schwab Quantity is for shares bought, not for payment quantity basis)
-                  # Our logic should set payment quantity to -1 if underlying shares count for dividend is not determinable from this TX alone.
+                  # Our logic leaves payment quantity as None; cleanup synthesizes it from stock balance.
                     "Date": "05/01/2024", "Action": "Reinvest Dividend", "Symbol": "VOO",
                     "Description": "VANGUARD S&P 500 ETF DIV REINV",
                     "Quantity": "0.5", "Price": "400.00",
                     "Amount": "$200.00"
                 },
-                { # 6. Dividend (explicit zero quantity by Schwab -> should be -1)
+                { # 6. Dividend (explicit zero quantity by Schwab -> treated as missing, stays None)
                     "Date": "06/01/2024", "Action": "Dividend", "Symbol": "ZEROQ",
                     "Description": "ZEROQUANT CORP DIVIDEND", "Quantity": "0",
                     "Amount": "$20.00"
