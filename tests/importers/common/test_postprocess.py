@@ -82,7 +82,13 @@ def test_augment_securities_synthesizes_opening_and_closing_balances():
     assert (date(2025, 1, 1), False, Decimal("10")) in balance_dates
 
 
-def test_augment_securities_raises_on_negative_balance_by_default():
+def test_augment_securities_propagates_negative_balance_unchanged():
+    """Post-processing is unopinionated: negative balances flow through.
+
+    Sanity-checking lives in :class:`CleanupCalculator`; the augmentation
+    layer must surface whatever the importer extracted, including short
+    positions, without raising or mutating the values.
+    """
     statement = _partial_statement()
     sec_pos = SecurityPosition(depot="D1", symbol="XYZ", description="XYZ")
     sell = SecurityStock(
@@ -93,7 +99,7 @@ def test_augment_securities_raises_on_negative_balance_by_default():
         balanceCurrency="USD",
         quotationType="PIECE",
     )
-    zero_close = SecurityStock(
+    close = SecurityStock(
         referenceDate=date(2025, 1, 1),
         mutation=False,
         quantity=Decimal("-5"),
@@ -101,50 +107,24 @@ def test_augment_securities_raises_on_negative_balance_by_default():
         quotationType="PIECE",
         unitPrice=Decimal("10"),
     )
-    positions = {sec_pos: SecurityPositionData(stocks=[sell, zero_close], payments=[])}
-
-    with pytest.raises(ValueError, match="Negative balance"):
-        augment_list_of_securities(
-            statement,
-            positions,
-            name_registry=SecurityNameRegistry(),
-            hints_for=lambda _: PositionHints(),
-        )
-
-
-def test_augment_securities_allow_negative_balance_warns(caplog):
-    statement = _partial_statement()
-    sec_pos = SecurityPosition(depot="D1", symbol="OPT1", description="OPT1")
-    sell = SecurityStock(
-        referenceDate=date(2024, 6, 1),
-        mutation=True,
-        quantity=Decimal("-1"),
-        unitPrice=Decimal("1"),
-        balanceCurrency="USD",
-        quotationType="PIECE",
-    )
-    close = SecurityStock(
-        referenceDate=date(2025, 1, 1),
-        mutation=False,
-        quantity=Decimal("-1"),
-        balanceCurrency="USD",
-        quotationType="PIECE",
-        unitPrice=Decimal("1"),
-    )
     positions = {sec_pos: SecurityPositionData(stocks=[sell, close], payments=[])}
 
-    with caplog.at_level("WARNING"):
-        augment_list_of_securities(
-            statement,
-            positions,
-            name_registry=SecurityNameRegistry(),
-            hints_for=lambda _: PositionHints(
-                allow_negative_opening=True, allow_negative_balance=True
-            ),
-        )
+    augment_list_of_securities(
+        statement,
+        positions,
+        name_registry=SecurityNameRegistry(),
+        hints_for=lambda _: PositionHints(),
+    )
 
-    assert "Negative balance" in caplog.text
     assert statement.listOfSecurities is not None
+    (depot,) = statement.listOfSecurities.depot
+    (security,) = depot.security
+    closing_balances = [
+        s.quantity
+        for s in security.stock
+        if not s.mutation and s.referenceDate == date(2025, 1, 1)
+    ]
+    assert closing_balances == [Decimal("-5")]
 
 
 def test_augment_securities_skip_if_zero():
@@ -283,9 +263,7 @@ def test_augment_securities_assume_zero_walks_mutations_without_balances():
         statement,
         positions,
         name_registry=SecurityNameRegistry(),
-        hints_for=lambda _: PositionHints(
-            allow_negative_opening=True, allow_negative_balance=True
-        ),
+        hints_for=lambda _: PositionHints(),
         assume_zero_if_no_balances=True,
     )
 
@@ -333,9 +311,7 @@ def test_augment_securities_preserves_same_day_mutations_when_aggregation_off():
         statement,
         positions,
         name_registry=SecurityNameRegistry(),
-        hints_for=lambda _: PositionHints(
-            allow_negative_opening=True, allow_negative_balance=True
-        ),
+        hints_for=lambda _: PositionHints(),
         assume_zero_if_no_balances=True,
         aggregate_same_day_mutations=False,
     )
@@ -373,9 +349,7 @@ def test_augment_securities_aggregates_same_day_mutations_by_default():
         statement,
         positions,
         name_registry=SecurityNameRegistry(),
-        hints_for=lambda _: PositionHints(
-            allow_negative_opening=True, allow_negative_balance=True
-        ),
+        hints_for=lambda _: PositionHints(),
         assume_zero_if_no_balances=True,
     )
 

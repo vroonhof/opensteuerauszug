@@ -2707,3 +2707,82 @@ class TestCleanupCalculatorClosingBalanceQuantity:
         assert result_security.taxValue is not None
         assert result_security.taxValue.quantity == Decimal("0.001")
 
+
+class TestCleanupCalculatorNegativeBalanceWarnings:
+    """Sanity-check warnings for negative security balances.
+
+    Importers stay unopinionated and surface short positions as-is; the
+    cleanup stage is the single place that flags them.
+    """
+
+    def _build_statement(self, security: Security, period_from: date, period_to: date) -> TaxStatement:
+        depot = Depot(depotNumber=DepotNumber("D1"), security=[security])
+        return TaxStatement(
+            id=None,
+            creationDate=datetime(period_to.year, 1, 1),
+            taxPeriod=period_to.year,
+            periodFrom=period_from,
+            periodTo=period_to,
+            country="CH",
+            canton="ZH",
+            minorVersion=0,
+            client=[Client(clientNumber=ClientNumber("ShortClient"))],
+            institution=Institution(lei=LEIType("SHORTLEI1234500000000")),
+            listOfSecurities=ListOfSecurities(depot=[depot]),
+        )
+
+    def test_negative_share_balance_raises_with_issue_309(self, sample_period_from, sample_period_to, caplog):
+        closing_balance_date = sample_period_to + timedelta(days=1)
+        sell = create_security_stock(date(2023, 6, 1), Decimal("-5"), mutation=True, name="Short Sell")
+        closing = create_security_stock(closing_balance_date, Decimal("-5"), mutation=False, name="Closing")
+        security = Security(
+            positionId=1, country="US", currency="USD", quotationType="PIECE",
+            securityCategory="SHARE", securityName="ShortShare",
+            stock=[sell, closing],
+        )
+        statement = self._build_statement(security, sample_period_from, sample_period_to)
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "ShortImporter", enable_filtering=False)
+
+        with caplog.at_level("WARNING"), pytest.raises(ValueError, match="issues/309"):
+            calculator.calculate(statement)
+
+        assert "Negative balance" in caplog.text
+        assert "issues/309" in caplog.text
+        assert "issues/261" not in caplog.text
+
+    def test_negative_option_balance_raises_with_issue_261(self, sample_period_from, sample_period_to, caplog):
+        closing_balance_date = sample_period_to + timedelta(days=1)
+        sell = create_security_stock(date(2023, 6, 1), Decimal("-1"), mutation=True, name="Write Call")
+        closing = create_security_stock(closing_balance_date, Decimal("-1"), mutation=False, name="Closing")
+        security = Security(
+            positionId=1, country="US", currency="USD", quotationType="PIECE",
+            securityCategory="OPTION", securityName="ShortCall",
+            stock=[sell, closing],
+        )
+        statement = self._build_statement(security, sample_period_from, sample_period_to)
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "ShortImporter", enable_filtering=False)
+
+        with caplog.at_level("WARNING"), pytest.raises(ValueError, match="issues/261"):
+            calculator.calculate(statement)
+
+        assert "Negative balance" in caplog.text
+        assert "issues/261" in caplog.text
+        assert "issues/309" not in caplog.text
+
+    def test_positive_balance_does_not_warn(self, sample_period_from, sample_period_to, caplog):
+        closing_balance_date = sample_period_to + timedelta(days=1)
+        buy = create_security_stock(date(2023, 6, 1), Decimal("10"), mutation=True, name="Buy")
+        closing = create_security_stock(closing_balance_date, Decimal("10"), mutation=False, name="Closing")
+        security = Security(
+            positionId=1, country="US", currency="USD", quotationType="PIECE",
+            securityCategory="SHARE", securityName="LongShare",
+            stock=[buy, closing],
+        )
+        statement = self._build_statement(security, sample_period_from, sample_period_to)
+        calculator = CleanupCalculator(sample_period_from, sample_period_to, "LongImporter", enable_filtering=False)
+
+        with caplog.at_level("WARNING"):
+            calculator.calculate(statement)
+
+        assert "Negative balance" not in caplog.text
+
