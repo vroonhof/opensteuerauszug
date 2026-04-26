@@ -14,7 +14,6 @@ required.
 from datetime import date
 from decimal import Decimal
 
-from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 from opensteuerauszug.model.ech0196 import SecurityPayment
 
 
@@ -67,7 +66,7 @@ def build_security_payment(
         amountCurrency=currency,
         amount=amount,
         quotationType="PIECE",
-        quantity=UNINITIALIZED_QUANTITY,
+        quantity=None,
         broker_label_original=broker_label,
     )
     if is_securities_lending:

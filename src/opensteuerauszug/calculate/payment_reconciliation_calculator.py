@@ -358,7 +358,7 @@ class PaymentReconciliationCalculator:
         if self._is_broker_above_kursliste_allowlisted(payment):
             agg.allows_broker_above_kursliste = True
 
-        if payment.quantity < Decimal("0"):
+        if payment.quantity is not None and payment.quantity < Decimal("0"):
             agg.short_stock = True
 
         # Detect payments that were already capped by WithholdingCapCalculator.

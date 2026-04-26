@@ -14,7 +14,6 @@ from opensteuerauszug.config.models import IbkrAccountSettings
 from opensteuerauszug.model.ech0196 import (
     Client,
 )
-from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 # Check if ibflex is available, skip tests if not
 try:
@@ -519,8 +518,8 @@ def test_ibkr_import_skips_hyphen_account_entries(sample_ibkr_settings):
             os.remove(xml_file_path)
 
 
-def test_security_payment_quantity_is_minus_one(sample_ibkr_settings):
-    """Test that SecurityPayment.quantity is set to -1 for payments derived from CashTransactions."""
+def test_security_payment_quantity_is_none_before_cleanup(sample_ibkr_settings):
+    """Test that SecurityPayment.quantity is None for payments derived from CashTransactions (set by cleanup)."""
     period_from = date(2023, 1, 1)
     period_to = date(2023, 12, 31)
 
@@ -575,9 +574,9 @@ def test_security_payment_quantity_is_minus_one(sample_ibkr_settings):
 
         for payment in msft_security.payment:
             if payment.name == "MSFT Corp Dividend":
-                assert payment.quantity == UNINITIALIZED_QUANTITY, f"Dividend payment quantity for {payment.name} should be UNINITIALIZED_QUANTITY"
+                assert payment.quantity is None, f"Dividend payment quantity for {payment.name} should be None before cleanup"
             elif payment.name == "Tax on MSFT Dividend":
-                assert payment.quantity == UNINITIALIZED_QUANTITY, f"Tax payment quantity for {payment.name} should be UNINITIALIZED_QUANTITY"
+                assert payment.quantity is None, f"Tax payment quantity for {payment.name} should be None before cleanup"
                 assert payment.nonRecoverableTax is None
                 assert payment.nonRecoverableTaxAmountOriginal == Decimal("1.85")
                 assert payment.broker_label_original == "Withholding Tax"

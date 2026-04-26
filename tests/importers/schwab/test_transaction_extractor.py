@@ -6,7 +6,6 @@ from typing import List, Optional, Tuple
 from opensteuerauszug.importers.schwab.transaction_extractor import TransactionExtractor
 from opensteuerauszug.model.position import Position, SecurityPosition, CashPosition
 from opensteuerauszug.model.ech0196 import SecurityStock, SecurityPayment
-from opensteuerauszug.core.constants import UNINITIALIZED_QUANTITY
 
 # Helper to create a TransactionExtractor instance with a dummy filename
 def create_extractor(filename_for_depot_test: str = "Individual_XXX123_Transactions_20240101-000000.json") -> TransactionExtractor:
@@ -847,7 +846,7 @@ class TestSchwabTransactionExtractor:
         cash_stock_qtys = sorted([s.quantity for s in cash_stocks])
         assert cash_stock_qtys == [Decimal("-3000.00"), Decimal("12.34")]
 
-    def test_security_payment_quantity_is_minus_one(self):
+    def test_security_payment_quantity_is_none_before_cleanup(self):
         extractor = create_extractor()
         data = {
             "FromDate": "01/01/2024", "ToDate": "12/31/2024",
@@ -856,7 +855,7 @@ class TestSchwabTransactionExtractor:
                     "Date": "03/01/2024", "Action": "Credit Interest",
                     "Description": "Bank Interest", "Amount": "$5.00"
                 },
-                { # 2. Dividend (no quantity specified by Schwab -> should be -1)
+                { # 2. Dividend (no quantity specified by Schwab -> quantity stays None until cleanup)
                     "Date": "04/01/2024", "Action": "Dividend", "Symbol": "TGT",
                     "Description": "TARGET CORP DIVIDEND",
                     "Amount": "$50.00"
@@ -872,13 +871,13 @@ class TestSchwabTransactionExtractor:
                     "Amount": "$-7.50"
                 },
                 { # 5. Reinvest Dividend (Schwab Quantity is for shares bought, not for payment quantity basis)
-                  # Our logic should set payment quantity to -1 if underlying shares count for dividend is not determinable from this TX alone.
+                  # Our logic leaves payment quantity as None; cleanup synthesizes it from stock balance.
                     "Date": "05/01/2024", "Action": "Reinvest Dividend", "Symbol": "VOO",
                     "Description": "VANGUARD S&P 500 ETF DIV REINV",
                     "Quantity": "0.5", "Price": "400.00",
                     "Amount": "$200.00"
                 },
-                { # 6. Dividend (explicit zero quantity by Schwab -> should be -1)
+                { # 6. Dividend (explicit zero quantity by Schwab -> treated as missing, stays None)
                     "Date": "06/01/2024", "Action": "Dividend", "Symbol": "ZEROQ",
                     "Description": "ZEROQUANT CORP DIVIDEND", "Quantity": "0",
                     "Amount": "$20.00"
@@ -964,22 +963,22 @@ class TestSchwabTransactionExtractor:
             if payments_list:
                 for p in payments_list:
                     if p.name == "Credit Interest" and isinstance(pos_obj, CashPosition):
-                        assert p.quantity == UNINITIALIZED_QUANTITY, "Credit Interest quantity should be UNINITIALIZED_QUANTITY"
+                        assert p.quantity is None, "Credit Interest quantity should be None before cleanup"
                         found_credit_interest_payment = True
                     elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "TGT":
-                        assert p.quantity == UNINITIALIZED_QUANTITY, "TGT Dividend (no schwab_qty) quantity should be UNINITIALIZED_QUANTITY"
+                        assert p.quantity is None, "TGT Dividend (no schwab_qty) quantity should be None before cleanup"
                         found_tgt_dividend_payment = True
                     elif p.name == "Tax Withholding" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "TGT":
-                        assert p.quantity == UNINITIALIZED_QUANTITY, "TGT Tax Withholding quantity should be UNINITIALIZED_QUANTITY"
+                        assert p.quantity is None, "TGT Tax Withholding quantity should be None before cleanup"
                         found_tgt_tax_payment = True
                     elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "MSFT":
-                        assert p.quantity == UNINITIALIZED_QUANTITY, "MSFT Dividend (with schwab_qty) quantity should be UNINITIALIZED_QUANTITY"
+                        assert p.quantity is None, "MSFT Dividend (with schwab_qty) quantity should be None before cleanup"
                         found_msft_dividend_payment = True
                     elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "VOO": # Reinvest Dividend becomes "Dividend" payment
-                        assert p.quantity == UNINITIALIZED_QUANTITY, "VOO Reinvest Dividend quantity should be UNINITIALIZED_QUANTITY"
+                        assert p.quantity is None, "VOO Reinvest Dividend quantity should be None before cleanup"
                         found_voo_reinvest_dividend_payment = True
                     elif p.name == "Dividend" and isinstance(pos_obj, SecurityPosition) and pos_obj.symbol == "ZEROQ":
-                        assert p.quantity == UNINITIALIZED_QUANTITY, "ZEROQ Dividend (schwab_qty 0) quantity should be UNINITIALIZED_QUANTITY"
+                        assert p.quantity is None, "ZEROQ Dividend (schwab_qty 0) quantity should be None before cleanup"
                         found_zeroq_dividend_payment = True
 
         assert found_credit_interest_payment, "Credit Interest payment not found or not correctly processed"
@@ -1227,7 +1226,7 @@ class TestSchwabTransactionExtractor:
         assert payment.grossRevenueB == Decimal("500.00")
         assert payment.name == "Bond Interest"
         assert payment.broker_label_original == "Bond Interest"
-        assert payment.quantity == UNINITIALIZED_QUANTITY
+        assert payment.quantity is None
 
         cash_pos, cash_stocks, cash_payments = cash_data
         assert isinstance(cash_pos, CashPosition)
