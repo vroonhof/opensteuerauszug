@@ -312,8 +312,8 @@ class CleanupCalculator:
                             iban=bank_account.iban,
                             bankAccountNumber=bank_account.bankAccountNumber,
                             bankAccountName=BankAccountName(liability_name),
-                            bankAccountCountry=bank_account.bankAccountCountry or CountryIdISO2Type("CH"),
-                            bankAccountCurrency=bank_account.bankAccountCurrency or CurrencyId("CHF"),
+                            bankAccountCountry=bank_account.bankAccountCountry or "CH",
+                            bankAccountCurrency=bank_account.bankAccountCurrency or "CHF",
                             openingDate=bank_account.openingDate,
                             closingDate=bank_account.closingDate,
                             totalTaxValue=negative_value,
@@ -363,8 +363,13 @@ class CleanupCalculator:
                             logger.info(f"  BankAccount {account_id}: Payment filtering skipped (tax period not fully defined).")
                     # No log if filtering is disabled globally
 
-                    # Move negative payments to liabilities
-                    negative_payments = [p for p in bank_account.payment if p.amount is not None and p.amount < 0]
+                    # Move negative payments to liabilities. The amount is
+                    # captured alongside the payment so type-checkers can see
+                    # it has been narrowed to non-None.
+                    negative_payments = [
+                        (p, p.amount) for p in bank_account.payment
+                        if p.amount is not None and p.amount < 0
+                    ]
                     if negative_payments:
                         # Create liability account payments from negative bank account payments
                         liability_payments = [
@@ -372,13 +377,13 @@ class CleanupCalculator:
                                 paymentDate=p.paymentDate,
                                 name=p.name,
                                 amountCurrency=p.amountCurrency,
-                                amount=abs(p.amount)  # Store as positive
+                                amount=abs(amount),  # Store as positive
                             )
-                            for p in negative_payments
+                            for p, amount in negative_payments
                         ]
 
                         # Find or create liability account for this currency
-                        currency = bank_account.bankAccountCurrency or CurrencyId("CHF")
+                        currency = bank_account.bankAccountCurrency or "CHF"
 
                         # Check if liability account already exists for this currency
                         existing_liability = None
@@ -398,33 +403,35 @@ class CleanupCalculator:
                                     break
 
                         if existing_liability:
-                            # Append to existing liability account
-                            if existing_liability.payment is None:
-                                existing_liability.payment = []
+                            # Append to existing liability account. payment and
+                            # totalGrossRevenueB are required (non-Optional) on
+                            # the LiabilityAccount model — no None guard needed.
                             existing_liability.payment.extend(liability_payments)
-                            # Update totalGrossRevenueB to include the new payments
-                            if existing_liability.totalGrossRevenueB is None:
-                                existing_liability.totalGrossRevenueB = Decimal("0")
-                            existing_liability.totalGrossRevenueB += sum(abs(p.amount) for p in liability_payments if p.amount)
+                            existing_liability.totalGrossRevenueB += sum(
+                                abs(p.amount) for p in liability_payments if p.amount
+                            )
                             logger.info(
                                 f"  BankAccount {account_id}: Moved {len(negative_payments)} negative payments to existing liability account."
                             )
                         else:
                             # Create new liability account
-                            if statement.listOfLiabilities is None:
-                                statement.listOfLiabilities = ListOfLiabilities()
+                            list_of_liabilities = statement.listOfLiabilities or ListOfLiabilities()
+                            statement.listOfLiabilities = list_of_liabilities
 
                             liability_account = LiabilityAccount(
                                 iban=bank_account.iban,
                                 bankAccountNumber=bank_account.bankAccountNumber,
-                                bankAccountName=bank_account.bankAccountName,
-                                bankAccountCountry=bank_account.bankAccountCountry or CountryIdISO2Type("CH"),
+                                bankAccountName=bank_account.bankAccountName or BankAccountName(account_id),
+                                bankAccountCountry=bank_account.bankAccountCountry or "CH",
                                 bankAccountCurrency=currency,
                                 openingDate=bank_account.openingDate,
                                 closingDate=bank_account.closingDate,
                                 payment=liability_payments,
                                 totalTaxValue=Decimal("0"),
-                                totalGrossRevenueB=sum(abs(p.amount) for p in liability_payments if p.amount),
+                                totalGrossRevenueB=sum(
+                                    (abs(p.amount) for p in liability_payments if p.amount),
+                                    Decimal("0"),
+                                ),
                                 taxValue=LiabilityAccountTaxValue(
                                     referenceDate=self.period_to,
                                     name=get_text("debit_interest", self.render_language),
@@ -433,7 +440,7 @@ class CleanupCalculator:
                                     value=Decimal("0")
                                 )
                             )
-                            statement.listOfLiabilities.liabilityAccount.append(liability_account)
+                            list_of_liabilities.liabilityAccount.append(liability_account)
                             logger.info(
                                 f"  BankAccount {account_id}: Created new liability account for {len(negative_payments)} negative payments."
                             )
@@ -448,11 +455,12 @@ class CleanupCalculator:
         # Add any liabilities created from negative bank account balances
         if liabilities_to_add:
             if statement.listOfLiabilities is None:
-                statement.listOfLiabilities = ListOfLiabilities()
                 logger.info(f"Created listOfLiabilities to hold {len(liabilities_to_add)} liability account(s) from negative bank balances.")
+            list_of_liabilities = statement.listOfLiabilities or ListOfLiabilities()
+            statement.listOfLiabilities = list_of_liabilities
 
             # Add the new liabilities
-            statement.listOfLiabilities.liabilityAccount.extend(liabilities_to_add)
+            list_of_liabilities.liabilityAccount.extend(liabilities_to_add)
             logger.info(f"Added {len(liabilities_to_add)} liability account(s) from negative bank account balances.")
             self.modified_fields.append(f"listOfLiabilities (added {len(liabilities_to_add)} accounts from negative balances)")
 

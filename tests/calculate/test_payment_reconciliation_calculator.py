@@ -1417,3 +1417,56 @@ def test_withholding_cap_zeros_when_broker_has_no_wht_entries():
     assert kl_payment.withholding_capped_original_wht_chf == Decimal("8.25")
     assert kl_payment.sign is None
 
+
+def test_us_w8ben_hint_does_not_crash_when_broker_has_no_withholding_payment():
+    """When the broker reports a US dividend without an accompanying withholding
+    entry, broker_with_chf stays None. The W8-BEN heuristic must not divide by it."""
+    statement = TaxStatement(
+        minorVersion=2,
+        listOfSecurities=ListOfSecurities(
+            depot=[
+                Depot(
+                    depotNumber=DepotNumber("D1"),
+                    security=[
+                        Security(
+                            positionId=1,
+                            country="US",
+                            currency="USD",
+                            quotationType="PIECE",
+                            securityCategory="SHARE",
+                            securityName="AAPL",
+                            payment=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("100"),
+                                    exchangeRate=Decimal("1"),
+                                    grossRevenueB=Decimal("100"),
+                                    withHoldingTaxClaim=Decimal("15"),
+                                    kursliste=True,
+                                )
+                            ],
+                            broker_payments=[
+                                SecurityPayment(
+                                    paymentDate=date(2025, 12, 23),
+                                    quotationType="PIECE",
+                                    quantity=Decimal("-1"),
+                                    amountCurrency="USD",
+                                    amount=Decimal("100"),
+                                    name="Dividend",
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        ),
+    )
+
+    result = PaymentReconciliationCalculator().calculate(statement)
+
+    row = result.payment_reconciliation_report.rows[0]
+    assert row.note is None or "W8-BEN" not in row.note
+

@@ -241,6 +241,7 @@ class PaymentReconciliationCalculator:
                     w_diff
                     and not div_diff
                     and kurs.withholding_chf != 0
+                    and broker_with_chf is not None
                     and abs((broker_with_chf / kurs.withholding_chf) - 2) < 0.01
                     and country == "US"
                 ):

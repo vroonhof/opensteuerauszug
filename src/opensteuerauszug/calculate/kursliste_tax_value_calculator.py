@@ -638,8 +638,6 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
             pos = reconciler.synthesize_position_at_date(reconciliation_date, assume_zero_if_no_balances=True)
             if pos is None:
-                for l in reconciler.get_log():
-                    logger.debug(l)
                 raise ValueError(
                     f"No position found for {security.isin or security.securityName} on date {reconciliation_date}"
                 )
@@ -826,7 +824,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                 sec_payment.withHoldingTaxClaim = Decimal("0")
 
             # DA-1 reclaim is only computed for STANDARD payment types
-            if pay.paymentType is None or pay.paymentType == PaymentTypeESTV.STANDARD:
+            if (
+                pay.paymentType is None or pay.paymentType == PaymentTypeESTV.STANDARD
+            ) and accessor is not None:
                 da1_security_group = kl_sec.securityGroup
                 da1_security_type = kl_sec.securityType
                 if effective_sign == "(Q)":

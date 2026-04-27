@@ -50,7 +50,8 @@ dev = [
     "flake8>=6.0.0",
     "Flake8-pyproject",
     "freezegun>=1.5.0",
-    "pdf417decoder @ git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python" 
+    "pdf417decoder @ git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python",
+    "pyrefly>=0.62,<0.70",
 ]
 
 [tool.black]
@@ -75,7 +76,18 @@ extend-exclude = ".venv"
 testpaths = ["tests"]
 pythonpath = ["."]
 python_files = ["test_*.py"]
-#addopts = "-v --cov=opensteuerauszug --cov-report=term-missing" 
+#addopts = "-v --cov=opensteuerauszug --cov-report=term-missing"
 markers = [
     "integration: marks tests as integration tests",
 ]
+
+# Type checking with pyrefly. Scope is everything under src/; CI invokes
+# pyrefly twice — once on src/opensteuerauszug/calculate (gating from
+# Phase 2) and once on src/ as a whole (informational). Per-module
+# severity overrides are deferred until Phase 3 once the full-repo
+# error landscape is categorized.
+[tool.pyrefly]
+project-includes = ["src/opensteuerauszug"]
+project-excludes = ["**/.venv/**", "**/build/**", "**/dist/**", "tests/**"]
+python-version = "3.10"
+search-path = ["src"]

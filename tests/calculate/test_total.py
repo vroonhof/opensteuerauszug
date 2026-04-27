@@ -26,7 +26,7 @@ def create_test_tax_statement() -> TaxStatement:
         isin=ISINType("CH0001234567"),  # Wrapped in ISINType
         name="Test Security 1",
         country="CH",
-        currency=CurrencyId("CHF"),
+        currency="CHF",
         quotationType="PIECE",  # Added missing field
         securityCategory="SHARE",  # Changed from EQUITY
         securityName="Test Security 1",
@@ -38,13 +38,13 @@ def create_test_tax_statement() -> TaxStatement:
             exchangeRate=Decimal("1.0"),
             value=Decimal("1000.00"),
             quotationType="PIECE",
-            balanceCurrency=CurrencyId("CHF")
+            balanceCurrency="CHF"
         ),
         payment=[
             SecurityPayment(
                 paymentDate="2023-06-30",
                 name="Dividend",
-                amountCurrency=CurrencyId("CHF"),
+                amountCurrency="CHF",
                 amount=Decimal("50.00"),
                 exchangeRate=Decimal("1.0"),
                 grossRevenueA=Decimal("50.00"),
@@ -56,7 +56,7 @@ def create_test_tax_statement() -> TaxStatement:
             SecurityPayment(
                 paymentDate="2023-12-31",
                 name="Interest",
-                amountCurrency=CurrencyId("CHF"),
+                amountCurrency="CHF",
                 amount=Decimal("30.00"),
                 exchangeRate=Decimal("1.0"),
                 grossRevenueA=Decimal("0.00"),
@@ -72,8 +72,8 @@ def create_test_tax_statement() -> TaxStatement:
     bank_account1 = BankAccount(
         bankAccountNumber=BankAccountNumber("123456789"),  # Wrapped in type
         bankAccountName=BankAccountName("Test Account"),  # Wrapped in type
-        bankAccountCountry=CountryIdISO2Type("CH"),  # Added missing required field
-        bankAccountCurrency=CurrencyId("CHF"),  # Added missing required field
+        bankAccountCountry="CH",  # Added missing required field
+        bankAccountCurrency="CHF",  # Added missing required field
         totalWithHoldingTaxClaim=Decimal("8.75"),  # Added missing required field
         taxValue=BankAccountTaxValue(
             referenceDate="2023-12-31",
@@ -100,8 +100,8 @@ def create_test_tax_statement() -> TaxStatement:
     liability1 = LiabilityAccount(
         bankAccountNumber=BankAccountNumber("L123456"),
         bankAccountName=BankAccountName("Test Mortgage"),
-        bankAccountCountry=CountryIdISO2Type("CH"),
-        bankAccountCurrency=CurrencyId("CHF"),
+        bankAccountCountry="CH",
+        bankAccountCurrency="CHF",
         totalTaxValue=PositiveDecimal("200000.00"),
         totalGrossRevenueB=PositiveDecimal("2000.00"),
         taxValue=LiabilityAccountTaxValue(
@@ -115,7 +115,7 @@ def create_test_tax_statement() -> TaxStatement:
             LiabilityAccountPayment(
                 paymentDate="2023-06-30",
                 name="Interest Payment",
-                amountCurrency=CurrencyId("CHF"),
+                amountCurrency="CHF",
                 amount=Decimal("2000.00"),
                 exchangeRate=Decimal("1.0"),
                 grossRevenueB=Decimal("2000.00")
@@ -253,7 +253,7 @@ class TestTotalCalculator:
             isin=ISINType("US0006543210"),  # Wrapped in ISINType
             name="Test US Security",
             country="US",
-            currency=CurrencyId("USD"),
+            currency="USD",
             quotationType="PIECE",  # Added missing field
             securityCategory="SHARE",  # Changed from EQUITY
             securityName="Test US Security",
@@ -266,13 +266,13 @@ class TestTotalCalculator:
                 exchangeRate=Decimal("0.9"),
                 value=Decimal("900.00"),
                 quotationType="PIECE",
-                balanceCurrency=CurrencyId("CHF")
+                balanceCurrency="CHF"
             ),
             payment = [ SecurityPayment(
                     paymentDate="2023-06-30",
                     name="US Dividend",
                     country="US",  # This might belong here or on Security, check definition
-                    amountCurrency=CurrencyId("USD"),  # Correct place for amountCurrency
+                    amountCurrency="USD",  # Correct place for amountCurrency
                     amount=Decimal("100.00"),
                     exchangeRate=Decimal("0.9"),
                     grossRevenueA=Decimal("0.00"),
@@ -328,8 +328,8 @@ class TestTotalCalculator:
         bank_account = BankAccount(
             bankAccountNumber=BankAccountNumber("CH1234567890123456789"),
             bankAccountName=BankAccountName("Minimal Account"),
-            bankAccountCountry=CountryIdISO2Type("CH"),
-            bankAccountCurrency=CurrencyId("CHF"),
+            bankAccountCountry="CH",
+            bankAccountCurrency="CHF",
             # Initialize optional totals as None to test FILL mode
             totalTaxValue=None,
             totalGrossRevenueA=None,
@@ -418,8 +418,8 @@ class TestTotalCalculator:
         bank_account = BankAccount(
             bankAccountNumber=BankAccountNumber("CH9876543210987654321"),
             bankAccountName=BankAccountName("Savings Account"),
-            bankAccountCountry=CountryIdISO2Type("CH"),
-            bankAccountCurrency=CurrencyId("CHF"),
+            bankAccountCountry="CH",
+            bankAccountCurrency="CHF",
             # Initialize optional totals as None to test FILL mode
             totalTaxValue=None,
             totalGrossRevenueA=None,
@@ -516,8 +516,8 @@ class TestTotalCalculator:
         bank_account = BankAccount(
             bankAccountNumber=BankAccountNumber("CH5555444433332222"),
             bankAccountName=BankAccountName("Current Account"),
-            bankAccountCountry=CountryIdISO2Type("CH"),
-            bankAccountCurrency=CurrencyId("CHF"),
+            bankAccountCountry="CH",
+            bankAccountCurrency="CHF",
             # Initialize optional totals as None to test FILL mode
             totalTaxValue=None,
             totalGrossRevenueA=None,
@@ -643,8 +643,8 @@ class TestTotalCalculator:
         bank_account = BankAccount(
             bankAccountNumber=BankAccountNumber("CH1111222233334444"),
             bankAccountName=BankAccountName("Multiple Payments Account"),
-            bankAccountCountry=CountryIdISO2Type("CH"),
-            bankAccountCurrency=CurrencyId("CHF"),
+            bankAccountCountry="CH",
+            bankAccountCurrency="CHF",
             # Initialize optional totals as None to test FILL mode
             totalTaxValue=None,
             totalGrossRevenueA=None,
@@ -684,7 +684,7 @@ class TestTotalCalculator:
                 BankAccountPayment(
                     paymentDate="2023-09-15",
                     name="Q3 Tax-Free Bonus",
-                    amountCurrency=CurrencyId("CHF"),
+                    amountCurrency="CHF",
                     amount=Decimal("30.00"),
                     exchangeRate=Decimal("1.0"),
                     grossRevenueA=Decimal("0.00"),
@@ -695,7 +695,7 @@ class TestTotalCalculator:
                 BankAccountPayment(
                     paymentDate="2023-12-15",
                     name="Q4 Mixed Payment",
-                    amountCurrency=CurrencyId("CHF"),
+                    amountCurrency="CHF",
                     amount=Decimal("100.00"),
                     exchangeRate=Decimal("1.0"),
                     grossRevenueA=Decimal("70.00"),
@@ -773,7 +773,7 @@ class TestTotalCalculator:
             isin=ISINType("CH0009876543"),
             name="Test Security",
             country="CH",  # Non-USA security (ignoring DA-1)
-            currency=CurrencyId("CHF"),
+            currency="CHF",
             quotationType="PIECE",
             securityCategory="SHARE",
             securityName="Test Security",
@@ -785,13 +785,13 @@ class TestTotalCalculator:
                 exchangeRate=Decimal("1.0"),
                 value=Decimal("5000.00"),
                 quotationType="PIECE",
-                balanceCurrency=CurrencyId("CHF")
+                balanceCurrency="CHF"
             ),
             payment=[
                 SecurityPayment(
                     paymentDate="2023-07-15",
                     name="Annual Dividend",
-                    amountCurrency=CurrencyId("CHF"),
+                    amountCurrency="CHF",
                     amount=Decimal("200.00"),
                     exchangeRate=Decimal("1.0"),
                     grossRevenueA=Decimal("200.00"),
@@ -887,8 +887,8 @@ class TestTotalCalculator:
         liability = LiabilityAccount(
             bankAccountNumber=BankAccountNumber("CH7777666655554444"),
             bankAccountName=BankAccountName("Mortgage Account"),
-            bankAccountCountry=CountryIdISO2Type("CH"),
-            bankAccountCurrency=CurrencyId("CHF"),
+            bankAccountCountry="CH",
+            bankAccountCurrency="CHF",
             # Initialize optional totals as None to test FILL mode - total* values are required though
             totalTaxValue=PositiveDecimal("123456.78"),
             totalGrossRevenueB=PositiveDecimal("9999.99"),
@@ -903,7 +903,7 @@ class TestTotalCalculator:
                 LiabilityAccountPayment(
                     paymentDate="2023-06-30",
                     name="Mortgage Interest (H1)",
-                    amountCurrency=CurrencyId("CHF"),
+                    amountCurrency="CHF",
                     amount=Decimal("900.00"),
                     exchangeRate=Decimal("1.0"),
                     grossRevenueB=Decimal("900.00")
@@ -911,7 +911,7 @@ class TestTotalCalculator:
                 LiabilityAccountPayment(
                     paymentDate="2023-12-31",
                     name="Mortgage Interest (H2)",
-                    amountCurrency=CurrencyId("CHF"),
+                    amountCurrency="CHF",
                     amount=Decimal("900.00"),
                     exchangeRate=Decimal("1.0"),
                     grossRevenueB=Decimal("900.00")
@@ -992,8 +992,8 @@ class TestRoundingIssue273:
         return BankAccount(
             bankAccountNumber=BankAccountNumber(number),
             bankAccountName=BankAccountName(f"Account {number}"),
-            bankAccountCountry=CountryIdISO2Type("CH"),
-            bankAccountCurrency=CurrencyId("USD"),
+            bankAccountCountry="CH",
+            bankAccountCurrency="USD",
             taxValue=BankAccountTaxValue(
                 referenceDate="2023-12-31",
                 balanceCurrency="USD",
@@ -1005,7 +1005,7 @@ class TestRoundingIssue273:
                 BankAccountPayment(
                     paymentDate="2023-12-31",
                     name="Interest",
-                    amountCurrency=CurrencyId("USD"),
+                    amountCurrency="USD",
                     amount=revenue_a,
                     exchangeRate=Decimal("1.0"),
                     grossRevenueA=revenue_a,
@@ -1122,8 +1122,8 @@ class TestRoundingIssue273:
         liability1 = LiabilityAccount(
             bankAccountNumber=BankAccountNumber("L001"),
             bankAccountName=BankAccountName("Mortgage 1"),
-            bankAccountCountry=CountryIdISO2Type("CH"),
-            bankAccountCurrency=CurrencyId("CHF"),
+            bankAccountCountry="CH",
+            bankAccountCurrency="CHF",
             totalTaxValue=PositiveDecimal("1.00"),   # placeholder; OVERWRITE will replace
             totalGrossRevenueB=PositiveDecimal("0.00"),
             taxValue=LiabilityAccountTaxValue(
@@ -1138,8 +1138,8 @@ class TestRoundingIssue273:
         liability2 = LiabilityAccount(
             bankAccountNumber=BankAccountNumber("L002"),
             bankAccountName=BankAccountName("Mortgage 2"),
-            bankAccountCountry=CountryIdISO2Type("CH"),
-            bankAccountCurrency=CurrencyId("CHF"),
+            bankAccountCountry="CH",
+            bankAccountCurrency="CHF",
             totalTaxValue=PositiveDecimal("1.00"),   # placeholder; OVERWRITE will replace
             totalGrossRevenueB=PositiveDecimal("0.00"),
             taxValue=LiabilityAccountTaxValue(
