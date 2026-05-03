@@ -80,6 +80,11 @@ class FidelityAccountSettings(AccountSettingsBase):
     # Fidelity_specific_option: bool = True
     pass
 
+
+class DegiroAccountSettings(AccountSettingsBase):
+    '''Specific configuration settings for a Degiro account.'''
+    pass
+
 class CalculateSettings(BaseModel):
     """Settings for the calculation process."""
     keep_existing_payments: bool = Field(default=False, description="If True, keep existing payments when calculating tax values.")
@@ -88,7 +93,7 @@ class CalculateSettings(BaseModel):
                                                                     "PaymentReconciliationCalculator")
 
 # A type union for all possible specific account settings models
-SpecificAccountSettingsUnion = Union[SchwabAccountSettings, IbkrAccountSettings,FidelityAccountSettings] # Add other types like UBSAccountSettings here
+SpecificAccountSettingsUnion = Union[SchwabAccountSettings, IbkrAccountSettings, FidelityAccountSettings, DegiroAccountSettings]
 
 class ConcreteAccountSettings(BaseModel):
     '''
@@ -97,7 +102,7 @@ class ConcreteAccountSettings(BaseModel):
     The 'settings' field will contain an instance of SchwabAccountSettings,
     or other specific types in the future.
     '''
-    kind: Literal["schwab", "ibkr", "fidelity"] # Add other literals like "ubs" when more types are supported
+    kind: Literal["schwab", "ibkr", "fidelity", "degiro"]
     settings: SpecificAccountSettingsUnion
     
     # Delegate attribute access to the underlying specific settings model
