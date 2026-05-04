@@ -7,7 +7,7 @@ from typing import List, Optional, cast
 from datetime import date, datetime
 from pypdf import PdfReader, PdfWriter
 
-from .config.models import SchwabAccountSettings, IbkrAccountSettings, FidelityAccountSettings
+from .config.models import SchwabAccountSettings, IbkrAccountSettings, FidelityAccountSettings, DegiroAccountSettings
 from .render.translations import DEFAULT_LANGUAGE
 from .core.identifier_loader import SecurityIdentifierMapLoader
 
@@ -57,6 +57,7 @@ class ImporterType(str, Enum):
     SCHWAB = "schwab"
     IBKR = "ibkr"
     FIDELITY = "fidelity"
+    DEGIRO = "degiro"
     NONE = "none"
 
 class TaxCalculationLevel(str, Enum):
@@ -192,7 +193,8 @@ def process(
     # --- Configuration Loading ---
     all_fidelity_account_settings_models: List[FidelityAccountSettings] = []
     all_schwab_account_settings_models: List[SchwabAccountSettings] = []
-    all_ibkr_account_settings_models: List[IbkrAccountSettings] = [] # New list for IBKR
+    all_ibkr_account_settings_models: List[IbkrAccountSettings] = []
+    all_degiro_account_settings_models: List[DegiroAccountSettings] = []
     effective_config_file = resolve_config_file(config_file)
     config_manager = ConfigManager(config_file_path=str(effective_config_file))
 
@@ -206,6 +208,7 @@ def process(
             raise typer.BadParameter(
                 f"Importer '{importer_type.value}' is experimental and requires 'experimental_importers = true' in configuration (general section) to be used."
             )
+
 
     try:
         calculate_settings = config_manager.resolve_calculate_settings(overrides=override_configs)
@@ -227,6 +230,8 @@ def process(
         target_broker_kind_for_config_loading = "schwab"
     elif importer_type == ImporterType.IBKR:
         target_broker_kind_for_config_loading = "ibkr"
+    elif importer_type == ImporterType.DEGIRO:
+        target_broker_kind_for_config_loading = "degiro"
     elif broker_name:
         target_broker_kind_for_config_loading = broker_name.lower()
         print(f"Warning: --broker '{broker_name}' used with importer '{importer_type.value}'. Account settings will be loaded for '{target_broker_kind_for_config_loading}', ensure this is intended.")
@@ -252,6 +257,8 @@ def process(
                     all_schwab_account_settings_models.append(cast(SchwabAccountSettings, acc_settings.settings))
                 elif acc_settings.kind == "ibkr":
                     all_ibkr_account_settings_models.append(cast(IbkrAccountSettings, acc_settings.settings))
+                elif acc_settings.kind == "degiro":
+                    all_degiro_account_settings_models.append(cast(DegiroAccountSettings, acc_settings.settings))
                 else:
                     print(f"Warning: Received unhandled account configuration kind '{acc_settings.kind}' for broker '{target_broker_kind_for_config_loading}'. Skipping.")
             if target_broker_kind_for_config_loading == "fidelity" and not all_fidelity_account_settings_models and concrete_accounts_list:
@@ -267,6 +274,8 @@ def process(
                 print(f"Successfully loaded {len(all_schwab_account_settings_models)} Schwab account(s).")
             if all_ibkr_account_settings_models:
                 print(f"Successfully loaded {len(all_ibkr_account_settings_models)} IBKR account(s).")
+            if all_degiro_account_settings_models:
+                print(f"Successfully loaded {len(all_degiro_account_settings_models)} Degiro account(s).")
 
         except ValueError as e:
             print(f"Error loading configuration: {e}")
@@ -401,6 +410,23 @@ def process(
                 corrections_files = [str(p) for p in corrections_flex] if corrections_flex else None
                 statement = ibkr_importer.import_files([str(input_file)], corrections_filenames=corrections_files)
                 print(f"IBKR import complete.")
+
+            elif importer_type == ImporterType.DEGIRO:
+                if not parsed_period_from or not parsed_period_to:
+                    raise typer.BadParameter("--period-from and --period-to are required for the Degiro importer.")
+                if not input_file.is_dir():
+                    raise typer.BadParameter(f"Input for Degiro importer must be a directory, but got: {input_file}")
+                if not all_degiro_account_settings_models:
+                    print("No specific Degiro account settings found/loaded from config. Using empty list for importer settings.")
+                print(f"Initializing DegiroImporter with {len(all_degiro_account_settings_models)} Degiro account configuration(s).")
+                from .importers.degiro.degiro_importer import DegiroImporter
+                degiro_importer = DegiroImporter(
+                    period_from=parsed_period_from,
+                    period_to=parsed_period_to,
+                    account_settings_list=all_degiro_account_settings_models,
+                )
+                statement = degiro_importer.import_dir(str(input_file))
+                print(f"Degiro import complete.")
 
             elif importer_type == ImporterType.NONE and not raw_import:
                 print("No specific importer selected, creating an empty TaxStatement for further processing.")

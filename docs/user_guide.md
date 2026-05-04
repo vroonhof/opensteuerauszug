@@ -31,7 +31,7 @@ opensteuerauszug process path/to/broker_export.xml \
 If you prefer not to install the tool, `uv run --with git+https://github.com/vroonhof/opensteuerauszug.git opensteuerauszug ...`
 also works for one-off commands.
 
-You can replace `ibkr` with `schwab` depending on your source data.
+You can replace `ibkr` with `schwab`, `fidelity`, or `degiro` depending on your source data.
 The rest of this guide explains each step in detail.
 
 ## Short Primer on Tax data and calculations
@@ -224,6 +224,7 @@ Currently supported brokers and their specific guides:
 *   **[Charles Schwab](importer_schwab.md)**: For brokerage and equity award accounts.
 *   **[Interactive Brokers (IBKR)](importer_ibkr.md)**: For brokerage accounts.
 *   **[Fidelity Investments](importer_fidelity.md)**: For brokerage accounts.
+*   **[DEGIRO](importer_degiro.md)**: For brokerage accounts. *(experimental)*
 
 Please refer to the documentation for your specific broker by clicking the links above to understand what files to download, their formats, and any specific configurations required in `config.toml`.
 
@@ -271,13 +272,13 @@ Neither of the following options is currently complete and should not be used.
 One all the data is setup the Steuerauszug can be generated with
 
 ```console
-opensteuerauszug process {broker data location} --importer {schwab|ibkr} --tax-year {tax year} -o {output filename.pdf}
+opensteuerauszug process {broker data location} --importer {schwab|ibkr|fidelity|degiro} --tax-year {tax year} -o {output filename.pdf}
 ```
 
 for minimal mode
 
 ```console
-opensteuerauszug process {broker data location} --importer {schwab|ibkr} --tax-calculation-level minimal --tax-year {tax year} -o {output filename.pdf}
+opensteuerauszug process {broker data location} --importer {schwab|ibkr|fidelity|degiro} --tax-calculation-level minimal --tax-year {tax year} -o {output filename.pdf}
 ```
 
 If doing active development it is best to place any real tax data including the generated output outside of the source tree or in the `/private` directory. 
