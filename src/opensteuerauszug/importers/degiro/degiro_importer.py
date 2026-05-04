@@ -42,7 +42,6 @@ from opensteuerauszug.importers.common import (
     parse_swiss_canton,
     resolve_first_last_name,
 )
-from opensteuerauszug.importers.common.types import CashPositionData
 from opensteuerauszug.model.ech0196 import (
     ISINType,
     Institution,
@@ -236,10 +235,10 @@ class DegiroImporter:
                 )
 
             elif kind == DegiroRowKind.UNKNOWN:
-                logger.warning(
-                    "Unknown row kind for description %r (row %d)",
-                    row.description,
-                    row.raw_row,
+                raise NotImplementedError(
+                    f"Unknown DEGIRO row kind for description {row.description!r} "
+                    f"(row {row.raw_row}). The row may be tax-relevant; please report "
+                    "this as a bug so support can be added."
                 )
             else:
                 logger.debug(

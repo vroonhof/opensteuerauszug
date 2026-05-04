@@ -236,6 +236,10 @@ class CleanupCalculator:
                 )
                 statement.client = [new_client]
                 self.modified_fields.append("TaxStatement.client (created from config)")
+                logger.warning(
+                    "No clientNumber available from importer; using placeholder 'NOIDENTI'. "
+                    "Set a real client number via importer-specific settings."
+                )
                 logger.info(f"Created client from configuration: {config_full_name}")
             else:
                 # Check if existing clients need name updates
