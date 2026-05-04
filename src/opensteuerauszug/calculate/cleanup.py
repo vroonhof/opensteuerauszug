@@ -5,7 +5,7 @@ from decimal import Decimal
 import logging
 from opensteuerauszug.model.ech0196 import (
     Security, SecurityTaxValue, TaxStatement, SecurityStock,
-    Client, CantonAbbreviation, LiabilityAccount, LiabilityAccountTaxValue,
+    Client, ClientNumber, CantonAbbreviation, LiabilityAccount, LiabilityAccountTaxValue,
     ListOfLiabilities, BankAccountName, LiabilityAccountPayment
 )
 from opensteuerauszug.model.critical_warning import CriticalWarning, CriticalWarningCategory
@@ -230,27 +230,41 @@ class CleanupCalculator:
             # If no clients exist, create one with the configured name
             if not statement.client:
                 new_client = Client(
+                    clientNumber=ClientNumber("NOIDENTI"),
                     firstName=config_first_name,
                     lastName=config_last_name
                 )
                 statement.client = [new_client]
                 self.modified_fields.append("TaxStatement.client (created from config)")
+                logger.warning(
+                    "No clientNumber available from importer; using placeholder 'NOIDENTI'. "
+                    "Set a real client number via importer-specific settings."
+                )
                 logger.info(f"Created client from configuration: {config_full_name}")
             else:
                 # Check if existing clients need name updates
                 for i, client in enumerate(statement.client):
                     client_modified = False
-                    
+
                     # Set firstName if not already set
                     if not client.firstName and config_first_name:
                         client.firstName = config_first_name
                         client_modified = True
-                        
+
                     # Set lastName if not already set
                     if not client.lastName and config_last_name:
                         client.lastName = config_last_name
                         client_modified = True
-                    
+
+                    # clientNumber is required by the XSD schema; set a placeholder if missing
+                    if not client.clientNumber:
+                        client.clientNumber = ClientNumber("NOIDENTI")
+                        client_modified = True
+                        logger.warning(
+                            f"Client[{i}] has no clientNumber from importer; using placeholder 'NOIDENTI'. "
+                            "Set a real client number via importer-specific settings."
+                        )
+
                     if client_modified:
                         self.modified_fields.append(f"TaxStatement.client[{i}] (name from config)")
                         logger.info(f"Updated client[{i}] name from configuration: {config_full_name}")
