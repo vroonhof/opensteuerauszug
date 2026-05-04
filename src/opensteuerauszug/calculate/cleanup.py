@@ -260,6 +260,10 @@ class CleanupCalculator:
                     if not client.clientNumber:
                         client.clientNumber = ClientNumber("NOIDENTI")
                         client_modified = True
+                        logger.warning(
+                            f"Client[{i}] has no clientNumber from importer; using placeholder 'NOIDENTI'. "
+                            "Set a real client number via importer-specific settings."
+                        )
 
                     if client_modified:
                         self.modified_fields.append(f"TaxStatement.client[{i}] (name from config)")
