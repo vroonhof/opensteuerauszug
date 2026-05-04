@@ -1,14 +1,11 @@
 """Unit tests for the Degiro Account.csv parser."""
 
-import io
-import textwrap
 from datetime import date
 from decimal import Decimal
 
 import pytest
 
 from opensteuerauszug.importers.degiro.account_csv_parser import (
-    ACCOUNT_CSV_FIELDNAMES,
     DegiroRow,
     DegiroRowKind,
     classify_row,

@@ -2,10 +2,7 @@
 
 from decimal import Decimal
 
-import pytest
-
 from opensteuerauszug.importers.degiro.portfolio_csv_parser import (
-    PortfolioEntry,
     load_portfolio_csv,
 )
 
