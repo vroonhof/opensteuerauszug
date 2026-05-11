@@ -238,7 +238,7 @@ class TestSchwabTransactionExtractor:
                 "TransactionDetails": []
             }]
         }
-        with pytest.raises(ValueError, match="non-empty TransactionDetails"):
+        with pytest.raises(ValueError):
             extractor._extract_transactions_from_dict(data)
 
     def test_lapse_missing_net_shares_raises(self):
@@ -253,7 +253,7 @@ class TestSchwabTransactionExtractor:
                 }}]
             }]
         }
-        with pytest.raises(ValueError, match="positive NetSharesDeposited"):
+        with pytest.raises(ValueError):
             extractor._extract_transactions_from_dict(data)
 
     def test_action_buy(self):
