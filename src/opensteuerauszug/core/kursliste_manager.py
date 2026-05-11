@@ -7,7 +7,7 @@ for different tax years.
 
 import re
 import datetime
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from decimal import Decimal
 from pathlib import Path
 from typing import Dict, List, Optional, Union
