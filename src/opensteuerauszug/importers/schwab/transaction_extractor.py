@@ -19,7 +19,8 @@ KNOWN_ACTIONS = {
     "NRA Tax Adj", "NRA Withholding", "Non-Qualified Div", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell",
     "Service Fee", "Short Term Cap Gain", "Special Qual Div", "Spin-off", "Stock Plan Activity", "Stock Split",
     "Visa Purchase", "Wire Funds", "Wire Funds Received", "Wire Sent",
-    "Tax Reversal", "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
+    "Tax Reversal", "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer",
+    "Lapse"
 }
 
 class TransactionExtractor:
@@ -463,7 +464,32 @@ class TransactionExtractor:
                 )
                 # if cash_flow:
                 #     cash_stock = create_cash_stock(cash_flow, f"Implied cash out for Deposit {pos_object.symbol}")
-        
+
+        elif action == "Lapse":
+            # Restricted Stock Lapse (vesting). The top-level "Quantity" is the
+            # gross number of vested shares; the broker withholds some shares for
+            # taxes and only deposits the net amount into the account. We book
+            # NetSharesDeposited from TransactionDetails — the withheld shares
+            # never enter the account so they must not appear as a holding.
+            if not isinstance(pos_object, SecurityPosition):
+                raise ValueError(f"Lapse action requires a SecurityPosition: {schwab_tx}")
+            details_list = schwab_tx.get("TransactionDetails") or []
+            if not details_list:
+                raise ValueError(f"Lapse action requires TransactionDetails: {schwab_tx}")
+            details = details_list[0].get("Details", {})
+            net_qty = self._parse_schwab_decimal(details.get("NetSharesDeposited"))
+            fmv_decimal = self._parse_schwab_decimal(details.get("FairMarketValuePrice"))
+            if net_qty is None or net_qty <= 0:
+                raise ValueError(f"Lapse action requires a positive NetSharesDeposited: {schwab_tx}")
+            award_date = details.get("AwardDate")
+            award_id = details.get("AwardId")
+            award_details_str = f" (Award ID: {award_id}, Award Date: {award_date}, FMV: {details.get('FairMarketValuePrice')})"
+            sec_stock = SecurityStock(
+                referenceDate=tx_date, mutation=True, quotationType="PIECE",
+                quantity=net_qty, balanceCurrency=currency,
+                unitPrice=fmv_decimal, name=f"Lapse{award_details_str}",
+            )
+
         elif action in ("Tax Withholding", "NRA Tax Adj", "Tax Reversal", "NRA Withholding", "Foreign Tax Paid", "IRS Withhold Adj"):
             # Withholding-tax related entries only ever influence nonRecoverableTax,
             # never grossRevenueB. A negative schwab_amount means tax was withheld

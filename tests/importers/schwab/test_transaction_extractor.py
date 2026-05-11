@@ -156,6 +156,42 @@ class TestSchwabTransactionExtractor:
         assert stock.name is not None
         assert stock.name == "Deposit (Award ID: AWD123, Award Date: 01/15/2023, Vest Date: 03/06/2024, FMV: $130.50)"
 
+    def test_lapse_books_net_shares_deposited(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "Transactions": [{
+                "Date": "11/15/2025", "Action": "Lapse", "Symbol": "META",
+                "Quantity": "3", "Description": "Restricted Stock Lapse",
+                "FeesAndCommissions": None, "DisbursementElection": None, "Amount": None,
+                "TransactionDetails": [{
+                    "Details": {
+                        "AwardDate": "03/20/2025", "AwardId": "20252618",
+                        "FairMarketValuePrice": "$609.46", "SalePrice": "",
+                        "SharesSoldWithheldForTaxes": "1", "NetSharesDeposited": "2",
+                        "Taxes": "$106.05",
+                    }
+                }]
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        meta_data = find_position(result, SecurityPosition, "META")
+        assert meta_data is not None
+        pos, stocks, payments = meta_data
+        assert isinstance(pos, SecurityPosition)
+        assert pos.symbol == "META"
+        assert pos.depot == "AWARDS"
+        assert payments is None
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.referenceDate == date(2025, 11, 15)
+        assert stock.mutation is True
+        assert stock.quotationType == "PIECE"
+        assert stock.quantity == Decimal("2")
+        assert stock.unitPrice == Decimal("609.46")
+        assert stock.name == "Lapse (Award ID: 20252618, Award Date: 03/20/2025, FMV: $609.46)"
+
     def test_action_buy(self):
         extractor = create_extractor()
         data = {
