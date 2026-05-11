@@ -83,7 +83,9 @@ You will need to download data for your Brokerage accounts and any Equity Awards
 
 ### 2. Equity Awards Accounts (e.g., Stock Options, RSUs)
 
-This needs to be repeated for each equity in the equity awards account. These are treated as separate "depots" for the Steuerauszug.
+Some Schwab Equity Awards setups keep each award security in the awards area until it is sold or transferred. For those accounts, repeat the export for each equity in the equity awards account; the importer treats them as separate "depots" for the Steuerauszug.
+
+Other setups vest/lapse RSUs directly into the main brokerage/trading account. In that case the vested shares appear in the regular brokerage transactions, usually as `Stock Plan Activity`, and there is no separate end-of-year award position to import. You do not need to look for per-stock Equity Awards statement PDFs for those securities. The Equity Awards transaction export is also redundant for those vested shares, because the corresponding `Lapse` rows only describe the award-side release and the importer ignores them to avoid double counting the deposit in the brokerage account.
 
 **a) Transactions File (JSON)**
 
@@ -112,7 +114,7 @@ This needs to be repeated for each equity in the equity awards account. These ar
           ]
         }
         ```
-*   **End of year statements**: Schwab currently does not provide a machine-readable positions file for Equity Awards. However the PDF version of the final quarter statement is simple enough so the software can parse it. Please download the PDF and put it in the data directory. It has a header named `Account Statement` and a section with heading `Account Summary: SYMBOL`.  If this is insufficient, you may need to use the [Manual Positions Fallback CSV](#3-manual-positions-fallback-csv-optional).
+*   **End of year statements**: Schwab currently does not provide a machine-readable positions file for Equity Awards. If your awards remain in a separate awards depot at year end, download the PDF version of the final quarter statement and put it in the data directory. It has a header named `Account Statement` and a section with heading `Account Summary: SYMBOL`. If your RSUs vest directly into the main brokerage account, Schwab may not provide these per-stock awards PDFs; use the regular brokerage statement/transactions instead. If this is insufficient, you may need to use the [Manual Positions Fallback CSV](#3-manual-positions-fallback-csv-optional).
 
 ### 3. Manual Positions Fallback CSV (Optional)
 
