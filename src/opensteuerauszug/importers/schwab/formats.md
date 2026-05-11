@@ -120,6 +120,7 @@ the same. In my statements I have seen the following Action types
       "Action": "Deposit",
       "Action": "Dividend",
       "Action": "Journal",
+      "Action": "Lapse",
       "Action": "NRA Tax Adj",
       "Action": "Reinvest Dividend",
       "Action": "Reinvest Shares",

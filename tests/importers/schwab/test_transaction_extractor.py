@@ -190,9 +190,7 @@ class TestSchwabTransactionExtractor:
         assert stock.quotationType == "PIECE"
         assert stock.quantity == Decimal("2")
         assert stock.unitPrice == Decimal("609.46")
-        assert stock.name == (
-            "Lapse [Award ID: 20252618, Award Date: 03/20/2025, FMV: $609.46, Net: 2]"
-        )
+        assert stock.name == "Lapse (Awards: 20252618)"
 
     def test_lapse_sums_multiple_components(self):
         extractor = create_extractor()
@@ -227,6 +225,51 @@ class TestSchwabTransactionExtractor:
         # Quantity-weighted FMV: (2*600 + 3*650) / 5 = 3150 / 5 = 630
         assert stock.unitPrice == Decimal("630")
         assert "AWD1" in stock.name and "AWD2" in stock.name
+
+    def test_lapse_missing_fmv_in_component_raises(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "Transactions": [{
+                "Date": "11/15/2025", "Action": "Lapse", "Symbol": "META",
+                "Quantity": "5", "Amount": None,
+                "TransactionDetails": [
+                    {"Details": {
+                        "AwardId": "AWD1", "FairMarketValuePrice": "$600.00",
+                        "NetSharesDeposited": "2",
+                    }},
+                    {"Details": {
+                        "AwardId": "AWD2", "FairMarketValuePrice": "",
+                        "NetSharesDeposited": "3",
+                    }},
+                ]
+            }]
+        }
+        with pytest.raises(ValueError):
+            extractor._extract_transactions_from_dict(data)
+
+    def test_lapse_long_award_list_truncates_name(self):
+        extractor = create_extractor()
+        details = [
+            {"Details": {
+                "AwardId": f"AWARD-WITH-A-VERY-LONG-IDENTIFIER-{i:03d}",
+                "FairMarketValuePrice": "$600.00",
+                "NetSharesDeposited": "1",
+            }}
+            for i in range(20)
+        ]
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "Transactions": [{
+                "Date": "11/15/2025", "Action": "Lapse", "Symbol": "META",
+                "Quantity": "20", "Amount": None,
+                "TransactionDetails": details,
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        _, stocks, _ = find_position(result, SecurityPosition, "META")
+        assert len(stocks[0].name) <= 200
 
     def test_lapse_empty_transaction_details_raises(self):
         extractor = create_extractor()

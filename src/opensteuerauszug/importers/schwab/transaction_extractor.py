@@ -482,7 +482,7 @@ class TransactionExtractor:
 
             total_net_qty = Decimal(0)
             weighted_value = Decimal(0)
-            component_descriptions: list[str] = []
+            award_ids: list[str] = []
             for component in details_list:
                 details = component.get("Details", {})
                 comp_net_qty = self._parse_schwab_decimal(details.get("NetSharesDeposited"))
@@ -491,20 +491,27 @@ class TransactionExtractor:
                         f"Lapse action requires a positive NetSharesDeposited per component: {schwab_tx}"
                     )
                 comp_fmv = self._parse_schwab_decimal(details.get("FairMarketValuePrice"))
+                if comp_fmv is None:
+                    raise ValueError(
+                        f"Lapse action requires a FairMarketValuePrice per component: {schwab_tx}"
+                    )
                 total_net_qty += comp_net_qty
-                if comp_fmv is not None:
-                    weighted_value += comp_net_qty * comp_fmv
-                component_descriptions.append(
-                    f"Award ID: {details.get('AwardId')}, Award Date: {details.get('AwardDate')}, "
-                    f"FMV: {details.get('FairMarketValuePrice')}, Net: {details.get('NetSharesDeposited')}"
-                )
+                weighted_value += comp_net_qty * comp_fmv
+                award_id = details.get("AwardId")
+                if award_id:
+                    award_ids.append(str(award_id))
 
-            unit_price = (weighted_value / total_net_qty) if weighted_value else None
-            award_details_str = " [" + "; ".join(component_descriptions) + "]"
+            unit_price = weighted_value / total_net_qty
+            # SecurityStock.name has a 200-char max; keep the summary compact and
+            # truncate the award-id list if it would otherwise overflow.
+            award_summary = ", ".join(award_ids) if award_ids else ""
+            name = f"Lapse (Awards: {award_summary})" if award_summary else "Lapse"
+            if len(name) > 200:
+                name = name[:197] + "..."
             sec_stock = SecurityStock(
                 referenceDate=tx_date, mutation=True, quotationType="PIECE",
                 quantity=total_net_qty, balanceCurrency=currency,
-                unitPrice=unit_price, name=f"Lapse{award_details_str}",
+                unitPrice=unit_price, name=name,
             )
 
         elif action in ("Tax Withholding", "NRA Tax Adj", "Tax Reversal", "NRA Withholding", "Foreign Tax Paid", "IRS Withhold Adj"):
