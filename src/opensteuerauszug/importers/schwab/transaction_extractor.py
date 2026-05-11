@@ -17,7 +17,7 @@ KNOWN_ACTIONS = {
     "Full Redemption", "Full Redemption Adj", "Foreign Tax Paid", "Funds Received", "IRS Withhold Adj", "Long Term Cap Gain",
     "Misc Cash Entry", "MoneyLink Adj", "MoneyLink Deposit", "MoneyLink Transfer",
     "NRA Tax Adj", "NRA Withholding", "Non-Qualified Div", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell",
-    "Service Fee", "Short Term Cap Gain", "Special Qual Div", "Spin-off", "Stock Plan Activity", "Stock Split",
+    "Lapse", "Service Fee", "Short Term Cap Gain", "Special Qual Div", "Spin-off", "Stock Plan Activity", "Stock Split",
     "Visa Purchase", "Wire Funds", "Wire Funds Received", "Wire Sent",
     "Tax Reversal", "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
 }
@@ -347,6 +347,39 @@ class TransactionExtractor:
                 )
                 # Stock Plan Activity usually has no direct cash flow in the brokerage account (it's the vesting)
                 # Any cash flow (taxes) is usually handled by separate Journal or Tax Withholding entries.
+
+        elif action == "Lapse":
+            if not isinstance(pos_object, SecurityPosition) or pos_object.depot != "AWARDS":
+                raise ValueError(f"Lapse action is only handled for the Equity Awards depot: {schwab_tx}")
+            if schwab_amount is not None and schwab_amount != 0:
+                raise ValueError(f"Lapse action should not carry a cash amount: {schwab_tx}")
+
+            # Equity Awards Center uses "Lapse" for vesting, with
+            # TransactionDetails splitting the vested quantity into withheld
+            # and net-deposited shares. In setups where Schwab automatically
+            # transfers awards into the Individual account, the net shares are
+            # reported there as "Stock Plan Activity"; importing both rows
+            # would double count the position.
+            details = {}
+            transaction_details = schwab_tx.get("TransactionDetails") or []
+            if transaction_details:
+                details = transaction_details[0].get("Details", {}) or {}
+            net_shares = self._parse_schwab_decimal(details.get("NetSharesDeposited"))
+            shares_withheld = (
+                self._parse_schwab_decimal(details.get("SharesSoldWithheldForTaxes"))
+                or Decimal("0")
+            )
+            if schwab_qty is not None and net_shares is not None:
+                expected_qty = net_shares + shares_withheld
+                if schwab_qty != expected_qty:
+                    logger.warning(
+                        "Ignoring Schwab Equity Awards Lapse with quantity %s, but "
+                        "NetSharesDeposited + SharesSoldWithheldForTaxes is %s: %s",
+                        schwab_qty,
+                        expected_qty,
+                        schwab_tx,
+                    )
+            return None, None, None
 
         elif action == "Credit Interest":
             # Generates a Payment for the cash account AND a cash stock mutation

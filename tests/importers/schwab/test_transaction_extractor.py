@@ -1050,6 +1050,79 @@ class TestSchwabTransactionExtractor:
         assert stock.unitPrice is None
         assert stock.name == "Stock Plan Activity"
 
+    def test_equity_awards_lapse_is_ignored_when_net_shares_are_deposited_elsewhere(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025",
+            "ToDate": "12/31/2025",
+            "Transactions": [{
+                "Date": "11/15/2025",
+                "Action": "Lapse",
+                "Symbol": "ACME",
+                "Quantity": "3",
+                "Description": "Restricted Stock Lapse",
+                "FeesAndCommissions": None,
+                "DisbursementElection": None,
+                "Amount": None,
+                "TransactionDetails": [{
+                    "Details": {
+                        "AwardDate": "02/10/2025",
+                        "AwardId": "AWARD-001",
+                        "FairMarketValuePrice": "$123.45",
+                        "SalePrice": "",
+                        "SharesSoldWithheldForTaxes": "1",
+                        "NetSharesDeposited": "2",
+                        "Taxes": "$98.76",
+                    }
+                }],
+            }],
+        }
+
+        assert extractor._extract_transactions_from_dict(data) is None
+
+    def test_equity_awards_lapse_allows_missing_withheld_tax_shares(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025",
+            "ToDate": "12/31/2025",
+            "Transactions": [{
+                "Date": "11/15/2025",
+                "Action": "Lapse",
+                "Symbol": "ACME",
+                "Quantity": "2",
+                "Description": "Restricted Stock Lapse",
+                "Amount": None,
+                "TransactionDetails": [{
+                    "Details": {
+                        "AwardDate": "02/10/2025",
+                        "AwardId": "AWARD-002",
+                        "FairMarketValuePrice": "$123.45",
+                        "NetSharesDeposited": "2",
+                    }
+                }],
+            }],
+        }
+
+        assert extractor._extract_transactions_from_dict(data) is None
+
+    def test_brokerage_lapse_is_not_silently_ignored(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025",
+            "ToDate": "12/31/2025",
+            "BrokerageTransactions": [{
+                "Date": "11/15/2025",
+                "Action": "Lapse",
+                "Symbol": "ACME",
+                "Quantity": "3",
+                "Description": "Restricted Stock Lapse",
+                "Amount": None,
+            }],
+        }
+
+        with pytest.raises(ValueError, match="only handled for the Equity Awards depot"):
+            extractor._extract_transactions_from_dict(data)
+
     def test_action_tax_reversal(self):
         """Tax Reversal with positive amount records a negative nonRecoverableTax (offsetting prior withholding)."""
         extractor = create_extractor()

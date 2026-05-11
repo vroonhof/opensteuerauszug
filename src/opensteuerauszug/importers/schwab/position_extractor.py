@@ -52,7 +52,10 @@ class PositionExtractor:
         positions: List[Tuple[Position, SecurityStock]] = []
         for row in reader:
             symbol = row.get('Symbol', '').strip()
-            security_type = row.get('Security Type', '').strip() or row.get('Security Type', '').strip()
+            security_type = (
+                row.get('Security Type', '').strip()
+                or row.get('Asset Type', '').strip()
+            )
             qty_str = row.get('Qty (Quantity)', '').replace(',', '').strip()
             mkt_val_str = row.get('Mkt Val (Market Value)', '').replace(',', '').replace('$', '').strip()
             description = row.get('Description', '').strip() if 'Description' in row else None
@@ -110,4 +113,4 @@ if __name__ == "__main__":
         import pprint
         pprint.pprint(result)
     else:
-        print("File is not a valid Schwab positions CSV or could not extract positions.") 
+        print("File is not a valid Schwab positions CSV or could not extract positions.")
