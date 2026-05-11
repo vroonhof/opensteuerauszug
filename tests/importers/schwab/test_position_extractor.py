@@ -41,6 +41,31 @@ def test_extract_positions_valid():
     assert stock1.balanceCurrency == 'USD'
     assert stock2.balanceCurrency == 'USD'
 
+def test_asset_type_column_identifies_security_positions():
+    csv_content = (
+        '"Positions for account Individual ...632 as of 02:19 PM ET, 2026/05/11"\n'
+        '\n'
+        '"Symbol","Description","Qty (Quantity)","Price","Price Chng $ (Price Change $)","Price Chng % (Price Change %)","Mkt Val (Market Value)","Day Chng $ (Day Change $)","Day Chng % (Day Change %)","Cost Basis","Gain $ (Gain/Loss $)","Gain % (Gain/Loss %)","Reinvest?","Reinvest Capital Gains?","Asset Type"\n'
+        '"META","META PLATFORMS INC CLASS CLASS A","111","601.2701","-8.3599","-1.37%","$66,740.98","-$927.95","-1.37%","$76,053.86","-$9,312.88","-12.25%","No","N/A","Equity"\n'
+    )
+    with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.csv') as tmp:
+        tmp.write(csv_content)
+        tmp.flush()
+        extractor = PositionExtractor(tmp.name)
+        result = extractor.extract_positions()
+    os.unlink(tmp.name)
+
+    assert result is not None
+    positions, statement_date, depot = result
+    assert depot == '632'
+    assert statement_date.isoformat() == '2026-05-12'
+    assert len(positions) == 1
+    pos, stock = positions[0]
+    assert isinstance(pos, SecurityPosition)
+    assert pos.symbol == 'META'
+    assert pos.security_type == 'Equity'
+    assert stock.quantity == 111
+
 def test_extract_positions_invalid():
     with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.csv') as tmp:
         tmp.write(BAD_CSV)
@@ -48,4 +73,4 @@ def test_extract_positions_invalid():
         extractor = PositionExtractor(tmp.name)
         result = extractor.extract_positions()
     os.unlink(tmp.name)
-    assert result is None 
+    assert result is None
