@@ -3,11 +3,16 @@ import typer
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, cast
+from typing import Any, Dict, List, Optional, TypeVar, cast
 from datetime import date, datetime
 from pypdf import PdfReader, PdfWriter
 
-from .config.models import SchwabAccountSettings, IbkrAccountSettings, FidelityAccountSettings, DegiroAccountSettings
+from .config.models import (
+    DegiroAccountSettings,
+    FidelityAccountSettings,
+    IbkrAccountSettings,
+    SchwabAccountSettings,
+)
 from .render.translations import DEFAULT_LANGUAGE
 from .core.identifier_loader import SecurityIdentifierMapLoader
 
@@ -25,7 +30,7 @@ from .util.known_issues import is_known_issue
 from .core.exchange_rate_provider import ExchangeRateProvider
 from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
-from .config import ConfigManager, ConcreteAccountSettings
+from .config import ConfigManager
 from .config.paths import (
     resolve_config_file,
     resolve_kursliste_dir,
@@ -60,6 +65,17 @@ class ImporterType(str, Enum):
     DEGIRO = "degiro"
     NONE = "none"
 
+
+BROKER_LABELS = {
+    ImporterType.SCHWAB.value: "Schwab",
+    ImporterType.IBKR.value: "IBKR",
+    ImporterType.FIDELITY.value: "Fidelity",
+    ImporterType.DEGIRO.value: "Degiro",
+}
+
+AccountSettingsByKind = Dict[str, List[Any]]
+AccountSettingsT = TypeVar("AccountSettingsT")
+
 class TaxCalculationLevel(str, Enum):
     NONE = "none"
     MINIMAL = "minimal"
@@ -82,6 +98,122 @@ default_phases = [Phase.IMPORT, Phase.VALIDATE, Phase.CALCULATE, Phase.RECONCILE
 _COMMAND_DEFAULT_PHASES = {
     'verify': [Phase.VERIFY],
 }
+
+
+def _target_broker_kind(importer_type: ImporterType, broker_name: Optional[str]) -> Optional[str]:
+    if importer_type != ImporterType.NONE:
+        return importer_type.value
+    if broker_name:
+        broker_kind = broker_name.lower()
+        print(
+            f"Warning: --broker '{broker_name}' used with importer '{importer_type.value}'. "
+            f"Account settings will be loaded for '{broker_kind}', ensure this is intended."
+        )
+        return broker_kind
+    return None
+
+
+def _empty_account_settings_by_kind() -> AccountSettingsByKind:
+    return {kind: [] for kind in BROKER_LABELS}
+
+
+def _load_account_settings_by_kind(
+    config_manager: ConfigManager,
+    target_broker_kind: str,
+    config_file: Optional[Path],
+    override_configs: Optional[List[str]],
+) -> AccountSettingsByKind:
+    logger.debug(
+        "Loading all account configurations for broker kind '%s' from '%s'...",
+        target_broker_kind,
+        config_file,
+    )
+    if override_configs:
+        logger.debug("Applying CLI overrides: %s", override_configs)
+
+    concrete_accounts = config_manager.get_all_account_settings_for_broker(
+        target_broker_kind,
+        overrides=override_configs,
+    )
+
+    if not concrete_accounts:
+        print(
+            f"No accounts configured for broker kind '{target_broker_kind}' in {config_file}. "
+            "Importer will proceed with defaults if possible."
+        )
+
+    settings_by_kind = _empty_account_settings_by_kind()
+    for account_settings in concrete_accounts:
+        settings = settings_by_kind.get(account_settings.kind)
+        if settings is None:
+            print(
+                f"Warning: Received unhandled account configuration kind "
+                f"'{account_settings.kind}' for broker '{target_broker_kind}'. Skipping."
+            )
+            continue
+        settings.append(account_settings.settings)
+
+    if target_broker_kind in {ImporterType.FIDELITY.value, ImporterType.SCHWAB.value}:
+        if concrete_accounts and not settings_by_kind[target_broker_kind]:
+            broker_label = BROKER_LABELS[target_broker_kind]
+            raise ValueError(
+                f"No valid {broker_label} account configurations found for broker "
+                f"'{target_broker_kind}', though other configurations might exist."
+            )
+    elif target_broker_kind == ImporterType.IBKR.value:
+        if concrete_accounts and not settings_by_kind[target_broker_kind]:
+            logger.debug(
+                "Warning: No valid IBKR account configurations loaded for broker 'ibkr', "
+                "though other configurations might exist."
+            )
+
+    for kind, settings in settings_by_kind.items():
+        if settings:
+            print(f"Successfully loaded {len(settings)} {BROKER_LABELS[kind]} account(s).")
+
+    return settings_by_kind
+
+
+def _account_settings(
+    settings_by_kind: AccountSettingsByKind,
+    importer_type: ImporterType,
+) -> List[AccountSettingsT]:
+    return cast(List[AccountSettingsT], settings_by_kind[importer_type.value])
+
+
+def _require_import_period(
+    importer_type: ImporterType,
+    period_from: Optional[date],
+    period_to: Optional[date],
+) -> tuple[date, date]:
+    if not period_from or not period_to:
+        raise typer.BadParameter(
+            f"--period-from and --period-to are required for the {BROKER_LABELS[importer_type.value]} importer."
+        )
+    return period_from, period_to
+
+
+def _require_input_shape(importer_type: ImporterType, input_file: Path, *, directory: bool) -> None:
+    if directory:
+        if not input_file.is_dir():
+            raise typer.BadParameter(
+                f"Input for {BROKER_LABELS[importer_type.value]} importer must be a directory, "
+                f"but got: {input_file}"
+            )
+    elif not input_file.is_file():
+        raise typer.BadParameter(
+            f"Input for {BROKER_LABELS[importer_type.value]} importer must be an XML file, "
+            f"but got: {input_file}"
+        )
+
+
+def _empty_tax_statement() -> TaxStatement:
+    return TaxStatement(
+        minorVersion=22,
+        institution=Institution(name=""),
+        client=[Client(clientNumber=ClientNumber(""))],
+    )
+
 
 @app.command("process")
 def process(
@@ -191,10 +323,7 @@ def process(
     # ... (rest of date printing)
 
     # --- Configuration Loading ---
-    all_fidelity_account_settings_models: List[FidelityAccountSettings] = []
-    all_schwab_account_settings_models: List[SchwabAccountSettings] = []
-    all_ibkr_account_settings_models: List[IbkrAccountSettings] = []
-    all_degiro_account_settings_models: List[DegiroAccountSettings] = []
+    account_settings_by_kind = _empty_account_settings_by_kind()
     effective_config_file = resolve_config_file(config_file)
     config_manager = ConfigManager(config_file_path=str(effective_config_file))
 
@@ -223,73 +352,20 @@ def process(
         True,
     )
 
-    target_broker_kind_for_config_loading = None
-    if importer_type == ImporterType.FIDELITY:
-        target_broker_kind_for_config_loading = "fidelity"
-    if importer_type == ImporterType.SCHWAB:
-        target_broker_kind_for_config_loading = "schwab"
-    elif importer_type == ImporterType.IBKR:
-        target_broker_kind_for_config_loading = "ibkr"
-    elif importer_type == ImporterType.DEGIRO:
-        target_broker_kind_for_config_loading = "degiro"
-    elif broker_name:
-        target_broker_kind_for_config_loading = broker_name.lower()
-        print(f"Warning: --broker '{broker_name}' used with importer '{importer_type.value}'. Account settings will be loaded for '{target_broker_kind_for_config_loading}', ensure this is intended.")
-
+    target_broker_kind_for_config_loading = _target_broker_kind(importer_type, broker_name)
     if target_broker_kind_for_config_loading:
         try:
-            logger.debug(f"Loading all account configurations for broker kind '{target_broker_kind_for_config_loading}' from '{config_file}'...")
-            if override_configs:
-                logger.debug(f"Applying CLI overrides: {override_configs}")
-
-            concrete_accounts_list = config_manager.get_all_account_settings_for_broker(
+            account_settings_by_kind = _load_account_settings_by_kind(
+                config_manager,
                 target_broker_kind_for_config_loading,
-                overrides=override_configs
+                config_file,
+                override_configs,
             )
-            
-            if not concrete_accounts_list:
-                print(f"No accounts configured for broker kind '{target_broker_kind_for_config_loading}' in {config_file}. Importer will proceed with defaults if possible.")
-
-            for acc_settings in concrete_accounts_list:
-                if acc_settings.kind == "fidelity":
-                    all_fidelity_account_settings_models.append(cast(FidelityAccountSettings, acc_settings.settings))
-                elif acc_settings.kind == "schwab":
-                    all_schwab_account_settings_models.append(cast(SchwabAccountSettings, acc_settings.settings))
-                elif acc_settings.kind == "ibkr":
-                    all_ibkr_account_settings_models.append(cast(IbkrAccountSettings, acc_settings.settings))
-                elif acc_settings.kind == "degiro":
-                    all_degiro_account_settings_models.append(cast(DegiroAccountSettings, acc_settings.settings))
-                else:
-                    print(f"Warning: Received unhandled account configuration kind '{acc_settings.kind}' for broker '{target_broker_kind_for_config_loading}'. Skipping.")
-            if target_broker_kind_for_config_loading == "fidelity" and not all_fidelity_account_settings_models and concrete_accounts_list:
-                raise ValueError(f"No valid Fidelity account configurations found for broker 'fidelity', though other configurations might exist.")
-            if target_broker_kind_for_config_loading == "schwab" and not all_schwab_account_settings_models and concrete_accounts_list:
-                raise ValueError(f"No valid Schwab account configurations found for broker 'schwab', though other configurations might exist.")
-            if target_broker_kind_for_config_loading == "ibkr" and not all_ibkr_account_settings_models and concrete_accounts_list:
-                logger.debug(f"Warning: No valid IBKR account configurations loaded for broker 'ibkr', though other configurations might exist.")
-
-            if all_fidelity_account_settings_models:
-                print(f"Successfully loaded {len(all_fidelity_account_settings_models)} Fidelity account(s).")
-            if all_schwab_account_settings_models:
-                print(f"Successfully loaded {len(all_schwab_account_settings_models)} Schwab account(s).")
-            if all_ibkr_account_settings_models:
-                print(f"Successfully loaded {len(all_ibkr_account_settings_models)} IBKR account(s).")
-            if all_degiro_account_settings_models:
-                print(f"Successfully loaded {len(all_degiro_account_settings_models)} Degiro account(s).")
-
         except ValueError as e:
             print(f"Error loading configuration: {e}")
             raise typer.Exit(code=1)
     else:
         print("No specific broker targeted by --importer or --broker for detailed configuration loading. Proceeding with general setup.")
-
-
-    # This variable is used later for Schwab Importer instantiation
-    account_settings: Optional[ConcreteAccountSettings] = None # Retain for now, as Schwab Importer instantiation still uses it.
-                                                              # This will be addressed in the next step.
-                                                              # For this step, we focus on populating all_schwab_account_settings_models.
-                                                              # If Schwab importer is used, the old account_settings will be effectively ignored
-                                                              # as all_schwab_account_settings_models takes precedence in logic flow.
 
     statement: Optional[TaxStatement] = None # Now refers to TaxStatement
 
@@ -342,19 +418,21 @@ def process(
             current_phase = Phase.IMPORT
             print(f"Phase: {current_phase.value}")
             if importer_type == ImporterType.SCHWAB:
-                if not parsed_period_from or not parsed_period_to:
-                    raise typer.BadParameter("--period-from and --period-to are required for the Schwab importer.")
-                if not input_file.is_dir():
-                    raise typer.BadParameter(f"Input for Schwab importer must be a directory, but got: {input_file}")
-                if not all_schwab_account_settings_models:
+                period_from, period_to = _require_import_period(importer_type, parsed_period_from, parsed_period_to)
+                _require_input_shape(importer_type, input_file, directory=True)
+                schwab_account_settings: List[SchwabAccountSettings] = _account_settings(
+                    account_settings_by_kind,
+                    importer_type,
+                )
+                if not schwab_account_settings:
                     print(f"Error: No valid Schwab account configurations loaded/found for broker 'schwab'. Check config.toml or provide --broker schwab if settings are under a different name.")
                     raise typer.Exit(code=1)
-                print(f"Initializing SchwabImporter with {len(all_schwab_account_settings_models)} Schwab account configuration(s).")
+                print(f"Initializing SchwabImporter with {len(schwab_account_settings)} Schwab account configuration(s).")
                 from .importers.schwab.schwab_importer import SchwabImporter
                 schwab_importer = SchwabImporter(
-                    period_from=parsed_period_from,
-                    period_to=parsed_period_to,
-                    account_settings_list=all_schwab_account_settings_models,
+                    period_from=period_from,
+                    period_to=period_to,
+                    account_settings_list=schwab_account_settings,
                     strict_consistency=strict_consistency_flag,
                     render_language=render_language
                 )
@@ -362,19 +440,21 @@ def process(
                 print(f"Schwab import complete.")
 
             elif importer_type == ImporterType.FIDELITY:
-                if not parsed_period_from or not parsed_period_to:
-                    raise typer.BadParameter("--period-from and --period-to are required for the Fidelity importer.")
-                if not input_file.is_dir():
-                    raise typer.BadParameter(f"Input for Fidelity importer must be a directory, but got: {input_file}")
-                if not all_fidelity_account_settings_models:
+                period_from, period_to = _require_import_period(importer_type, parsed_period_from, parsed_period_to)
+                _require_input_shape(importer_type, input_file, directory=True)
+                fidelity_account_settings: List[FidelityAccountSettings] = _account_settings(
+                    account_settings_by_kind,
+                    importer_type,
+                )
+                if not fidelity_account_settings:
                     print(f"Error: No valid Fidelity account configurations loaded/found for broker 'fidelity'. Check config.toml or provide --broker fidelity if settings are under a different name.")
                     raise typer.Exit(code=1)
-                print(f"Initializing FidelityImporter with {len(all_fidelity_account_settings_models)} Fidelity account configuration(s).")
+                print(f"Initializing FidelityImporter with {len(fidelity_account_settings)} Fidelity account configuration(s).")
                 from .importers.fidelity.fidelity_importer import FidelityImporter
                 fidelity_importer = FidelityImporter(
-                    period_from=parsed_period_from,
-                    period_to=parsed_period_to,
-                    account_settings_list=all_fidelity_account_settings_models,
+                    period_from=period_from,
+                    period_to=period_to,
+                    account_settings_list=fidelity_account_settings,
                     strict_consistency=strict_consistency_flag,
                     render_language=render_language
                 )
@@ -382,12 +462,14 @@ def process(
                 print(f"Fidelity import complete.")
  
             elif importer_type == ImporterType.IBKR:
-                if not parsed_period_from or not parsed_period_to:
-                    raise typer.BadParameter("--period-from and --period-to are required for the IBKR importer.")
-                if not input_file.is_file():
-                    raise typer.BadParameter(f"Input for IBKR importer must be an XML file, but got: {input_file}")
+                period_from, period_to = _require_import_period(importer_type, parsed_period_from, parsed_period_to)
+                _require_input_shape(importer_type, input_file, directory=False)
+                ibkr_account_settings: List[IbkrAccountSettings] = _account_settings(
+                    account_settings_by_kind,
+                    importer_type,
+                )
 
-                if not all_ibkr_account_settings_models:
+                if not ibkr_account_settings:
                     print("No specific IBKR account settings found/loaded from config. Using empty list for importer settings.")
 
                 # Enable tolerance for unknown XML attributes so that new
@@ -399,12 +481,12 @@ def process(
                 import ibflex
                 ibflex.enable_unknown_attribute_tolerance()
 
-                print(f"Initializing IbkrImporter with {len(all_ibkr_account_settings_models)} IBKR account configuration(s) (if any).")
+                print(f"Initializing IbkrImporter with {len(ibkr_account_settings)} IBKR account configuration(s) (if any).")
                 from .importers.ibkr.ibkr_importer import IbkrImporter
                 ibkr_importer = IbkrImporter(
-                    period_from=parsed_period_from,
-                    period_to=parsed_period_to,
-                    account_settings_list=all_ibkr_account_settings_models,
+                    period_from=period_from,
+                    period_to=period_to,
+                    account_settings_list=ibkr_account_settings,
                     render_language=render_language
                 )
                 corrections_files = [str(p) for p in corrections_flex] if corrections_flex else None
@@ -412,41 +494,33 @@ def process(
                 print(f"IBKR import complete.")
 
             elif importer_type == ImporterType.DEGIRO:
-                if not parsed_period_from or not parsed_period_to:
-                    raise typer.BadParameter("--period-from and --period-to are required for the Degiro importer.")
-                if not input_file.is_dir():
-                    raise typer.BadParameter(f"Input for Degiro importer must be a directory, but got: {input_file}")
-                if not all_degiro_account_settings_models:
+                period_from, period_to = _require_import_period(importer_type, parsed_period_from, parsed_period_to)
+                _require_input_shape(importer_type, input_file, directory=True)
+                degiro_account_settings: List[DegiroAccountSettings] = _account_settings(
+                    account_settings_by_kind,
+                    importer_type,
+                )
+                if not degiro_account_settings:
                     print("No specific Degiro account settings found/loaded from config. Using empty list for importer settings.")
-                print(f"Initializing DegiroImporter with {len(all_degiro_account_settings_models)} Degiro account configuration(s).")
+                print(f"Initializing DegiroImporter with {len(degiro_account_settings)} Degiro account configuration(s).")
                 from .importers.degiro.degiro_importer import DegiroImporter
                 degiro_importer = DegiroImporter(
-                    period_from=parsed_period_from,
-                    period_to=parsed_period_to,
-                    account_settings_list=all_degiro_account_settings_models,
+                    period_from=period_from,
+                    period_to=period_to,
+                    account_settings_list=degiro_account_settings,
                 )
                 statement = degiro_importer.import_dir(str(input_file))
                 print(f"Degiro import complete.")
 
             elif importer_type == ImporterType.NONE and not raw_import:
                 print("No specific importer selected, creating an empty TaxStatement for further processing.")
-                # Create a minimal valid statement with required elements per eCH-0196 XSD
-                statement = TaxStatement(
-                    minorVersion=22,
-                    institution=Institution(name=""),
-                    client=[Client(clientNumber=ClientNumber(""))]
-                )
+                statement = _empty_tax_statement()
             else:
                 # This case implies an importer was specified but isn't handled yet,
                 # or raw_import is true (which is handled before this block).
                 # If more importers are added, they need to be handled here.
                 print(f"Importer '{importer_type.value}' not yet implemented or not applicable. Creating empty TaxStatement.")
-                # Create a minimal valid statement with required elements per eCH-0196 XSD
-                statement = TaxStatement(
-                    minorVersion=22,
-                    institution=Institution(name=""),
-                    client=[Client(clientNumber=ClientNumber(""))]
-                )
+                statement = _empty_tax_statement()
 
             print(f"Import successful." )
             dump_debug_model(current_phase.value, statement)
