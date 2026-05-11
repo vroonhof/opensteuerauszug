@@ -607,6 +607,17 @@ class TestSplitUnsettledCash(unittest.TestCase):
         self.assertEqual(len(unsettled), 1)
         self.assertEqual(unsettled[0].quantity, Decimal("1000"))
 
+    def test_future_trade_after_period_end_is_not_unsettled_for_period_end(self):
+        # A Schwab export can include transactions after the requested tax year.
+        # Those future trades must remain in the main cash timeline for backward
+        # reconciliation from a later balance snapshot; they are not unsettled
+        # cash at the previous year end.
+        stocks = [self._bal("2026-05-12", "48712.34"), self._mut("2026-02-24", "48109.87")]
+        settled, unsettled = split_unsettled_cash(stocks, date(2025, 12, 31))
+        self.assertEqual(unsettled, [])
+        self.assertEqual(len(settled), 2)
+        self.assertEqual(settled[1].referenceDate, date(2026, 2, 25))
+
     def test_split_mixed(self):
         stocks = [
             self._bal("2025-01-01", "0"),

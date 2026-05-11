@@ -74,16 +74,19 @@ def split_unsettled_cash(
 ) -> Tuple[List[SecurityStock], List[SecurityStock]]:
     """Partition *stocks* into settled and unsettled at *period_end*.
 
-    For every T+1 mutation (``requires_settlement=True``) that settles within
-    the period, the mutation's ``referenceDate`` is unconditionally shifted to
-    the settlement date.  Cash moves on settlement day, not trade day, so this
-    is the semantically correct date for cash-account entries.  It also
+    For every T+1 mutation (``requires_settlement=True``) that does not cross
+    the period-end boundary, the mutation's ``referenceDate`` is shifted to the
+    settlement date.  Cash moves on settlement day, not trade day, so this is
+    the semantically correct date for cash-account entries.  It also
     naturally handles intra-period balance checkpoints: because balance entries
     sort before mutations on the same date, a settlement-dated mutation always
     appears *after* any same-day balance snapshot in the reconciler's sequence.
 
-    Mutations that settle strictly after *period_end* are placed in the
-    unsettled bucket; the caller reports them as a separate account.
+    Mutations traded on or before *period_end* that settle strictly after
+    *period_end* are placed in the unsettled bucket; the caller reports them as
+    a separate account.  Future trades from an export that extends past the tax
+    year are kept in the settled timeline so backward reconciliation from a
+    later balance snapshot can un-apply them.
 
     Balance entries (mutation=False) and non-settlement mutations are placed
     in the settled bucket unchanged.
@@ -100,11 +103,13 @@ def split_unsettled_cash(
     for s in stocks:
         if s.mutation and s.requires_settlement:
             settle = settlement_date(s.referenceDate)
-            if settle > period_end:
+            if s.referenceDate <= period_end < settle:
                 # Will not settle within the period → separate unsettled account.
                 unsettled.append(s)
             else:
-                # Always date cash at settlement, not trade date.
+                # Date cash at settlement, not trade date.  Future trades remain
+                # in the main timeline so synthesis for the period end can work
+                # backwards from a later position snapshot.
                 settled.append(s.model_copy(update={"referenceDate": settle}))
         else:
             settled.append(s)
