@@ -190,7 +190,71 @@ class TestSchwabTransactionExtractor:
         assert stock.quotationType == "PIECE"
         assert stock.quantity == Decimal("2")
         assert stock.unitPrice == Decimal("609.46")
-        assert stock.name == "Lapse (Award ID: 20252618, Award Date: 03/20/2025, FMV: $609.46)"
+        assert stock.name == (
+            "Lapse [Award ID: 20252618, Award Date: 03/20/2025, FMV: $609.46, Net: 2]"
+        )
+
+    def test_lapse_sums_multiple_components(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "Transactions": [{
+                "Date": "11/15/2025", "Action": "Lapse", "Symbol": "META",
+                "Quantity": "10", "Description": "Restricted Stock Lapse",
+                "Amount": None,
+                "TransactionDetails": [
+                    {"Details": {
+                        "AwardDate": "03/20/2024", "AwardId": "AWD1",
+                        "FairMarketValuePrice": "$600.00",
+                        "SharesSoldWithheldForTaxes": "1", "NetSharesDeposited": "2",
+                    }},
+                    {"Details": {
+                        "AwardDate": "03/20/2025", "AwardId": "AWD2",
+                        "FairMarketValuePrice": "$650.00",
+                        "SharesSoldWithheldForTaxes": "2", "NetSharesDeposited": "3",
+                    }},
+                ]
+            }]
+        }
+        result = run_extraction_test(extractor, data, 1)
+        assert result is not None
+        meta_data = find_position(result, SecurityPosition, "META")
+        assert meta_data is not None
+        _, stocks, _ = meta_data
+        assert len(stocks) == 1
+        stock = stocks[0]
+        assert stock.quantity == Decimal("5")  # 2 + 3
+        # Quantity-weighted FMV: (2*600 + 3*650) / 5 = 3150 / 5 = 630
+        assert stock.unitPrice == Decimal("630")
+        assert "AWD1" in stock.name and "AWD2" in stock.name
+
+    def test_lapse_empty_transaction_details_raises(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "Transactions": [{
+                "Date": "11/15/2025", "Action": "Lapse", "Symbol": "META",
+                "Quantity": "3", "Amount": None,
+                "TransactionDetails": []
+            }]
+        }
+        with pytest.raises(ValueError, match="non-empty TransactionDetails"):
+            extractor._extract_transactions_from_dict(data)
+
+    def test_lapse_missing_net_shares_raises(self):
+        extractor = create_extractor()
+        data = {
+            "FromDate": "01/01/2025", "ToDate": "12/31/2025",
+            "Transactions": [{
+                "Date": "11/15/2025", "Action": "Lapse", "Symbol": "META",
+                "Quantity": "3", "Amount": None,
+                "TransactionDetails": [{"Details": {
+                    "AwardId": "AWD1", "FairMarketValuePrice": "$600.00",
+                }}]
+            }]
+        }
+        with pytest.raises(ValueError, match="positive NetSharesDeposited"):
+            extractor._extract_transactions_from_dict(data)
 
     def test_action_buy(self):
         extractor = create_extractor()
