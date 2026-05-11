@@ -883,7 +883,8 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         try:
             
             # Parse the XML first to filter elements
-            root = ET.parse(file_path).getroot()
+            parser = ET.XMLParser(resolve_entities=False, no_network=True)
+            root = ET.parse(file_path, parser=parser).getroot()
             
             # Use the default denylist if none provided
             if denylist is None:
