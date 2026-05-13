@@ -92,7 +92,7 @@ _EXACT_MATCH: dict[str, DegiroRowKind] = {
     "Degiro Cash Sweep Transfer": DegiroRowKind.DEGIRO_SWEEP,
 }
 
-# Prefix-match descriptions → row kind (longest prefixes first per kind).
+# Prefix-match descriptions → row kind (case-sensitive).
 _PREFIX_MATCH: list[tuple[str, DegiroRowKind]] = [
     # BUY_SELL
     ("Buy ",       DegiroRowKind.BUY_SELL),
@@ -103,17 +103,6 @@ _PREFIX_MATCH: list[tuple[str, DegiroRowKind]] = [
     ("Vente ",     DegiroRowKind.BUY_SELL),
     ("Kauf ",      DegiroRowKind.BUY_SELL),
     ("Verkauf ",   DegiroRowKind.BUY_SELL),
-    # FEE_TRANSACTION
-    ("DEGIRO Transaction",          DegiroRowKind.FEE_TRANSACTION),
-    ("DEGIRO costi di transazione", DegiroRowKind.FEE_TRANSACTION),
-    ("DEGIRO frais de transaction", DegiroRowKind.FEE_TRANSACTION),
-    ("DEGIRO Transaktionsgebühren", DegiroRowKind.FEE_TRANSACTION),
-    # FEE_CONNECTION
-    ("DEGIRO Exchange Connection Fee", DegiroRowKind.FEE_CONNECTION),
-    ("DEGIRO Costi di connessione",    DegiroRowKind.FEE_CONNECTION),
-    ("DEGIRO Frais de connexion",      DegiroRowKind.FEE_CONNECTION),
-    ("DEGIRO Börsengebühren",          DegiroRowKind.FEE_CONNECTION),
-    ("DEGIRO Anschlussgebühren",       DegiroRowKind.FEE_CONNECTION),
     # CORPORATE_CASH
     ("Corporate Action Cash Settlement", DegiroRowKind.CORPORATE_CASH),
     # DELISTING
@@ -125,10 +114,26 @@ _PREFIX_MATCH: list[tuple[str, DegiroRowKind]] = [
     ("Überweisung an",   DegiroRowKind.CASH_SWEEP_OUT),
 ]
 
-# Substring-match descriptions → row kind.
+# Prefix-match descriptions → row kind (case-insensitive).
+# Degiro is inconsistent with capitalization across locales, e.g.
+# "DEGIRO costi di transazione" vs "DEGIRO Costi di connessione".
+_PREFIX_MATCH_NOCASE: list[tuple[str, DegiroRowKind]] = [
+    # FEE_TRANSACTION
+    ("degiro transaction",          DegiroRowKind.FEE_TRANSACTION),
+    ("degiro costi di transazione", DegiroRowKind.FEE_TRANSACTION),
+    ("degiro frais de transaction", DegiroRowKind.FEE_TRANSACTION),
+    ("degiro transaktionsgebühren", DegiroRowKind.FEE_TRANSACTION),
+    # FEE_CONNECTION
+    ("degiro exchange connection fee", DegiroRowKind.FEE_CONNECTION),
+    ("degiro costi di connessione",    DegiroRowKind.FEE_CONNECTION),
+    ("degiro frais de connexion",      DegiroRowKind.FEE_CONNECTION),
+    ("degiro börsengebühren",          DegiroRowKind.FEE_CONNECTION),
+    ("degiro anschlussgebühren",       DegiroRowKind.FEE_CONNECTION),
+]
+
+# Substring-match descriptions → row kind (case-insensitive).
 _CONTAINS_MATCH: list[tuple[str, DegiroRowKind]] = [
-    ("Flatex Interest", DegiroRowKind.FLATEX_INTEREST),
-    ("flatex Interest", DegiroRowKind.FLATEX_INTEREST),
+    ("flatex interest", DegiroRowKind.FLATEX_INTEREST),
 ]
 
 
@@ -148,8 +153,13 @@ def classify_row(row: DegiroRow) -> DegiroRowKind:
         if desc.startswith(prefix):
             return kind
 
+    desc_lower = desc.lower()
+    for prefix, kind in _PREFIX_MATCH_NOCASE:
+        if desc_lower.startswith(prefix):
+            return kind
+
     for substr, kind in _CONTAINS_MATCH:
-        if substr in desc:
+        if substr in desc_lower:
             return kind
 
     return DegiroRowKind.UNKNOWN
