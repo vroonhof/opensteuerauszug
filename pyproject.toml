@@ -84,7 +84,7 @@ markers = [
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv"]
-skips = ["B101", "B105"]
+skips = ["B101"]
 
 # Type checking with pyrefly. Scope is everything under src/; CI gates
 # on the full src/ tree.
