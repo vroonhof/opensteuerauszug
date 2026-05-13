@@ -1512,7 +1512,7 @@ class TaxStatement(TaxStatementBase):
         """
         # Parse the XML file
         try:
-            parser = ET.XMLParser(remove_blank_text=True)
+            parser = ET.XMLParser(remove_blank_text=True, resolve_entities=False, no_network=True)
             tree = ET.parse(file_path, parser)
             root = tree.getroot()
             

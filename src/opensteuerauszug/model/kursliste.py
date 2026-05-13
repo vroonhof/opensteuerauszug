@@ -107,7 +107,9 @@ class SecurityTypeESTV(str, Enum):
     COINBULL_COINGOLD="COINBULL.COINGOLD"; COINBULL_GOLD="COINBULL.GOLD"
     COINBULL_PALLADIUM="COINBULL.PALLADIUM"; COINBULL_PLATINUM="COINBULL.PLATINUM"
     COINBULL_SILVER="COINBULL.SILVER"; CURRNOTE_CURRENCY="CURRNOTE.CURRENCY"
-    CURRNOTE_CURRYEAR="CURRNOTE.CURRYEAR"; CURRNOTE_TOKEN="CURRNOTE.TOKEN"
+    CURRNOTE_CURRYEAR="CURRNOTE.CURRYEAR"
+    # ESTV enum value, not a secret.
+    CURRNOTE_TOKEN="CURRNOTE.TOKEN"  # nosec: B105
     DEVT_COMBINEDPRODUCT="DEVT.COMBINEDPRODUCT"; DEVT_FUNDSIMILARASSET="DEVT.FUNDSIMILARASSET"
     DEVT_INDEXBASKET="DEVT.INDEXBASKET"; FUND_ACCUMULATION="FUND.ACCUMULATION"
     FUND_DISTRIBUTION="FUND.DISTRIBUTION"; FUND_REALESTATE="FUND.REALESTATE"
@@ -883,7 +885,8 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
         try:
             
             # Parse the XML first to filter elements
-            root = ET.parse(file_path).getroot()
+            parser = ET.XMLParser(resolve_entities=False, no_network=True)
+            root = ET.parse(file_path, parser=parser).getroot()
             
             # Use the default denylist if none provided
             if denylist is None:
@@ -1004,4 +1007,3 @@ class Kursliste(PydanticXmlModel, tag="kursliste", nsmap=NSMAP):
                 if security.isin == isin:
                     results.append(security)
         return results
-

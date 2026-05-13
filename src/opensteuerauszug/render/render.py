@@ -1776,9 +1776,9 @@ def create_securities_table(tax_statement: TaxStatement, styles, usable_width, s
             # Render each entry
             for entry_type, entry_date, entry in entries:
                 if entry_type == 'payment':
-                    name = entry.name or ''
+                    name = escape_html_for_paragraph(entry.name or '')
                     if entry.sign:
-                        name = f"{name} {entry.sign}"
+                        name = f"{name} {escape_html_for_paragraph(entry.sign)}"
                     table_data.append([
                         Paragraph(entry.paymentDate.strftime("%d.%m.%Y") if entry.paymentDate else '', val_left),
                         Paragraph(name, val_left),
@@ -1799,7 +1799,7 @@ def create_securities_table(tax_statement: TaxStatement, styles, usable_width, s
                     if entry.quotationType != 'PIECE':
                         raise NotImplementedError("Cannot render stock type")
                     if entry.mutation:
-                        name = entry.name
+                        name = escape_html_for_paragraph(entry.name or '')
                     else:
                         name = t('balance')
                     table_data.append([

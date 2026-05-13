@@ -31,6 +31,7 @@ dependencies = [
     "platformdirs>=3.0.0",
     "requests>=2.33.0", # actually an undeclared dependecy of ibflex [not as optional as it says on the tin]
     "holidays>=0.62",
+    "defusedxml>=0.7.1",
 ]
 
 [project.scripts]
@@ -80,6 +81,10 @@ python_files = ["test_*.py"]
 markers = [
     "integration: marks tests as integration tests",
 ]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+skips = ["B101"]
 
 # Type checking with pyrefly. Scope is everything under src/; CI gates
 # on the full src/ tree.

@@ -1,5 +1,6 @@
 import sqlite3
 import json
+import logging
 from typing import Optional, Dict as PyDict, List, Type, TypeVar
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -11,6 +12,8 @@ from opensteuerauszug.model.kursliste import (
     Security, Share, Bond, Fund, Derivative, CoinBullion, CurrencyNote, LiborSwap,
     SecurityTypeESTV, Sign, Da1Rate, Da1RateType, SecurityGroupESTV
 )
+
+logger = logging.getLogger(__name__)
 
 _T = TypeVar('_T', bound=PydanticXmlModel)
 
@@ -91,7 +94,7 @@ class KurslisteDBReader:
             if row:
                 return row[0]
         except Exception:
-            pass
+            logger.debug("Could not read blob_format from metadata, assuming legacy 'json' format.")
         return "json"  # Legacy databases used JSON blobs
 
     def _deserialize_object(self, blob_data: bytes, model_class: Type[_T], object_type_name: str) -> Optional[_T]:
@@ -373,13 +376,12 @@ class KurslisteDBReader:
               (e.g. "most specific" or "latest valid") might be needed depending on business rules.
         """
         params = [country, security_group.value, tax_year]
-        conditions = ["country = ?", "security_group = ?", "tax_year = ?"]
 
         # For now, let's fetch all DA1 rates for the main criteria and filter by date/type in Python
-        query = f"""
+        query = """
             SELECT da1_rate_object_blob
             FROM da1_rates
-            WHERE {" AND ".join(conditions)}
+            WHERE country = ? AND security_group = ? AND tax_year = ?
         """
 
         rows = self._execute_query_fetchall(query, tuple(params))

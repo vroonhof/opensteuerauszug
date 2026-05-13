@@ -5,7 +5,8 @@ from markdown.extensions import Extension
 from reportlab.platypus import Paragraph, Spacer, ListFlowable, ListItem
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
-from xml.etree.ElementTree import Element
+# The Markdown parser builds ElementTree nodes internally; this module does not parse XML input.
+from xml.etree.ElementTree import Element  # nosec: B405
 
 def _etree_to_string(element: Element) -> str:
     """Recursively converts an ElementTree element to a string with ReportLab XML tags."""
