@@ -8,10 +8,15 @@ EXTRA_SAMPLE_DIR/import/degiro/).  See design/testing.md for details.
 import os
 import re
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
-from opensteuerauszug.importers.degiro.degiro_importer import DegiroImporter
+from opensteuerauszug.importers.degiro.degiro_importer import (
+    DegiroImporter,
+    _TRADE_RE,
+    _normalize_number,
+)
 from tests.utils.samples import get_sample_dirs
 
 SAMPLE_DIRS = get_sample_dirs("import/degiro", extensions=[".csv"])
@@ -80,4 +85,40 @@ def test_import_dir_raises_on_missing_files(tmp_path):
     )
     with pytest.raises(FileNotFoundError):
         importer.import_dir(str(tmp_path))
+
+
+@pytest.mark.parametrize("desc,action,qty,price,currency", [
+    ("Buy 60 iShares@20.08 EUR (IE00B3WJKG14)", "Buy", "60", "20.08", "EUR"),
+    ("Sell 10 Vanguard@71.00 EUR (IE00B3XXRP09)", "Sell", "10", "71.00", "EUR"),
+    ("Acquisto 80 iShares@8.306 EUR (IE00BYXPXL17)", "Acquisto", "80", "8.306", "EUR"),
+    ("Vendita 120 iShares@20.279 EUR (IE00B1FZS350)", "Vendita", "120", "20.279", "EUR"),
+    ("Acquisto 1'000 iShares@7.707 EUR (IE00BF4RFH31)", "Acquisto", "1'000", "7.707", "EUR"),
+    ("Acquisto 1'094 iShares@5.7985 EUR (IE00BJK55C48)", "Acquisto", "1'094", "5.7985", "EUR"),
+    # French
+    ("Achat 60 iShares@20.08 EUR (IE00B3WJKG14)", "Achat", "60", "20.08", "EUR"),
+    ("Vente 10 Vanguard@71.00 EUR (IE00B3XXRP09)", "Vente", "10", "71.00", "EUR"),
+    # German
+    ("Kauf 60 iShares@20.08 EUR (IE00B3WJKG14)", "Kauf", "60", "20.08", "EUR"),
+    ("Verkauf 10 Vanguard@71.00 EUR (IE00B3XXRP09)", "Verkauf", "10", "71.00", "EUR"),
+    ("Kauf 1.000 iShares@20,08 EUR (IE00B3WJKG14)", "Kauf", "1.000", "20,08", "EUR"),
+])
+def test_trade_re_matches(desc, action, qty, price, currency):
+    m = _TRADE_RE.match(desc)
+    assert m is not None, f"_TRADE_RE should match {desc!r}"
+    assert m.group(1) == action
+    assert m.group(2) == qty
+    assert m.group(4) == price
+    assert m.group(5) == currency
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("60", "60"),
+    ("1'000", "1000"),
+    ("1'000.50", "1000.50"),
+    ("20.08", "20.08"),
+    ("1.000,50", "1000.50"),
+    ("20,08", "20.08"),
+])
+def test_normalize_number(raw, expected):
+    assert _normalize_number(raw) == expected
 

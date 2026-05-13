@@ -63,33 +63,60 @@ class DegiroRowKind(Enum):
 
 
 def classify_row(row: DegiroRow) -> DegiroRowKind:
-    """Return the semantic kind of *row* based on its description field."""
+    """Return the semantic kind of *row* based on its description field.
+
+    Degiro exports descriptions in the user's account language.
+    Supported: English, Italian, French, German.
+    """
     desc = row.description
-    if desc.startswith("Buy ") or desc.startswith("Sell "):
+    if any(
+        desc.startswith(p)
+        for p in ("Buy ", "Sell ", "Acquisto ", "Vendita ", "Achat ", "Vente ", "Kauf ", "Verkauf ")
+    ):
         return DegiroRowKind.BUY_SELL
-    if desc == "Dividend Tax":
+    if desc in (
+        "Dividend Tax", "Imposta sui dividendi",
+        "Impôt sur les dividendes", "Dividendensteuer",
+    ):
         return DegiroRowKind.DIVIDEND_TAX
-    if desc == "Dividend":
+    if desc in ("Dividend", "Dividendo", "Dividende"):
         return DegiroRowKind.DIVIDEND
-    if desc == "FX Credit":
+    if desc in ("FX Credit", "Credito FX", "Crédit FX", "FX-Gutschrift"):
         return DegiroRowKind.FX_CREDIT
-    if desc == "FX Debit":
+    if desc in ("FX Debit", "Prelievo FX", "Débit FX", "FX-Belastung"):
         return DegiroRowKind.FX_DEBIT
-    if desc.startswith("DEGIRO Transaction"):
+    if any(
+        desc.startswith(p)
+        for p in (
+            "DEGIRO Transaction",
+            "DEGIRO costi di transazione",
+            "DEGIRO frais de transaction",
+            "DEGIRO Transaktionsgebühren",
+        )
+    ):
         return DegiroRowKind.FEE_TRANSACTION
-    if desc.startswith("DEGIRO Exchange Connection Fee"):
+    if any(
+        desc.startswith(p)
+        for p in (
+            "DEGIRO Exchange Connection Fee",
+            "DEGIRO Costi di connessione",
+            "DEGIRO Frais de connexion",
+            "DEGIRO Börsengebühren",
+            "DEGIRO Anschlussgebühren",
+        )
+    ):
         return DegiroRowKind.FEE_CONNECTION
     if desc.startswith("Corporate Action Cash Settlement"):
         return DegiroRowKind.CORPORATE_CASH
     if desc.startswith("DELISTING:"):
         return DegiroRowKind.DELISTING
-    if desc.startswith("Deposit"):
+    if desc in ("Deposit", "Deposito", "Dépôt", "Einzahlung"):
         return DegiroRowKind.DEPOSIT
     if "Flatex Interest" in desc or "flatex Interest" in desc:
         return DegiroRowKind.FLATEX_INTEREST
-    if desc.startswith("Transfer from"):
+    if desc.startswith("Transfer from") or desc.startswith("Überweisung von"):
         return DegiroRowKind.CASH_SWEEP_IN
-    if desc.startswith("Transfer to"):
+    if desc.startswith("Transfer to") or desc.startswith("Überweisung an"):
         return DegiroRowKind.CASH_SWEEP_OUT
     if desc == "Degiro Cash Sweep Transfer":
         return DegiroRowKind.DEGIRO_SWEEP

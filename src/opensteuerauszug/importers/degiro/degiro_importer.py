@@ -65,7 +65,8 @@ logger = logging.getLogger(__name__)
 #   Buy 60 iShares S&P 500 Info Technolg Sctr UCITS ETF USD A@20.08 EUR (IE00B3WJKG14)
 #   Sell 10 Vanguard S&P 500 UCITS ETF USD Dis@71.00 EUR (IE00B3XXRP09)
 _TRADE_RE = re.compile(
-    r"^(Buy|Sell)\s+(\d+(?:\.\d+)?)\s+(.+?)@([\d.]+)\s+([A-Z]{3})"
+    r"^(Buy|Sell|Acquisto|Vendita|Achat|Vente|Kauf|Verkauf)"
+    r"\s+(\d[\d'.]*(?:[.,]\d+)?)\s+(.+?)@([\d.,]+)\s+([A-Z]{3})"
     r"(?:\s+\([A-Z0-9]{12}\))?$"
 )
 
@@ -81,6 +82,20 @@ _ISIN_RE = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 
 def _valid_isin(isin: str) -> bool:
     return bool(_ISIN_RE.match(isin))
+
+
+def _normalize_number(s: str) -> str:
+    """Strip thousands separators (' and .) from a numeric string.
+
+    Handles Swiss/Italian style (1'000.50) and German style (1.000,50).
+    """
+    if "," in s and "." in s:
+        if s.rindex(",") > s.rindex("."):
+            return s.replace(".", "").replace(",", ".")
+        return s.replace(",", "")
+    if "," in s:
+        return s.replace(",", ".")
+    return s.replace("'", "")
 
 
 def _infer_category(product: str) -> SecurityCategory:
@@ -356,10 +371,10 @@ class DegiroImporter:
             return
 
         action, qty_str, _name, price_str, currency = m.groups()
-        qty = Decimal(qty_str)
-        price = Decimal(price_str)
+        qty = Decimal(_normalize_number(qty_str))
+        price = Decimal(_normalize_number(price_str))
 
-        if action == "Sell":
+        if action in ("Sell", "Vendita", "Vente", "Verkauf"):
             qty = -qty
 
         # Determine ISIN – prefer the row's ISIN column, fall back to regex name
