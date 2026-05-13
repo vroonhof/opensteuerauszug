@@ -62,6 +62,76 @@ class DegiroRowKind(Enum):
     UNKNOWN = auto()
 
 
+# Exact-match descriptions → row kind (all supported languages).
+_EXACT_MATCH: dict[str, DegiroRowKind] = {
+    # EN              IT                          FR                          DE
+    "Dividend Tax":   DegiroRowKind.DIVIDEND_TAX,
+    "Imposta sui dividendi": DegiroRowKind.DIVIDEND_TAX,
+    "Impôt sur les dividendes": DegiroRowKind.DIVIDEND_TAX,
+    "Dividendensteuer": DegiroRowKind.DIVIDEND_TAX,
+
+    "Dividend":       DegiroRowKind.DIVIDEND,
+    "Dividendo":      DegiroRowKind.DIVIDEND,
+    "Dividende":      DegiroRowKind.DIVIDEND,
+
+    "FX Credit":      DegiroRowKind.FX_CREDIT,
+    "Credito FX":     DegiroRowKind.FX_CREDIT,
+    "Crédit FX":      DegiroRowKind.FX_CREDIT,
+    "FX-Gutschrift":  DegiroRowKind.FX_CREDIT,
+
+    "FX Debit":       DegiroRowKind.FX_DEBIT,
+    "Prelievo FX":    DegiroRowKind.FX_DEBIT,
+    "Débit FX":       DegiroRowKind.FX_DEBIT,
+    "FX-Belastung":   DegiroRowKind.FX_DEBIT,
+
+    "Deposit":        DegiroRowKind.DEPOSIT,
+    "Deposito":       DegiroRowKind.DEPOSIT,
+    "Dépôt":          DegiroRowKind.DEPOSIT,
+    "Einzahlung":     DegiroRowKind.DEPOSIT,
+
+    "Degiro Cash Sweep Transfer": DegiroRowKind.DEGIRO_SWEEP,
+}
+
+# Prefix-match descriptions → row kind (longest prefixes first per kind).
+_PREFIX_MATCH: list[tuple[str, DegiroRowKind]] = [
+    # BUY_SELL
+    ("Buy ",       DegiroRowKind.BUY_SELL),
+    ("Sell ",      DegiroRowKind.BUY_SELL),
+    ("Acquisto ",  DegiroRowKind.BUY_SELL),
+    ("Vendita ",   DegiroRowKind.BUY_SELL),
+    ("Achat ",     DegiroRowKind.BUY_SELL),
+    ("Vente ",     DegiroRowKind.BUY_SELL),
+    ("Kauf ",      DegiroRowKind.BUY_SELL),
+    ("Verkauf ",   DegiroRowKind.BUY_SELL),
+    # FEE_TRANSACTION
+    ("DEGIRO Transaction",          DegiroRowKind.FEE_TRANSACTION),
+    ("DEGIRO costi di transazione", DegiroRowKind.FEE_TRANSACTION),
+    ("DEGIRO frais de transaction", DegiroRowKind.FEE_TRANSACTION),
+    ("DEGIRO Transaktionsgebühren", DegiroRowKind.FEE_TRANSACTION),
+    # FEE_CONNECTION
+    ("DEGIRO Exchange Connection Fee", DegiroRowKind.FEE_CONNECTION),
+    ("DEGIRO Costi di connessione",    DegiroRowKind.FEE_CONNECTION),
+    ("DEGIRO Frais de connexion",      DegiroRowKind.FEE_CONNECTION),
+    ("DEGIRO Börsengebühren",          DegiroRowKind.FEE_CONNECTION),
+    ("DEGIRO Anschlussgebühren",       DegiroRowKind.FEE_CONNECTION),
+    # CORPORATE_CASH
+    ("Corporate Action Cash Settlement", DegiroRowKind.CORPORATE_CASH),
+    # DELISTING
+    ("DELISTING:", DegiroRowKind.DELISTING),
+    # CASH_SWEEP
+    ("Transfer from",    DegiroRowKind.CASH_SWEEP_IN),
+    ("Überweisung von",  DegiroRowKind.CASH_SWEEP_IN),
+    ("Transfer to",      DegiroRowKind.CASH_SWEEP_OUT),
+    ("Überweisung an",   DegiroRowKind.CASH_SWEEP_OUT),
+]
+
+# Substring-match descriptions → row kind.
+_CONTAINS_MATCH: list[tuple[str, DegiroRowKind]] = [
+    ("Flatex Interest", DegiroRowKind.FLATEX_INTEREST),
+    ("flatex Interest", DegiroRowKind.FLATEX_INTEREST),
+]
+
+
 def classify_row(row: DegiroRow) -> DegiroRowKind:
     """Return the semantic kind of *row* based on its description field.
 
@@ -69,57 +139,19 @@ def classify_row(row: DegiroRow) -> DegiroRowKind:
     Supported: English, Italian, French, German.
     """
     desc = row.description
-    if any(
-        desc.startswith(p)
-        for p in ("Buy ", "Sell ", "Acquisto ", "Vendita ", "Achat ", "Vente ", "Kauf ", "Verkauf ")
-    ):
-        return DegiroRowKind.BUY_SELL
-    if desc in (
-        "Dividend Tax", "Imposta sui dividendi",
-        "Impôt sur les dividendes", "Dividendensteuer",
-    ):
-        return DegiroRowKind.DIVIDEND_TAX
-    if desc in ("Dividend", "Dividendo", "Dividende"):
-        return DegiroRowKind.DIVIDEND
-    if desc in ("FX Credit", "Credito FX", "Crédit FX", "FX-Gutschrift"):
-        return DegiroRowKind.FX_CREDIT
-    if desc in ("FX Debit", "Prelievo FX", "Débit FX", "FX-Belastung"):
-        return DegiroRowKind.FX_DEBIT
-    if any(
-        desc.startswith(p)
-        for p in (
-            "DEGIRO Transaction",
-            "DEGIRO costi di transazione",
-            "DEGIRO frais de transaction",
-            "DEGIRO Transaktionsgebühren",
-        )
-    ):
-        return DegiroRowKind.FEE_TRANSACTION
-    if any(
-        desc.startswith(p)
-        for p in (
-            "DEGIRO Exchange Connection Fee",
-            "DEGIRO Costi di connessione",
-            "DEGIRO Frais de connexion",
-            "DEGIRO Börsengebühren",
-            "DEGIRO Anschlussgebühren",
-        )
-    ):
-        return DegiroRowKind.FEE_CONNECTION
-    if desc.startswith("Corporate Action Cash Settlement"):
-        return DegiroRowKind.CORPORATE_CASH
-    if desc.startswith("DELISTING:"):
-        return DegiroRowKind.DELISTING
-    if desc in ("Deposit", "Deposito", "Dépôt", "Einzahlung"):
-        return DegiroRowKind.DEPOSIT
-    if "Flatex Interest" in desc or "flatex Interest" in desc:
-        return DegiroRowKind.FLATEX_INTEREST
-    if desc.startswith("Transfer from") or desc.startswith("Überweisung von"):
-        return DegiroRowKind.CASH_SWEEP_IN
-    if desc.startswith("Transfer to") or desc.startswith("Überweisung an"):
-        return DegiroRowKind.CASH_SWEEP_OUT
-    if desc == "Degiro Cash Sweep Transfer":
-        return DegiroRowKind.DEGIRO_SWEEP
+
+    kind = _EXACT_MATCH.get(desc)
+    if kind is not None:
+        return kind
+
+    for prefix, kind in _PREFIX_MATCH:
+        if desc.startswith(prefix):
+            return kind
+
+    for substr, kind in _CONTAINS_MATCH:
+        if substr in desc:
+            return kind
+
     return DegiroRowKind.UNKNOWN
 
 
