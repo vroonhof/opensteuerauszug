@@ -43,8 +43,8 @@ from opensteuerauszug.importers.common import (
     resolve_first_last_name,
 )
 from opensteuerauszug.model.ech0196 import (
-    ISINType,
     Institution,
+    ISINType,
     SecurityCategory,
     SecurityStock,
     TaxStatement,
@@ -65,15 +65,14 @@ logger = logging.getLogger(__name__)
 #   Buy 60 iShares S&P 500 Info Technolg Sctr UCITS ETF USD A@20.08 EUR (IE00B3WJKG14)
 #   Sell 10 Vanguard S&P 500 UCITS ETF USD Dis@71.00 EUR (IE00B3XXRP09)
 _TRADE_RE = re.compile(
-    r"^(Buy|Sell)\s+(\d+(?:\.\d+)?)\s+(.+?)@([\d.]+)\s+([A-Z]{3})"
+    r"^(Buy|Sell|Acquisto|Vendita|Achat|Vente|Kauf|Verkauf)"
+    r"\s+(\d[\d'.]*(?:[.,]\d+)?)\s+(.+?)@([\d.,]+)\s+([A-Z]{3})"
     r"(?:\s+\([A-Z0-9]{12}\))?$"
 )
 
 # Regex for delisting lines, e.g.:
 #   DELISTING: Sell 10 Activision Blizzard Inc@0 USD (US00507V1098)
-_DELISTING_RE = re.compile(
-    r"^DELISTING:\s+Sell\s+(\d+(?:\.\d+)?)\s+.+@([\d.]+)\s+([A-Z]{3})"
-)
+_DELISTING_RE = re.compile(r"^DELISTING:\s+Sell\s+(\d+(?:\.\d+)?)\s+.+@([\d.]+)\s+([A-Z]{3})")
 
 # ISIN validation pattern (matches pydantic field constraint on SecurityPosition)
 _ISIN_RE = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
@@ -81,6 +80,20 @@ _ISIN_RE = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 
 def _valid_isin(isin: str) -> bool:
     return bool(_ISIN_RE.match(isin))
+
+
+def _normalize_number(s: str) -> str:
+    """Strip thousands separators (' and .) from a numeric string.
+
+    Handles Swiss/Italian style (1'000.50) and German style (1.000,50).
+    """
+    if "," in s and "." in s:
+        if s.rindex(",") > s.rindex("."):
+            return s.replace(".", "").replace(",", ".")
+        return s.replace(",", "")
+    if "," in s:
+        return s.replace(",", ".")
+    return s.replace("'", "")
 
 
 def _infer_category(product: str) -> SecurityCategory:
@@ -107,9 +120,7 @@ class DegiroImporter:
         self.account_settings_list = account_settings_list
 
         self._depot_id: str = (
-            account_settings_list[0].account_number
-            if account_settings_list
-            else "DEGIRO"
+            account_settings_list[0].account_number if account_settings_list else "DEGIRO"
         )
 
     # ------------------------------------------------------------------
@@ -136,8 +147,8 @@ class DegiroImporter:
 
         # Accumulators
         name_registry = SecurityNameRegistry()
-        processed_security_positions: Dict[SecurityPosition, SecurityPositionData] = (
-            defaultdict(lambda: SecurityPositionData({"stocks": [], "payments": []}))
+        processed_security_positions: Dict[SecurityPosition, SecurityPositionData] = defaultdict(
+            lambda: SecurityPositionData({"stocks": [], "payments": []})
         )
 
         # Step 1 – Seed closing balances from Portfolio.csv
@@ -220,19 +231,13 @@ class DegiroImporter:
                 if not row.isin or not _valid_isin(row.isin):
                     logger.warning("DELISTING row %d has no valid ISIN", row.raw_row)
                     continue
-                self._process_delisting(
-                    row, processed_security_positions, name_registry
-                )
+                self._process_delisting(row, processed_security_positions, name_registry)
 
             elif kind == DegiroRowKind.CORPORATE_CASH:
                 if not row.isin or not _valid_isin(row.isin):
-                    logger.warning(
-                        "CORPORATE_CASH row %d has no valid ISIN", row.raw_row
-                    )
+                    logger.warning("CORPORATE_CASH row %d has no valid ISIN", row.raw_row)
                     continue
-                self._process_corporate_cash(
-                    row, processed_security_positions, name_registry
-                )
+                self._process_corporate_cash(row, processed_security_positions, name_registry)
 
             elif kind == DegiroRowKind.UNKNOWN:
                 raise NotImplementedError(
@@ -252,9 +257,7 @@ class DegiroImporter:
             stocks = data["stocks"]
             if not any(not s.mutation for s in stocks):
                 mutation_stocks = [s for s in stocks if s.mutation]
-                currency = (
-                    mutation_stocks[-1].balanceCurrency if mutation_stocks else "USD"
-                )
+                currency = mutation_stocks[-1].balanceCurrency if mutation_stocks else "USD"
                 stocks.append(
                     SecurityStock(
                         referenceDate=end_plus_one,
@@ -356,18 +359,16 @@ class DegiroImporter:
             return
 
         action, qty_str, _name, price_str, currency = m.groups()
-        qty = Decimal(qty_str)
-        price = Decimal(price_str)
+        qty = Decimal(_normalize_number(qty_str))
+        price = Decimal(_normalize_number(price_str))
 
-        if action == "Sell":
+        if action in ("Sell", "Vendita", "Vente", "Verkauf"):
             qty = -qty
 
         # Determine ISIN – prefer the row's ISIN column, fall back to regex name
         isin = row.isin if _valid_isin(row.isin) else None
         if isin is None:
-            logger.warning(
-                "BUY_SELL row %d: no valid ISIN available", row.raw_row
-            )
+            logger.warning("BUY_SELL row %d: no valid ISIN available", row.raw_row)
             return
 
         product = row.product or _name
@@ -417,9 +418,7 @@ class DegiroImporter:
         tax_rows = div_tax_lookup.get((row.value_date, row.isin), [])
         if tax_rows:
             tax_row = tax_rows.pop(0)
-            apply_withholding_tax_fields(
-                payment, tax_row.change_amount, tax_row.change_currency
-            )
+            apply_withholding_tax_fields(payment, tax_row.change_amount, tax_row.change_currency)
 
         positions[sec_pos]["payments"].append(payment)
 
