@@ -43,8 +43,8 @@ from opensteuerauszug.importers.common import (
     resolve_first_last_name,
 )
 from opensteuerauszug.model.ech0196 import (
-    ISINType,
     Institution,
+    ISINType,
     SecurityCategory,
     SecurityStock,
     TaxStatement,
@@ -72,9 +72,7 @@ _TRADE_RE = re.compile(
 
 # Regex for delisting lines, e.g.:
 #   DELISTING: Sell 10 Activision Blizzard Inc@0 USD (US00507V1098)
-_DELISTING_RE = re.compile(
-    r"^DELISTING:\s+Sell\s+(\d+(?:\.\d+)?)\s+.+@([\d.]+)\s+([A-Z]{3})"
-)
+_DELISTING_RE = re.compile(r"^DELISTING:\s+Sell\s+(\d+(?:\.\d+)?)\s+.+@([\d.]+)\s+([A-Z]{3})")
 
 # ISIN validation pattern (matches pydantic field constraint on SecurityPosition)
 _ISIN_RE = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
@@ -122,9 +120,7 @@ class DegiroImporter:
         self.account_settings_list = account_settings_list
 
         self._depot_id: str = (
-            account_settings_list[0].account_number
-            if account_settings_list
-            else "DEGIRO"
+            account_settings_list[0].account_number if account_settings_list else "DEGIRO"
         )
 
     # ------------------------------------------------------------------
@@ -151,8 +147,8 @@ class DegiroImporter:
 
         # Accumulators
         name_registry = SecurityNameRegistry()
-        processed_security_positions: Dict[SecurityPosition, SecurityPositionData] = (
-            defaultdict(lambda: SecurityPositionData({"stocks": [], "payments": []}))
+        processed_security_positions: Dict[SecurityPosition, SecurityPositionData] = defaultdict(
+            lambda: SecurityPositionData({"stocks": [], "payments": []})
         )
 
         # Step 1 – Seed closing balances from Portfolio.csv
@@ -235,19 +231,13 @@ class DegiroImporter:
                 if not row.isin or not _valid_isin(row.isin):
                     logger.warning("DELISTING row %d has no valid ISIN", row.raw_row)
                     continue
-                self._process_delisting(
-                    row, processed_security_positions, name_registry
-                )
+                self._process_delisting(row, processed_security_positions, name_registry)
 
             elif kind == DegiroRowKind.CORPORATE_CASH:
                 if not row.isin or not _valid_isin(row.isin):
-                    logger.warning(
-                        "CORPORATE_CASH row %d has no valid ISIN", row.raw_row
-                    )
+                    logger.warning("CORPORATE_CASH row %d has no valid ISIN", row.raw_row)
                     continue
-                self._process_corporate_cash(
-                    row, processed_security_positions, name_registry
-                )
+                self._process_corporate_cash(row, processed_security_positions, name_registry)
 
             elif kind == DegiroRowKind.UNKNOWN:
                 raise NotImplementedError(
@@ -267,9 +257,7 @@ class DegiroImporter:
             stocks = data["stocks"]
             if not any(not s.mutation for s in stocks):
                 mutation_stocks = [s for s in stocks if s.mutation]
-                currency = (
-                    mutation_stocks[-1].balanceCurrency if mutation_stocks else "USD"
-                )
+                currency = mutation_stocks[-1].balanceCurrency if mutation_stocks else "USD"
                 stocks.append(
                     SecurityStock(
                         referenceDate=end_plus_one,
@@ -380,9 +368,7 @@ class DegiroImporter:
         # Determine ISIN – prefer the row's ISIN column, fall back to regex name
         isin = row.isin if _valid_isin(row.isin) else None
         if isin is None:
-            logger.warning(
-                "BUY_SELL row %d: no valid ISIN available", row.raw_row
-            )
+            logger.warning("BUY_SELL row %d: no valid ISIN available", row.raw_row)
             return
 
         product = row.product or _name
@@ -432,9 +418,7 @@ class DegiroImporter:
         tax_rows = div_tax_lookup.get((row.value_date, row.isin), [])
         if tax_rows:
             tax_row = tax_rows.pop(0)
-            apply_withholding_tax_fields(
-                payment, tax_row.change_amount, tax_row.change_currency
-            )
+            apply_withholding_tax_fields(payment, tax_row.change_amount, tax_row.change_currency)
 
         positions[sec_pos]["payments"].append(payment)
 

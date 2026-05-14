@@ -8,7 +8,6 @@ EXTRA_SAMPLE_DIR/import/degiro/).  See design/testing.md for details.
 import os
 import re
 from datetime import date
-from decimal import Decimal
 
 import pytest
 

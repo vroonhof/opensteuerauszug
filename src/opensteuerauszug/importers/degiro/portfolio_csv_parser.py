@@ -16,10 +16,14 @@ from typing import Optional
 
 from opensteuerauszug.importers.common.parsing import to_decimal
 
-
 PORTFOLIO_CSV_FIELDNAMES = [
-    "Product", "Symbol_ISIN", "Amount", "Closing",
-    "Local_currency", "Local_amount", "Value_CHF",
+    "Product",
+    "Symbol_ISIN",
+    "Amount",
+    "Closing",
+    "Local_currency",
+    "Local_amount",
+    "Value_CHF",
 ]
 
 
@@ -48,15 +52,11 @@ def load_portfolio_csv(path: str) -> list[PortfolioEntry]:
             isin = raw.get("Symbol_ISIN", "").strip()
             amount_str = raw.get("Amount", "").strip()
             amount = (
-                to_decimal(amount_str, "Amount", f"row {row_num}")
-                if amount_str
-                else Decimal("0")
+                to_decimal(amount_str, "Amount", f"row {row_num}") if amount_str else Decimal("0")
             )
             closing_str = raw.get("Closing", "").strip()
             closing_price = (
-                to_decimal(closing_str, "Closing", f"row {row_num}")
-                if closing_str
-                else None
+                to_decimal(closing_str, "Closing", f"row {row_num}") if closing_str else None
             )
             local_currency = raw.get("Local_currency", "").strip()
             local_amount_str = raw.get("Local_amount", "").strip()
