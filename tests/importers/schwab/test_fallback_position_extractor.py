@@ -235,7 +235,7 @@ def test_extract_positions_valid_csv_awards_security(managed_temp_csv_path):
 
 @pytest.mark.parametrize(
     "managed_temp_csv_path",
-    ["Depot,Date,Symbol,Quantity\n789,2023-03-10,,5000.75\n"],
+    ["Depot,Date,Symbol,Quantity\n789,2023-03-10,CASH,5000.75\n"],
     indirect=True,
 )
 def test_extract_positions_valid_csv_numeric_depot_cash(managed_temp_csv_path):
@@ -262,7 +262,7 @@ def test_extract_positions_valid_csv_numeric_depot_cash(managed_temp_csv_path):
 
 @pytest.mark.parametrize(
     "managed_temp_csv_path",
-    ["Depot,Date,Symbol,Quantity\nGOOG,2023-03-10,,500.00\n"],
+    ["Depot,Date,Symbol,Quantity\nGOOG,2023-03-10,CASH,500.00\n"],
     indirect=True,
 )
 def test_extract_positions_valid_csv_awards_cash(managed_temp_csv_path):
@@ -282,7 +282,7 @@ def test_extract_positions_valid_csv_awards_cash(managed_temp_csv_path):
 
 @pytest.mark.parametrize(
     "managed_temp_csv_path",
-    ["Depot,Date,Symbol,Quantity,Currency\n789,2023-03-10,,500.00,EUR\n789,2023-03-10,AAPL,10,\n"],
+    ["Depot,Date,Symbol,Quantity,Currency\n789,2023-03-10,CASH,500.00,EUR\n789,2023-03-10,AAPL,10,\n"],
     indirect=True,
 )
 def test_extract_positions_optional_currency_column(managed_temp_csv_path):
@@ -449,7 +449,7 @@ def test_extract_positions_incorrect_column_count_skips_row(managed_temp_csv_pat
         (
             "Depot,Date,Symbol,Quantity\n"
             "GOOG,2023-01-01,AAPL,10\n"
-            "123,2023-01-15,,1000.00\n"
+            "123,2023-01-15,CASH,1000.00\n"
             "GOOG,2023-02-01,MSFT,25.5\n"
         )
     ],
@@ -489,7 +489,25 @@ def test_extract_positions_multiple_valid_entries(managed_temp_csv_path):
     ["Depot,Date,Symbol,Quantity\n123,2023-01-15,CASH,1000.00\n"],
     indirect=True,
 )
-def test_extract_positions_legacy_bare_cash_rejected(managed_temp_csv_path):
+def test_extract_positions_bare_cash_creates_cash_position(managed_temp_csv_path):
+    extractor = FallbackPositionExtractor(managed_temp_csv_path)
+    results = extractor.extract_positions()
+
+    assert results is not None
+    assert len(results) == 1
+    pos, stock = results[0]
+    assert isinstance(pos, CashPosition)
+    assert pos.depot == "123"
+    assert pos.cash_account_id is None
+    assert stock.quantity == Decimal("1000.00")
+
+
+@pytest.mark.parametrize(
+    "managed_temp_csv_path",
+    ["Depot,Date,Symbol,Quantity\n123,2023-01-15,,1000.00\n"],
+    indirect=True,
+)
+def test_extract_positions_empty_symbol_rejected(managed_temp_csv_path):
     extractor = FallbackPositionExtractor(managed_temp_csv_path)
     log_capture = StringIO()
     with contextlib.redirect_stdout(log_capture):
@@ -497,8 +515,8 @@ def test_extract_positions_legacy_bare_cash_rejected(managed_temp_csv_path):
 
     assert results is None
     output = log_capture.getvalue()
-    assert "Symbol 'CASH'" in output
-    assert "legacy CASH format" in output
+    assert "Empty Symbol" in output
+    assert "CASH" in output
 
 
 @pytest.mark.parametrize(

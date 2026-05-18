@@ -144,8 +144,8 @@ The CSV file must have a header row. Header matching is case-insensitive and ign
     *   The quantity is the balance at the **start** of this day. For year-end 2023 positions use `2024-01-01`.
 3.  **Symbol**:
     *   Ticker symbol for a security position.
-    *   **Leave empty** to declare a cash position in the depot.
-    *   The legacy `CASH` and `CASH <id>` shapes are no longer accepted.
+    *   Use `CASH` to declare a cash position in the depot.
+    *   The legacy `CASH <id>` (with suffix) shape is no longer accepted.
 4.  **Quantity**:
     *   Number of shares/units for a security, or the cash amount, as of the start of the date.
 5.  **Currency** (optional):
@@ -155,9 +155,9 @@ The CSV file must have a header row. Header matching is case-insensitive and ign
 ```csv
 Depot,Date,Symbol,Quantity,Currency
 789,2024-01-01,AAPL,100.5,USD
-789,2024-01-01,,5000.75,USD
+789,2024-01-01,CASH,5000.75,USD
 GOOG,2024-01-01,GOOG,20.0,USD
-GOOG,2024-01-01,,250.00,USD
+GOOG,2024-01-01,CASH,250.00,USD
 ```
 
 Rows with missing required headers, incorrect column counts, invalid date formats, non-numeric quantities, unsupported depot values, or legacy CASH shapes will be skipped with a logged warning.

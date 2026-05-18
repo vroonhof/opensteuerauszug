@@ -161,11 +161,18 @@ class FallbackPositionExtractor:
                     if raw_currency:
                         currency = raw_currency
 
-                if symbol_str == "CASH" or symbol_str.startswith("CASH "):
+                if symbol_str.startswith("CASH "):
                     print(
                         f"FallbackPositionExtractor: Symbol '{symbol_str}' in row {row_num} of {self.filename} uses the legacy CASH format. "
-                        "Leave the Symbol column empty to declare a cash position; for AWARDS sub-accounts put the equity award symbol "
-                        "in the Depot column. Skipping row."
+                        "Use 'CASH' (without suffix) in the Symbol column to declare a cash position; for AWARDS sub-accounts put the equity "
+                        "award symbol in the Depot column. Skipping row."
+                    )
+                    continue
+
+                if not symbol_str:
+                    print(
+                        f"FallbackPositionExtractor: Empty Symbol in row {row_num} of {self.filename}. "
+                        "Use 'CASH' in the Symbol column to declare a cash position. Skipping row."
                     )
                     continue
 
@@ -191,7 +198,7 @@ class FallbackPositionExtractor:
                     continue
 
                 pos: Position
-                if not symbol_str:
+                if symbol_str == "CASH":
                     pos = CashPosition(
                         depot=processed_depot,
                         currentCy=currency,
