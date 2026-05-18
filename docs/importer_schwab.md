@@ -121,25 +121,25 @@ Other setups vest/lapse RSUs directly into the main brokerage/trading account. I
 If you cannot obtain accurate position files, or if you need to provide initial balances or supplement data for accounts where automated extraction is difficult, or you would like to provide extra data points for the internal consistency check, you can use a manually created CSV file.
 
 *   **CSV Format**:
-    *   Must have a header row. Column order matters.
-    *   Case-insensitive headers (leading/trailing spaces ignored).
+    *   Must have a header row. Header order does not matter; matching is case-insensitive and ignores leading/trailing spaces.
+    *   **Required columns**: `Depot`, `Date`, `Symbol`, `Quantity`. An optional `Currency` column may be added (defaults to `USD` when absent or blank).
     *   **Columns**:
-        1.  `Depot`: Account identifier.
-            *   If "AWARDS" (case-insensitive), it's treated as an Equity Awards account.
-            *   If the last three characters are digits (e.g., "Schwab123"), "123" is used as the identifier.
-            *   Otherwise, the raw string is used (a warning may be logged).
-        2.  `Date`: Position date in `YYYY-MM-DD` format (e.g., `2023-12-31`). This represents the balance at the **beginning** of this day. For year-end 2023 positions, use `2024-01-01`. 
-        3.  `Symbol`: Ticker symbol. Use "CASH <account_id>" (e.g., "CASH 789") for cash positions. Bare "CASH" is no longer supported to allow for multiple cash accounts.
-        4.  `Quantity`: Number of shares/units or cash amount.
+        1.  `Depot`: Identifies which sub-account the row belongs to.
+            *   **All digits** (e.g. `178`): the last digits of a regular Schwab brokerage account number. Use just the trailing digits; the canonical Schwab depot ID is the last three (e.g. account ending in `...178` → `178`). The old `XXX178`-style masked format is also accepted.
+            *   **`AWARDS <SYMBOL>`** (e.g. `AWARDS GOOG`): an Equity Awards sub-account tied to that stock. Internally this maps to the `AWARDS` depot with the symbol as the sub-account identifier.
+        2.  `Date`: Position date in `YYYY-MM-DD` format. The quantity is the balance at the **start** of this day. For year-end 2023 positions, use `2024-01-01`.
+        3.  `Symbol`: Ticker symbol for security positions. Use `CASH` to declare a cash position. The legacy `CASH <id>` (with suffix) value is no longer accepted.
+        4.  `Quantity`: Number of shares/units for a security, or the cash amount for a cash position.
+        5.  `Currency` (optional): ISO currency code for the row. Defaults to `USD`.
 *   **Example CSV**:
     ```csv
-    Depot,Date,Symbol,Quantity
-    AWARDS,2024-01-01,AAPL,100.5
-    Schwab789,2024-01-01,CASH 789,5000.75
-    MyBroker123,2024-01-01,GOOG,20.0
+    Depot,Date,Symbol,Quantity,Currency
+    178,2024-01-01,AAPL,100.5,USD
+    178,2024-01-01,CASH,5000.75,USD
+    AWARDS GOOG,2024-01-01,GOOG,20.0,USD
+    AWARDS GOOG,2024-01-01,CASH,250.00,USD
     ```
-*   **Currency**: Currently defaults to "USD" for positions from this fallback CSV. All Cash is USD.
-*   **Usage**: Place this CSV file the data directory. Rows with errors will be skipped with a warning.
+*   **Usage**: Place this CSV file in the data directory. Rows with errors will be skipped with a logged warning.
 
 ### 4. Recommended: Human readable statements
 

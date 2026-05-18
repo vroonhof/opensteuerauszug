@@ -132,34 +132,33 @@ the same. In my statements I have seen the following Action types
 
 If the primary position extractors fail or if you need to manually add known positions (e.g., for accounts where automated extraction is not supported or for initial balances), you can use a CSV file with the following format. This file is processed by the `FallbackPositionExtractor`.
 
-The CSV file must have a header row, and the column order matters. The expected headers are (case-insensitive and leading/trailing spaces are ignored):
+The CSV file must have a header row. Header matching is case-insensitive and ignores leading/trailing spaces. Required columns are `Depot`, `Date`, `Symbol`, `Quantity`; `Currency` is optional.
 
 1.  **Depot**:
-    *   The identifier for the depot.
-    *   If the value is "AWARDS" (case-insensitive), it will be used as is.
-    *   Otherwise, if the depot string is 3 characters or longer and the last three characters are digits, those three digits will be used as the depot identifier.
-    *   If neither of the above conditions is met, the raw string provided will be used as the depot identifier, and a warning will be logged.
+    *   Identifies the sub-account the row belongs to.
+    *   **All digits** (e.g. `123`): the last digits of a regular Schwab brokerage account number, used as-is. The canonical Schwab depot identifier is the last three digits.
+    *   **Ticker-shaped value** (e.g. `GOOG`, `BRK.B`): an Equity Awards sub-account associated with that stock. Internally this maps to depot `AWARDS` with the value as the cash sub-account identifier (or as the security symbol).
+    *   The literal value `AWARDS` is rejected; supply the actual equity award symbol instead. Mixed alphanumeric values (e.g. `SCHWABACC789`) are rejected.
 2.  **Date**:
-    *   The date of the position.
-    *   Must be in `YYYY-MM-DD` format (e.g., `2023-01-15`).
-    *   The quantity provided is considered the balance at the **start** of this specified day.
-    *   For example, to report year-end positions for the year 2023, the date should be `2024-01-01`.
+    *   Position date in `YYYY-MM-DD` format (e.g., `2023-01-15`).
+    *   The quantity is the balance at the **start** of this day. For year-end 2023 positions use `2024-01-01`.
 3.  **Symbol**:
-    *   The ticker symbol for the security.
-    *   If the value is "CASH" (case-insensitive), a `CashPosition` will be created.
-    *   For any other value, a `SecurityPosition` will be created.
+    *   Ticker symbol for a security position.
+    *   Use `CASH` to declare a cash position in the depot.
+    *   The legacy `CASH <id>` (with suffix) shape is no longer accepted.
 4.  **Quantity**:
-    *   The number of shares or units for a security, or the amount for a cash position, as of the **start** of the specified 'Date'.
-    *   This should be a numerical value (e.g., `100.50`, `5000`).
+    *   Number of shares/units for a security, or the cash amount, as of the start of the date.
+5.  **Currency** (optional):
+    *   ISO currency code applied to the row. Defaults to `USD` when omitted or blank.
 
 **Example CSV:**
 ```csv
-Depot,Date,Symbol,Quantity
-AWARDS,2023-01-15,AAPL,100.5
-SCHWABACC789,2023-03-10,CASH,5000.75
-MYACCOUNT123,2023-06-01,GOOG,20.0
-SHORTDEPOT,2023-12-31,MSFT,50
+Depot,Date,Symbol,Quantity,Currency
+789,2024-01-01,AAPL,100.5,USD
+789,2024-01-01,CASH,5000.75,USD
+GOOG,2024-01-01,GOOG,20.0,USD
+GOOG,2024-01-01,CASH,250.00,USD
 ```
 
-Rows with missing required headers, incorrect column counts, invalid date formats, non-numeric quantities, or empty symbols will be skipped with a logged warning. The currency for these manually added positions is currently defaulted to "USD".
+Rows with missing required headers, incorrect column counts, invalid date formats, non-numeric quantities, unsupported depot values, or legacy CASH shapes will be skipped with a logged warning.
 ```
