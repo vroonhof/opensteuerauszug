@@ -10,9 +10,7 @@ from opensteuerauszug.model.position import CashPosition, Position, SecurityPosi
 
 logger = logging.getLogger(__name__)
 
-# Accepts typical ticker shapes like GOOG, BRK.B, BF-B. Pure digits are handled
-# separately and indicate a brokerage account suffix instead.
-_AWARDS_SYMBOL_PATTERN = re.compile(r"^[A-Z][A-Z0-9.\-]{0,7}$")
+_TRAILING_DIGITS = re.compile(r"(\d+)$")
 
 
 class FallbackPositionExtractor:
@@ -88,20 +86,41 @@ class FallbackPositionExtractor:
             return normalized, None
 
         upper = normalized.upper()
+
+        # Explicit equity-awards format: "AWARDS <SYMBOL>" (e.g. "AWARDS GOOG").
+        if upper.startswith("AWARDS "):
+            awards_symbol = upper[7:].strip()
+            if awards_symbol:
+                return "AWARDS", awards_symbol
+            print(
+                f"FallbackPositionExtractor: Depot '{raw_depot}' in row {row_num} of {self.filename} "
+                "has 'AWARDS' but no symbol. Use 'AWARDS <SYMBOL>' (e.g. 'AWARDS GOOG'). Skipping row."
+            )
+            return None
+
         if upper == "AWARDS":
             print(
                 f"FallbackPositionExtractor: Depot 'AWARDS' in row {row_num} of {self.filename} is no longer supported. "
-                "Use the equity award symbol (e.g. 'GOOG') in the Depot column to identify the AWARDS sub-account. "
+                "Use 'AWARDS <SYMBOL>' (e.g. 'AWARDS GOOG') to identify an equity-awards sub-account. "
                 "Skipping row."
             )
             return None
 
-        if _AWARDS_SYMBOL_PATTERN.match(upper):
-            return "AWARDS", upper
+        # Old-style brokerage identifiers end with digits, e.g. "XXX178" or "Schwab789".
+        # Extract trailing digits and use the last three as the depot ID.
+        m = _TRAILING_DIGITS.search(normalized)
+        if m:
+            suffix = m.group(1)
+            depot_id = suffix[-3:] if len(suffix) > 3 else suffix
+            print(
+                f"FallbackPositionExtractor: Depot '{raw_depot}' in row {row_num} of {self.filename} uses the old format. "
+                f"Please update the Depot column to just '{depot_id}'. Using '{depot_id}' for now."
+            )
+            return depot_id, None
 
         print(
             f"FallbackPositionExtractor: Depot '{raw_depot}' in row {row_num} of {self.filename} is not a valid account suffix "
-            "(all digits) or an equity award symbol (e.g. 'GOOG'). Skipping row."
+            "(all digits, e.g. '178') or an equity-awards entry ('AWARDS GOOG'). Skipping row."
         )
         return None
 

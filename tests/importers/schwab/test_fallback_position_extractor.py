@@ -208,7 +208,7 @@ def test_extract_positions_missing_required_header(managed_temp_csv_path):
 
 @pytest.mark.parametrize(
     "managed_temp_csv_path",
-    ["Depot,Date,Symbol,Quantity\nAAPL,2023-01-15,AAPL,100.5\n"],
+    ["Depot,Date,Symbol,Quantity\nAWARDS AAPL,2023-01-15,AAPL,100.5\n"],
     indirect=True,
 )
 def test_extract_positions_valid_csv_awards_security(managed_temp_csv_path):
@@ -262,7 +262,7 @@ def test_extract_positions_valid_csv_numeric_depot_cash(managed_temp_csv_path):
 
 @pytest.mark.parametrize(
     "managed_temp_csv_path",
-    ["Depot,Date,Symbol,Quantity\nGOOG,2023-03-10,CASH,500.00\n"],
+    ["Depot,Date,Symbol,Quantity\nAWARDS GOOG,2023-03-10,CASH,500.00\n"],
     indirect=True,
 )
 def test_extract_positions_valid_csv_awards_cash(managed_temp_csv_path):
@@ -305,16 +305,15 @@ def test_extract_positions_optional_currency_column(managed_temp_csv_path):
 @pytest.mark.parametrize(
     "managed_temp_csv_path", ["Depot,Date,Symbol,Quantity\nXY,2023-03-10,MSFT,50\n"], indirect=True
 )
-def test_extract_positions_two_char_depot_treated_as_awards_symbol(managed_temp_csv_path):
+def test_extract_positions_pure_alpha_non_awards_depot_rejected(managed_temp_csv_path):
+    """Pure-alpha depot values not prefixed with 'AWARDS ' are rejected."""
     extractor = FallbackPositionExtractor(managed_temp_csv_path)
-    results = extractor.extract_positions()
+    log_capture = StringIO()
+    with contextlib.redirect_stdout(log_capture):
+        results = extractor.extract_positions()
 
-    assert results is not None
-    assert len(results) == 1
-    pos, _ = results[0]
-    assert isinstance(pos, SecurityPosition)
-    assert pos.depot == "AWARDS"
-    assert pos.symbol == "MSFT"
+    assert results is None
+    assert "not a valid account suffix" in log_capture.getvalue()
 
 
 @pytest.mark.parametrize(
@@ -322,20 +321,24 @@ def test_extract_positions_two_char_depot_treated_as_awards_symbol(managed_temp_
     ["Depot,Date,Symbol,Quantity\nMYACCOUNT123,2023-03-10,GOOG,20\n"],
     indirect=True,
 )
-def test_extract_positions_mixed_alpha_numeric_depot_rejected(managed_temp_csv_path):
+def test_extract_positions_old_style_alpha_suffix_depot_accepted(managed_temp_csv_path):
+    """Old-style depot values ending with digits (e.g. MYACCOUNT123) extract trailing digits."""
     extractor = FallbackPositionExtractor(managed_temp_csv_path)
     log_capture = StringIO()
     with contextlib.redirect_stdout(log_capture):
         results = extractor.extract_positions()
 
-    assert results is None
-    assert "Depot 'MYACCOUNT123'" in log_capture.getvalue()
-    assert "not a valid account suffix" in log_capture.getvalue()
+    assert results is not None
+    assert len(results) == 1
+    pos, _ = results[0]
+    assert isinstance(pos, SecurityPosition)
+    assert pos.depot == "123"
+    assert "old format" in log_capture.getvalue()
 
 
 @pytest.mark.parametrize(
     "managed_temp_csv_path",
-    ["  dEpOt  , daTE,   SYMbol   ,   QuAnTiTy   \nCSCO,2023-01-15,CSCO,75\n"],
+    ["  dEpOt  , daTE,   SYMbol   ,   QuAnTiTy   \nAWARDS CSCO,2023-01-15,CSCO,75\n"],
     indirect=True,
 )
 def test_extract_positions_header_case_insensitivity_and_spacing(managed_temp_csv_path):
@@ -356,10 +359,10 @@ def test_extract_positions_header_case_insensitivity_and_spacing(managed_temp_cs
     [
         (
             "Depot,Date,Symbol,Quantity\n"
-            "GOOD,2023-01-01,GOOD,10\n"
-            "GOOD,2023/02/02,BAD,20\n"  # Invalid date format
-            "GOOD,invalid,BAD2,25\n"  # Invalid date format
-            "GOOD,2023-03-03,GOOD2,30\n"
+            "999,2023-01-01,GOOD,10\n"
+            "999,2023/02/02,BAD,20\n"  # Invalid date format
+            "999,invalid,BAD2,25\n"  # Invalid date format
+            "999,2023-03-03,GOOD2,30\n"
         )
     ],
     indirect=True,
@@ -387,9 +390,9 @@ def test_extract_positions_malformed_date_skips_row(managed_temp_csv_path):
     [
         (
             "Depot,Date,Symbol,Quantity\n"
-            "GOOD,2023-01-01,GOOD,10\n"
-            "GOOD,2023-02-02,BAD,twenty\n"  # Invalid quantity
-            "GOOD,2023-03-03,GOOD2,30\n"
+            "999,2023-01-01,GOOD,10\n"
+            "999,2023-02-02,BAD,twenty\n"  # Invalid quantity
+            "999,2023-03-03,GOOD2,30\n"
         )
     ],
     indirect=True,
@@ -416,10 +419,10 @@ def test_extract_positions_malformed_quantity_skips_row(managed_temp_csv_path):
     [
         (
             "Depot,Date,Symbol,Quantity\n"
-            "GOOD,2023-01-01,GOOD,10\n"
-            "GOOD,2023-02-02,TOOFEW\n"  # Too few columns
-            "GOOD,2023-03-03,GOODX,30,EXTRA\n"  # Too many columns
-            "GOOD,2023-04-04,GOOD3,40\n"
+            "999,2023-01-01,GOOD,10\n"
+            "999,2023-02-02,TOOFEW\n"  # Too few columns
+            "999,2023-03-03,GOODX,30,EXTRA\n"  # Too many columns
+            "999,2023-04-04,GOOD3,40\n"
         )
     ],
     indirect=True,
@@ -448,9 +451,9 @@ def test_extract_positions_incorrect_column_count_skips_row(managed_temp_csv_pat
     [
         (
             "Depot,Date,Symbol,Quantity\n"
-            "GOOG,2023-01-01,AAPL,10\n"
+            "AWARDS GOOG,2023-01-01,AAPL,10\n"
             "123,2023-01-15,CASH,1000.00\n"
-            "GOOG,2023-02-01,MSFT,25.5\n"
+            "AWARDS GOOG,2023-02-01,MSFT,25.5\n"
         )
     ],
     indirect=True,
@@ -557,21 +560,13 @@ def test_extract_positions_legacy_awards_depot_rejected(managed_temp_csv_path):
     "managed_temp_csv_path",
     [
         # UTF-8 BOM is \xef\xbb\xbf
-        b"\xef\xbb\xbfDepot,Date,Symbol,Quantity\nAAPL,2023-01-15,AAPL,100.5\n".decode(
+        b"\xef\xbb\xbfDepot,Date,Symbol,Quantity\nAWARDS AAPL,2023-01-15,AAPL,100.5\n".decode(
             "utf-8"
         )  # Decode normally, extractor uses utf-8-sig
     ],
     indirect=True,
 )
 def test_extract_positions_utf8_bom_handling(managed_temp_csv_path):
-    # Note: The managed_temp_csv_path fixture writes with 'utf-8'.
-    # The FallbackPositionExtractor reads with 'utf-8-sig', which handles the BOM.
-    # To test this properly, the BOM must be part of the string written to the file.
-    # The decode('utf-8') above is to ensure the string itself contains the BOM if it was part of the bytes.
-    # A better way to ensure BOM is to write bytes directly if the fixture allowed.
-    # For this setup, we rely on the string param containing the BOM characters if needed.
-    # The current parametrization writes the string as is. If the string starts with BOM char, it's written.
-
     extractor = FallbackPositionExtractor(managed_temp_csv_path)
     results = extractor.extract_positions()
 
@@ -585,7 +580,7 @@ def test_extract_positions_utf8_bom_handling(managed_temp_csv_path):
 
 @pytest.mark.parametrize(
     "managed_temp_csv_path",
-    ["Depot,Date,Symbol,Quantity\n" "SYM1,bad-date,SYM1,10\n" "SYM2,2023-02-02,SYM2,bad-qty\n"],
+    ["Depot,Date,Symbol,Quantity\n" "999,bad-date,SYM1,10\n" "999,2023-02-02,SYM2,bad-qty\n"],
     indirect=True,
 )
 def test_extract_positions_all_rows_invalid(managed_temp_csv_path):
@@ -597,3 +592,58 @@ def test_extract_positions_all_rows_invalid(managed_temp_csv_path):
     assert results is None
     assert "Invalid date format 'bad-date'" in log_capture.getvalue()
     assert "Invalid quantity format 'bad-qty'" in log_capture.getvalue()
+
+
+@pytest.mark.parametrize(
+    "managed_temp_csv_path",
+    ["Depot,Date,Symbol,Quantity\nXXX178,2023-01-01,VGT,50\n"],
+    indirect=True,
+)
+def test_extract_positions_xxx_style_depot_extracted_as_trailing_digits(managed_temp_csv_path):
+    """XXX178-style masked account IDs are accepted and resolve to the trailing digits."""
+    extractor = FallbackPositionExtractor(managed_temp_csv_path)
+    log_capture = StringIO()
+    with contextlib.redirect_stdout(log_capture):
+        results = extractor.extract_positions()
+
+    assert results is not None
+    assert len(results) == 1
+    pos, _ = results[0]
+    assert isinstance(pos, SecurityPosition)
+    assert pos.depot == "178"
+    assert "old format" in log_capture.getvalue()
+
+
+@pytest.mark.parametrize(
+    "managed_temp_csv_path",
+    ["Depot,Date,Symbol,Quantity\nAWARDS GOOG,2023-01-01,GOOG,20\n"],
+    indirect=True,
+)
+def test_extract_positions_awards_prefix_format(managed_temp_csv_path):
+    """'AWARDS <SYMBOL>' depot is recognised as an equity-awards sub-account."""
+    extractor = FallbackPositionExtractor(managed_temp_csv_path)
+    results = extractor.extract_positions()
+
+    assert results is not None
+    assert len(results) == 1
+    pos, _ = results[0]
+    assert isinstance(pos, SecurityPosition)
+    assert pos.depot == "AWARDS"
+    assert pos.symbol == "GOOG"
+
+
+@pytest.mark.parametrize(
+    "managed_temp_csv_path",
+    ["Depot,Date,Symbol,Quantity\nAWARDS ,2023-01-01,GOOG,20\n"],
+    indirect=True,
+)
+def test_extract_positions_awards_prefix_without_symbol_rejected(managed_temp_csv_path):
+    """'AWARDS ' with no following symbol is rejected with a clear message."""
+    extractor = FallbackPositionExtractor(managed_temp_csv_path)
+    log_capture = StringIO()
+    with contextlib.redirect_stdout(log_capture):
+        results = extractor.extract_positions()
+
+    assert results is None
+    assert "AWARDS" in log_capture.getvalue()
+    assert "no longer supported" in log_capture.getvalue()

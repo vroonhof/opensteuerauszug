@@ -125,8 +125,8 @@ If you cannot obtain accurate position files, or if you need to provide initial 
     *   **Required columns**: `Depot`, `Date`, `Symbol`, `Quantity`. An optional `Currency` column may be added (defaults to `USD` when absent or blank).
     *   **Columns**:
         1.  `Depot`: Identifies which sub-account the row belongs to.
-            *   **All digits** (e.g. `123`): the last digits of a regular Schwab brokerage account number. Use just the digits; the canonical Schwab depot ID is the last three.
-            *   **Ticker-shaped value** (e.g. `GOOG`, `BRK.B`): an Equity Awards sub-account tied to that stock. Internally this maps to the `AWARDS` depot with the symbol as the sub-account identifier. The literal value `AWARDS` is **not** accepted — use the actual equity award symbol instead.
+            *   **All digits** (e.g. `178`): the last digits of a regular Schwab brokerage account number. Use just the trailing digits; the canonical Schwab depot ID is the last three (e.g. account ending in `...178` → `178`). The old `XXX178`-style masked format is also accepted.
+            *   **`AWARDS <SYMBOL>`** (e.g. `AWARDS GOOG`): an Equity Awards sub-account tied to that stock. Internally this maps to the `AWARDS` depot with the symbol as the sub-account identifier.
         2.  `Date`: Position date in `YYYY-MM-DD` format. The quantity is the balance at the **start** of this day. For year-end 2023 positions, use `2024-01-01`.
         3.  `Symbol`: Ticker symbol for security positions. Use `CASH` to declare a cash position. The legacy `CASH <id>` (with suffix) value is no longer accepted.
         4.  `Quantity`: Number of shares/units for a security, or the cash amount for a cash position.
@@ -134,10 +134,10 @@ If you cannot obtain accurate position files, or if you need to provide initial 
 *   **Example CSV**:
     ```csv
     Depot,Date,Symbol,Quantity,Currency
-    789,2024-01-01,AAPL,100.5,USD
-    789,2024-01-01,CASH,5000.75,USD
-    GOOG,2024-01-01,GOOG,20.0,USD
-    GOOG,2024-01-01,CASH,250.00,USD
+    178,2024-01-01,AAPL,100.5,USD
+    178,2024-01-01,CASH,5000.75,USD
+    AWARDS GOOG,2024-01-01,GOOG,20.0,USD
+    AWARDS GOOG,2024-01-01,CASH,250.00,USD
     ```
 *   **Usage**: Place this CSV file in the data directory. Rows with errors will be skipped with a logged warning.
 
