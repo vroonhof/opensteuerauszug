@@ -2969,3 +2969,60 @@ def test_ibkr_corrections_flex_skips_out_of_period_transactions(sample_ibkr_sett
     finally:
         os.remove(main_path)
         os.remove(corr_path)
+
+
+SAMPLE_IBKR_FLEX_XML_BOND_INTEREST = """
+<FlexQueryResponse queryName="BondInterest" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2023-01-01" toDate="2023-12-31" period="Year" whenGenerated="2024-01-15T10:00:00">
+      <CashTransactions>
+        <CashTransaction accountId="U1234567" acctAlias="" model="" currency="USD" fxRateToBase="1" assetCategory="BOND" subCategory="Govt" symbol="T 3 7/8 08/15/33" description="BOND COUPON PAYMENT (T 3 7/8 08/15/33 - United States Treasury T 3 7/8 08/15/33)" conid="647589171" securityID="US91282CHT18" securityIDType="ISIN" cusip="91282CHT1" isin="US91282CHT18" figi="BBG01HQWRSG4" listingExchange="" underlyingConid="" underlyingSymbol="T" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="1" dateTime="2023-02-17" settleDate="2023-02-17" availableForTradingDate="" amount="1937.5" type="Bond Interest Received" dividendType="" tradeID="" code="" transactionID="38088293515" reportDate="2023-02-18" exDate="" clientReference="" actionID="" levelOfDetail="DETAIL" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+      </CashTransactions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="1937.5" fromDate="2023-01-01" toDate="2023-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
+
+def test_bond_interest_import_succeeds(sample_ibkr_settings):
+    """Importing bond interest cash transactions should succeed and create a BOND security."""
+    period_from = date(2023, 1, 1)
+    period_to = date(2023, 12, 31)
+
+    importer = IbkrImporter(
+        period_from=period_from,
+        period_to=period_to,
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_BOND_INTEREST)
+        xml_file_path = tmp_file.name
+
+    try:
+        statement = importer.import_files([xml_file_path])
+        assert statement is not None
+
+        # Verify the security of category BOND was created
+        securities = [
+            s for d in statement.listOfSecurities.depot
+            for s in d.security
+        ]
+        assert len(securities) == 1
+        bond_sec = securities[0]
+        assert bond_sec.securityCategory == "BOND"
+        assert bond_sec.isin == "US91282CHT18"
+        assert bond_sec.securityName == "BOND COUPON PAYMENT (T 3 7/8 ...08/15/33) (T 3 7/8 08/15/33)"
+
+        # Verify the bond interest payment was correctly created
+        assert len(bond_sec.payment) == 1
+        payment = bond_sec.payment[0]
+        assert payment.amount == Decimal("1937.5")
+        assert payment.amountCurrency == "USD"
+        assert payment.paymentDate == date(2023, 2, 17)
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)

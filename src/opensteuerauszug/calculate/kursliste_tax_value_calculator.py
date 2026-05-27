@@ -162,6 +162,11 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         return result
 
     def _handle_Security(self, security: Security, path_prefix: str) -> None:
+        if security.securityCategory == "BOND":
+            raise ValueError(
+                f"Bonds are not supported (refer to issue #262). Found bond security: {security.securityName} ({security.isin or security.valorNumber})"
+            )
+
         self._current_kursliste_security = None
         self._current_security_is_zero_balance_option = False
 
