@@ -5,6 +5,7 @@ import lxml.etree as ET
 
 runner = CliRunner()
 
+
 class _LocalXsdResolver(ET.Resolver):
     def __init__(self, specs_dir: Path) -> None:
         super().__init__()
@@ -19,6 +20,7 @@ class _LocalXsdResolver(ET.Resolver):
             return self.resolve_filename(str(candidate), context)
         return None
 
+
 def test_integration_ibkr_vt_and_chill_2025(tmp_path: Path):
     """
     End-to-end integration test for IBKR 2025 import and processing.
@@ -30,25 +32,31 @@ def test_integration_ibkr_vt_and_chill_2025(tmp_path: Path):
     kursliste_dir = project_root / "tests" / "samples" / "kursliste"
     output_pdf = tmp_path / "vtandchill_2025.pdf"
     output_xml = tmp_path / "vtandchill_2025.xml"
-    
+
     # Run the CLI
     result = runner.invoke(
         app,
         [
             "process",
             str(input_file),
-            "--importer", "ibkr",
-            "--tax-year", "2025",
-            "--kursliste-dir", str(kursliste_dir),
-            "--output", str(output_pdf),
-            "--xml-output", str(output_xml),
-            "--log-level", "DEBUG",
+            "--importer",
+            "ibkr",
+            "--tax-year",
+            "2025",
+            "--kursliste-dir",
+            str(kursliste_dir),
+            "--output",
+            str(output_pdf),
+            "--xml-output",
+            str(output_xml),
+            "--log-level",
+            "DEBUG",
         ],
     )
-    
+
     # Check execution success
     assert result.exit_code == 0, f"CLI execution failed with stdout:\n{result.stdout}"
-    
+
     # Verify processing milestones in output
     assert "IBKR import complete." in result.stdout
     assert "CleanupCalculator finished." in result.stdout
@@ -57,7 +65,7 @@ def test_integration_ibkr_vt_and_chill_2025(tmp_path: Path):
     assert f"Rendering successful to {output_pdf}" in result.stdout
     assert f"Final XML written to {output_xml}" in result.stdout
     assert "Processing finished successfully." in result.stdout
-    
+
     # Verify output files exist
     assert output_pdf.exists()
     assert output_pdf.stat().st_size > 0

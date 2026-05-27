@@ -89,9 +89,7 @@ def _make_base_kursliste(shares=None):
 def _make_provider(kursliste):
     """Wrap a Kursliste into a KurslisteExchangeRateProvider."""
     manager = KurslisteManager()
-    manager.kurslisten[2024] = KurslisteAccessor(
-        data_source=[kursliste], tax_year=2024
-    )
+    manager.kurslisten[2024] = KurslisteAccessor(data_source=[kursliste], tax_year=2024)
     return KurslisteExchangeRateProvider(manager)
 
 

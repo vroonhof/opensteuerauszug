@@ -4,12 +4,8 @@ import sys
 import lxml.etree as ET
 from pydantic import ValidationError
 
-from opensteuerauszug.model.kursliste import (
-    Kursliste
-)
-from opensteuerauszug.model.ech0196 import (
-    TaxStatement
-)
+from opensteuerauszug.model.kursliste import Kursliste
+from opensteuerauszug.model.ech0196 import TaxStatement
 
 
 def parse_tax_statements(file_paths: list[str]) -> tuple[set[int], set[str]]:
@@ -27,70 +23,125 @@ def parse_tax_statements(file_paths: list[str]) -> tuple[set[int], set[str]]:
             # Extract Valor Numbers
             if tax_statement_data.listOfSecurities and tax_statement_data.listOfSecurities.depot:
                 for depot in tax_statement_data.listOfSecurities.depot:
-                    if depot.security: # depot.security is Optional[list[Security]]
-                        for sec in depot.security: # sec is Ech0196Security
+                    if depot.security:  # depot.security is Optional[list[Security]]
+                        for sec in depot.security:  # sec is Ech0196Security
                             if sec.valorNumber is not None:
                                 collected_valor_numbers.add(sec.valorNumber)
-                                logging.debug(f"Collected valor number {sec.valorNumber} from {file_path}")
+                                logging.debug(
+                                    f"Collected valor number {sec.valorNumber} from {file_path}"
+                                )
 
             # Extract Currencies
             # From BankAccounts
-            if tax_statement_data.listOfBankAccounts and tax_statement_data.listOfBankAccounts.bankAccount:
-                for acc in tax_statement_data.listOfBankAccounts.bankAccount: # acc is Ech0196BankAccount
-                    if acc.bankAccountCurrency: collected_currencies.add(acc.bankAccountCurrency)
-                    if acc.taxValue and acc.taxValue.balanceCurrency: collected_currencies.add(acc.taxValue.balanceCurrency)
-                    if acc.payment: # acc.payment is Optional[list[PaymentType]]
+            if (
+                tax_statement_data.listOfBankAccounts
+                and tax_statement_data.listOfBankAccounts.bankAccount
+            ):
+                for (
+                    acc
+                ) in tax_statement_data.listOfBankAccounts.bankAccount:  # acc is Ech0196BankAccount
+                    if acc.bankAccountCurrency:
+                        collected_currencies.add(acc.bankAccountCurrency)
+                    if acc.taxValue and acc.taxValue.balanceCurrency:
+                        collected_currencies.add(acc.taxValue.balanceCurrency)
+                    if acc.payment:  # acc.payment is Optional[list[PaymentType]]
                         for payment in acc.payment:
-                            if payment.amountCurrency: collected_currencies.add(payment.amountCurrency)
-            
+                            if payment.amountCurrency:
+                                collected_currencies.add(payment.amountCurrency)
+
             # From LiabilityAccounts
-            if tax_statement_data.listOfLiabilities and tax_statement_data.listOfLiabilities.liabilityAccount:
-                for lia in tax_statement_data.listOfLiabilities.liabilityAccount: # lia is Ech0196LiabilityAccount
-                    if lia.bankAccountCurrency: collected_currencies.add(lia.bankAccountCurrency)
-                    if lia.taxValue and lia.taxValue.balanceCurrency: collected_currencies.add(lia.taxValue.balanceCurrency)
-                    if lia.payment: # lia.payment is Optional[list[PaymentType]]
+            if (
+                tax_statement_data.listOfLiabilities
+                and tax_statement_data.listOfLiabilities.liabilityAccount
+            ):
+                for (
+                    lia
+                ) in (
+                    tax_statement_data.listOfLiabilities.liabilityAccount
+                ):  # lia is Ech0196LiabilityAccount
+                    if lia.bankAccountCurrency:
+                        collected_currencies.add(lia.bankAccountCurrency)
+                    if lia.taxValue and lia.taxValue.balanceCurrency:
+                        collected_currencies.add(lia.taxValue.balanceCurrency)
+                    if lia.payment:  # lia.payment is Optional[list[PaymentType]]
                         for payment in lia.payment:
-                            if payment.amountCurrency: collected_currencies.add(payment.amountCurrency)
+                            if payment.amountCurrency:
+                                collected_currencies.add(payment.amountCurrency)
 
             # From Expenses
             if tax_statement_data.listOfExpenses and tax_statement_data.listOfExpenses.expense:
-                for exp in tax_statement_data.listOfExpenses.expense: # exp is Ech0196Expense
-                    if exp.amountCurrency: collected_currencies.add(exp.amountCurrency)
+                for exp in tax_statement_data.listOfExpenses.expense:  # exp is Ech0196Expense
+                    if exp.amountCurrency:
+                        collected_currencies.add(exp.amountCurrency)
 
             # From Securities (again, for currencies)
             if tax_statement_data.listOfSecurities and tax_statement_data.listOfSecurities.depot:
                 for depot in tax_statement_data.listOfSecurities.depot:
                     if depot.security:
-                        for sec in depot.security: # sec is Ech0196Security
-                            if sec.currency: collected_currencies.add(sec.currency)
-                            if sec.taxValue and sec.taxValue.balanceCurrency: collected_currencies.add(sec.taxValue.balanceCurrency)
-                            if sec.payment: # sec.payment is Optional[list[PaymentType]]
+                        for sec in depot.security:  # sec is Ech0196Security
+                            if sec.currency:
+                                collected_currencies.add(sec.currency)
+                            if sec.taxValue and sec.taxValue.balanceCurrency:
+                                collected_currencies.add(sec.taxValue.balanceCurrency)
+                            if sec.payment:  # sec.payment is Optional[list[PaymentType]]
                                 for payment in sec.payment:
-                                    if payment.amountCurrency: collected_currencies.add(payment.amountCurrency)
-                            if sec.stock: # sec.stock is Optional[list[StockMovementType]]
+                                    if payment.amountCurrency:
+                                        collected_currencies.add(payment.amountCurrency)
+                            if sec.stock:  # sec.stock is Optional[list[StockMovementType]]
                                 for stock_item in sec.stock:
-                                    if stock_item.balanceCurrency: collected_currencies.add(stock_item.balanceCurrency)
-            
+                                    if stock_item.balanceCurrency:
+                                        collected_currencies.add(stock_item.balanceCurrency)
+
             logging.info(f"Successfully parsed and extracted data from: {file_path}")
 
         except FileNotFoundError:
             logging.error(f"Tax statement file not found: {file_path}. Skipping.")
-        except Exception as e: # Catching generic Exception for other parsing errors from from_xml_file
-            logging.error(f"Error parsing tax statement file {file_path}: {e}. Skipping.", exc_info=True)
-        
-    logging.info(f"Finished parsing all tax statement files. Found {len(collected_valor_numbers)} unique valor numbers and {len(collected_currencies)} unique currencies.")
+        except (
+            Exception
+        ) as e:  # Catching generic Exception for other parsing errors from from_xml_file
+            logging.error(
+                f"Error parsing tax statement file {file_path}: {e}. Skipping.", exc_info=True
+            )
+
+    logging.info(
+        f"Finished parsing all tax statement files. Found {len(collected_valor_numbers)} unique valor numbers and {len(collected_currencies)} unique currencies."
+    )
     return collected_valor_numbers, collected_currencies
 
 
 def main():
     parser = argparse.ArgumentParser(description="Filters a Kursliste XML file.")
     parser.add_argument("--input-file", required=True, help="Path to the large Kursliste XML file.")
-    parser.add_argument("--output-file", required=True, help="Path for the filtered Kursliste XML output.")
-    parser.add_argument("--valor-numbers", required=False, help="A comma-separated string of valor numbers to keep (e.g., \"12345,67890\").") # Changed to not required
-    parser.add_argument("--tax-statement-files", nargs='+', help="Paths to one or more eCH-0196 Tax Statement XML files.", default=[]) # Added new argument
-    parser.add_argument("--include-bonds", action='store_true', help="If specified, also include bonds with matching valor numbers.")
-    parser.add_argument("--target-currency", default="CHF", help="The main currency for which exchange rates should be prioritized.")
-    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging level.")
+    parser.add_argument(
+        "--output-file", required=True, help="Path for the filtered Kursliste XML output."
+    )
+    parser.add_argument(
+        "--valor-numbers",
+        required=False,
+        help="A comma-separated string of valor numbers to keep (e.g., \"12345,67890\").",
+    )  # Changed to not required
+    parser.add_argument(
+        "--tax-statement-files",
+        nargs='+',
+        help="Paths to one or more eCH-0196 Tax Statement XML files.",
+        default=[],
+    )  # Added new argument
+    parser.add_argument(
+        "--include-bonds",
+        action='store_true',
+        help="If specified, also include bonds with matching valor numbers.",
+    )
+    parser.add_argument(
+        "--target-currency",
+        default="CHF",
+        help="The main currency for which exchange rates should be prioritized.",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging level.",
+    )
 
     args = parser.parse_args()
 
@@ -108,6 +159,7 @@ def main():
         include_bonds=args.include_bonds,
         target_currency=args.target_currency,
     )
+
 
 def filter_kursliste(
     input_file: str,
@@ -132,16 +184,20 @@ def filter_kursliste(
     # Ensure that either valor_numbers or tax_statement_files is provided
     if not valor_numbers and not tax_statement_files:
         logging.error("Error: Either --valor-numbers or --tax-statement-files must be provided.")
-        return 1 # Exit with an error code
-    
+        return 1  # Exit with an error code
+
     # Parse Tax Statements if provided
     tax_statement_valors = set()
     tax_statement_currencies = set()
     if tax_statement_files:
         logging.info("Processing tax statement files...")
         tax_statement_valors, tax_statement_currencies = parse_tax_statements(tax_statement_files)
-        logging.info(f"Valors from tax statements: {tax_statement_valors if tax_statement_valors else 'None'}")
-        logging.info(f"Currencies from tax statements: {tax_statement_currencies if tax_statement_currencies else 'None'}")
+        logging.info(
+            f"Valors from tax statements: {tax_statement_valors if tax_statement_valors else 'None'}"
+        )
+        logging.info(
+            f"Currencies from tax statements: {tax_statement_currencies if tax_statement_currencies else 'None'}"
+        )
     else:
         logging.info("No tax statement files provided to parse.")
 
@@ -156,12 +212,18 @@ def filter_kursliste(
                 try:
                     cmd_line_valor_numbers.add(int(v_str.strip()))
                 except ValueError:
-                    logging.error(f"Invalid valor number format from command line: '{v_str}'. Must be an integer.")
+                    logging.error(
+                        f"Invalid valor number format from command line: '{v_str}'. Must be an integer."
+                    )
                     valor_errors_cmd = True
             if valor_errors_cmd:
-                logging.error("Errors encountered while parsing command-line valor numbers. Exiting.")
+                logging.error(
+                    "Errors encountered while parsing command-line valor numbers. Exiting."
+                )
                 return 1
-            logging.info(f"Successfully parsed command-line valor numbers: {cmd_line_valor_numbers}")
+            logging.info(
+                f"Successfully parsed command-line valor numbers: {cmd_line_valor_numbers}"
+            )
         else:
             logging.info("No command-line valor numbers provided.")
 
@@ -169,23 +231,31 @@ def filter_kursliste(
         # tax_statement_valors and tax_statement_currencies are already initialized and populated if files are given.
         # This part of the code (calling parse_tax_statements) is already above the try-except block.
         # So, tax_statement_valors and tax_statement_currencies are available here.
-        
+
         # 3. Consolidate Valor Numbers
         valor_numbers_to_keep = cmd_line_valor_numbers.union(tax_statement_valors)
-        logging.info(f"Consolidated valor numbers for filtering (from command line and tax statements): {valor_numbers_to_keep if valor_numbers_to_keep else 'None'}")
+        logging.info(
+            f"Consolidated valor numbers for filtering (from command line and tax statements): {valor_numbers_to_keep if valor_numbers_to_keep else 'None'}"
+        )
 
         # 4. Consolidate Initial Relevant Currencies
         relevant_currencies = set()
         if target_currency:
             relevant_currencies.add(target_currency)
-            logging.debug(f"Added target_currency '{target_currency}' to initial relevant_currencies.")
-        
+            logging.debug(
+                f"Added target_currency '{target_currency}' to initial relevant_currencies."
+            )
+
         relevant_currencies.update(tax_statement_currencies)
-        logging.info(f"Initial set of relevant currencies (target_currency + tax statement currencies): {relevant_currencies if relevant_currencies else 'None'}")
-        
+        logging.info(
+            f"Initial set of relevant currencies (target_currency + tax statement currencies): {relevant_currencies if relevant_currencies else 'None'}"
+        )
+
         # Proceed with Kursliste XML loading and processing only if there are valor numbers to filter by
         if not valor_numbers_to_keep:
-            logging.warning("No valor numbers to filter by (neither from command line nor tax statements). Output will be empty of securities.")
+            logging.warning(
+                "No valor numbers to filter by (neither from command line nor tax statements). Output will be empty of securities."
+            )
             # Depending on desired behavior, could exit or produce an empty Kursliste structure.
             # Current script structure will produce an empty Kursliste for securities/rates if this set is empty.
 
@@ -196,20 +266,26 @@ def filter_kursliste(
             # Pass denylist=None to ensure all elements are loaded from the source Kursliste.
             kursliste_data = Kursliste.from_xml_file(input_file, denylist=None)
             logging.info(f"Successfully parsed Kursliste XML from {input_file}")
-            logging.info(f"Kursliste date: {kursliste_data.creationDate}, Year: {kursliste_data.year}")
+            logging.info(
+                f"Kursliste date: {kursliste_data.creationDate}, Year: {kursliste_data.year}"
+            )
         except ET.XMLSyntaxError as e:
             logging.error(f"XML Syntax Error parsing Kursliste file {input_file}: {e}")
-            return 1 # Exit with error
+            return 1  # Exit with error
         except ValidationError as e:
             logging.error(f"Pydantic validation error parsing Kursliste {input_file}: {e}")
-            return 1 # Exit with error
-        except FileNotFoundError: # Already caught by the outer try-except, but good to be specific if desired
+            return 1  # Exit with error
+        except (
+            FileNotFoundError
+        ):  # Already caught by the outer try-except, but good to be specific if desired
             logging.error(f"Error: Kursliste input file not found at {input_file}")
             return 1
-        except Exception as e: # Catch other potential errors from from_xml_file
-            logging.error(f"An unexpected error occurred while parsing Kursliste {input_file}: {e}", exc_info=True)
+        except Exception as e:  # Catch other potential errors from from_xml_file
+            logging.error(
+                f"An unexpected error occurred while parsing Kursliste {input_file}: {e}",
+                exc_info=True,
+            )
             return 1
-
 
         # Initialize filtered lists (using the consolidated valor_numbers_to_keep)
         filtered_shares = []
@@ -220,9 +296,13 @@ def filter_kursliste(
         if kursliste_data.shares:
             logging.info(f"Processing {len(kursliste_data.shares)} shares from input...")
             for share in kursliste_data.shares:
-                if share.valorNumber and share.valorNumber in valor_numbers_to_keep: # Use consolidated set
+                if (
+                    share.valorNumber and share.valorNumber in valor_numbers_to_keep
+                ):  # Use consolidated set
                     filtered_shares.append(share)
-                    logging.info(f"Kept Share - Valor: {share.valorNumber}, Name: {share.securityName}")
+                    logging.info(
+                        f"Kept Share - Valor: {share.valorNumber}, Name: {share.securityName}"
+                    )
         else:
             logging.info("No shares found in the input Kursliste.")
 
@@ -230,55 +310,77 @@ def filter_kursliste(
         if kursliste_data.funds:
             logging.info(f"Processing {len(kursliste_data.funds)} funds from input...")
             for fund in kursliste_data.funds:
-                if fund.valorNumber and fund.valorNumber in valor_numbers_to_keep: # Use consolidated set
+                if (
+                    fund.valorNumber and fund.valorNumber in valor_numbers_to_keep
+                ):  # Use consolidated set
                     filtered_funds.append(fund)
-                    logging.info(f"Kept Fund - Valor: {fund.valorNumber}, Name: {fund.securityName}")
+                    logging.info(
+                        f"Kept Fund - Valor: {fund.valorNumber}, Name: {fund.securityName}"
+                    )
         else:
             logging.info("No funds found in the input Kursliste.")
 
         # 5. Filter Bonds (Conditional)
         if include_bonds:
             if kursliste_data.bonds:
-                logging.info(f"Processing {len(kursliste_data.bonds)} bonds from input (include_bonds is True)...")
+                logging.info(
+                    f"Processing {len(kursliste_data.bonds)} bonds from input (include_bonds is True)..."
+                )
                 for bond in kursliste_data.bonds:
-                    if bond.valorNumber and bond.valorNumber in valor_numbers_to_keep: # Use consolidated set
+                    if (
+                        bond.valorNumber and bond.valorNumber in valor_numbers_to_keep
+                    ):  # Use consolidated set
                         filtered_bonds.append(bond)
-                        logging.info(f"Kept Bond - Valor: {bond.valorNumber}, Name: {bond.securityName}")
+                        logging.info(
+                            f"Kept Bond - Valor: {bond.valorNumber}, Name: {bond.securityName}"
+                        )
             else:
                 logging.info("No bonds found in the input Kursliste (include_bonds is True).")
         else:
             logging.info("Skipping bond filtering as --include-bonds is False.")
-            
+
         # 6. Log Summary of Security Filtering
-        logging.info(f"Security Filtering Summary: Kept {len(filtered_shares)} shares, {len(filtered_funds)} funds, {len(filtered_bonds)} bonds.")
+        logging.info(
+            f"Security Filtering Summary: Kept {len(filtered_shares)} shares, {len(filtered_funds)} funds, {len(filtered_bonds)} bonds."
+        )
 
         # 7. Identify Relevant Currencies (Continued)
         # The 'relevant_currencies' set was initialized before Kursliste parsing using target_currency and tax_statement_currencies.
         # Now, it will be expanded with currencies from the filtered securities.
-        logging.debug(f"Relevant currencies before expanding with filtered securities: {relevant_currencies}")
+        logging.debug(
+            f"Relevant currencies before expanding with filtered securities: {relevant_currencies}"
+        )
 
         # Process Shares to expand relevant_currencies
         for share in filtered_shares:
-            if share.currency: relevant_currencies.add(share.currency)
+            if share.currency:
+                relevant_currencies.add(share.currency)
             if share.payment:
                 for payment in share.payment:
-                    if payment.currency: relevant_currencies.add(payment.currency)
-        
+                    if payment.currency:
+                        relevant_currencies.add(payment.currency)
+
         # Process Funds to expand relevant_currencies
         for fund in filtered_funds:
-            if fund.currency: relevant_currencies.add(fund.currency)
+            if fund.currency:
+                relevant_currencies.add(fund.currency)
             if fund.payment:
                 for payment in fund.payment:
-                    if payment.currency: relevant_currencies.add(payment.currency)
+                    if payment.currency:
+                        relevant_currencies.add(payment.currency)
 
         # Process Bonds to expand relevant_currencies
         for bond in filtered_bonds:
-            if bond.currency: relevant_currencies.add(bond.currency)
+            if bond.currency:
+                relevant_currencies.add(bond.currency)
             if bond.payment:
                 for payment in bond.payment:
-                    if payment.currency: relevant_currencies.add(payment.currency)
+                    if payment.currency:
+                        relevant_currencies.add(payment.currency)
 
-        logging.info(f"Final set of relevant currencies (after processing filtered securities): {relevant_currencies if relevant_currencies else 'None'}")
+        logging.info(
+            f"Final set of relevant currencies (after processing filtered securities): {relevant_currencies if relevant_currencies else 'None'}"
+        )
 
         # 8. Filter ExchangeRate Objects (Daily Rates)
         filtered_exchange_rates = []
@@ -294,7 +396,9 @@ def filter_kursliste(
         # 9. Filter ExchangeRateMonthly Objects
         filtered_exchange_rates_monthly = []
         if kursliste_data.exchangeRatesMonthly:
-            logging.info(f"Processing {len(kursliste_data.exchangeRatesMonthly)} monthly exchange rates...")
+            logging.info(
+                f"Processing {len(kursliste_data.exchangeRatesMonthly)} monthly exchange rates..."
+            )
             for rate in kursliste_data.exchangeRatesMonthly:
                 if rate.currency in relevant_currencies:
                     filtered_exchange_rates_monthly.append(rate)
@@ -305,19 +409,25 @@ def filter_kursliste(
         # 10. Filter ExchangeRateYearEnd Objects
         filtered_exchange_rates_year_end = []
         if kursliste_data.exchangeRatesYearEnd:
-            logging.info(f"Processing {len(kursliste_data.exchangeRatesYearEnd)} year-end exchange rates...")
+            logging.info(
+                f"Processing {len(kursliste_data.exchangeRatesYearEnd)} year-end exchange rates..."
+            )
             for rate in kursliste_data.exchangeRatesYearEnd:
-                if rate.currency in relevant_currencies: # Assuming ExchangeRateYearEnd has a 'currency' field for filtering
+                if (
+                    rate.currency in relevant_currencies
+                ):  # Assuming ExchangeRateYearEnd has a 'currency' field for filtering
                     filtered_exchange_rates_year_end.append(rate)
             logging.info(f"Kept {len(filtered_exchange_rates_year_end)} year-end exchange rates.")
         else:
             logging.info("No year-end exchange rates (exchangeRatesYearEnd) found in input.")
-        
-        logging.info(f"Finished exchange rate filtering. Counts: Daily={len(filtered_exchange_rates)}, Monthly={len(filtered_exchange_rates_monthly)}, YearEnd={len(filtered_exchange_rates_year_end)}")
+
+        logging.info(
+            f"Finished exchange rate filtering. Counts: Daily={len(filtered_exchange_rates)}, Monthly={len(filtered_exchange_rates_monthly)}, YearEnd={len(filtered_exchange_rates_year_end)}"
+        )
 
         # 11. Filter DefinitionCurrency Elements
         filtered_definition_currencies = []
-        if kursliste_data.currencies: # This is List[DefinitionCurrency]
+        if kursliste_data.currencies:  # This is List[DefinitionCurrency]
             logging.info(f"Processing {len(kursliste_data.currencies)} definition currencies...")
             for def_curr in kursliste_data.currencies:
                 if def_curr.currency in relevant_currencies:
@@ -330,17 +440,19 @@ def filter_kursliste(
         relevant_country_codes = set()
         for sec_list in [filtered_shares, filtered_funds, filtered_bonds]:
             for sec in sec_list:
-                if sec.country: # Assuming securities have a 'country' attribute (ISO2 code)
+                if sec.country:  # Assuming securities have a 'country' attribute (ISO2 code)
                     relevant_country_codes.add(sec.country)
         logging.info(f"Identified relevant country codes from securities: {relevant_country_codes}")
-        
+
         # 13. Identify Referenced Institutions and Filter Institution Elements
         referenced_institution_ids = set()
         for sec_list in [filtered_shares, filtered_funds, filtered_bonds]:
             for sec in sec_list:
-                if hasattr(sec, 'institutionId') and sec.institutionId: # Check if attribute exists
+                if hasattr(sec, 'institutionId') and sec.institutionId:  # Check if attribute exists
                     referenced_institution_ids.add(sec.institutionId)
-        logging.info(f"Identified {len(referenced_institution_ids)} referenced institution IDs from securities.")
+        logging.info(
+            f"Identified {len(referenced_institution_ids)} referenced institution IDs from securities."
+        )
 
         filtered_institutions = []
         if kursliste_data.institutions:
@@ -349,12 +461,14 @@ def filter_kursliste(
                 if inst.id in referenced_institution_ids:
                     filtered_institutions.append(inst)
             logging.info(f"Kept {len(filtered_institutions)} institutions.")
-            
+
             # Add country codes from filtered institutions to relevant_country_codes
             for inst in filtered_institutions:
-                if inst.country: # Assuming Institution has a 'country' attribute
+                if inst.country:  # Assuming Institution has a 'country' attribute
                     relevant_country_codes.add(inst.country)
-            logging.info(f"Updated relevant country codes with institution countries: {relevant_country_codes}")
+            logging.info(
+                f"Updated relevant country codes with institution countries: {relevant_country_codes}"
+            )
         else:
             logging.info("No institutions found in input.")
 
@@ -363,14 +477,16 @@ def filter_kursliste(
         if kursliste_data.countries:
             logging.info(f"Processing {len(kursliste_data.countries)} country definitions...")
             for country_def in kursliste_data.countries:
-                if country_def.country in relevant_country_codes: # 'country' field on Country model is the ISO2 code
+                if (
+                    country_def.country in relevant_country_codes
+                ):  # 'country' field on Country model is the ISO2 code
                     filtered_countries.append(country_def)
             logging.info(f"Kept {len(filtered_countries)} country definitions.")
         else:
             logging.info("No country definitions (countries) found in input.")
 
         logging.info("Finished definitional element filtering.")
-        
+
         # 15. Construct Output Kursliste Object
         logging.info("Constructing the output Kursliste object...")
         output_kursliste_obj = Kursliste(
@@ -379,38 +495,74 @@ def filter_kursliste(
             creationDate=kursliste_data.creationDate,
             referingToDate=kursliste_data.referingToDate if kursliste_data.referingToDate else None,
             year=kursliste_data.year,
-
             # Definitions (Non-filtered - taken directly from source)
             # Ensure these attributes exist on kursliste_data before assigning
-            cantons=kursliste_data.cantons if hasattr(kursliste_data, 'cantons') and kursliste_data.cantons else [],
-            capitalKeys=kursliste_data.capitalKeys if hasattr(kursliste_data, 'capitalKeys') and kursliste_data.capitalKeys else [],
-            securityGroups=kursliste_data.securityGroups if hasattr(kursliste_data, 'securityGroups') and kursliste_data.securityGroups else [],
-            securityTypes=kursliste_data.securityTypes if hasattr(kursliste_data, 'securityTypes') and kursliste_data.securityTypes else [],
-            legalForms=kursliste_data.legalForms if hasattr(kursliste_data, 'legalForms') and kursliste_data.legalForms else [],
-            sectors=kursliste_data.sectors if hasattr(kursliste_data, 'sectors') and kursliste_data.sectors else [],
-            shortCuts=kursliste_data.shortCuts if hasattr(kursliste_data, 'shortCuts') and kursliste_data.shortCuts else [],
-            signs=kursliste_data.signs if hasattr(kursliste_data, 'signs') and kursliste_data.signs else [], # Keep signs
-            da1Rates=kursliste_data.da1Rates if hasattr(kursliste_data, 'da1Rates') and kursliste_data.da1Rates else [], # Keep da1Rates
-            mediumTermBonds=kursliste_data.mediumTermBonds if hasattr(kursliste_data, 'mediumTermBonds') and kursliste_data.mediumTermBonds else [],
-            
+            cantons=(
+                kursliste_data.cantons
+                if hasattr(kursliste_data, 'cantons') and kursliste_data.cantons
+                else []
+            ),
+            capitalKeys=(
+                kursliste_data.capitalKeys
+                if hasattr(kursliste_data, 'capitalKeys') and kursliste_data.capitalKeys
+                else []
+            ),
+            securityGroups=(
+                kursliste_data.securityGroups
+                if hasattr(kursliste_data, 'securityGroups') and kursliste_data.securityGroups
+                else []
+            ),
+            securityTypes=(
+                kursliste_data.securityTypes
+                if hasattr(kursliste_data, 'securityTypes') and kursliste_data.securityTypes
+                else []
+            ),
+            legalForms=(
+                kursliste_data.legalForms
+                if hasattr(kursliste_data, 'legalForms') and kursliste_data.legalForms
+                else []
+            ),
+            sectors=(
+                kursliste_data.sectors
+                if hasattr(kursliste_data, 'sectors') and kursliste_data.sectors
+                else []
+            ),
+            shortCuts=(
+                kursliste_data.shortCuts
+                if hasattr(kursliste_data, 'shortCuts') and kursliste_data.shortCuts
+                else []
+            ),
+            signs=(
+                kursliste_data.signs
+                if hasattr(kursliste_data, 'signs') and kursliste_data.signs
+                else []
+            ),  # Keep signs
+            da1Rates=(
+                kursliste_data.da1Rates
+                if hasattr(kursliste_data, 'da1Rates') and kursliste_data.da1Rates
+                else []
+            ),  # Keep da1Rates
+            mediumTermBonds=(
+                kursliste_data.mediumTermBonds
+                if hasattr(kursliste_data, 'mediumTermBonds') and kursliste_data.mediumTermBonds
+                else []
+            ),
             # Definitions (Filtered)
             countries=filtered_countries,
             currencies=filtered_definition_currencies,
             institutions=filtered_institutions,
-
             # Securities (Filtered)
             bonds=filtered_bonds,
-            coinBullions=[], # Not processed in this script
-            currencyNotes=[], # Not processed in this script
-            derivatives=[], # Not processed in this script
+            coinBullions=[],  # Not processed in this script
+            currencyNotes=[],  # Not processed in this script
+            derivatives=[],  # Not processed in this script
             funds=filtered_funds,
-            liborSwaps=[], # Not processed in this script
+            liborSwaps=[],  # Not processed in this script
             shares=filtered_shares,
- 
             # Exchange Rates (Filtered)
             exchangeRates=filtered_exchange_rates,
             exchangeRatesMonthly=filtered_exchange_rates_monthly,
-            exchangeRatesYearEnd=filtered_exchange_rates_year_end
+            exchangeRatesYearEnd=filtered_exchange_rates_year_end,
         )
         logging.info("Successfully constructed output_kursliste_obj.")
 
@@ -428,8 +580,10 @@ def filter_kursliste(
             )
             logging.info("Successfully serialized Kursliste to XML bytes using instance method.")
         except Exception as e:
-            logging.error(f"Error during XML serialization using instance method: {e}", exc_info=True)
-            return 1 # Exit if serialization fails
+            logging.error(
+                f"Error during XML serialization using instance method: {e}", exc_info=True
+            )
+            return 1  # Exit if serialization fails
 
         # 17. Write to Output File
         try:
@@ -438,10 +592,10 @@ def filter_kursliste(
             logging.info(f"Successfully wrote filtered Kursliste to {output_file}")
         except IOError as e:
             logging.error(f"Error writing output XML to file {output_file}: {e}", exc_info=True)
-            return 1 # Exit if file writing fails
-            
+            return 1  # Exit if file writing fails
+
         logging.info("Script finished successfully.")
-        return 0 # Exit with success code
+        return 0  # Exit with success code
 
     except FileNotFoundError:
         logging.error(f"Error: Input file not found at {input_file}")
@@ -449,7 +603,8 @@ def filter_kursliste(
     except Exception as e:
         logging.error(f"An unexpected error occurred: {e}", exc_info=True)
         return 1
-    return 1 # Exit with error code
+    return 1  # Exit with error code
+
 
 if __name__ == "__main__":
     sys.exit(main())

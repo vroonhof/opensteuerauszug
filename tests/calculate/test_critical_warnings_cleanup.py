@@ -77,8 +77,7 @@ def test_unmapped_symbol_generates_critical_warning():
     result = calculator.calculate(statement)
 
     warnings = [
-        w for w in result.critical_warnings
-        if w.category == CriticalWarningCategory.UNMAPPED_SYMBOL
+        w for w in result.critical_warnings if w.category == CriticalWarningCategory.UNMAPPED_SYMBOL
     ]
     assert len(warnings) == 1
     assert "GOOG" in warnings[0].message
@@ -101,8 +100,7 @@ def test_mapped_symbol_generates_no_warning():
     result = calculator.calculate(statement)
 
     warnings = [
-        w for w in result.critical_warnings
-        if w.category == CriticalWarningCategory.UNMAPPED_SYMBOL
+        w for w in result.critical_warnings if w.category == CriticalWarningCategory.UNMAPPED_SYMBOL
     ]
     assert len(warnings) == 0
 
@@ -115,14 +113,11 @@ def test_symbol_with_existing_isin_generates_no_warning():
         identifier_map={},
         importer_name="schwab",
     )
-    statement = _make_statement_with_symbol(
-        symbol="GOOG", isin="US02079K3059", valor=None
-    )
+    statement = _make_statement_with_symbol(symbol="GOOG", isin="US02079K3059", valor=None)
     result = calculator.calculate(statement)
 
     warnings = [
-        w for w in result.critical_warnings
-        if w.category == CriticalWarningCategory.UNMAPPED_SYMBOL
+        w for w in result.critical_warnings if w.category == CriticalWarningCategory.UNMAPPED_SYMBOL
     ]
     assert len(warnings) == 0
 
@@ -144,8 +139,7 @@ def test_no_identifier_map_generates_no_unmapped_warning():
     result = calculator.calculate(statement)
 
     warnings = [
-        w for w in result.critical_warnings
-        if w.category == CriticalWarningCategory.UNMAPPED_SYMBOL
+        w for w in result.critical_warnings if w.category == CriticalWarningCategory.UNMAPPED_SYMBOL
     ]
     # No identifier_map provided, but the symbol check still runs
     # Since the security has no ISIN and no valor, it should still warn

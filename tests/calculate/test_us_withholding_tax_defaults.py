@@ -10,8 +10,9 @@ from opensteuerauszug.model.ech0196 import (
     SecurityPayment,
     ListOfSecurities,
     Depot,
-    DepotNumber
+    DepotNumber,
 )
+
 
 def test_fix_issue_78_us_security_additional_withholding_tax_usa():
     """
@@ -20,7 +21,9 @@ def test_fix_issue_78_us_security_additional_withholding_tax_usa():
     FILL mode.
     """
     provider = DummyExchangeRateProvider()
-    calculator = FillInTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+    calculator = FillInTaxValueCalculator(
+        mode=CalculationMode.FILL, exchange_rate_provider=provider
+    )
 
     # Create a dummy tax statement with a US security and a payment
     security = Security(
@@ -38,16 +41,13 @@ def test_fix_issue_78_us_security_additional_withholding_tax_usa():
                 amountCurrency="USD",
                 amount=Decimal("100"),
                 nonRecoverableTaxAmount=Decimal("1.00"),
-                additionalWithHoldingTaxUSA=None  # Explicitly None
+                additionalWithHoldingTaxUSA=None,  # Explicitly None
             )
-        ]
+        ],
     )
 
     depot = Depot(depotNumber=DepotNumber("123"), security=[security])
-    statement = TaxStatement(
-        minorVersion=2,
-        listOfSecurities=ListOfSecurities(depot=[depot])
-    )
+    statement = TaxStatement(minorVersion=2, listOfSecurities=ListOfSecurities(depot=[depot]))
 
     # Run calculation
     calculator.calculate(statement)
@@ -58,13 +58,16 @@ def test_fix_issue_78_us_security_additional_withholding_tax_usa():
     assert payment.additionalWithHoldingTaxUSA is not None
     assert payment.additionalWithHoldingTaxUSA == Decimal("0")
 
+
 def test_fix_issue_78_non_us_security_additional_withholding_tax_usa():
     """
     Test that FillInTaxValueCalculator does NOT set additionalWithHoldingTaxUSA
     for non-US securities if it is missing.
     """
     provider = DummyExchangeRateProvider()
-    calculator = FillInTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+    calculator = FillInTaxValueCalculator(
+        mode=CalculationMode.FILL, exchange_rate_provider=provider
+    )
 
     # Create a dummy tax statement with a CH security and a payment
     security = Security(
@@ -81,16 +84,13 @@ def test_fix_issue_78_non_us_security_additional_withholding_tax_usa():
                 quantity=Decimal("10"),
                 amountCurrency="CHF",
                 amount=Decimal("100"),
-                additionalWithHoldingTaxUSA=None
+                additionalWithHoldingTaxUSA=None,
             )
-        ]
+        ],
     )
 
     depot = Depot(depotNumber=DepotNumber("123"), security=[security])
-    statement = TaxStatement(
-        minorVersion=2,
-        listOfSecurities=ListOfSecurities(depot=[depot])
-    )
+    statement = TaxStatement(minorVersion=2, listOfSecurities=ListOfSecurities(depot=[depot]))
 
     # Run calculation
     calculator.calculate(statement)

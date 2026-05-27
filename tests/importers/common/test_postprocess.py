@@ -76,9 +76,7 @@ def test_augment_securities_synthesizes_opening_and_closing_balances():
     # Synthesized opening balance at 2024-01-01 (qty 0 before the buy)
     # -> since opening qty is 0 we don't append; we only append closing.
     # Assert the closing boundary stock at 2025-01-01 is present.
-    balance_dates = sorted(
-        (s.referenceDate, s.mutation, s.quantity) for s in security.stock
-    )
+    balance_dates = sorted((s.referenceDate, s.mutation, s.quantity) for s in security.stock)
     assert (date(2025, 1, 1), False, Decimal("10")) in balance_dates
 
 
@@ -120,9 +118,7 @@ def test_augment_securities_propagates_negative_balance_unchanged():
     (depot,) = statement.listOfSecurities.depot
     (security,) = depot.security
     closing_balances = [
-        s.quantity
-        for s in security.stock
-        if not s.mutation and s.referenceDate == date(2025, 1, 1)
+        s.quantity for s in security.stock if not s.mutation and s.referenceDate == date(2025, 1, 1)
     ]
     assert closing_balances == [Decimal("-5")]
 
@@ -189,9 +185,7 @@ def test_fold_cash_payments_creates_orphan_entries_without_balance():
 
 def test_augment_bank_accounts_requires_closing_balance():
     statement = _partial_statement()
-    entry = CashAccountEntry(
-        account_id="A1", currency="USD", closing_balance=None, payments=[]
-    )
+    entry = CashAccountEntry(account_id="A1", currency="USD", closing_balance=None, payments=[])
     with pytest.raises(ValueError, match="No closing cash balance"):
         augment_list_of_bank_accounts(statement, [entry])
 
@@ -270,9 +264,7 @@ def test_augment_securities_assume_zero_walks_mutations_without_balances():
     (depot,) = statement.listOfSecurities.depot
     (security,) = depot.security
     closing_balances = [
-        s.quantity
-        for s in security.stock
-        if not s.mutation and s.referenceDate == date(2025, 1, 1)
+        s.quantity for s in security.stock if not s.mutation and s.referenceDate == date(2025, 1, 1)
     ]
     assert closing_balances == [Decimal("10")]
 

@@ -1,0 +1,5 @@
+# Ignore the large Black formatting sweep commit
+b829be3d2cd7036a2ef7a34d561d219c81863c6e
+
+# Ignore the safe Ruff linting auto-fixes commit
+49ef7a294162384659be5b0b690746773485445a

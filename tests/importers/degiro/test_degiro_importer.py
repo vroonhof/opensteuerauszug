@@ -76,6 +76,7 @@ def test_degiro_import_integration(sample_dir):
 # Non-sample tests
 # ---------------------------------------------------------------------------
 
+
 def test_import_dir_raises_on_missing_files(tmp_path):
     importer = DegiroImporter(
         period_from=PERIOD_FROM,
@@ -86,6 +87,7 @@ def test_import_dir_raises_on_missing_files(tmp_path):
         importer.import_dir(str(tmp_path))
 
 
+# fmt: off
 @pytest.mark.parametrize("desc,action,qty,price,currency", [
     ("Buy 60 iShares@20.08 EUR (IE00B3WJKG14)", "Buy", "60", "20.08", "EUR"),
     ("Sell 10 Vanguard@71.00 EUR (IE00B3XXRP09)", "Sell", "10", "71.00", "EUR"),
@@ -101,6 +103,7 @@ def test_import_dir_raises_on_missing_files(tmp_path):
     ("Verkauf 10 Vanguard@71.00 EUR (IE00B3XXRP09)", "Verkauf", "10", "71.00", "EUR"),
     ("Kauf 1.000 iShares@20,08 EUR (IE00B3WJKG14)", "Kauf", "1.000", "20,08", "EUR"),
 ])
+# fmt: on
 def test_trade_re_matches(desc, action, qty, price, currency):
     m = _TRADE_RE.match(desc)
     assert m is not None, f"_TRADE_RE should match {desc!r}"
@@ -110,14 +113,16 @@ def test_trade_re_matches(desc, action, qty, price, currency):
     assert m.group(5) == currency
 
 
-@pytest.mark.parametrize("raw,expected", [
-    ("60", "60"),
-    ("1'000", "1000"),
-    ("1'000.50", "1000.50"),
-    ("20.08", "20.08"),
-    ("1.000,50", "1000.50"),
-    ("20,08", "20.08"),
-])
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("60", "60"),
+        ("1'000", "1000"),
+        ("1'000.50", "1000.50"),
+        ("20.08", "20.08"),
+        ("1.000,50", "1000.50"),
+        ("20,08", "20.08"),
+    ],
+)
 def test_normalize_number(raw, expected):
     assert _normalize_number(raw) == expected
-

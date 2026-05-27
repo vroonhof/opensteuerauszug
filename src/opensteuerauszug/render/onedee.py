@@ -6,10 +6,11 @@ from typing import Tuple
 import logging
 from reportlab.lib import colors
 
-PRINT_SCALE_CORRECTION = 1/0.97 # Allow for printer scaling (97% reduction)
+PRINT_SCALE_CORRECTION = 1 / 0.97  # Allow for printer scaling (97% reduction)
 
 logger = logging.getLogger(__name__)
-    
+
+
 class OneDeeBarCode:
     """
     Generates and draws 1D CODE128 barcode objects for ReportLab,
@@ -24,11 +25,14 @@ class OneDeeBarCode:
     Based on: BEIL2_d_DEF_2022-06-07_eCH-0196_V2.0.0_Barcode Generierung -
               Technische Wegleitung.pdf
     """
-    FORMULAR_NR = '196' # eCH-0196
-    VERSION_NR = '22'   # Assuming v2.2
-    AUSRICHTUNG_POS_ID = '02' # Reading order 2 (left/right, top-to-bottom)
 
-    def generate_barcode(self, page_number: int, is_barcode_page: bool, org_nr: str = '00000') -> code128.Code128 | None:
+    FORMULAR_NR = '196'  # eCH-0196
+    VERSION_NR = '22'  # Assuming v2.2
+    AUSRICHTUNG_POS_ID = '02'  # Reading order 2 (left/right, top-to-bottom)
+
+    def generate_barcode(
+        self, page_number: int, is_barcode_page: bool, org_nr: str = '00000'
+    ) -> code128.Code128 | None:
         """
         Generates a ReportLab Code128 barcode widget object (without text or quiet zone).
 
@@ -55,17 +59,17 @@ class OneDeeBarCode:
             return None
 
         # --- Assemble Barcode Data ---
-        page_str = f"{page_number:03d}" # Format to 3 digits with leading zeros
+        page_str = f"{page_number:03d}"  # Format to 3 digits with leading zeros
         barcode_flag = '1' if is_barcode_page else '0'
 
         barcode_data = (
-            self.FORMULAR_NR +
-            self.VERSION_NR +
-            org_nr +
-            page_str +
-            barcode_flag +
-            self.AUSRICHTUNG_POS_ID
-        ) # Total 16 digits
+            self.FORMULAR_NR
+            + self.VERSION_NR
+            + org_nr
+            + page_str
+            + barcode_flag
+            + self.AUSRICHTUNG_POS_ID
+        )  # Total 16 digits
 
         if len(barcode_data) != 16:
             logger.error("Internal logic error, generated data length is not 16: %s", barcode_data)
@@ -82,8 +86,8 @@ class OneDeeBarCode:
                 barcode_data,
                 barHeight=min_height,
                 barWidth=bar_width_points,
-                humanReadable=False, # Disable built-in text rendering
-                quiet=False          # Disable built-in quiet zone
+                humanReadable=False,  # Disable built-in text rendering
+                quiet=False,  # Disable built-in quiet zone
             )
 
             # print(f"Generated ReportLab barcode widget (no text/quiet) for page {page_number} (Data: {barcode_data})")
@@ -96,10 +100,9 @@ class OneDeeBarCode:
             raise e
             return None
 
-    def draw_barcode_on_canvas(self,
-                               canvas: canvas.Canvas,
-                               barcode_widget: code128.Code128,
-                               pagesize: Tuple[float, float]):
+    def draw_barcode_on_canvas(
+        self, canvas: canvas.Canvas, barcode_widget: code128.Code128, pagesize: Tuple[float, float]
+    ):
         """
         Draws the provided barcode widget onto the canvas, rotated -90 degrees.
         Positions the drawing so the text baseline is 5mm from the left edge,
@@ -125,16 +128,18 @@ class OneDeeBarCode:
 
         # Dimensions of the barcode widget *before* rotation
         bw = barcode_widget.width
-        bh = barcode_widget.barHeight # Use barHeight as it's the relevant dimension
+        bh = barcode_widget.barHeight  # Use barHeight as it's the relevant dimension
 
         # --- Manual Text Settings ---
         # Gap between bars edge (y=0 in rotated coords) and text baseline
-        font_size_points = 9 # 3mm is about 8.5pt, but 9pt is a common size
+        font_size_points = 9  # 3mm is about 8.5pt, but 9pt is a common size
         font_name = "Helvetica"
 
         # Calculate text baseline position relative to the rotated origin (0,0)
         # This is the position along the rotated Y-axis (points left)
-        text_y_relative = 5 * mm * PRINT_SCALE_CORRECTION # 5mm for text and spacing, adjusted for printing scale
+        text_y_relative = (
+            5 * mm * PRINT_SCALE_CORRECTION
+        )  # 5mm for text and spacing, adjusted for printing scale
 
         # Calculate the required translation point (final_bl_x, final_bl_y)
         # such that the text baseline lands at margin_left from the page edge.
@@ -145,7 +150,7 @@ class OneDeeBarCode:
         # final_bl_y determines the vertical position (bottom of rotated barcode)
         final_bl_y = page_height - margin_top  # Bottom edge of rotated barcode's bounding box
 
-        canvas.saveState() # Save the current canvas state
+        canvas.saveState()  # Save the current canvas state
         try:
             # Translate origin to the calculated final bottom-left corner
             canvas.translate(final_bl_x, final_bl_y)
@@ -158,7 +163,7 @@ class OneDeeBarCode:
 
             # --- Draw Manual Text ---
             # Calculate text position relative to the *new* rotated origin (0,0)
-            text_x = bw / 2.0 # Center vertically along the bars (along rotated X-axis)
+            text_x = bw / 2.0  # Center vertically along the bars (along rotated X-axis)
             # Use the relative y position calculated earlier for the baseline
             text_y = -text_y_relative
 
@@ -172,10 +177,10 @@ class OneDeeBarCode:
             # canvas.setStrokeColor(colors.red)
             # canvas.setLineWidth(0.5)
             # canvas.line(text_x - 10, text_y, text_x + 10, text_y) # Horizontal line at text baseline
-            # canvas.line(text_x - 10, -5 * mm * PRINT_SCALE_CORRECTION, text_x + 10, -5 * mm * PRINT_SCALE_CORRECTION) 
+            # canvas.line(text_x - 10, -5 * mm * PRINT_SCALE_CORRECTION, text_x + 10, -5 * mm * PRINT_SCALE_CORRECTION)
 
         finally:
-            canvas.restoreState() # Restore the canvas state (translation, rotation)
+            canvas.restoreState()  # Restore the canvas state (translation, rotation)
 
         # print(f"Drew rotated barcode and manual text on canvas.")
         # print(f"  Target Text Baseline X: {margin_left/mm:.1f}mm which gives ")
@@ -188,12 +193,14 @@ if __name__ == '__main__':
     generator = OneDeeBarCode()
 
     # 1. Generate a barcode widget (bars only, no quiet zone)
-    barcode_widget_1 = generator.generate_barcode(page_number=5, is_barcode_page=False, org_nr='12345')
+    barcode_widget_1 = generator.generate_barcode(
+        page_number=5, is_barcode_page=False, org_nr='12345'
+    )
 
     # 2. Create a simple PDF and draw the barcode using the class method
     if barcode_widget_1:
-        output_pdf_path = "reportlab_final_barcode_example.pdf" # Final filename
-        page_layout = landscape(A4) # Define page layout
+        output_pdf_path = "reportlab_final_barcode_example.pdf"  # Final filename
+        page_layout = landscape(A4)  # Define page layout
 
         # Create canvas
         c = canvas.Canvas(output_pdf_path, pagesize=page_layout)
@@ -207,9 +214,9 @@ if __name__ == '__main__':
         # Note: bh is barHeight (original height), which becomes width after rotation
         bh_rotated_width = barcode_widget_1.barHeight
         # Adjust label position slightly based on new barcode placement logic
-        label_x = 5 * mm + 12 * mm + 5 * mm # Position label to the right of the rotated barcode
-        label_y = page_layout[1] - 10 * mm - 10 # Position label slightly below the top of barcode
-        c.drawString(label_x, label_y, f"Rotated Barcode (Page 5)")
+        label_x = 5 * mm + 12 * mm + 5 * mm  # Position label to the right of the rotated barcode
+        label_y = page_layout[1] - 10 * mm - 10  # Position label slightly below the top of barcode
+        c.drawString(label_x, label_y, "Rotated Barcode (Page 5)")
 
         # Save the PDF page and file
         c.showPage()

@@ -3,6 +3,7 @@ import io
 from unittest.mock import MagicMock, patch
 from opensteuerauszug.kursliste.downloader import download_kursliste
 
+
 @pytest.fixture
 def mock_response():
     mock = MagicMock()
@@ -16,11 +17,9 @@ def mock_response():
                 "exportFile": {
                     "id": 3586307,
                     "fileName": "kursliste_2025.zip",
-                    "fileHash": "549f00e9a0737da2f65559bf774e7fdd"
+                    "fileHash": "549f00e9a0737da2f65559bf774e7fdd",
                 },
-                "exportType": {
-                    "shortName": "THIRD.INIT.120"
-                }
+                "exportType": {"shortName": "THIRD.INIT.120"},
             },
             {
                 "id": 42515,
@@ -28,11 +27,9 @@ def mock_response():
                 "exportFile": {
                     "id": 3586289,
                     "fileName": "kursliste_2025.zip",
-                    "fileHash": "258094db8756eb413f762048fdca23fb"
+                    "fileHash": "258094db8756eb413f762048fdca23fb",
                 },
-                "exportType": {
-                    "shortName": "THIRD.INIT.200"
-                }
+                "exportType": {"shortName": "THIRD.INIT.200"},
             },
             {
                 "id": 42511,
@@ -40,21 +37,22 @@ def mock_response():
                 "exportFile": {
                     "id": 3586267,
                     "fileName": "kursliste_2025.zip",
-                    "fileHash": "21f330db01497a390e5aa71cd5e3e21a"
+                    "fileHash": "21f330db01497a390e5aa71cd5e3e21a",
                 },
-                "exportType": {
-                    "shortName": "THIRD.INIT.220"
-                }
-            }
-        ]
+                "exportType": {"shortName": "THIRD.INIT.220"},
+            },
+        ],
     }
     return mock
+
 
 @patch("requests.Session.post")
 @patch("requests.Session.get")
 @patch("zipfile.ZipFile")
 @patch("builtins.open")
-def test_download_kursliste_logic(mock_open, mock_zip, mock_get, mock_post, mock_response, tmp_path):
+def test_download_kursliste_logic(
+    mock_open, mock_zip, mock_get, mock_post, mock_response, tmp_path
+):
     mock_post.return_value = mock_response
 
     # Mock responses for GET calls:
@@ -63,7 +61,7 @@ def test_download_kursliste_logic(mock_open, mock_zip, mock_get, mock_post, mock
     mock_session_resp = MagicMock(status_code=200)
     mock_session_resp.json.return_value = {
         "status": "SUCCESS",
-        "data": {"csrfToken": "test-csrf-token"}
+        "data": {"csrfToken": "test-csrf-token"},
     }
     mock_dl_resp = MagicMock(status_code=200)
     mock_dl_resp.iter_content.return_value = [b"zip_content"]
@@ -95,7 +93,10 @@ def test_download_kursliste_logic(mock_open, mock_zip, mock_get, mock_post, mock
 
     # Verify that THIRD.INIT.220 was selected (highest version)
     download_call = mock_get.call_args_list[1]
-    assert download_call[0][0] == "https://www.ictax.admin.ch/extern/api/download/3586267/21f330db01497a390e5aa71cd5e3e21a/kursliste_2025.zip"
+    assert (
+        download_call[0][0]
+        == "https://www.ictax.admin.ch/extern/api/download/3586267/21f330db01497a390e5aa71cd5e3e21a/kursliste_2025.zip"
+    )
     assert download_call[1]["stream"] is True
 
     # Verify that we tried to write the file

@@ -293,13 +293,16 @@ def test_allow_above_treaty_withholding_does_not_mask_dividend_mismatch():
         ),
     )
 
-    result = PaymentReconciliationCalculator(
-        allow_above_treaty_withholding=True
-    ).calculate(statement)
+    result = PaymentReconciliationCalculator(allow_above_treaty_withholding=True).calculate(
+        statement
+    )
 
     row = result.payment_reconciliation_report.rows[0]
     assert row.status == "mismatch"
-    assert row.note == "Broker dividend differs from Kursliste value beyond tolerance. delta=20.00 CHF. "
+    assert (
+        row.note
+        == "Broker dividend differs from Kursliste value beyond tolerance. delta=20.00 CHF. "
+    )
 
 
 def test_us_withholding_hint_skips_zero_kursliste_withholding():
@@ -361,7 +364,10 @@ def test_us_withholding_hint_skips_zero_kursliste_withholding():
     row = result.payment_reconciliation_report.rows[0]
     assert row.status == "mismatch"
     assert row.note is not None
-    assert "Broker withholding differs from Kursliste value beyond tolerance. delta=5.00 CHF." in row.note
+    assert (
+        "Broker withholding differs from Kursliste value beyond tolerance. delta=5.00 CHF."
+        in row.note
+    )
     assert "W8-BEN" not in row.note
 
 
@@ -494,6 +500,7 @@ def test_broker_above_kursliste_with_allowlisted_h_sign_is_match():
     result = PaymentReconciliationCalculator().calculate(statement)
     row = result.payment_reconciliation_report.rows[0]
     assert row.status == "match"
+
 
 def test_broker_above_kursliste_with_allowlisted_sign_is_match():
     statement = TaxStatement(
@@ -894,8 +901,10 @@ def test_short_stock_zero_payment_is_expected():
 #  Issue #308: Withholding-tax cap for (Q)-signed payments
 # --------------------------------------------------------------------------- #
 
-def _make_bnd_statement(broker_wht_amounts, kurs_wht_chf, kurs_gross_a_chf,
-                         exchange_rate=Decimal("0.90")):
+
+def _make_bnd_statement(
+    broker_wht_amounts, kurs_wht_chf, kurs_gross_a_chf, exchange_rate=Decimal("0.90")
+):
     """Helper: build a TaxStatement for BND with given broker WHT amounts
     and a single Kursliste payment with sign (Q)."""
     broker_payments = []
@@ -1331,6 +1340,7 @@ def test_withholding_cap_partial_for_non_recoverable_tax():
     # (Q) sign should be cleared
     assert kl_payment.sign is None
 
+
 def test_withholding_cap_only_clears_q_sign():
     """Full reversal should only clear (Q) sign, not other signs."""
     statement = _make_bnd_statement(
@@ -1469,4 +1479,3 @@ def test_us_w8ben_hint_does_not_crash_when_broker_has_no_withholding_payment():
 
     row = result.payment_reconciliation_report.rows[0]
     assert row.note is None or "W8-BEN" not in row.note
-

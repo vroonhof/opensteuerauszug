@@ -5,9 +5,9 @@ from typing import Dict, Any, List, Optional
 from decimal import Decimal, InvalidOperation as DecimalInvalidOperation
 
 try:
-    import tomllib # Python 3.11+
+    import tomllib  # Python 3.11+
 except ImportError:
-    import tomli as tomllib # Fallback for Python < 3.11
+    import tomli as tomllib  # Fallback for Python < 3.11
 
 from .paths import resolve_config_file
 from .models import (
@@ -44,7 +44,7 @@ class ConfigManager:
             return {}
         try:
             with open(self.config_file_path, "rb") as f:
-                return tomllib.load(f, parse_float=Decimal) # NEW LINE
+                return tomllib.load(f, parse_float=Decimal)  # NEW LINE
         except tomllib.TOMLDecodeError as e:
             raise ValueError(f"Error decoding TOML file '{self.config_file_path}': {e}") from e
 
@@ -67,8 +67,10 @@ class ConfigManager:
             if not isinstance(current_level, dict):
                 # This would happen if a path tries to treat a non-dict as a dict
                 # e.g., general.canton.subfield=X when general.canton is "ZH"
-                raise ValueError(f"Cannot set nested value: '{key}' in path '{path_str}' is not a dictionary.")
-        
+                raise ValueError(
+                    f"Cannot set nested value: '{key}' in path '{path_str}' is not a dictionary."
+                )
+
         # Coerce value
         final_key = keys[-1]
         coerced_value: Any
@@ -86,8 +88,8 @@ class ConfigManager:
                     try:
                         coerced_value = float(value_str)
                     except ValueError:
-                        coerced_value = value_str # Fallback to string
-        
+                        coerced_value = value_str  # Fallback to string
+
         current_level[final_key] = coerced_value
 
     def _normalize_override_path(self, path_str: str) -> str:
@@ -99,12 +101,14 @@ class ConfigManager:
 
         return path_str
 
-    def _apply_cli_overrides(self, config_dict: Dict[str, Any], overrides: Optional[List[str]]) -> Dict[str, Any]:
+    def _apply_cli_overrides(
+        self, config_dict: Dict[str, Any], overrides: Optional[List[str]]
+    ) -> Dict[str, Any]:
         if not overrides:
             return config_dict
 
-        modified_config_dict = copy.deepcopy(config_dict) # Work on a copy
-        
+        modified_config_dict = copy.deepcopy(config_dict)  # Work on a copy
+
         for override_entry in overrides:
             if '=' not in override_entry:
                 logger.warning(
@@ -112,15 +116,13 @@ class ConfigManager:
                     override_entry,
                 )
                 continue
-            
+
             path_str, value_str = override_entry.split('=', 1)
             normalized_path = self._normalize_override_path(path_str)
             try:
                 self._set_nested_value(modified_config_dict, normalized_path, value_str)
             except ValueError as e:
-                logger.warning(
-                    "Could not apply override '%s': %s. Skipping.", override_entry, e
-                )
+                logger.warning("Could not apply override '%s': %s. Skipping.", override_entry, e)
             except Exception as e:  # Catch any other unexpected errors during override
                 logger.warning(
                     "Unexpected error applying override '%s': %s. Skipping.",
@@ -133,7 +135,9 @@ class ConfigManager:
     def _get_effective_config(self, overrides: Optional[List[str]] = None) -> Dict[str, Any]:
         return self._apply_cli_overrides(self._raw_config, overrides)
 
-    def _get_section_settings(self, section: str, overrides: Optional[List[str]] = None) -> Dict[str, Any]:
+    def _get_section_settings(
+        self, section: str, overrides: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         effective_config = self._get_effective_config(overrides)
         return copy.deepcopy(effective_config.get(section, {}))
 
@@ -149,7 +153,9 @@ class ConfigManager:
     def get_general_settings_dict(self, overrides: Optional[List[str]] = None) -> Dict[str, Any]:
         return self._get_section_settings("general", overrides)
 
-    def resolve_general_settings(self, overrides: Optional[List[str]] = None) -> Optional[GeneralSettings]:
+    def resolve_general_settings(
+        self, overrides: Optional[List[str]] = None
+    ) -> Optional[GeneralSettings]:
         settings_dict = self.get_general_settings_dict(overrides)
         if not settings_dict:
             print("No general configuration settings found.")
@@ -164,7 +170,9 @@ class ConfigManager:
         self._print_loaded_settings("general", settings_dict)
         return settings
 
-    def resolve_calculate_settings(self, overrides: Optional[List[str]] = None) -> CalculateSettings:
+    def resolve_calculate_settings(
+        self, overrides: Optional[List[str]] = None
+    ) -> CalculateSettings:
         settings_dict = self._get_section_settings("calculate", overrides)
 
         try:
@@ -175,7 +183,9 @@ class ConfigManager:
         self._print_loaded_settings("calculate", settings.model_dump())
         return settings
 
-    def get_account_settings(self, broker_name: str, account_name_alias: str, overrides: Optional[List[str]] = None) -> ConcreteAccountSettings:
+    def get_account_settings(
+        self, broker_name: str, account_name_alias: str, overrides: Optional[List[str]] = None
+    ) -> ConcreteAccountSettings:
         effective_config = self._get_effective_config(overrides)
         if not effective_config:
             # This check is important if _load_raw_config returns {} for a missing file
@@ -205,7 +215,6 @@ class ConfigManager:
             )
             broker_accounts_data = {}
 
-
         # 3. Merge account-specific settings
         account_config_raw = broker_accounts_data.get(account_name_alias, {})
         if account_config_raw:
@@ -216,12 +225,12 @@ class ConfigManager:
                 f"Account alias '{account_name_alias}' under broker '{broker_name}' not found in configuration. "
                 "An account-specific section is required."
             )
-        
+
         # Add contextual information (broker_name, account_name_alias)
         # This should happen AFTER overrides in case these contextual fields were somehow targeted by overrides (though unlikely/undesirable)
         current_config["broker_name"] = broker_name
         current_config["account_name_alias"] = account_name_alias
-        
+
         # Pydantic will validate 'account_number' when creating the model instance.
         # The explicit check for 'account_number' in `account_config_raw` is removed
         # as Pydantic in AccountSettingsBase will enforce its presence in the final `current_config`.
@@ -261,13 +270,15 @@ class ConfigManager:
             # However, since ConcreteAccountSettings expects a kind from a Literal set,
             # we must handle unknown brokers more gracefully or restrict them.
             # For now, let's assume "schwab" is the only configured one.
-            raise ValueError(f"Unsupported broker type for specific settings: {broker_name}. Only 'schwab' is currently configured with a specific model.")
+            raise ValueError(
+                f"Unsupported broker type for specific settings: {broker_name}. Only 'schwab' is currently configured with a specific model."
+            )
 
         try:
             # Wrap in ConcreteAccountSettings
             # The Pydantic validation for ConcreteAccountSettings will also run here.
             return ConcreteAccountSettings(kind=kind_literal, settings=specific_settings)
-        except Exception as e: # Catch Pydantic validation error or other issues
+        except Exception as e:  # Catch Pydantic validation error or other issues
             raise ValueError(
                 f"Validation error for resolved settings of account '{account_name_alias}' on broker '{broker_name}': {e}\n"
                 f"Merged Data for Pydantic: {current_config}"
@@ -280,7 +291,9 @@ class ConfigManager:
         broker_config = self.brokers_settings.get(broker_name, {})
         return list(broker_config.get("accounts", {}).keys())
 
-    def get_all_account_settings_for_broker(self, broker_name: str, overrides: Optional[List[str]] = None) -> List[ConcreteAccountSettings]:
+    def get_all_account_settings_for_broker(
+        self, broker_name: str, overrides: Optional[List[str]] = None
+    ) -> List[ConcreteAccountSettings]:
         '''
         Retrieves and merges configuration for all accounts under a specific broker,
         applying any CLI overrides.
@@ -315,7 +328,9 @@ class ConfigManager:
                 # but for now, let's assume it's still public as per plan description)
                 # If get_account_settings is made private (e.g. _get_resolved_account_settings),
                 # this call needs to be updated.
-                account_specific_settings = self.get_account_settings(broker_name, alias, overrides=overrides)
+                account_specific_settings = self.get_account_settings(
+                    broker_name, alias, overrides=overrides
+                )
                 all_settings.append(account_specific_settings)
             except ValueError as e:
                 # Log the error for the specific account and continue with others
@@ -325,6 +340,5 @@ class ConfigManager:
                     broker_name,
                     e,
                 )
-        
-        return all_settings
 
+        return all_settings

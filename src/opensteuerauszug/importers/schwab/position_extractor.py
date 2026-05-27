@@ -6,10 +6,12 @@ from datetime import datetime, date, timedelta
 from opensteuerauszug.model.position import Position, CashPosition, SecurityPosition
 from opensteuerauszug.model.ech0196 import SecurityStock
 
+
 class PositionExtractor:
     """
     Extracts position data from Schwab CSV files in the expected format.
     """
+
     def __init__(self, filename: str):
         self.filename = filename
 
@@ -24,13 +26,17 @@ class PositionExtractor:
             content = f.read()
         return self._extract_positions_from_string(content)
 
-    def _extract_positions_from_string(self, content: str) -> Optional[Tuple[List[Tuple[Position, SecurityStock]], date, str]]:
+    def _extract_positions_from_string(
+        self, content: str
+    ) -> Optional[Tuple[List[Tuple[Position, SecurityStock]], date, str]]:
         lines = content.splitlines()
         if not lines or not lines[0].startswith('"Positions for account'):
             # Not the expected format
             return None
         # Extract account number and date from the first line
-        m = re.match(r'"Positions for account [^ ]+ \.\.\.(\d+) as of [^,]+, (\d{4}/\d{2}/\d{2})"', lines[0])
+        m = re.match(
+            r'"Positions for account [^ ]+ \.\.\.(\d+) as of [^,]+, (\d{4}/\d{2}/\d{2})"', lines[0]
+        )
         if not m:
             return None
         partial_account_number = m.group(1)
@@ -53,11 +59,12 @@ class PositionExtractor:
         for row in reader:
             symbol = row.get('Symbol', '').strip()
             security_type = (
-                row.get('Security Type', '').strip()
-                or row.get('Asset Type', '').strip()
+                row.get('Security Type', '').strip() or row.get('Asset Type', '').strip()
             )
             qty_str = row.get('Qty (Quantity)', '').replace(',', '').strip()
-            mkt_val_str = row.get('Mkt Val (Market Value)', '').replace(',', '').replace('$', '').strip()
+            mkt_val_str = (
+                row.get('Mkt Val (Market Value)', '').replace(',', '').replace('$', '').strip()
+            )
             description = row.get('Description', '').strip() if 'Description' in row else None
             try:
                 quantity = Decimal(qty_str) if qty_str else Decimal('0')
@@ -77,7 +84,7 @@ class PositionExtractor:
                     quotationType='PIECE',
                     quantity=amount,
                     balanceCurrency='USD',
-                    balance=amount
+                    balance=amount,
                 )
                 positions.append((pos, stock))
             elif symbol and ' ' not in symbol and security_type:
@@ -86,7 +93,7 @@ class PositionExtractor:
                     depot=depot,
                     symbol=symbol,
                     securityType=security_type,
-                    description=description
+                    description=description,
                     # Would have been nice if Schwab gave us this.
                     # isin=row.get('ISIN')
                 )
@@ -95,14 +102,16 @@ class PositionExtractor:
                     mutation=False,
                     quotationType='PIECE',
                     quantity=quantity,
-                    balanceCurrency='USD'
+                    balanceCurrency='USD',
                 )
                 positions.append((pos, stock))
             # else: skip rows that don't match expected security/cash
         return positions, ref_date, partial_account_number
 
+
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <positions_csv_file>")
         sys.exit(1)
@@ -111,6 +120,7 @@ if __name__ == "__main__":
     result = extractor.extract_positions()
     if result is not None:
         import pprint
+
         pprint.pprint(result)
     else:
         print("File is not a valid Schwab positions CSV or could not extract positions.")

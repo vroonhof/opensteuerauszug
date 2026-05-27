@@ -5,10 +5,8 @@ TRANSLATIONS = {
     "created_with": "créé avec OpenSteuerauszug",
     "converted_with": "converti avec OpenSteuerauszug",
     "taxstatement": "extrait fiscal",
-
     # === PAGE STRUCTURE ===
     "page": "page {page} de {total}",
-
     # === CLIENT INFORMATION ===
     "client": "Client",
     "client_number": "Ctn°",
@@ -19,7 +17,6 @@ TRANSLATIONS = {
     "period": "Période",
     "portfolio": "Ctn°",
     "created_at": "Créé le",
-
     # === SECTION TITLES ===
     "summary": "Sommaire",
     "bank_accounts": "Comptes bancaires",
@@ -30,10 +27,8 @@ TRANSLATIONS = {
     "liabilities_title": "Dettes",
     "reconciliation_kursliste_broker": "Rapprochement Kursliste / paiements du courtier",
     "tax_statement_in_chf": "Relevé fiscal en CHF",
-
     # === BARCODE PAGE ===
     "barcode_page": "Feuilles de codes à barres {page} de {total}",
-
     # === COMMON LABELS ===
     "date": "Date",
     "description": "Description",
@@ -43,7 +38,6 @@ TRANSLATIONS = {
     "na": "n.d.",
     "column_a": "A",
     "column_b": "B",
-
     # === SUMMARY TABLE HEADERS ===
     "tax_value_ab_header": "<b>Valeur fiscale</b> de<br/>valeurs <b>A</b> et <b>B</b><br/>au {date}",
     "gross_revenue_values_with_vst": "<b>Revenu brut</b><br/>{period} valeurs <b>avec</b><br/>IA-déduction",
@@ -59,7 +53,6 @@ TRANSLATIONS = {
     "total_gross_revenue_all_values": "<b>Total revenu brut</b> {period}<br/>valeurs <b>A, B, DA-1</b> et <b>USA</b>",
     "liabilities_header": "<b>Dettes</b><br/>au {date}",
     "liabilities_interest_summary_header": "<b>Intérêts des<br/>dettes</b> {period}",
-
     # === BANK ACCOUNTS TABLE ===
     "total_bank_accounts": "Total comptes bancaires",
     "designation_bank_account_interest": "Description<br/>Compte bancaire<br/>Intérêts",
@@ -69,7 +62,6 @@ TRANSLATIONS = {
     "total_paid_bank_fees": "Total frais",
     "tax_value_revenue": "Valeur fiscale / Revenu brut",
     "dissolution_revenue": "Dissolution / Revenu brut",
-
     # === SECURITIES TABLE ===
     "valor_number_date": "Valeur-N°<br/>Date",
     "depot_number_designation_isin": "Dépôt-N°<br/>Description<br/>ISIN",
@@ -93,7 +85,6 @@ TRANSLATIONS = {
     "foreign_tax_credit": "<b>Retenue d'impôt<br/>étranger éligible</b><br/>en CHF",
     "usa_withholding": "<b>Retenue<br/>fiscale USA</b><br/>en CHF",
     'country_total': 'Total {country}',
-
     # === LIABILITIES TABLE ===
     "designation_liabilities_interest": "Description<br/>Dettes<br/>Intérêts",
     "liabilities_amount_interest_header": "Dettes<br/>Intérêts<br/>la dette",
@@ -101,7 +92,6 @@ TRANSLATIONS = {
     "liabilities_interest_header": "<b>Intérêts des dettes</b> {year}<br/>en CHF",
     "tax_value_liabilities_interest": "Dette / Intérêts des dettes",
     "total_liabilities": "Total dettes",
-
     # === PAYMENT RECONCILIATION TABLE ===
     "reconciliation_payments": "Rapprochement des paiements ({country})",
     "kl_dividend_chf": "KL dividende CHF",
@@ -110,7 +100,6 @@ TRANSLATIONS = {
     "broker_withholding": "Retenue courtier",
     "ok": "OK",
     "security": "Titre",
-
     # === INSTRUCTIONS & FOOTNOTES ===
     "footnote_ab_breakdown": "(1) Dont <b>A</b> {} et <b>B</b> {}",
     "instruction_securities_register": 'Valeurs pour le formulaire <b>"Détail état des titres et autres\nplacements de capitaux"</b> (y compris les comptes, sans les\nvaleurs DA-1 et USA)',
@@ -118,19 +107,15 @@ TRANSLATIONS = {
     "instruction_no_da1": "Si <b>aucun</b> crédit pour la retenue d'impôt étranger (DA-1) n'est\ndemandé, alors ces totaux doivent être inscrits dans l'état des\ntitres.",
     "instruction_liabilities_register": 'Valeurs pour le formulaire de déclaration d\'impôt supplémentaire\n<b>"Etat des dettes"</b>',
     "expense_deductibility_notice": "(2) Frais: L'autorité fiscale compétente décide de la déductibilité des frais.",
-
     # === EXPENSE INFORMATION ===
     "expense_type": "Frais",
-
     # === PLACEHOLDERS ===
     "minimal_placeholder": "Ceci n'est pas un extrait fiscal officiel. Ce document minimal sert uniquement à importer les données bancaires via des codes-barres. Les totaux n'étant pas calculés, aucun résumé n'est affiché.",
-
     # === CRITICAL WARNINGS ===
     "critical_warnings_title": "AVERTISSEMENTS CRITIQUES",
     "warning": "avertissement",
     "warnings": "avertissements",
     "critical_warnings_hint": "Cet extrait contient <b>{count}</b> {plural} critique(s). Veuillez consulter les pages d'information à la fin de ce document.",
-
     # === XML TRANSLATIONS ===
     "debit_interest": "Paiements d'intérêts",
     "credit_interest": "Intérêts créditeurs",

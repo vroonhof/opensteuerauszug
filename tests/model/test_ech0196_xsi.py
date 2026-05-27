@@ -3,6 +3,7 @@ from decimal import Decimal
 from lxml import etree as ET
 from opensteuerauszug.model.ech0196 import TaxStatement, Institution, Client, ClientNumber
 
+
 def test_tax_statement_xsi_namespace_and_schema_location():
     """Test that the TaxStatement root element includes xsi namespace and schemaLocation."""
 
@@ -17,16 +18,13 @@ def test_tax_statement_xsi_namespace_and_schema_location():
         institution=Institution(name="Test Bank AG"),
         client=[
             Client(
-                clientNumber=ClientNumber("C1"),
-                firstName="Max",
-                lastName="Muster",
-                salutation="2"
+                clientNumber=ClientNumber("C1"), firstName="Max", lastName="Muster", salutation="2"
             )
         ],
         totalTaxValue=Decimal("1000.50"),
         totalGrossRevenueA=Decimal("100.00"),
         totalGrossRevenueB=Decimal("50.00"),
-        totalWithHoldingTaxClaim=Decimal("35.00")
+        totalWithHoldingTaxClaim=Decimal("35.00"),
     )
 
     xml_bytes = statement.to_xml_bytes()

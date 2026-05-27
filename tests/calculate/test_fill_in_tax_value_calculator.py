@@ -26,7 +26,10 @@ class MockFlagOverrideProvider(FlagOverrideProvider):
 class TestFillInTaxValueCalculatorIntegration:
     @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
     def test_run_in_verify_mode_no_errors(
-        self, sample_file: str, exchange_rate_provider: KurslisteExchangeRateProvider, kursliste_manager
+        self,
+        sample_file: str,
+        exchange_rate_provider: KurslisteExchangeRateProvider,
+        kursliste_manager,
     ):
         """
         Tests that FillInTaxValueCalculator runs in VERIFY mode
@@ -36,7 +39,7 @@ class TestFillInTaxValueCalculatorIntegration:
         # Ensure the required kursliste year is available
         required_year = get_tax_year_for_sample(sample_file)
         ensure_kursliste_year_available(kursliste_manager, required_year, sample_file)
-        
+
         flag_override_provider = MockFlagOverrideProvider()
         if "Truewealth.xml" in sample_file:
             # For this specific test case, we know the sample file does not expect DA-1 calculation

@@ -151,7 +151,7 @@ def test_filter_by_cmd_line_valors_only(temp_dir, sample_kursliste_xml):
     assert len(output_kursliste.shares) == 1, "Incorrect number of shares found."
     assert output_kursliste.shares[0].valorNumber == 12345
     assert output_kursliste.shares[0].currency == "CHF"
-    
+
     assert not output_kursliste.funds or len(output_kursliste.funds) == 0, "Funds should be empty."
     assert not output_kursliste.bonds or len(output_kursliste.bonds) == 0, "Bonds should be empty."
 
@@ -161,20 +161,28 @@ def test_filter_by_cmd_line_valors_only(temp_dir, sample_kursliste_xml):
     found_currencies = {c.currency for c in output_kursliste.currencies}
     assert "CHF" in found_currencies, "CHF definition currency missing."
     # Only CHF should be present as no other currency is referenced by kept securities or target
-    assert len(found_currencies) == 1, f"Expected only CHF definition currency, found: {found_currencies}"
+    assert (
+        len(found_currencies) == 1
+    ), f"Expected only CHF definition currency, found: {found_currencies}"
 
     # Verify Exchange Rates (target CHF, security CHF -> effectively no explicit rates needed beyond definition)
     # For CHF target, rates to CHF are 1.0 and usually implicit or not listed as separate entries unless it's a cross-rate.
     # The script keeps ExchangeRate* entries if their currency symbol is in relevant_currencies.
     # Since only CHF is relevant here, and Kursliste has no CHF-to-CHF rates, these lists should be empty/None.
-    assert not output_kursliste.exchangeRates or len(output_kursliste.exchangeRates) == 0, \
-        f"Daily exchange rates should be empty for CHF->CHF. Found: {len(output_kursliste.exchangeRates) if output_kursliste.exchangeRates else 0}"
-    assert not output_kursliste.exchangeRatesMonthly or len(output_kursliste.exchangeRatesMonthly) == 0, \
-        f"Monthly exchange rates should be empty for CHF->CHF. Found: {len(output_kursliste.exchangeRatesMonthly) if output_kursliste.exchangeRatesMonthly else 0}"
-    assert not output_kursliste.exchangeRatesYearEnd or len(output_kursliste.exchangeRatesYearEnd) == 0, \
-        f"Year-end exchange rates should be empty for CHF->CHF. Found: {len(output_kursliste.exchangeRatesYearEnd) if output_kursliste.exchangeRatesYearEnd else 0}"
+    assert (
+        not output_kursliste.exchangeRates or len(output_kursliste.exchangeRates) == 0
+    ), f"Daily exchange rates should be empty for CHF->CHF. Found: {len(output_kursliste.exchangeRates) if output_kursliste.exchangeRates else 0}"
+    assert (
+        not output_kursliste.exchangeRatesMonthly or len(output_kursliste.exchangeRatesMonthly) == 0
+    ), f"Monthly exchange rates should be empty for CHF->CHF. Found: {len(output_kursliste.exchangeRatesMonthly) if output_kursliste.exchangeRatesMonthly else 0}"
+    assert (
+        not output_kursliste.exchangeRatesYearEnd or len(output_kursliste.exchangeRatesYearEnd) == 0
+    ), f"Year-end exchange rates should be empty for CHF->CHF. Found: {len(output_kursliste.exchangeRatesYearEnd) if output_kursliste.exchangeRatesYearEnd else 0}"
 
-def test_filter_by_tax_statement_valors_only(temp_dir, sample_kursliste_xml, sample_ech0196_statement1_xml):
+
+def test_filter_by_tax_statement_valors_only(
+    temp_dir, sample_kursliste_xml, sample_ech0196_statement1_xml
+):
     """Test filtering kursliste by tax statement valor numbers only."""
     output_xml_path, stdout, stderr, returncode = run_script(
         temp_dir,
@@ -185,7 +193,7 @@ def test_filter_by_tax_statement_valors_only(temp_dir, sample_kursliste_xml, sam
 
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     assert output_xml_path.exists(), "Output XML file was not created."
-    
+
     output_kursliste = parse_output_xml(output_xml_path)
     assert output_kursliste is not None, "Failed to parse output XML."
 
@@ -197,9 +205,11 @@ def test_filter_by_tax_statement_valors_only(temp_dir, sample_kursliste_xml, sam
     assert output_kursliste.shares is not None, "Shares section is missing."
     found_share_valors = {s.valorNumber for s in output_kursliste.shares}
     assert 12345 in found_share_valors, "Share 12345 should be present."
-    assert 54321 not in found_share_valors, "Share 54321 should not be present as it's not in Kursliste."
+    assert (
+        54321 not in found_share_valors
+    ), "Share 54321 should not be present as it's not in Kursliste."
     assert len(output_kursliste.shares) == 1, "Incorrect number of shares found."
-    
+
     assert not output_kursliste.funds or len(output_kursliste.funds) == 0, "Funds should be empty."
     assert not output_kursliste.bonds or len(output_kursliste.bonds) == 0, "Bonds should be empty."
 
@@ -207,9 +217,14 @@ def test_filter_by_tax_statement_valors_only(temp_dir, sample_kursliste_xml, sam
     # All these should be included because they are found in tax statements or target.
     assert output_kursliste.currencies is not None, "DefinitionCurrencies are missing."
     found_def_currencies = {c.currency for c in output_kursliste.currencies}
-    expected_def_currencies = {"CHF", "USD", "EUR"}  # CHF (target/security), USD (tax statement sec), EUR (tax statement bank acc)
-    assert found_def_currencies == expected_def_currencies, \
-        f"Expected definition currencies {expected_def_currencies}, found: {found_def_currencies}"
+    expected_def_currencies = {
+        "CHF",
+        "USD",
+        "EUR",
+    }  # CHF (target/security), USD (tax statement sec), EUR (tax statement bank acc)
+    assert (
+        found_def_currencies == expected_def_currencies
+    ), f"Expected definition currencies {expected_def_currencies}, found: {found_def_currencies}"
 
     # Verify Exchange Rates (target CHF)
     # Expected currencies needing rates to CHF: USD, EUR (from tax statement)
@@ -218,10 +233,14 @@ def test_filter_by_tax_statement_valors_only(temp_dir, sample_kursliste_xml, sam
     assert "USD" in found_ye_rates_currencies, "USD year-end exchange rate to CHF missing."
     assert "EUR" in found_ye_rates_currencies, "EUR year-end exchange rate to CHF missing."
     # JPY was in sample Kursliste but not referenced by tax statement or target.
-    assert "JPY" not in found_ye_rates_currencies, "JPY year-end exchange rate should not be present."
+    assert (
+        "JPY" not in found_ye_rates_currencies
+    ), "JPY year-end exchange rate should not be present."
 
     # Check one USD rate value
-    usd_ye_rate = next((r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "USD"), None)
+    usd_ye_rate = next(
+        (r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "USD"), None
+    )
     assert usd_ye_rate is not None
     assert usd_ye_rate.value == Decimal('0.90')  # From sample_kursliste_for_filtering.xml
 
@@ -231,7 +250,9 @@ def test_filter_by_tax_statement_valors_only(temp_dir, sample_kursliste_xml, sam
     assert "EUR" in found_m_rates_currencies, "EUR monthly exchange rate should be present."
     # USD was in sample Kursliste monthly, but not specifically referenced for a monthly context by tax data.
     # The logic is: if 'EUR' is a relevant_currency, all 'EUR' rates are pulled.
-    assert "USD" in found_m_rates_currencies, "USD monthly exchange rate should be present as USD is relevant."
+    assert (
+        "USD" in found_m_rates_currencies
+    ), "USD monthly exchange rate should be present as USD is relevant."
 
     # Check daily rates (USD is relevant from tax statement security)
     assert output_kursliste.exchangeRates is not None
@@ -239,19 +260,24 @@ def test_filter_by_tax_statement_valors_only(temp_dir, sample_kursliste_xml, sam
     assert "USD" in found_d_rates_currencies, "USD daily exchange rate should be present."
 
 
-def test_filter_by_union_valors_and_currencies(temp_dir, sample_kursliste_xml, sample_ech0196_statement1_xml, sample_ech0196_statement2_xml):
+def test_filter_by_union_valors_and_currencies(
+    temp_dir, sample_kursliste_xml, sample_ech0196_statement1_xml, sample_ech0196_statement2_xml
+):
     """Test filtering kursliste by union of command line valor numbers and tax statement valor numbers."""
     output_xml_path, stdout, stderr, returncode = run_script(
         temp_dir,
         input_file=str(sample_kursliste_xml),
         valor_numbers="11223",  # Fund EUR from Kursliste
-        tax_statement_files=[str(sample_ech0196_statement1_xml), str(sample_ech0196_statement2_xml)],
+        tax_statement_files=[
+            str(sample_ech0196_statement1_xml),
+            str(sample_ech0196_statement2_xml),
+        ],
         target_currency="CHF",
     )
 
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     assert output_xml_path.exists(), "Output XML file was not created."
-    
+
     output_kursliste = parse_output_xml(output_xml_path)
     assert output_kursliste is not None, "Failed to parse output XML."
 
@@ -287,10 +313,10 @@ def test_filter_by_union_valors_and_currencies(temp_dir, sample_kursliste_xml, s
     assert output_kursliste.currencies is not None, "DefinitionCurrencies are missing."
     found_def_currencies = {c.currency for c in output_kursliste.currencies}
     expected_def_currencies = {"CHF", "EUR", "USD", "JPY"}
-    assert found_def_currencies == expected_def_currencies, \
-        f"Expected definition currencies {expected_def_currencies}, found: {found_def_currencies}"
+    assert (
+        found_def_currencies == expected_def_currencies
+    ), f"Expected definition currencies {expected_def_currencies}, found: {found_def_currencies}"
 
- 
     # Verify Exchange Rates (target CHF)
     # Expected currencies needing rates to CHF: EUR, USD, JPY
     assert output_kursliste.exchangeRatesYearEnd is not None, "Year-end exchange rates missing."
@@ -298,15 +324,21 @@ def test_filter_by_union_valors_and_currencies(temp_dir, sample_kursliste_xml, s
     assert "USD" in found_ye_rates_currencies
     assert "EUR" in found_ye_rates_currencies
     assert "JPY" in found_ye_rates_currencies
-    
+
     # Check specific rate values from sample Kursliste
-    usd_ye_rate = next((r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "USD"), None)
+    usd_ye_rate = next(
+        (r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "USD"), None
+    )
     assert usd_ye_rate is not None
     assert usd_ye_rate.value == Decimal('0.90')
-    eur_ye_rate = next((r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "EUR"), None)
+    eur_ye_rate = next(
+        (r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "EUR"), None
+    )
     assert eur_ye_rate is not None
     assert eur_ye_rate.value == Decimal('0.95')
-    jpy_ye_rate = next((r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "JPY"), None)
+    jpy_ye_rate = next(
+        (r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "JPY"), None
+    )
     assert jpy_ye_rate is not None
     assert jpy_ye_rate.value == Decimal('0.007')
 
@@ -315,14 +347,16 @@ def test_filter_by_union_valors_and_currencies(temp_dir, sample_kursliste_xml, s
     found_m_rates_currencies = {er.currency for er in output_kursliste.exchangeRatesMonthly}
     assert "EUR" in found_m_rates_currencies  # EUR from Fund 11223 & stmt1 bank acc
     assert "USD" in found_m_rates_currencies  # USD from Share 67890 & stmt1 sec 54321
-    
+
     # Check daily rates (USD, EUR are relevant)
     assert output_kursliste.exchangeRates is not None
     found_d_rates_currencies = {er.currency for er in output_kursliste.exchangeRates}
     assert "USD" in found_d_rates_currencies  # From Share 67890 -> payment date 2023-07-20
-    assert "EUR" in found_d_rates_currencies  # From Fund 11223 -> payment date 2023-03-10 (no daily rate for this in sample, but EUR is relevant)
-                                             # The sample daily rates are USD@2023-07-20, EUR@2023-06-15
-                                             # Since EUR is relevant, the EUR daily rate from sample KL should be pulled.
+    assert (
+        "EUR" in found_d_rates_currencies
+    )  # From Fund 11223 -> payment date 2023-03-10 (no daily rate for this in sample, but EUR is relevant)
+    # The sample daily rates are USD@2023-07-20, EUR@2023-06-15
+    # Since EUR is relevant, the EUR daily rate from sample KL should be pulled.
 
 
 @pytest.mark.skip("Bonds currently filtered out in parser")
@@ -338,7 +372,7 @@ def test_include_bonds(temp_dir, sample_kursliste_xml):
 
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     assert output_xml_path.exists(), "Output XML file was not created."
-    
+
     output_kursliste = parse_output_xml(output_xml_path)
     assert output_kursliste is not None, "Failed to parse output XML."
 
@@ -347,8 +381,10 @@ def test_include_bonds(temp_dir, sample_kursliste_xml):
     assert len(output_kursliste.bonds) == 1, "Incorrect number of bonds found."
     assert output_kursliste.bonds[0].valorNumber == 33445
     assert output_kursliste.bonds[0].currency == "CHF"
-    
-    assert not output_kursliste.shares or len(output_kursliste.shares) == 0, "Shares should be empty."
+
+    assert (
+        not output_kursliste.shares or len(output_kursliste.shares) == 0
+    ), "Shares should be empty."
     assert not output_kursliste.funds or len(output_kursliste.funds) == 0, "Funds should be empty."
 
     # Verify DefinitionCurrency (CHF from bond and target)
@@ -361,15 +397,19 @@ def test_include_bonds(temp_dir, sample_kursliste_xml):
     assert output_kursliste.countries is not None, "Country definitions are missing."
     found_countries_iso = {c.country for c in output_kursliste.countries}
     assert "CH" in found_countries_iso, "CH country definition missing."
-    
+
     # Verify Institution (inst1 from bond 33445)
     assert output_kursliste.institutions is not None
     assert any(inst.id == "inst1" for inst in output_kursliste.institutions)
 
     # Exchange rates should be empty for CHF target and CHF security
     assert not output_kursliste.exchangeRates or len(output_kursliste.exchangeRates) == 0
-    assert not output_kursliste.exchangeRatesMonthly or len(output_kursliste.exchangeRatesMonthly) == 0
-    assert not output_kursliste.exchangeRatesYearEnd or len(output_kursliste.exchangeRatesYearEnd) == 0
+    assert (
+        not output_kursliste.exchangeRatesMonthly or len(output_kursliste.exchangeRatesMonthly) == 0
+    )
+    assert (
+        not output_kursliste.exchangeRatesYearEnd or len(output_kursliste.exchangeRatesYearEnd) == 0
+    )
 
 
 def test_exclude_bonds_by_default(temp_dir, sample_kursliste_xml):
@@ -384,15 +424,19 @@ def test_exclude_bonds_by_default(temp_dir, sample_kursliste_xml):
 
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     assert output_xml_path.exists(), "Output XML file was not created."
-    
+
     output_kursliste = parse_output_xml(output_xml_path)
     assert output_kursliste is not None, "Failed to parse output XML."
 
     # Verify securities - bonds should be empty
-    assert not output_kursliste.bonds or len(output_kursliste.bonds) == 0, "Bonds should be empty as --include-bonds was not used."
-    assert not output_kursliste.shares or len(output_kursliste.shares) == 0, "Shares should be empty."
+    assert (
+        not output_kursliste.bonds or len(output_kursliste.bonds) == 0
+    ), "Bonds should be empty as --include-bonds was not used."
+    assert (
+        not output_kursliste.shares or len(output_kursliste.shares) == 0
+    ), "Shares should be empty."
     assert not output_kursliste.funds or len(output_kursliste.funds) == 0, "Funds should be empty."
-    
+
     # DefinitionCurrency should still contain CHF (target currency)
     assert output_kursliste.currencies is not None
     found_currencies = {c.currency for c in output_kursliste.currencies}
@@ -412,12 +456,14 @@ def test_no_matching_valors(temp_dir, sample_kursliste_xml):
 
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
     assert output_xml_path.exists(), "Output XML file was not created."
-    
+
     output_kursliste = parse_output_xml(output_xml_path)
     assert output_kursliste is not None, "Failed to parse output XML."
 
     # Verify no securities are present
-    assert not output_kursliste.shares or len(output_kursliste.shares) == 0, "Shares should be empty."
+    assert (
+        not output_kursliste.shares or len(output_kursliste.shares) == 0
+    ), "Shares should be empty."
     assert not output_kursliste.funds or len(output_kursliste.funds) == 0, "Funds should be empty."
     assert not output_kursliste.bonds or len(output_kursliste.bonds) == 0, "Bonds should be empty."
 
@@ -430,25 +476,29 @@ def test_no_matching_valors(temp_dir, sample_kursliste_xml):
     # Verify Exchange Rates (only for EUR, the target currency)
     assert output_kursliste.exchangeRatesYearEnd is not None, "Year-end exchange rates missing."
     found_ye_rates_currencies = {er.currency for er in output_kursliste.exchangeRatesYearEnd}
-    assert "EUR" in found_ye_rates_currencies, "EUR year-end exchange rate to CHF should be present."
+    assert (
+        "EUR" in found_ye_rates_currencies
+    ), "EUR year-end exchange rate to CHF should be present."
     assert len(found_ye_rates_currencies) == 1, "Only EUR year-end rates should be present."
-    eur_ye_rate = next((r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "EUR"), None)
+    eur_ye_rate = next(
+        (r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "EUR"), None
+    )
     assert eur_ye_rate.value == Decimal('0.95')  # From sample_kursliste_for_filtering.xml
 
     assert output_kursliste.exchangeRatesMonthly is not None
     found_m_rates_currencies = {er.currency for er in output_kursliste.exchangeRatesMonthly}
     assert "EUR" in found_m_rates_currencies, "EUR monthly exchange rate should be present."
     assert len(found_m_rates_currencies) == 1, "Only EUR monthly rates should be present."
-    
+
     assert output_kursliste.exchangeRates is not None
     found_d_rates_currencies = {er.currency for er in output_kursliste.exchangeRates}
     assert "EUR" in found_d_rates_currencies, "EUR daily exchange rate should be present."
     assert len(found_d_rates_currencies) == 1, "Only EUR daily rates should be present."
-    
+
     # Country and Institution lists should be empty as no securities are kept
     assert not output_kursliste.countries or len(output_kursliste.countries) == 0
     assert not output_kursliste.institutions or len(output_kursliste.institutions) == 0
-    
+
 
 def test_error_no_input_source(temp_dir, sample_kursliste_xml):
     """Test error when no input source is provided."""
@@ -460,14 +510,19 @@ def test_error_no_input_source(temp_dir, sample_kursliste_xml):
         target_currency="CHF",
     )
 
-    assert returncode != 0, "Script should exit with a non-zero return code when no input source is provided."
+    assert (
+        returncode != 0
+    ), "Script should exit with a non-zero return code when no input source is provided."
     # The script logs to stderr for this specific error, check for the message.
     # The script also prints "Parsed arguments" to stdout, then the error to stderr.
     # The main script's error message is: "Error: Either --valor-numbers or --tax-statement-files must be provided."
     # This message goes to logging, which by default for ERROR level goes to stderr.
-    assert "Error: Either --valor-numbers or --tax-statement-files must be provided." in stderr, \
-        f"Expected error message not found in stderr. Stderr:\n{stderr}"
-    assert not output_xml_path.exists(), "Output XML file should not be created when no input source is provided."
+    assert (
+        "Error: Either --valor-numbers or --tax-statement-files must be provided." in stderr
+    ), f"Expected error message not found in stderr. Stderr:\n{stderr}"
+    assert (
+        not output_xml_path.exists()
+    ), "Output XML file should not be created when no input source is provided."
 
 
 def test_input_file_not_found(temp_dir):
@@ -478,8 +533,10 @@ def test_input_file_not_found(temp_dir):
         valor_numbers="12345",
         target_currency="CHF",
     )
-    
-    assert returncode != 0, "Script should exit with a non-zero return code for non-existent input file."
+
+    assert (
+        returncode != 0
+    ), "Script should exit with a non-zero return code for non-existent input file."
     assert not output_xml_path.exists(), "Output XML file should not be created."
 
 
@@ -492,30 +549,43 @@ def test_invalid_kursliste_xml(temp_dir, malformed_kursliste_xml):
         target_currency="CHF",
     )
 
-    assert returncode != 0, "Script should exit with a non-zero return code for malformed Kursliste XML."
+    assert (
+        returncode != 0
+    ), "Script should exit with a non-zero return code for malformed Kursliste XML."
     # The script should log an error related to XML parsing.
     # pydantic-xml might raise various exceptions; checking for a generic parsing error message.
     # The main script's error handling logs: "An unexpected error occurred: {e}"
-    assert "An unexpected error occurred" in stderr, \
-        f"Expected XML parsing error message not found in stderr. Stderr:\n{stderr}"
-    assert not output_xml_path.exists(), "Output XML file should not be created for malformed input Kursliste."
+    assert (
+        "An unexpected error occurred" in stderr
+    ), f"Expected XML parsing error message not found in stderr. Stderr:\n{stderr}"
+    assert (
+        not output_xml_path.exists()
+    ), "Output XML file should not be created for malformed input Kursliste."
 
 
-def test_invalid_tax_statement_xml(temp_dir, sample_kursliste_xml, sample_ech0196_statement1_xml, malformed_ech0196_statement_xml):
+def test_invalid_tax_statement_xml(
+    temp_dir, sample_kursliste_xml, sample_ech0196_statement1_xml, malformed_ech0196_statement_xml
+):
     """Test error handling with valid and invalid tax statement XML files."""
     output_xml_path, stdout, stderr, returncode = run_script(
         temp_dir,
         input_file=str(sample_kursliste_xml),
-        tax_statement_files=[str(sample_ech0196_statement1_xml), str(malformed_ech0196_statement_xml)],
+        tax_statement_files=[
+            str(sample_ech0196_statement1_xml),
+            str(malformed_ech0196_statement_xml),
+        ],
         target_currency="CHF",
     )
 
-    assert returncode == 0, f"Script should complete successfully even with a malformed tax statement, by skipping it. Stderr:\n{stderr}\nStdout:\n{stdout}"
-    
+    assert (
+        returncode == 0
+    ), f"Script should complete successfully even with a malformed tax statement, by skipping it. Stderr:\n{stderr}\nStdout:\n{stdout}"
+
     # Check stderr for the error message about the malformed tax statement
     expected_error_msg = f"Error parsing tax statement file {malformed_ech0196_statement_xml}"
-    assert expected_error_msg in stderr, \
-        f"Expected error message for malformed tax statement not found in stderr. Stderr:\n{stderr}"
+    assert (
+        expected_error_msg in stderr
+    ), f"Expected error message for malformed tax statement not found in stderr. Stderr:\n{stderr}"
 
     # Verify that the output XML was created and contains data from the valid tax statement
     assert output_xml_path.exists(), "Output XML file was not created."
@@ -526,9 +596,11 @@ def test_invalid_tax_statement_xml(temp_dir, sample_kursliste_xml, sample_ech019
     assert output_kursliste.shares is not None, "Shares section is missing."
     found_share_valors = {s.valorNumber for s in output_kursliste.shares}
     assert 12345 in found_share_valors, "Share 12345 from valid tax statement should be present."
-    
+
     # Check that no valor from the malformed statement (77777) is present, assuming it wouldn't be processed.
-    assert 77777 not in found_share_valors, "Share from malformed tax statement should not be present."
+    assert (
+        77777 not in found_share_valors
+    ), "Share from malformed tax statement should not be present."
 
 
 def test_invalid_valor_number_format(temp_dir, sample_kursliste_xml):
@@ -540,14 +612,20 @@ def test_invalid_valor_number_format(temp_dir, sample_kursliste_xml):
         target_currency="CHF",
     )
 
-    assert returncode != 0, "Script should exit with a non-zero return code for invalid valor number format."
+    assert (
+        returncode != 0
+    ), "Script should exit with a non-zero return code for invalid valor number format."
     # The script logs "Invalid valor number format from command line: 'abc'. Must be an integer."
     # And "Errors encountered while parsing command-line valor numbers. Exiting."
-    assert "Invalid valor number format from command line: 'abc'" in stderr, \
-        f"Expected invalid valor format message not found in stderr. Stderr:\n{stderr}"
-    assert "Errors encountered while parsing command-line valor numbers. Exiting." in stderr, \
-        f"Expected exiting message not found in stderr. Stderr:\n{stderr}"
-    assert not output_xml_path.exists(), "Output XML file should not be created with invalid valor number format."
+    assert (
+        "Invalid valor number format from command line: 'abc'" in stderr
+    ), f"Expected invalid valor format message not found in stderr. Stderr:\n{stderr}"
+    assert (
+        "Errors encountered while parsing command-line valor numbers. Exiting." in stderr
+    ), f"Expected exiting message not found in stderr. Stderr:\n{stderr}"
+    assert (
+        not output_xml_path.exists()
+    ), "Output XML file should not be created with invalid valor number format."
 
 
 def test_target_currency_behavior(temp_dir, sample_kursliste_xml):
@@ -559,7 +637,7 @@ def test_target_currency_behavior(temp_dir, sample_kursliste_xml):
         target_currency="USD",  # Target is USD
     )
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
-    
+
     output_kursliste = parse_output_xml(output_xml_path)
     assert output_kursliste is not None, "Failed to parse output XML."
 
@@ -580,7 +658,9 @@ def test_target_currency_behavior(temp_dir, sample_kursliste_xml):
     # If USD is target, all USD rates from Kursliste (which are to CHF usually) are still pulled if USD is in relevant_currencies.
     # This test checks if the script correctly identifies USD as relevant and pulls its rates.
     assert output_kursliste.exchangeRatesYearEnd is not None
-    usd_ye_rate = next((r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "USD"), None)
+    usd_ye_rate = next(
+        (r for r in output_kursliste.exchangeRatesYearEnd if r.currency == "USD"), None
+    )
     assert usd_ye_rate is not None, "USD Year End rate should be present as USD is relevant."
     assert usd_ye_rate.value == Decimal('0.90')  # This is the USD to CHF rate from sample
 
@@ -617,7 +697,7 @@ def test_empty_input_kursliste(temp_dir):
         target_currency="CHF",
     )
     assert returncode == 0, f"Script failed with stderr:\n{stderr}\nstdout:\n{stdout}"
-    
+
     output_kursliste = parse_output_xml(output_xml_path)
     assert output_kursliste is not None, "Failed to parse output XML from empty input."
 
@@ -635,4 +715,6 @@ def test_empty_input_kursliste(temp_dir):
     # assert found_def_currencies == {"CHF"}  # CHF from input and target
 
     # Exchange rates should be empty as the input has none
-    assert not output_kursliste.exchangeRatesYearEnd or len(output_kursliste.exchangeRatesYearEnd) == 0
+    assert (
+        not output_kursliste.exchangeRatesYearEnd or len(output_kursliste.exchangeRatesYearEnd) == 0
+    )

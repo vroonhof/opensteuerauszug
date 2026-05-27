@@ -6,7 +6,8 @@ from pathlib import Path
 
 from opensteuerauszug.model.kursliste import (
     KurslisteMetadata,
-    KURSLISTE_NS_2_0, KURSLISTE_NS_2_2,
+    KURSLISTE_NS_2_0,
+    KURSLISTE_NS_2_2,
 )
 
 CONVERTER_SCHEMA_VERSION = "3"
@@ -109,24 +110,39 @@ def create_schema(conn):
     )
     conn.commit()
 
+
 def create_idx(conn):
     """Creates the database indexes."""
     cursor = conn.cursor()
 
     # Add composite indexes for securities table matching query patterns
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_securities_isin_tax_year ON securities (isin, tax_year);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_securities_valor_tax_year ON securities (valor_number, tax_year);")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_securities_isin_tax_year ON securities (isin, tax_year);"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_securities_valor_tax_year ON securities (valor_number, tax_year);"
+    )
 
     # Add index for signs
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_signs_value_tax_year ON signs (sign_value, tax_year);")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_signs_value_tax_year ON signs (sign_value, tax_year);"
+    )
 
     # Add index for DA1
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_da1_country_group_tax_year ON da1_rates (country, security_group, tax_year);")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_da1_country_group_tax_year ON da1_rates (country, security_group, tax_year);"
+    )
 
     # Add indexes for exchange rate tables
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exchange_daily_currency_date_year ON exchange_rates_daily (currency_code, date, tax_year);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exchange_monthly_currency_year_month ON exchange_rates_monthly (currency_code, year, month, tax_year);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exchange_year_end_currency_year ON exchange_rates_year_end (currency_code, year, tax_year);")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_exchange_daily_currency_date_year ON exchange_rates_daily (currency_code, date, tax_year);"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_exchange_monthly_currency_year_month ON exchange_rates_monthly (currency_code, year, month, tax_year);"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_exchange_year_end_currency_year ON exchange_rates_year_end (currency_code, year, tax_year);"
+    )
 
     conn.commit()
 
@@ -163,6 +179,7 @@ def serialize_element_to_xml_bytes(elem, needs_ns_rewrite):
         print(f"Warning: Failed to serialize element {tag}: {e}")
         return None
 
+
 def read_conversion_metadata(db_file_path: Union[str, Path]) -> dict[str, str]:
     db_path = Path(db_file_path)
     if not db_path.exists():
@@ -171,9 +188,7 @@ def read_conversion_metadata(db_file_path: Union[str, Path]) -> dict[str, str]:
     try:
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='metadata'"
-        )
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='metadata'")
         if cursor.fetchone() is None:
             return {}
         cursor.execute("SELECT key, value FROM metadata")
@@ -194,9 +209,7 @@ def read_metadata_value(db_file_path: Union[str, Path], key: str) -> Optional[st
     try:
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='metadata'"
-        )
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='metadata'")
         if cursor.fetchone() is None:
             return None
 
@@ -226,7 +239,7 @@ def read_kursliste_metadata(db_file_path: Union[str, Path]) -> Optional[Kurslist
 def convert_kursliste_xml_to_sqlite(
     xml_file_path: Union[str, Path],
     db_file_path: Union[str, Path],
-    kursliste_metadata: Optional[KurslisteMetadata] = None
+    kursliste_metadata: Optional[KurslisteMetadata] = None,
 ) -> bool:
     """
     Streaming conversion function that processes XML without loading entire file into memory.
@@ -264,10 +277,17 @@ def convert_kursliste_xml_to_sqlite(
         print(f"Starting streaming parse of {xml_file_path}...")
 
         # Security types to process
-        security_tags_local = frozenset([
-            'share', 'bond', 'fund', 'derivative',
-            'coinBullion', 'currencyNote', 'liborSwap',
-        ])
+        security_tags_local = frozenset(
+            [
+                'share',
+                'bond',
+                'fund',
+                'derivative',
+                'coinBullion',
+                'currencyNote',
+                'liborSwap',
+            ]
+        )
 
         counts = {tag: 0 for tag in security_tags_local}
         counts['exchangeRate'] = 0
@@ -343,7 +363,7 @@ def convert_kursliste_xml_to_sqlite(
             tag = elem.tag
             if tag and '}' in tag:
                 namespace = tag.split('}')[0][1:]
-                needs_ns_rewrite = (namespace == KURSLISTE_NS_2_0)
+                needs_ns_rewrite = namespace == KURSLISTE_NS_2_0
             tax_year_str = elem.get('year')
             if tax_year_str:
                 tax_year = int(tax_year_str)
@@ -352,11 +372,13 @@ def convert_kursliste_xml_to_sqlite(
 
         # Build namespace-qualified tag set for fast lookup
         ns_qualified_tags = {}
-        all_tags = (
-            list(security_tags_local)
-            + ['exchangeRate', 'exchangeRateMonthly', 'exchangeRateYearEnd',
-               'sign', 'da1Rate']
-        )
+        all_tags = list(security_tags_local) + [
+            'exchangeRate',
+            'exchangeRateMonthly',
+            'exchangeRateYearEnd',
+            'sign',
+            'da1Rate',
+        ]
         for t in all_tags:
             if namespace:
                 ns_qualified_tags[f'{{{namespace}}}{t}'] = t
@@ -408,35 +430,57 @@ def convert_kursliste_xml_to_sqlite(
                 blob_data = serialize_element_to_xml_bytes(elem, needs_ns_rewrite)
 
                 if blob_data:
-                    securities_batch.append((kl_id, valor_number, isin, tax_year, security_type, blob_data))
+                    securities_batch.append(
+                        (kl_id, valor_number, isin, tax_year, security_type, blob_data)
+                    )
 
                 counts[tag] += 1
                 batch_count += 1
 
             # Process exchange rates
             elif tag == 'exchangeRate':
-                exchange_rates_daily_batch.append((
-                    elem.get('currency'), elem.get('date'), elem.get('value'),
-                    elem.get('denomination'), tax_year, source_file_name,
-                ))
+                exchange_rates_daily_batch.append(
+                    (
+                        elem.get('currency'),
+                        elem.get('date'),
+                        elem.get('value'),
+                        elem.get('denomination'),
+                        tax_year,
+                        source_file_name,
+                    )
+                )
                 counts['exchangeRate'] += 1
                 batch_count += 1
 
             # Process monthly exchange rates
             elif tag == 'exchangeRateMonthly':
-                exchange_rates_monthly_batch.append((
-                    elem.get('currency'), elem.get('year'), elem.get('month'),
-                    elem.get('value'), elem.get('denomination'), tax_year, source_file_name,
-                ))
+                exchange_rates_monthly_batch.append(
+                    (
+                        elem.get('currency'),
+                        elem.get('year'),
+                        elem.get('month'),
+                        elem.get('value'),
+                        elem.get('denomination'),
+                        tax_year,
+                        source_file_name,
+                    )
+                )
                 counts['exchangeRateMonthly'] += 1
                 batch_count += 1
 
             # Process year-end exchange rates
             elif tag == 'exchangeRateYearEnd':
-                exchange_rates_year_end_batch.append((
-                    elem.get('currency'), elem.get('year'), elem.get('value'),
-                    elem.get('valueMiddle'), elem.get('denomination'), tax_year, source_file_name,
-                ))
+                exchange_rates_year_end_batch.append(
+                    (
+                        elem.get('currency'),
+                        elem.get('year'),
+                        elem.get('value'),
+                        elem.get('valueMiddle'),
+                        elem.get('denomination'),
+                        tax_year,
+                        source_file_name,
+                    )
+                )
                 counts['exchangeRateYearEnd'] += 1
                 batch_count += 1
 
@@ -457,7 +501,9 @@ def convert_kursliste_xml_to_sqlite(
                 security_group = elem.get('securityGroup')
                 blob_data = serialize_element_to_xml_bytes(elem, needs_ns_rewrite)
                 if blob_data:
-                    da1_rates_batch.append((kl_id, country, security_group, tax_year, source_file_name, blob_data))
+                    da1_rates_batch.append(
+                        (kl_id, country, security_group, tax_year, source_file_name, blob_data)
+                    )
                     counts['da1Rate'] += 1
                     batch_count += 1
 
@@ -480,11 +526,11 @@ def convert_kursliste_xml_to_sqlite(
         conn.commit()
 
         total_count += batch_count
-        print(f"\nCreating indexes...")
+        print("\nCreating indexes...")
         create_idx(conn)
 
         # Print summary
-        print(f"\nConversion complete:")
+        print("\nConversion complete:")
         print(f"  Shares: {counts['share']}")
         print(f"  Bonds: {counts['bond']}")
         print(f"  Funds: {counts['fund']}")

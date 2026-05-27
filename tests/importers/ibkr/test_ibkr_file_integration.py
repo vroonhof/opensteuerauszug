@@ -11,18 +11,22 @@ from tests.utils.samples import get_sample_files
 # Check if ibflex is available, skip tests if not
 try:
     from ibflex import parser as ibflex_parser  # noqa: F401
+
     IBFLEX_INSTALLED = True
 except ImportError:
     IBFLEX_INSTALLED = False
 
 pytestmark = [
-    pytest.mark.skipif(not IBFLEX_INSTALLED, reason="ibflex library is not installed, skipping IBKR importer tests"),
-    pytest.mark.integration # Mark these as integration tests
+    pytest.mark.skipif(
+        not IBFLEX_INSTALLED, reason="ibflex library is not installed, skipping IBKR importer tests"
+    ),
+    pytest.mark.integration,  # Mark these as integration tests
 ]
 
 # Define the path to the sample files relative to the tests directory
 # Sample files will be discovered from 'tests/samples/import/ibkr/' and EXTRA_SAMPLE_DIR
-SAMPLE_FILES_PATTERN = "import/ibkr/*.xml" # Pattern to match IBKR XML files
+SAMPLE_FILES_PATTERN = "import/ibkr/*.xml"  # Pattern to match IBKR XML files
+
 
 @pytest.fixture
 def default_ibkr_settings() -> List[IbkrAccountSettings]:
@@ -31,16 +35,21 @@ def default_ibkr_settings() -> List[IbkrAccountSettings]:
     # Or, ideally, the account_id could be derived from the Flex Query file itself.
     return [
         IbkrAccountSettings(
-            canton="ZH", # Example Canton
-            full_name="Test User", # Example Full Name
-            account_number="UVALID123", # Example IBKR Account Number, should match data in samples
-            broker_name="Interactive Brokers", # Standard broker name
-            account_name_alias="Test IBKR Account" # Example alias
+            canton="ZH",  # Example Canton
+            full_name="Test User",  # Example Full Name
+            account_number="UVALID123",  # Example IBKR Account Number, should match data in samples
+            broker_name="Interactive Brokers",  # Standard broker name
+            account_name_alias="Test IBKR Account",  # Example alias
         )
     ]
 
-@pytest.mark.parametrize("xml_file_path_str", get_sample_files(SAMPLE_FILES_PATTERN, base_dir="tests/samples/"))
-def test_ibkr_import_from_sample_file(xml_file_path_str: str, default_ibkr_settings: List[IbkrAccountSettings]):
+
+@pytest.mark.parametrize(
+    "xml_file_path_str", get_sample_files(SAMPLE_FILES_PATTERN, base_dir="tests/samples/")
+)
+def test_ibkr_import_from_sample_file(
+    xml_file_path_str: str, default_ibkr_settings: List[IbkrAccountSettings]
+):
     xml_file_path = Path(xml_file_path_str)
     assert xml_file_path.exists(), f"Sample file not found: {xml_file_path}"
 
@@ -57,23 +66,25 @@ def test_ibkr_import_from_sample_file(xml_file_path_str: str, default_ibkr_setti
     extracted_year = None
     if year_parts:
         try:
-            extracted_year = int(year_parts[0]) # take the first one found
+            extracted_year = int(year_parts[0])  # take the first one found
             period_from = date(extracted_year, 1, 1)
             period_to = date(extracted_year, 12, 31)
         except ValueError:
-            pass # Not a valid year
-    
+            pass  # Not a valid year
+
     # Skip files that are known to require a code-level fix before they can be imported
     SKIPPED_FILENAMES = {}
     if xml_file_path.name in SKIPPED_FILENAMES:
-        pytest.skip(f"{xml_file_path.name!r} is excluded from the general parametrized test — short options not yet supported (issue #218)")
+        pytest.skip(
+            f"{xml_file_path.name!r} is excluded from the general parametrized test — short options not yet supported (issue #218)"
+        )
 
-    assert period_from is not None and period_to is not None, f"Period from and to must be set for {xml_file_path.name}"
+    assert (
+        period_from is not None and period_to is not None
+    ), f"Period from and to must be set for {xml_file_path.name}"
 
     importer = IbkrImporter(
-        period_from=period_from,
-        period_to=period_to,
-        account_settings_list=default_ibkr_settings
+        period_from=period_from, period_to=period_to, account_settings_list=default_ibkr_settings
     )
 
     try:
@@ -81,12 +92,14 @@ def test_ibkr_import_from_sample_file(xml_file_path_str: str, default_ibkr_setti
     except ValueError as e:
         # If the test is designed to catch specific errors based on filename convention (e.g., "error_*.xml")
         if "error" in xml_file_path.stem.lower():
-            pytest.skip(f"Skipping error-raising test for {xml_file_path.name} as it's expected to fail: {e}")
+            pytest.skip(
+                f"Skipping error-raising test for {xml_file_path.name} as it's expected to fail: {e}"
+            )
             # Or, if you want to assert specific error messages for error files:
             # assert "specific error message" in str(e), f"File {xml_file_path.name} did not raise expected error."
-            # return 
+            # return
         else:
-            raise # Re-raise if it's an unexpected error
+            raise  # Re-raise if it's an unexpected error
 
     assert tax_statement is not None, f"TaxStatement should not be None for {xml_file_path.name}"
     assert tax_statement.periodFrom == period_from
@@ -98,10 +111,10 @@ def test_ibkr_import_from_sample_file(xml_file_path_str: str, default_ibkr_setti
     if tax_statement.listOfSecurities:
         assert tax_statement.listOfSecurities.depot is not None
         for depot in tax_statement.listOfSecurities.depot:
-            assert depot.depotNumber is not None # Basic check
+            assert depot.depotNumber is not None  # Basic check
             for security in depot.security:
                 assert security.securityName is not None
-                assert security.currency is not None # String like "USD"
+                assert security.currency is not None  # String like "USD"
                 # Example: Check for currency string
                 assert isinstance(security.currency, str) and len(security.currency) == 3
 
@@ -110,14 +123,13 @@ def test_ibkr_import_from_sample_file(xml_file_path_str: str, default_ibkr_setti
                         assert payment.paymentDate is not None
                         # Check name if it exists
                         if payment.name:
-                             assert isinstance(payment.name, str)
-
+                            assert isinstance(payment.name, str)
 
     if tax_statement.listOfBankAccounts:
         assert tax_statement.listOfBankAccounts.bankAccount is not None
         for ba in tax_statement.listOfBankAccounts.bankAccount:
             assert ba.bankAccountNumber is not None
-            assert ba.bankAccountCurrency is not None # String like "USD"
+            assert ba.bankAccountCurrency is not None  # String like "USD"
             assert isinstance(ba.bankAccountCurrency, str) and len(ba.bankAccountCurrency) == 3
 
             if ba.payment:
@@ -126,13 +138,16 @@ def test_ibkr_import_from_sample_file(xml_file_path_str: str, default_ibkr_setti
                     # Check name if it exists
                     if payment.name:
                         assert isinstance(payment.name, str)
-            
-            if ba.taxValue: # taxValue is a single object, not a list
+
+            if ba.taxValue:  # taxValue is a single object, not a list
                 assert ba.taxValue.referenceDate is not None
-                assert ba.taxValue.balance is not None # Or check based on expected data
+                assert ba.taxValue.balance is not None  # Or check based on expected data
 
     # Add a message indicating that detailed content checks depend on the sample file.
-    print(f"Successfully imported {xml_file_path.name}. Detailed content assertions depend on the specific sample.")
+    print(
+        f"Successfully imported {xml_file_path.name}. Detailed content assertions depend on the specific sample."
+    )
+
 
 # Remove old specific tests and fixtures as they are superseded by the parameterized test.
 # def test_ibkr_import_from_valid_sample_file(valid_ibkr_settings): ...

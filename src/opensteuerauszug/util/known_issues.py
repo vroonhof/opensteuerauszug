@@ -5,7 +5,6 @@ from typing import Optional
 from opensteuerauszug.calculate.base import CalculationError
 from opensteuerauszug.model.ech0196 import Institution, SecurityPayment
 
-
 # With our current structure we cannot auto detect.
 TRUEWEALTH_USES_CHF = [
     "IE0005042456",
@@ -27,8 +26,6 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
     if not institution or not getattr(institution, "name", None):
         return False
 
-    
-    
     # All the example we have do not set the kurliste field
     if error.field_path.endswith(".kursliste") and error.actual is None:
         return True
@@ -54,7 +51,11 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
         if error.field_path.endswith("exchangeRate"):
             if error.expected == Decimal("1") and error.actual == Decimal("0"):
                 return True
-        elif error.field_path.endswith("taxValue.value") or error.field_path.endswith("taxValue.balance") or error.field_path.endswith("amount"):
+        elif (
+            error.field_path.endswith("taxValue.value")
+            or error.field_path.endswith("taxValue.balance")
+            or error.field_path.endswith("amount")
+        ):
             # UBS rounds to two places (though the spec says not to round)
             if error.expected is not None and error.actual is not None:
                 if abs(error.expected - error.actual) < Decimal("0.005"):
@@ -67,10 +68,14 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
                     return True
     if institution.name.startswith("True Wealth"):
         # True wealth does not seem to use exchange rates from the kurstliste for the bank accounts
-        # allow 2% deviation for exchange rates and values  
+        # allow 2% deviation for exchange rates and values
         if error.field_path.startswith("listOfBankAccounts"):
             if error.field_path.endswith("exchangeRate") or error.field_path.endswith("value"):
-                if error.expected is not None and error.actual is not None and error.expected != Decimal("0"):
+                if (
+                    error.expected is not None
+                    and error.actual is not None
+                    and error.expected != Decimal("0")
+                ):
                     if abs(error.expected - error.actual) / error.expected < Decimal("0.02"):
                         return True
         elif error.field_path.startswith("listOfSecurities"):
@@ -79,7 +84,9 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
                 if error.field_path.endswith("sign") and error.actual is None:
                     return True
                 TRUEWALTH_UNSET_FIELDS = ['.amount', '.exchangeRate']
-                if error.actual is None and any(f in error.field_path for f in TRUEWALTH_UNSET_FIELDS):
+                if error.actual is None and any(
+                    f in error.field_path for f in TRUEWALTH_UNSET_FIELDS
+                ):
                     return True
                 if any(isin in error.field_path for isin in TRUEWEALTH_USES_CHF):
                     # For these securities, True Wealth uses CHF as currency, so the native currency values are wrong
@@ -91,20 +98,22 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
                     if error.expected is not None and error.actual is not None:
                         if abs(error.expected - error.actual) < Decimal("0.005"):
                             return True
-                
+
                 if "IE00BD8PH067" in error.field_path and "2025-06-25" in error.field_path:
                     # Kursliste lists part of dividend as capital return for this security/date
                     return True
 
-                # TODO(recompute against kursliste site):  
-                if error.field_path.endswith("grossRevenueA") or error.field_path.endswith("grossRevenueB"):
+                # TODO(recompute against kursliste site):
+                if error.field_path.endswith("grossRevenueA") or error.field_path.endswith(
+                    "grossRevenueB"
+                ):
                     # allow small tolerance for rounding differences. unclear who is correct
                     if error.expected is not None and error.actual is not None:
                         if abs(error.expected - error.actual) < Decimal("0.01"):
                             return True
 
             if error.field_path.endswith("unitPrice"):
-            # Reported rounded to three places (though the spec says not to round)
+                # Reported rounded to three places (though the spec says not to round)
                 if error.expected is not None and error.actual is not None:
                     if abs(error.expected - error.actual) < Decimal("0.0005"):
                         return True
@@ -119,7 +128,11 @@ def is_known_issue(error: Exception, institution: Optional[Institution]) -> bool
                 return True
             # The difference in TaxValue cascades, lets be a bit lenient here
             if error.field_path.endswith("value"):
-                if error.expected is not None and error.actual is not None and error.expected != Decimal("0"):
+                if (
+                    error.expected is not None
+                    and error.actual is not None
+                    and error.expected != Decimal("0")
+                ):
                     if abs(error.expected - error.actual) / error.expected < Decimal("0.005"):
                         return True
     else:

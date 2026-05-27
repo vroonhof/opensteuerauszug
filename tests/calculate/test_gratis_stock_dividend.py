@@ -166,9 +166,7 @@ def test_gratis_stock_dividend_has_no_da1_withholding():
 
     # Should have no warnings since mutation is on correct date (payment_date)
     assert calc.errors == []
-    split_warnings = [
-        w for w in calc._stock_split_warnings
-    ]
+    split_warnings = [w for w in calc._stock_split_warnings]
     assert len(split_warnings) == 0
 
 
@@ -480,7 +478,7 @@ def test_gratis_stock_dividend_mutation_on_exdate_fallback_accepted():
     records the mutation on the ex-date instead, the validator should silently
     accept it (no warning) provided no other tax event falls between the two dates.
     """
-    ex_date = date(2025, 7, 11)      # Friday
+    ex_date = date(2025, 7, 11)  # Friday
     payment_date = date(2025, 7, 18)  # Following Friday
 
     calc, _ = _make_calc_with_gratis_payment(ex_date, payment_date)
@@ -508,9 +506,9 @@ def test_stock_split_mutation_on_next_business_day_fallback_accepted():
     Some brokers post corporate actions one business day after the Kursliste
     effective date.  The validator should silently accept that date.
     """
-    ex_date = date(2025, 3, 14)   # Friday — the Kursliste effectiveDate
+    ex_date = date(2025, 3, 14)  # Friday — the Kursliste effectiveDate
     payment_date = date(2025, 3, 17)  # Monday
-    next_bday = date(2025, 3, 17)     # Monday = next business day after Friday
+    next_bday = date(2025, 3, 17)  # Monday = next business day after Friday
 
     payment = PaymentShare(
         id=1,
@@ -612,7 +610,7 @@ def test_fallback_blocked_by_intervening_tax_event():
     fallback date, the fallback must not be used (to avoid ambiguity).  The
     validator should issue a warning in this case.
     """
-    ex_date = date(2025, 7, 11)       # Friday — effectiveDate for split
+    ex_date = date(2025, 7, 11)  # Friday — effectiveDate for split
     payment_date = date(2025, 7, 18)  # Following Friday
 
     # An *intervening* dividend payment lands on 2025-07-15 (Tuesday), which

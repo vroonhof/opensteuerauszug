@@ -13,6 +13,7 @@ SAMPLE_CSV = (
 
 BAD_CSV = 'Not a Schwab positions file\nSymbol,Description\nAAPL,Apple Inc.'
 
+
 def test_extract_positions_valid():
     with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.csv') as tmp:
         tmp.write(SAMPLE_CSV)
@@ -41,6 +42,7 @@ def test_extract_positions_valid():
     assert stock1.balanceCurrency == 'USD'
     assert stock2.balanceCurrency == 'USD'
 
+
 def test_asset_type_column_identifies_security_positions():
     csv_content = (
         '"Positions for account Individual ...632 as of 02:19 PM ET, 2026/05/11"\n'
@@ -65,6 +67,7 @@ def test_asset_type_column_identifies_security_positions():
     assert pos.symbol == 'META'
     assert pos.security_type == 'Equity'
     assert stock.quantity == 111
+
 
 def test_extract_positions_invalid():
     with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.csv') as tmp:

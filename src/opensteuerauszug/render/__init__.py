@@ -1,1 +1,1 @@
-"""Package for rendering and output generation.""" 
+"""Package for rendering and output generation."""

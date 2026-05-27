@@ -1,4 +1,5 @@
 """Tests for CLI configuration overrides."""
+
 import pytest
 
 from opensteuerauszug.config.loader import ConfigManager
@@ -18,10 +19,7 @@ class TestCliOverrides:
         config_dict = {"general": {"language": "de", "canton": "ZH"}}
         config_manager = ConfigManager()
 
-        result = config_manager._apply_cli_overrides(
-            config_dict,
-            ["general.language=fr"]
-        )
+        result = config_manager._apply_cli_overrides(config_dict, ["general.language=fr"])
 
         assert result["general"]["language"] == "fr"
         assert result["general"]["canton"] == "ZH"  # Unchanged
@@ -31,10 +29,7 @@ class TestCliOverrides:
         config_dict = {"general": {"language": "de", "canton": "ZH"}}
         config_manager = ConfigManager()
 
-        result = config_manager._apply_cli_overrides(
-            config_dict,
-            ["language=fr"]
-        )
+        result = config_manager._apply_cli_overrides(config_dict, ["language=fr"])
 
         assert result["general"]["language"] == "fr"
         assert result["general"]["canton"] == "ZH"
@@ -45,8 +40,7 @@ class TestCliOverrides:
         config_manager = ConfigManager()
 
         result = config_manager._apply_cli_overrides(
-            config_dict,
-            ["general.language=fr", "general.canton=BE"]
+            config_dict, ["general.language=fr", "general.canton=BE"]
         )
 
         assert result["general"]["language"] == "fr"
@@ -57,10 +51,7 @@ class TestCliOverrides:
         config_dict = {"settings": {"enabled": False}}
         config_manager = ConfigManager()
 
-        result = config_manager._apply_cli_overrides(
-            config_dict,
-            ["settings.enabled=true"]
-        )
+        result = config_manager._apply_cli_overrides(config_dict, ["settings.enabled=true"])
 
         assert result["settings"]["enabled"] is True
 
@@ -69,10 +60,7 @@ class TestCliOverrides:
         config_dict = {"settings": {"count": 10}}
         config_manager = ConfigManager()
 
-        result = config_manager._apply_cli_overrides(
-            config_dict,
-            ["settings.count=42"]
-        )
+        result = config_manager._apply_cli_overrides(config_dict, ["settings.count=42"])
 
         assert result["settings"]["count"] == 42
 
@@ -81,10 +69,7 @@ class TestCliOverrides:
         config_dict = {}
         config_manager = ConfigManager()
 
-        result = config_manager._apply_cli_overrides(
-            config_dict,
-            ["general.language=fr"]
-        )
+        result = config_manager._apply_cli_overrides(config_dict, ["general.language=fr"])
 
         assert result["general"]["language"] == "fr"
 
@@ -104,10 +89,7 @@ class TestCliOverrides:
         config_dict = {"general": {"language": "de"}}
         config_manager = ConfigManager()
 
-        result = config_manager._apply_cli_overrides(
-            config_dict,
-            ["general.language=fr"]
-        )
+        result = config_manager._apply_cli_overrides(config_dict, ["general.language=fr"])
 
         # Original should be unchanged
         assert config_dict["general"]["language"] == "de"
@@ -120,8 +102,7 @@ class TestCliOverrides:
         config_manager = ConfigManager()
 
         result = config_manager._apply_cli_overrides(
-            config_dict,
-            ["invalid_format", "general.language=fr"]
+            config_dict, ["invalid_format", "general.language=fr"]
         )
 
         # Valid override should still be applied
@@ -155,9 +136,7 @@ keep_existing_payments = false
         )
         config_manager = ConfigManager(config_file_path=str(config_path))
 
-        result = config_manager.resolve_calculate_settings(
-            ["keep_existing_payments=true"]
-        )
+        result = config_manager.resolve_calculate_settings(["keep_existing_payments=true"])
 
         assert result.keep_existing_payments is False
 
@@ -194,4 +173,3 @@ account_number = "CH123"
 
         assert result.settings.language == "fr"
         assert result.settings.model_extra == {} or "general" not in result.settings.model_extra
-

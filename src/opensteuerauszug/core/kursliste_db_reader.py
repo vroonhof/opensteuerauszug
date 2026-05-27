@@ -9,8 +9,19 @@ from pydantic import ValidationError
 from pydantic_xml import BaseXmlModel as PydanticXmlModel
 
 from opensteuerauszug.model.kursliste import (
-    Security, Share, Bond, Fund, Derivative, CoinBullion, CurrencyNote, LiborSwap,
-    SecurityTypeESTV, Sign, Da1Rate, Da1RateType, SecurityGroupESTV
+    Security,
+    Share,
+    Bond,
+    Fund,
+    Derivative,
+    CoinBullion,
+    CurrencyNote,
+    LiborSwap,
+    SecurityTypeESTV,
+    Sign,
+    Da1Rate,
+    Da1RateType,
+    SecurityGroupESTV,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,9 +35,18 @@ class KurslisteDBReader:
     Securities are stored as BLOBs (raw XML in v3+, JSON in legacy) and
     deserialized into Pydantic models on read.
     """
+
     _SECURITY_TYPE_MAP: PyDict[str, Type[Security]] = {
-        st.value: globals()[st.name.split('_')[-1].capitalize() if '.' not in st.name else st.name.split('.')[0].capitalize()]
-        for st in SecurityTypeESTV if st.name.split('_')[-1].capitalize() in globals() or ('.' in st.name and st.name.split('.')[0].capitalize() in globals())
+        st.value: globals()[
+            (
+                st.name.split('_')[-1].capitalize()
+                if '.' not in st.name
+                else st.name.split('.')[0].capitalize()
+            )
+        ]
+        for st in SecurityTypeESTV
+        if st.name.split('_')[-1].capitalize() in globals()
+        or ('.' in st.name and st.name.split('.')[0].capitalize() in globals())
     }
     # Manually adjust specific mappings if capitalization/naming is tricky
     # For example, if SecurityTypeESTV.SHARE_COMMON -> Share, SecurityTypeESTV.BOND_BOND -> Bond
@@ -61,14 +81,13 @@ class KurslisteDBReader:
         SecurityTypeESTV.CURRNOTE_TOKEN.value: CurrencyNote,
         SecurityTypeESTV.LIBOSWAP_LIBOR.value: LiborSwap,
         SecurityTypeESTV.LIBOSWAP_SWAP.value: LiborSwap,
-        SecurityTypeESTV.OPTION_CALL.value: Derivative, # Option could map to Derivative too
+        SecurityTypeESTV.OPTION_CALL.value: Derivative,  # Option could map to Derivative too
         SecurityTypeESTV.OPTION_PUT.value: Derivative,
         SecurityTypeESTV.OPTION_PHANTOM.value: Derivative,
         # Note: Some SecurityTypeESTV might not have a direct unique Pydantic model
         # or might be grouped under a more generic one like 'Derivative' or 'OtherSecurity'.
         # This map needs to be comprehensive for types stored.
     }
-
 
     def __init__(self, db_path: str):
         """
@@ -97,7 +116,9 @@ class KurslisteDBReader:
             logger.debug("Could not read blob_format from metadata, assuming legacy 'json' format.")
         return "json"  # Legacy databases used JSON blobs
 
-    def _deserialize_object(self, blob_data: bytes, model_class: Type[_T], object_type_name: str) -> Optional[_T]:
+    def _deserialize_object(
+        self, blob_data: bytes, model_class: Type[_T], object_type_name: str
+    ) -> Optional[_T]:
         """
         Generic deserializer for objects stored as BLOBs.
         Handles both XML format (v3+) and legacy JSON format.
@@ -116,7 +137,9 @@ class KurslisteDBReader:
                 instance = model_class.model_validate_json(json_string)
             return instance
         except json.JSONDecodeError:
-            print(f"Warning: Failed to decode blob for type '{object_type_name}'. Data: {blob_data[:100]}...")
+            print(
+                f"Warning: Failed to decode blob for type '{object_type_name}'. Data: {blob_data[:100]}..."
+            )
             return None
         except ValidationError as e:
             print(f"Warning: Pydantic validation error for type '{object_type_name}': {e}")
@@ -129,15 +152,19 @@ class KurslisteDBReader:
         """
         Deserializes a security object from BLOB data using its type identifier.
         """
-        if not type_identifier: # blob_data check is done in _deserialize_object
-             print(f"Warning: No type_identifier provided for security deserialization.")
-             return None
+        if not type_identifier:  # blob_data check is done in _deserialize_object
+            print("Warning: No type_identifier provided for security deserialization.")
+            return None
 
         model_class = self._SECURITY_TYPE_MAP.get(type_identifier)
         if not model_class:
-            print(f"Warning: Unknown security type identifier '{type_identifier}'. Cannot deserialize.")
+            print(
+                f"Warning: Unknown security type identifier '{type_identifier}'. Cannot deserialize."
+            )
             return None
-        return self._deserialize_object(blob_data, model_class, f"Security (Type: {type_identifier})")
+        return self._deserialize_object(
+            blob_data, model_class, f"Security (Type: {type_identifier})"
+        )
 
     def _execute_query_fetchone(self, query: str, params: tuple = ()) -> Optional[sqlite3.Row]:
         """Helper to execute a query and fetch one result."""
@@ -161,12 +188,12 @@ class KurslisteDBReader:
             return cursor.fetchall()
         except sqlite3.Error as e:
             print(f"SQLite error: {e} in query: {query} with params: {params}")
-            return [] # Return empty list on error
+            return []  # Return empty list on error
 
     def _row_to_dict(self, row: Optional[sqlite3.Row]) -> Optional[PyDict]:
         """Converts an sqlite3.Row object to a dictionary."""
         if row:
-            return dict(row) # This method is no longer used for securities.
+            return dict(row)  # This method is no longer used for securities.
         return None
 
     def find_security_by_valor(self, valor_number: int, tax_year: int) -> Optional[Security]:
@@ -183,7 +210,9 @@ class KurslisteDBReader:
         # valor_number in DB is TEXT, so ensure input valor_number is passed as string for query
         row = self._execute_query_fetchone(query, (str(valor_number), tax_year))
         if row:
-            return self._deserialize_security(row["security_object_blob"], row["security_type_identifier"])
+            return self._deserialize_security(
+                row["security_object_blob"], row["security_type_identifier"]
+            )
         return None
 
     def find_securities_by_valor(self, valor_number: int, tax_year: int) -> List[Security]:
@@ -199,7 +228,9 @@ class KurslisteDBReader:
         rows = self._execute_query_fetchall(query, (str(valor_number), tax_year))
         securities = []
         for row in rows:
-            sec = self._deserialize_security(row["security_object_blob"], row["security_type_identifier"])
+            sec = self._deserialize_security(
+                row["security_object_blob"], row["security_type_identifier"]
+            )
             if sec:
                 securities.append(sec)
         return securities
@@ -217,7 +248,9 @@ class KurslisteDBReader:
         """
         row = self._execute_query_fetchone(query, (isin, tax_year))
         if row:
-            return self._deserialize_security(row["security_object_blob"], row["security_type_identifier"])
+            return self._deserialize_security(
+                row["security_object_blob"], row["security_type_identifier"]
+            )
         return None
 
     def find_securities_by_isin(self, isin: str, tax_year: int) -> List[Security]:
@@ -233,7 +266,9 @@ class KurslisteDBReader:
         rows = self._execute_query_fetchall(query, (isin, tax_year))
         securities = []
         for row in rows:
-            sec = self._deserialize_security(row["security_object_blob"], row["security_type_identifier"])
+            sec = self._deserialize_security(
+                row["security_object_blob"], row["security_type_identifier"]
+            )
             if sec:
                 securities.append(sec)
         return securities
@@ -293,9 +328,7 @@ class KurslisteDBReader:
                     denomination = Decimal(str(row_daily["denomination"]))
                 return Decimal(str(row_daily["rate"])) / denomination
             except InvalidOperation:
-                print(
-                    f"Warning: Could not convert daily rate '{row_daily['rate']}' to Decimal."
-                )
+                print(f"Warning: Could not convert daily rate '{row_daily['rate']}' to Decimal.")
 
         # 2. Try monthly rates if daily not found or rate is None
         month_str = reference_date.strftime("%m")  # Format month as "01", "02", etc.
@@ -364,10 +397,15 @@ class KurslisteDBReader:
             return self._deserialize_object(row["sign_object_blob"], Sign, "Sign")
         return None
 
-    def get_da1_rate(self, country: str, security_group: SecurityGroupESTV, tax_year: int,
-                     security_type: Optional[SecurityTypeESTV] = None,
-                     da1_rate_type: Optional[Da1RateType] = None,
-                     reference_date: Optional[date] = None) -> Optional[List[Da1Rate]]:
+    def get_da1_rate(
+        self,
+        country: str,
+        security_group: SecurityGroupESTV,
+        tax_year: int,
+        security_type: Optional[SecurityTypeESTV] = None,
+        da1_rate_type: Optional[Da1RateType] = None,
+        reference_date: Optional[date] = None,
+    ) -> Optional[List[Da1Rate]]:
         """
         Retrieves a Da1Rate object based on criteria.
         Deserializes the Da1Rate object from BLOB.
@@ -389,7 +427,9 @@ class KurslisteDBReader:
         candidates: List[Da1Rate] = []
         for row in rows:
             if row["da1_rate_object_blob"]:
-                deserialized_obj = self._deserialize_object(row["da1_rate_object_blob"], Da1Rate, "Da1Rate")
+                deserialized_obj = self._deserialize_object(
+                    row["da1_rate_object_blob"], Da1Rate, "Da1Rate"
+                )
                 if deserialized_obj:
                     candidates.append(deserialized_obj)
 
@@ -404,9 +444,7 @@ class KurslisteDBReader:
             ]
 
         if da1_rate_type:
-            filtered_candidates = [
-                r for r in filtered_candidates if r.da1RateType == da1_rate_type
-            ]
+            filtered_candidates = [r for r in filtered_candidates if r.da1RateType == da1_rate_type]
 
         if reference_date:
             final_candidates = []
@@ -429,7 +467,7 @@ class KurslisteDBReader:
 if __name__ == '__main__':
     # Example Usage (requires a dummy database to be set up)
     # This part is for illustrative purposes and won't be run by the agent.
-    
+
     # Create a dummy DB for testing
     # conn = sqlite3.connect(':memory:')
     # cursor = conn.cursor()
@@ -464,7 +502,7 @@ if __name__ == '__main__':
 
     # # Now, use the reader (assuming dummy.db was created and populated)
     # # For real use, replace ':memory:' with 'path/to/your/kursliste.sqlite'
-    
+
     # # Create a dummy db file for the example
     # DUMMY_DB_PATH = "dummy_kursliste_plural.sqlite" # Changed name for testing
     # conn_file = sqlite3.connect(DUMMY_DB_PATH)
@@ -494,7 +532,7 @@ if __name__ == '__main__':
     #     print("\n--- Securities (Single) ---")
     #     security_v_single = reader.find_security_by_valor(12345, 2023) # Old method
     #     print(f"Found by Valor (single - 12345, 2023): {security_v_single}")
-        
+
     #     security_i_single = reader.find_security_by_isin("DE678", 2023) # Old method
     #     print(f"Found by ISIN (single - DE678, 2023): {security_i_single}")
 
@@ -503,7 +541,7 @@ if __name__ == '__main__':
     #     print(f"Found by Valor (list - 12345, 2023): Count={len(securities_v_list)}")
     #     for sec in securities_v_list:
     #         print(f"  - {sec}")
-            
+
     #     securities_i_list = reader.find_securities_by_isin("DE678", 2023)
     #     print(f"Found by ISIN (list - DE678, 2023): Count={len(securities_i_list)}")
     #     for sec in securities_i_list:
@@ -512,9 +550,8 @@ if __name__ == '__main__':
     #     securities_v_none_list = reader.find_securities_by_valor(88888, 2023)
     #     print(f"Found by Valor (list - 88888, 2023) - Expected Empty List: {securities_v_none_list}")
 
-
     #     print("\n--- Exchange Rates ---") # Unchanged from previous example
-    #     rate_usd = reader.get_exchange_rate("USD", date(2023, 7, 15)) 
+    #     rate_usd = reader.get_exchange_rate("USD", date(2023, 7, 15))
     #     print(f"Rate USD on 2023-07-15 (Daily): {rate_usd} (Type: {type(rate_usd)})")
 
     #     rate_eur = reader.get_exchange_rate("EUR", date(2023, 8, 10)) # Should use monthly
@@ -522,7 +559,7 @@ if __name__ == '__main__':
 
     #     rate_cad = reader.get_exchange_rate("CAD", date(2023, 5, 5)) # Should use year-end
     #     print(f"Rate CAD on 2023-05-05 (Year-End): {rate_cad} (Type: {type(rate_cad)})")
-        
+
     #     rate_gbp = reader.get_exchange_rate("GBP", date(2023, 1, 1)) # No daily/monthly, should use year-end if exists
     #     # To test this, we'd need GBP in exchange_rates_year_end; currently it's CAD.
     #     # Let's assume it would pick from there if GBP was present.
@@ -532,10 +569,10 @@ if __name__ == '__main__':
 
     #     rate_jpy_none = reader.get_exchange_rate("JPY", date(2023, 12, 25)) # Daily rate is None
     #     print(f"Rate JPY on 2023-12-25 (Rate is None in DB): {rate_jpy_none}")
-        
+
     #     rate_nonexistent = reader.get_exchange_rate("XYZ", date(2023, 1, 1))
     #     print(f"Rate XYZ on 2023-01-01 (Non-existent): {rate_nonexistent}")
-    
+
     # import os
     # os.remove(DUMMY_DB_PATH) # Clean up dummy db
-    pass # End of example
+    pass  # End of example

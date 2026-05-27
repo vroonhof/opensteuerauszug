@@ -1,1 +1,1 @@
-"""Test package for opensteuerauszug.""" 
+"""Test package for opensteuerauszug."""

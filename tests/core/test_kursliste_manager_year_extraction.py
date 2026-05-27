@@ -13,18 +13,21 @@ SAMPLE_XML_CONTENT_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 </kursliste>
 """
 
+
 def create_sample_xml_no_year_in_filename(file_path: Path, year: int):
     content = SAMPLE_XML_CONTENT_TEMPLATE.format(year=year)
     file_path.write_text(content)
     return file_path
 
+
 def test_get_year_from_xml_content_success(tmp_path):
     manager = KurslisteManager()
-    file_path = tmp_path / "data_file.xml" # No year in filename
+    file_path = tmp_path / "data_file.xml"  # No year in filename
     create_sample_xml_no_year_in_filename(file_path, 2025)
 
     year = manager._get_year_from_xml_content(file_path)
     assert year == 2025
+
 
 def test_get_year_from_xml_content_malformed(tmp_path):
     manager = KurslisteManager()
@@ -34,6 +37,7 @@ def test_get_year_from_xml_content_malformed(tmp_path):
     year = manager._get_year_from_xml_content(file_path)
     assert year is None
 
+
 def test_get_year_from_xml_content_no_year_attribute(tmp_path):
     manager = KurslisteManager()
     file_path = tmp_path / "no_year_attr.xml"
@@ -41,6 +45,7 @@ def test_get_year_from_xml_content_no_year_attribute(tmp_path):
 
     year = manager._get_year_from_xml_content(file_path)
     assert year is None
+
 
 def test_load_directory_fallback_to_xml_content(tmp_path):
     manager = KurslisteManager()

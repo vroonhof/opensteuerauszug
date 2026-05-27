@@ -63,7 +63,9 @@ def get_text(key: str, lang: str = DEFAULT_LANGUAGE) -> str:
 
     # Fallback to default language if different language was requested
     if lang != DEFAULT_LANGUAGE:
-        logger.debug(f"Translation key '{key}' not found in '{lang}', falling back to '{DEFAULT_LANGUAGE}'")
+        logger.debug(
+            f"Translation key '{key}' not found in '{lang}', falling back to '{DEFAULT_LANGUAGE}'"
+        )
         default_translations = _load_translations(DEFAULT_LANGUAGE)
         if default_translations and key in default_translations:
             return default_translations[key]
@@ -93,4 +95,3 @@ def clear_translation_cache():
     """
     _translation_cache.clear()
     logger.debug("Translation cache cleared")
-

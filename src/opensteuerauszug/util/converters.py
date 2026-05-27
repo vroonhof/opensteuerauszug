@@ -1,4 +1,5 @@
 """Utility functions for converting between different model types."""
+
 from datetime import timedelta
 from opensteuerauszug.model.ech0196 import SecurityTaxValue, SecurityStock
 

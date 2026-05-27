@@ -11,6 +11,7 @@ from opensteuerauszug.config.models import IbkrAccountSettings
 # Check if ibflex is available, skip tests if not
 try:
     import ibflex  # noqa: F401
+
     IBFLEX_INSTALLED = True
 except ImportError:
     IBFLEX_INSTALLED = False
@@ -40,6 +41,7 @@ SAMPLE_RIGHTS_ISSUE_XML = """
 </FlexQueryResponse>
 """
 
+
 @pytest.fixture
 def ibkr_settings_factory():
     def _create(ignore_rights_issues=False):
@@ -50,18 +52,18 @@ def ibkr_settings_factory():
                 account_name_alias="Rights Issue Test",
                 canton="ZH",
                 full_name="Test User",
-                ignore_rights_issues=ignore_rights_issues
+                ignore_rights_issues=ignore_rights_issues,
             )
         ]
+
     return _create
+
 
 def test_ibkr_rights_issues_default_behavior(ibkr_settings_factory):
     """Test that rights issues are INCLUDED by default (ignore_rights_issues=False)."""
     settings = ibkr_settings_factory(ignore_rights_issues=False)
     importer = IbkrImporter(
-        period_from=date(2024, 1, 1),
-        period_to=date(2024, 12, 31),
-        account_settings_list=settings
+        period_from=date(2024, 1, 1), period_to=date(2024, 12, 31), account_settings_list=settings
     )
 
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
@@ -83,13 +85,12 @@ def test_ibkr_rights_issues_default_behavior(ibkr_settings_factory):
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
 
+
 def test_ibkr_rights_issues_ignored(ibkr_settings_factory):
     """Test that rights issues are OMITTED when ignore_rights_issues=True and balances are zero."""
     settings = ibkr_settings_factory(ignore_rights_issues=True)
     importer = IbkrImporter(
-        period_from=date(2024, 1, 1),
-        period_to=date(2024, 12, 31),
-        account_settings_list=settings
+        period_from=date(2024, 1, 1), period_to=date(2024, 12, 31), account_settings_list=settings
     )
 
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
@@ -100,30 +101,33 @@ def test_ibkr_rights_issues_ignored(ibkr_settings_factory):
         tax_statement = importer.import_files([xml_file_path])
 
         if tax_statement.listOfSecurities is None:
-             # If all securities are filtered out
-             pass
+            # If all securities are filtered out
+            pass
         else:
             depot = tax_statement.listOfSecurities.depot[0]
             # DRPF1 (CH1379144913) and related positions net to a zero balance and should be omitted
             # when rights issues are ignored.
             drpf1_sec = next((s for s in depot.security if "CH1379144913" in (s.isin or "")), None)
-            assert drpf1_sec is None, "DRPF1 (CH1379144913) should be omitted when ignore_rights_issues=True and balance is 0"
+            assert (
+                drpf1_sec is None
+            ), "DRPF1 (CH1379144913) should be omitted when ignore_rights_issues=True and balance is 0"
 
             # DRPF.RTS2 (SUDRP2411081) also nets to zero and should be omitted.
-            drpf_rts2_sec = next((s for s in depot.security if "SUDRP2411081" in (s.isin or "")), None)
+            drpf_rts2_sec = next(
+                (s for s in depot.security if "SUDRP2411081" in (s.isin or "")), None
+            )
             assert drpf_rts2_sec is None, "DRPF.RTS2 should be omitted"
 
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
 
+
 def test_ibkr_rights_issues_flag_set(ibkr_settings_factory):
     """Test that _is_rights_issue flag is set on Security objects."""
     settings = ibkr_settings_factory(ignore_rights_issues=False)
     importer = IbkrImporter(
-        period_from=date(2024, 1, 1),
-        period_to=date(2024, 12, 31),
-        account_settings_list=settings
+        period_from=date(2024, 1, 1), period_to=date(2024, 12, 31), account_settings_list=settings
     )
 
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:

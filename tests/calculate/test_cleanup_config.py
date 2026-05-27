@@ -7,14 +7,14 @@ from opensteuerauszug.config.models import GeneralSettings
 
 class TestCleanupCalculatorConfig:
     """Tests for configuration-based canton and client name setting in CleanupCalculator."""
-    
+
     def test_set_canton_from_config_when_none(self):
         """Test that canton is set from config when it's None in the statement."""
         # Arrange
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
         config_settings = GeneralSettings(canton='ZH', full_name='Test User')
-        
+
         statement = TaxStatement(
             id="test-id",
             creationDate=datetime(2024, 1, 1),
@@ -25,16 +25,15 @@ class TestCleanupCalculatorConfig:
             canton=None,  # Canton not set
             minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],
-            institution=Institution(lei=LEIType("TESTLEI1234500000000"))
+            institution=Institution(lei=LEIType("TESTLEI1234500000000")),
         )
-        
+
         # Act
         calculator = CleanupCalculator(
-            period_from, period_to, "TestImporter", 
-            config_settings=config_settings
+            period_from, period_to, "TestImporter", config_settings=config_settings
         )
         result = calculator.calculate(statement)
-        
+
         # Assert
         assert result.canton == "ZH"
         assert "TaxStatement.canton (from config)" in calculator.modified_fields
@@ -45,7 +44,7 @@ class TestCleanupCalculatorConfig:
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
         config_settings = GeneralSettings(canton='ZH', full_name='Test User')
-        
+
         statement = TaxStatement(
             id="test-id",
             creationDate=datetime(2024, 1, 1),
@@ -56,16 +55,15 @@ class TestCleanupCalculatorConfig:
             canton="BE",  # Canton set by importer
             minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],
-            institution=Institution(lei=LEIType("TESTLEI1234500000000"))
+            institution=Institution(lei=LEIType("TESTLEI1234500000000")),
         )
-        
+
         # Act
         calculator = CleanupCalculator(
-            period_from, period_to, "TestImporter", 
-            config_settings=config_settings
+            period_from, period_to, "TestImporter", config_settings=config_settings
         )
         result = calculator.calculate(statement)
-        
+
         # Assert
         assert result.canton == "ZH"  # Config overrides importer data
         assert "TaxStatement.canton (from config)" in calculator.modified_fields
@@ -76,7 +74,7 @@ class TestCleanupCalculatorConfig:
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
         config_settings = GeneralSettings(canton='ZH', full_name='John Doe')
-        
+
         statement = TaxStatement(
             id="test-id",
             creationDate=datetime(2024, 1, 1),
@@ -87,16 +85,15 @@ class TestCleanupCalculatorConfig:
             canton="ZH",
             minorVersion=22,
             client=[],  # No clients
-            institution=Institution(lei=LEIType("TESTLEI1234500000000"))
+            institution=Institution(lei=LEIType("TESTLEI1234500000000")),
         )
-        
+
         # Act
         calculator = CleanupCalculator(
-            period_from, period_to, "TestImporter", 
-            config_settings=config_settings
+            period_from, period_to, "TestImporter", config_settings=config_settings
         )
         result = calculator.calculate(statement)
-        
+
         # Assert
         assert len(result.client) == 1
         assert result.client[0].firstName == "John"
@@ -109,7 +106,7 @@ class TestCleanupCalculatorConfig:
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
         config_settings = GeneralSettings(canton='ZH', full_name='Jane Smith')
-        
+
         statement = TaxStatement(
             id="test-id",
             creationDate=datetime(2024, 1, 1),
@@ -120,16 +117,15 @@ class TestCleanupCalculatorConfig:
             canton="ZH",
             minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],  # Client exists but no names
-            institution=Institution(lei=LEIType("TESTLEI1234500000000"))
+            institution=Institution(lei=LEIType("TESTLEI1234500000000")),
         )
-        
+
         # Act
         calculator = CleanupCalculator(
-            period_from, period_to, "TestImporter", 
-            config_settings=config_settings
+            period_from, period_to, "TestImporter", config_settings=config_settings
         )
         result = calculator.calculate(statement)
-        
+
         # Assert
         assert result.client[0].firstName == "Jane"
         assert result.client[0].lastName == "Smith"
@@ -141,7 +137,7 @@ class TestCleanupCalculatorConfig:
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
         config_settings = GeneralSettings(canton='ZH', full_name='Config User')
-        
+
         statement = TaxStatement(
             id="test-id",
             creationDate=datetime(2024, 1, 1),
@@ -151,21 +147,20 @@ class TestCleanupCalculatorConfig:
             country="CH",
             canton="ZH",
             minorVersion=22,
-            client=[Client(
-                clientNumber=ClientNumber("TestClient"),
-                firstName="Existing",
-                lastName="User"
-            )],
-            institution=Institution(lei=LEIType("TESTLEI1234500000000"))
+            client=[
+                Client(
+                    clientNumber=ClientNumber("TestClient"), firstName="Existing", lastName="User"
+                )
+            ],
+            institution=Institution(lei=LEIType("TESTLEI1234500000000")),
         )
-        
+
         # Act
         calculator = CleanupCalculator(
-            period_from, period_to, "TestImporter", 
-            config_settings=config_settings
+            period_from, period_to, "TestImporter", config_settings=config_settings
         )
         result = calculator.calculate(statement)
-        
+
         # Assert
         assert result.client[0].firstName == "Existing"
         assert result.client[0].lastName == "User"
@@ -177,7 +172,7 @@ class TestCleanupCalculatorConfig:
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
         config_settings = GeneralSettings(canton='ZH', full_name='Madonna')
-        
+
         statement = TaxStatement(
             id="test-id",
             creationDate=datetime(2024, 1, 1),
@@ -188,16 +183,15 @@ class TestCleanupCalculatorConfig:
             canton="ZH",
             minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],
-            institution=Institution(lei=LEIType("TESTLEI1234500000000"))
+            institution=Institution(lei=LEIType("TESTLEI1234500000000")),
         )
-        
+
         # Act
         calculator = CleanupCalculator(
-            period_from, period_to, "TestImporter", 
-            config_settings=config_settings
+            period_from, period_to, "TestImporter", config_settings=config_settings
         )
         result = calculator.calculate(statement)
-        
+
         # Assert
         assert result.client[0].firstName == "Madonna"
         assert result.client[0].lastName is None
@@ -208,7 +202,7 @@ class TestCleanupCalculatorConfig:
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
         config_settings = GeneralSettings(canton='ZH', full_name='Jean-Claude Van Damme')
-        
+
         statement = TaxStatement(
             id="test-id",
             creationDate=datetime(2024, 1, 1),
@@ -219,16 +213,15 @@ class TestCleanupCalculatorConfig:
             canton="ZH",
             minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],
-            institution=Institution(lei=LEIType("TESTLEI1234500000000"))
+            institution=Institution(lei=LEIType("TESTLEI1234500000000")),
         )
-        
+
         # Act
         calculator = CleanupCalculator(
-            period_from, period_to, "TestImporter", 
-            config_settings=config_settings
+            period_from, period_to, "TestImporter", config_settings=config_settings
         )
         result = calculator.calculate(statement)
-        
+
         # Assert
         assert result.client[0].firstName == "Jean-Claude"
         assert result.client[0].lastName == "Van Damme"
@@ -238,7 +231,7 @@ class TestCleanupCalculatorConfig:
         # Arrange
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
-        
+
         statement = TaxStatement(
             id="test-id",
             creationDate=datetime(2024, 1, 1),
@@ -249,16 +242,13 @@ class TestCleanupCalculatorConfig:
             canton="ZH",  # Canton from importer
             minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],
-            institution=Institution(lei=LEIType("TESTLEI1234500000000"))
+            institution=Institution(lei=LEIType("TESTLEI1234500000000")),
         )
-        
+
         # Act
-        calculator = CleanupCalculator(
-            period_from, period_to, "TestImporter",
-            render_language='de'
-        )
+        calculator = CleanupCalculator(period_from, period_to, "TestImporter", render_language='de')
         result = calculator.calculate(statement)
-        
+
         # Assert
         assert result.canton == "ZH"  # Canton from importer preserved
         assert result.client[0].firstName is None
@@ -272,7 +262,7 @@ class TestCleanupCalculatorConfig:
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
         config_settings = None
-        
+
         statement = TaxStatement(
             id="test-id",
             creationDate=datetime(2024, 1, 1),
@@ -283,23 +273,25 @@ class TestCleanupCalculatorConfig:
             canton="BE",  # Canton from importer
             minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],
-            institution=Institution(lei=LEIType("TESTLEI1234500000000"))
+            institution=Institution(lei=LEIType("TESTLEI1234500000000")),
         )
-        
+
         # Act
         calculator = CleanupCalculator(
-            period_from, period_to, "TestImporter", 
+            period_from,
+            period_to,
+            "TestImporter",
             config_settings=config_settings,
-            render_language='de'
+            render_language='de',
         )
         result = calculator.calculate(statement)
-        
+
         # Assert
         assert result.canton == "BE"  # Canton from importer preserved
         assert result.client[0].firstName is None
         assert result.client[0].lastName is None
         assert "TaxStatement.canton (from config)" not in calculator.modified_fields
-        assert "TaxStatement.client[0] (name from config)" not in calculator.modified_fields 
+        assert "TaxStatement.client[0] (name from config)" not in calculator.modified_fields
 
     def test_missing_canton_raises_error(self):
         """Test that ValueError is raised when neither config nor importer provides canton."""
@@ -307,7 +299,7 @@ class TestCleanupCalculatorConfig:
         period_from = date(2024, 1, 1)
         period_to = date(2024, 12, 31)
         config_settings = None  # No config
-        
+
         statement = TaxStatement(
             id="test-id",
             creationDate=datetime(2024, 1, 1),
@@ -318,19 +310,21 @@ class TestCleanupCalculatorConfig:
             canton=None,  # No canton from importer
             minorVersion=22,
             client=[Client(clientNumber=ClientNumber("TestClient"))],
-            institution=Institution(lei=LEIType("TESTLEI1234500000000"))
+            institution=Institution(lei=LEIType("TESTLEI1234500000000")),
         )
-        
+
         # Act & Assert
         calculator = CleanupCalculator(
-            period_from, period_to, "TestImporter", 
+            period_from,
+            period_to,
+            "TestImporter",
             config_settings=config_settings,
-            render_language='de'
+            render_language='de',
         )
-        
+
         with pytest.raises(ValueError) as exc_info:
             calculator.calculate(statement)
-        
+
         assert "Canton is not set" in str(exc_info.value)
         assert "config.toml" in str(exc_info.value)
         assert "importer data" in str(exc_info.value)

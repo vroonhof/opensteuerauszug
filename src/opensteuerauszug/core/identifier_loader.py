@@ -4,6 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class SecurityIdentifierMapLoader:
     def __init__(self, csv_path: str):
         """
@@ -14,7 +15,7 @@ class SecurityIdentifierMapLoader:
         """
         self.csv_path = csv_path
         # Expected headers are checked case-insensitively after normalizing them.
-        self.expected_headers_normalized = ['symbol', 'isin', 'valor'] 
+        self.expected_headers_normalized = ['symbol', 'isin', 'valor']
 
     def load_map(self) -> dict:
         """
@@ -34,13 +35,15 @@ class SecurityIdentifierMapLoader:
         identifier_map = {}
 
         if not os.path.exists(self.csv_path):
-            logger.debug(f"Security identifiers file not found at {self.csv_path}. Enrichment will be skipped.")
+            logger.debug(
+                f"Security identifiers file not found at {self.csv_path}. Enrichment will be skipped."
+            )
             return identifier_map
 
         try:
             with open(self.csv_path, mode='r', encoding='utf-8-sig', newline='') as file:
                 reader = csv.reader(file)
-                
+
                 try:
                     header = next(reader)
                 except StopIteration:
@@ -48,7 +51,7 @@ class SecurityIdentifierMapLoader:
                     return identifier_map
 
                 normalized_header = [h.lower().strip() for h in header]
-                
+
                 if normalized_header != self.expected_headers_normalized:
                     logger.error(
                         f"Incorrect header in security identifiers file {self.csv_path}. "
@@ -56,7 +59,7 @@ class SecurityIdentifierMapLoader:
                     )
                     return identifier_map
 
-                for i, row in enumerate(reader, start=2): # start=2 for 1-based data row index
+                for i, row in enumerate(reader, start=2):  # start=2 for 1-based data row index
                     if len(row) != len(self.expected_headers_normalized):
                         logger.warning(
                             f"Row {i} in {self.csv_path} has incorrect number of columns "
@@ -69,7 +72,9 @@ class SecurityIdentifierMapLoader:
                     valor_str = row[2].strip()
 
                     if not symbol:
-                        logger.warning(f"Row {i} in {self.csv_path} has an empty symbol. Skipping row.")
+                        logger.warning(
+                            f"Row {i} in {self.csv_path} has an empty symbol. Skipping row."
+                        )
                         continue
 
                     isin_val = isin_str if isin_str else None
@@ -83,25 +88,34 @@ class SecurityIdentifierMapLoader:
                                 f"Row {i} in {self.csv_path} for symbol '{symbol}': "
                                 f"Could not convert valor '{valor_str}' to an integer. Valor will be considered missing."
                             )
-                    
+
                     if symbol in identifier_map:
-                        logger.warning(f"Duplicate symbol '{symbol}' found in {self.csv_path} at row {i}. Previous entry will be overwritten.")
+                        logger.warning(
+                            f"Duplicate symbol '{symbol}' found in {self.csv_path} at row {i}. Previous entry will be overwritten."
+                        )
 
                     identifier_map[symbol] = {'isin': isin_val, 'valor': valor_val}
-        
+
         except csv.Error as e:
             # reader.line_num might not be reliable after an error, log the general error
             logger.error(f"CSV parsing error in {self.csv_path}: {e}")
-            return {} 
+            return {}
         except IOError as e:
             logger.error(f"Could not read security identifiers file {self.csv_path}: {e}")
-            return {} 
+            return {}
 
-        if identifier_map: # Log only if some identifiers were actually loaded
-            logger.info(f"Successfully loaded {len(identifier_map)} security identifiers from {self.csv_path}.")
-        elif os.path.exists(self.csv_path): # File exists but was empty after header or all rows had errors
-            logger.info(f"Security identifiers file {self.csv_path} was processed, but no valid identifiers were loaded.")
+        if identifier_map:  # Log only if some identifiers were actually loaded
+            logger.info(
+                f"Successfully loaded {len(identifier_map)} security identifiers from {self.csv_path}."
+            )
+        elif os.path.exists(
+            self.csv_path
+        ):  # File exists but was empty after header or all rows had errors
+            logger.info(
+                f"Security identifiers file {self.csv_path} was processed, but no valid identifiers were loaded."
+            )
         return identifier_map
+
 
 # Removed or commented out the __main__ block as per instructions.
 # # if __name__ == '__main__':

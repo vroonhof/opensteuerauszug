@@ -4,8 +4,13 @@ import os
 from decimal import Decimal
 from functools import lru_cache
 from opensteuerauszug.model.ech0196 import (
-    BankAccountPayment, Client, ClientNumber, Institution, SecurityPayment,
-    SecurityStock, TaxStatement,
+    BankAccountPayment,
+    Client,
+    ClientNumber,
+    Institution,
+    SecurityPayment,
+    SecurityStock,
+    TaxStatement,
 )
 from opensteuerauszug.model.position import SecurityPosition, CashPosition
 from opensteuerauszug.render.translations import Language, DEFAULT_LANGUAGE
@@ -34,6 +39,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Settlement date helpers
 # ---------------------------------------------------------------------------
+
 
 @lru_cache(maxsize=None)
 def _nyse_holidays(year: int) -> Any:
@@ -116,8 +122,9 @@ def split_unsettled_cash(
     return settled, unsettled
 
 
-
-def _get_configured_account_info(depot_short_id: str, account_settings_list: List[SchwabAccountSettings], is_awards_depot: bool) -> Tuple[Optional[str], str]:
+def _get_configured_account_info(
+    depot_short_id: str, account_settings_list: List[SchwabAccountSettings], is_awards_depot: bool
+) -> Tuple[Optional[str], str]:
     """
     Determines the account number and display name based on configuration and depot type.
     """
@@ -130,7 +137,9 @@ def _get_configured_account_info(depot_short_id: str, account_settings_list: Lis
         for setting in account_settings_list:
             if setting.account_number.endswith(depot_short_id):
                 if found_account_number is not None:
-                    logger.warning(f"Multiple configured Schwab accounts end with '...{depot_short_id}'. Using first found: '{found_account_number}' (alias: '{first_matching_alias}'). Consider refining configurations if this is not intended.")
+                    logger.warning(
+                        f"Multiple configured Schwab accounts end with '...{depot_short_id}'. Using first found: '{found_account_number}' (alias: '{first_matching_alias}'). Consider refining configurations if this is not intended."
+                    )
                     continue  # Stick with the first one found
                 else:
                     found_account_number = setting.account_number
@@ -141,6 +150,7 @@ def _get_configured_account_info(depot_short_id: str, account_settings_list: Lis
             return found_account_number, found_account_number
         else:
             return None, f"...{depot_short_id}"
+
 
 def _resolve_security_depot_display_name(
     depot_short_id: str, account_settings_list: List[SchwabAccountSettings]
@@ -155,9 +165,7 @@ def _resolve_security_depot_display_name(
     """
     if depot_short_id == "AWARDS":
         return "AWARDS"
-    _, display = _get_configured_account_info(
-        depot_short_id, account_settings_list, False
-    )
+    _, display = _get_configured_account_info(depot_short_id, account_settings_list, False)
     return display
 
 
@@ -238,25 +246,32 @@ def _schwab_security_display_name(pos: SecurityPosition) -> Optional[str]:
     return None
 
 
-def is_date_in_valid_transaction_range(date_to_check: date, transaction_range: Tuple[date, date]) -> bool:
+def is_date_in_valid_transaction_range(
+    date_to_check: date, transaction_range: Tuple[date, date]
+) -> bool:
     """
-    Checks if a date is within a given transaction range (inclusive) 
+    Checks if a date is within a given transaction range (inclusive)
     or if it's the day immediately following the end of that range.
     """
     transaction_range_start, transaction_range_end = transaction_range
-    return (transaction_range_start <= date_to_check <= transaction_range_end) or \
-           (date_to_check == transaction_range_end + timedelta(days=1))
+    return (transaction_range_start <= date_to_check <= transaction_range_end) or (
+        date_to_check == transaction_range_end + timedelta(days=1)
+    )
+
 
 class SchwabImporter:
     """
     Imports Schwab account data for a given tax period from PDF and JSON files.
     """
-    def __init__(self, 
-                 period_from: date, 
-                 period_to: date, 
-                 account_settings_list: List[SchwabAccountSettings], # MODIFIED
-                 strict_consistency: bool = True,
-                 render_language: Language = DEFAULT_LANGUAGE):
+
+    def __init__(
+        self,
+        period_from: date,
+        period_to: date,
+        account_settings_list: List[SchwabAccountSettings],  # MODIFIED
+        strict_consistency: bool = True,
+        render_language: Language = DEFAULT_LANGUAGE,
+    ):
         """
         Initialize the importer with a tax period defined by a start and end date.
 
@@ -269,7 +284,7 @@ class SchwabImporter:
         """
         self.period_from = period_from
         self.period_to = period_to
-        self.account_settings_list = account_settings_list # MODIFIED
+        self.account_settings_list = account_settings_list  # MODIFIED
         self.strict_consistency = strict_consistency
         self.render_language = render_language
 
@@ -277,7 +292,9 @@ class SchwabImporter:
         # it needs to be adapted. For now, we'll assume most logic will be adapted later.
         # If absolutely needed for the code to run, use the first account with a TODO.
         if self.account_settings_list:
-            logger.info(f"SchwabImporter initialized with {len(self.account_settings_list)} account(s). First account number: {self.account_settings_list[0].account_number}")
+            logger.info(
+                f"SchwabImporter initialized with {len(self.account_settings_list)} account(s). First account number: {self.account_settings_list[0].account_number}"
+            )
         else:
             # This case should ideally be prevented by the CLI loading logic
             logger.warning("SchwabImporter initialized with an empty list of account settings.")
@@ -297,7 +314,11 @@ class SchwabImporter:
         # Track covered date ranges for each depot (using DateRangeCoverage)
         depot_coverage = {}
         # Collect all positions for common post-processing
-        all_positions: List[Tuple[Union[SecurityPosition, CashPosition], Optional[SecurityStock], Optional[List[Any]]]] = []  # (Position, SecurityStock, Optional[List[SecurityPayment]])
+        all_positions: List[
+            Tuple[
+                Union[SecurityPosition, CashPosition], Optional[SecurityStock], Optional[List[Any]]
+            ]
+        ] = []  # (Position, SecurityStock, Optional[List[SecurityPayment]])
 
         for filename in filenames:
             ext = os.path.splitext(filename)[1].lower()
@@ -324,24 +345,34 @@ class SchwabImporter:
                             continue
                         if depot not in depot_coverage:
                             depot_coverage[depot] = DateRangeCoverage()
-                        
+
                         # Determine newly covered segments for this transaction's date range.
                         # This simulation of get_uncovered_sub_ranges_within is to avoid altering DateRangeCoverage
                         # in this step. A direct method on DateRangeCoverage would be cleaner.
                         temp_coverage_for_new_segments = DateRangeCoverage()
-                        if depot_coverage[depot].covered: # Check if there are existing covered ranges
-                            temp_coverage_for_new_segments.covered = [r for r in depot_coverage[depot].covered] # Clone current coverage
-                        
+                        if depot_coverage[
+                            depot
+                        ].covered:  # Check if there are existing covered ranges
+                            temp_coverage_for_new_segments.covered = [
+                                r for r in depot_coverage[depot].covered
+                            ]  # Clone current coverage
+
                         potential_new_segments = []
                         current_check_date = start_date
                         while current_check_date <= end_date:
                             # Check if the current single day is covered by the *original* depot coverage
-                            if not temp_coverage_for_new_segments.is_covered(current_check_date, current_check_date):
+                            if not temp_coverage_for_new_segments.is_covered(
+                                current_check_date, current_check_date
+                            ):
                                 seg_start = current_check_date
                                 seg_end = seg_start
                                 # Extend the segment as long as it's within the transaction and uncovered by original coverage
-                                while seg_end < end_date and \
-                                      not temp_coverage_for_new_segments.is_covered(seg_end + timedelta(days=1), seg_end + timedelta(days=1)):
+                                while (
+                                    seg_end < end_date
+                                    and not temp_coverage_for_new_segments.is_covered(
+                                        seg_end + timedelta(days=1), seg_end + timedelta(days=1)
+                                    )
+                                ):
                                     seg_end += timedelta(days=1)
                                 potential_new_segments.append((seg_start, seg_end))
                                 current_check_date = seg_end + timedelta(days=1)
@@ -350,7 +381,7 @@ class SchwabImporter:
                         newly_covered_segments[depot] = potential_new_segments
 
                         print(f"Newly covered segments({depot}): {newly_covered_segments}")
-                        
+
                         # Now, mark the entire transaction range as covered in the main tracker for future transactions
                         depot_coverage[depot].mark_covered(start_date, end_date)
 
@@ -359,28 +390,32 @@ class SchwabImporter:
                         if stocks:
                             for stock_item in stocks:
                                 # Corrected attribute: referenceDate instead of balanceDate
-                                if stock_item.referenceDate is not None and \
-                                   any(seg_start <= stock_item.referenceDate <= seg_end \
-                                       for seg_start, seg_end in newly_covered_segments[depot]):
+                                if stock_item.referenceDate is not None and any(
+                                    seg_start <= stock_item.referenceDate <= seg_end
+                                    for seg_start, seg_end in newly_covered_segments[depot]
+                                ):
                                     filtered_stocks.append(stock_item)
-                        
+
                         filtered_payments = []
                         if payments:
                             for payment_item in payments:
-                                if payment_item.paymentDate is not None and \
-                                   any(seg_start <= payment_item.paymentDate <= seg_end \
-                                       for seg_start, seg_end in newly_covered_segments[depot]):
+                                if payment_item.paymentDate is not None and any(
+                                    seg_start <= payment_item.paymentDate <= seg_end
+                                    for seg_start, seg_end in newly_covered_segments[depot]
+                                ):
                                     filtered_payments.append(payment_item)
-                        
+
                         if filtered_stocks:
                             for i, stock_item in enumerate(filtered_stocks):
                                 payments_for_this_entry = None
                                 if i == 0 and filtered_payments:
                                     payments_for_this_entry = filtered_payments
-                                all_positions.append((position, stock_item, payments_for_this_entry))
+                                all_positions.append(
+                                    (position, stock_item, payments_for_this_entry)
+                                )
                         elif filtered_payments:
                             all_positions.append((position, None, filtered_payments))
-                            
+
                     # print(f"Extracted transactions from {filename}: {transactions}")
             elif ext == ".csv":
                 # Try primary PositionExtractor first
@@ -397,24 +432,34 @@ class SchwabImporter:
                         all_positions.append((pos, stock, None))
                 else:
                     # If primary fails, try FallbackPositionExtractor
-                    print(f"Primary PositionExtractor failed for {filename}. Trying FallbackPositionExtractor.")
+                    print(
+                        f"Primary PositionExtractor failed for {filename}. Trying FallbackPositionExtractor."
+                    )
                     fallback_extractor = FallbackPositionExtractor(filename)
-                    fallback_positions_data = fallback_extractor.extract_positions() # Now List[Tuple[Position, SecurityStock]]
+                    fallback_positions_data = (
+                        fallback_extractor.extract_positions()
+                    )  # Now List[Tuple[Position, SecurityStock]]
 
                     if fallback_positions_data is not None:
                         for pos, stock in fallback_positions_data:
                             item_depot = pos.depot
-                            item_date = stock.referenceDate # Assuming SecurityStock always has referenceDate
+                            item_date = (
+                                stock.referenceDate
+                            )  # Assuming SecurityStock always has referenceDate
                             if item_depot not in depot_position_dates:
                                 depot_position_dates[item_depot] = set()
-                            depot_position_dates[item_depot].add(item_date) # Add the date from the stock item
-                            all_positions.append((pos, stock, None)) # Add to the common list
+                            depot_position_dates[item_depot].add(
+                                item_date
+                            )  # Add the date from the stock item
+                            all_positions.append((pos, stock, None))  # Add to the common list
                     else:
-                        print(f"Skipped file (not a recognized Schwab positions CSV by primary or fallback): {filename}")
+                        print(
+                            f"Skipped file (not a recognized Schwab positions CSV by primary or fallback): {filename}"
+                        )
             else:
                 # Optionally log or raise for unsupported file types
                 pass
-        
+
         # Print known position dates per depot for demonstration
         for depot, dates in depot_position_dates.items():
             print(f"Depot {depot} has known position dates: {sorted(dates)}")
@@ -427,28 +472,40 @@ class SchwabImporter:
         for depot, coverage in depot_coverage.items():
             # Check if the tax period is fully covered
             if not coverage.is_covered(self.period_from, self.period_to):
-                raise ValueError(f"Depot {depot}: Tax period {self.period_from} to {self.period_to} is not fully covered by available data.\nSuggestion: Download and import statements covering this range for depot '{depot}'.")
+                raise ValueError(
+                    f"Depot {depot}: Tax period {self.period_from} to {self.period_to} is not fully covered by available data.\nSuggestion: Download and import statements covering this range for depot '{depot}'."
+                )
             # Find the maximal covered range containing the tax period start
             max_range = coverage.maximal_covered_range_containing(self.period_from)
             if not max_range:
-                raise ValueError(f"Depot {depot}: No covered range contains the tax period start {self.period_from}.\nSuggestion: Download and import statements covering this date for depot '{depot}'.")
+                raise ValueError(
+                    f"Depot {depot}: No covered range contains the tax period start {self.period_from}.\nSuggestion: Download and import statements covering this date for depot '{depot}'."
+                )
             max_ranges[depot] = max_range
             # Check that at least one statement date is in this range
             statement_dates = depot_position_dates.get(depot, set())
             # Accept a statement date in the range OR exactly one day after the range end
             if not any(is_date_in_valid_transaction_range(d, max_range) for d in statement_dates):
-                raise ValueError(f"Depot {depot}: No statement date in the maximal covered range {max_range} (or the day after) for the tax period.\nSuggestion: Download and import a statement with a statement date within {max_range} or the day after for depot '{depot}'.")
+                raise ValueError(
+                    f"Depot {depot}: No statement date in the maximal covered range {max_range} (or the day after) for the tax period.\nSuggestion: Download and import a statement with a statement date within {max_range} or the day after for depot '{depot}'."
+                )
         # --- End coverage check ---
-            
+
         # Post-process: aggregate stocks/payments per unique Position
-        position_map = defaultdict(lambda: ([], []))  # Position -> (list of SecurityStock, list of SecurityPayment)
-        
+        position_map = defaultdict(
+            lambda: ([], [])
+        )  # Position -> (list of SecurityStock, list of SecurityPayment)
+
         for pos, stock, payments in all_positions:
             if stock:
-                if not is_date_in_valid_transaction_range(stock.referenceDate, max_ranges[pos.depot]):
-                    print(f"WARNING: Skipping stock {stock} for position {pos} because its referenceDate {stock.referenceDate} is not in the valid transaction range {max_ranges[pos.depot]}.")
+                if not is_date_in_valid_transaction_range(
+                    stock.referenceDate, max_ranges[pos.depot]
+                ):
+                    print(
+                        f"WARNING: Skipping stock {stock} for position {pos} because its referenceDate {stock.referenceDate} is not in the valid transaction range {max_ranges[pos.depot]}."
+                    )
                     continue
-            
+
             if not stock and payments:
                 # Filter payments by valid transaction range if they are not associated with a stock
                 valid_payments = []
@@ -456,7 +513,9 @@ class SchwabImporter:
                     if is_date_in_valid_transaction_range(p.paymentDate, max_ranges[pos.depot]):
                         valid_payments.append(p)
                     else:
-                        print(f"WARNING: Skipping payment {p} for position {pos} because its paymentDate {p.paymentDate} is not in the valid transaction range {max_ranges[pos.depot]}.")
+                        print(
+                            f"WARNING: Skipping payment {p} for position {pos} because its paymentDate {p.paymentDate} is not in the valid transaction range {max_ranges[pos.depot]}."
+                        )
                 payments = valid_payments
                 if not payments:
                     continue
@@ -468,7 +527,7 @@ class SchwabImporter:
             current_stocks, current_payments = position_map[pos]
             if stock:
                 current_stocks.append(stock)
-            if payments: # payments can be a list or a single item
+            if payments:  # payments can be a list or a single item
                 if isinstance(payments, list):
                     current_payments.extend(payments)
                 else:
@@ -510,9 +569,7 @@ class SchwabImporter:
                     cash_entries.append(settled_entry)
 
                 if unsettled_stocks:
-                    total_unsettled = sum(
-                        (s.quantity for s in unsettled_stocks), Decimal("0")
-                    )
+                    total_unsettled = sum((s.quantity for s in unsettled_stocks), Decimal("0"))
                     if total_unsettled != Decimal("0"):
                         logger.info(
                             f"[{pos_obj.get_processing_identifier()}] {len(unsettled_stocks)} "
@@ -539,13 +596,9 @@ class SchwabImporter:
             institution=Institution(name="Charles Schwab"),
         )
 
-        primary_client_number = _pick_primary_client_number(
-            self.account_settings_list
-        )
+        primary_client_number = _pick_primary_client_number(self.account_settings_list)
         if primary_client_number is not None:
-            tax_statement.client = [
-                Client(clientNumber=ClientNumber(primary_client_number))
-            ]
+            tax_statement.client = [Client(clientNumber=ClientNumber(primary_client_number))]
 
         augment_list_of_securities(
             tax_statement,
@@ -591,9 +644,7 @@ class SchwabImporter:
 
         # Initial consistency check preserved from the legacy helper.
         identifier = pos_obj.get_processing_identifier()
-        initial = PositionReconciler(
-            list(settled_stocks), identifier=f"{identifier}-initial_check"
-        )
+        initial = PositionReconciler(list(settled_stocks), identifier=f"{identifier}-initial_check")
         is_consistent, _ = initial.check_consistency(
             print_log=True,
             raise_on_error=self.strict_consistency,
@@ -606,9 +657,7 @@ class SchwabImporter:
             )
 
         end_plus_one = self.period_to + timedelta(days=1)
-        reconciler = PositionReconciler(
-            list(settled_stocks), identifier=f"{identifier}-end_synth"
-        )
+        reconciler = PositionReconciler(list(settled_stocks), identifier=f"{identifier}-end_synth")
         end_pos = reconciler.synthesize_position_at_date(
             end_plus_one, assume_zero_if_no_balances=True
         )
@@ -625,9 +674,7 @@ class SchwabImporter:
             for p in (payments or [])
         ]
 
-        name, number = _resolve_cash_account_identity(
-            pos_obj, self.account_settings_list
-        )
+        name, number = _resolve_cash_account_identity(pos_obj, self.account_settings_list)
         return CashAccountEntry(
             account_id=name,
             currency=currency,
@@ -651,9 +698,7 @@ class SchwabImporter:
         # A synthetic CashPosition flagged as unsettled drives the " (Unsettled)"
         # name suffix below, matching the legacy behaviour.
         marker = pos_obj.model_copy(update={"is_unsettled_balance": True})
-        name, number = _resolve_cash_account_identity(
-            marker, self.account_settings_list
-        )
+        name, number = _resolve_cash_account_identity(marker, self.account_settings_list)
         return CashAccountEntry(
             account_id=name,
             currency=currency,
@@ -681,6 +726,7 @@ class SchwabImporter:
                 files.append(os.path.join(directory, fname))
         return self.import_files(files)
 
+
 if __name__ == "__main__":
     import argparse
     from datetime import datetime
@@ -697,9 +743,10 @@ if __name__ == "__main__":
 
     importer = SchwabImporter(period_from, period_to, [])
     tax_statement = importer.import_dir(args.directory)
-       
+
     try:
         from devtools import debug  # type: ignore[import-untyped]
+
         debug(tax_statement)
     except ImportError:
         pass

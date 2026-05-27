@@ -282,7 +282,9 @@ def test_extract_positions_valid_csv_awards_cash(managed_temp_csv_path):
 
 @pytest.mark.parametrize(
     "managed_temp_csv_path",
-    ["Depot,Date,Symbol,Quantity,Currency\n789,2023-03-10,CASH,500.00,EUR\n789,2023-03-10,AAPL,10,\n"],
+    [
+        "Depot,Date,Symbol,Quantity,Currency\n789,2023-03-10,CASH,500.00,EUR\n789,2023-03-10,AAPL,10,\n"
+    ],
     indirect=True,
 )
 def test_extract_positions_optional_currency_column(managed_temp_csv_path):

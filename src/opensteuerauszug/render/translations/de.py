@@ -5,10 +5,8 @@ TRANSLATIONS = {
     'created_with': 'erstellt mit OpenSteuerauszug',
     'converted_with': 'konvertiert mit OpenSteuerauszug',
     'taxstatement': 'Steuerauszug',
-
     # === PAGE STRUCTURE ===
     'page': 'Seite {page} von {total}',
-
     # === CLIENT INFORMATION ===
     'client': 'Kunde',
     'client_number': 'Kdnr.',
@@ -19,7 +17,6 @@ TRANSLATIONS = {
     'period': 'Periode',
     'portfolio': 'Portfolio',
     'created_at': 'Erstellt am',
-
     # === SECTION TITLES ===
     'summary': 'Zusammenfassung',
     'bank_accounts': 'Bankkonten',
@@ -30,10 +27,8 @@ TRANSLATIONS = {
     'liabilities_title': 'Schulden',
     'reconciliation_kursliste_broker': 'Abgleich Kursliste / Brokerzahlungen',
     'tax_statement_in_chf': 'Steuerauszug in CHF',
-
     # === BARCODE PAGE ===
     'barcode_page': 'Barcode Seite {page} von {total}',
-
     # === COMMON LABELS ===
     'date': 'Datum',
     'description': 'Bezeichnung',
@@ -43,7 +38,6 @@ TRANSLATIONS = {
     'na': 'n.v.',
     'column_a': 'A',
     'column_b': 'B',
-
     # === SUMMARY TABLE HEADERS ===
     'tax_value_ab_header': '<b>Steuerwert</b> der<br/><b>A</b>- und <b>B</b>-Werte am {date}',
     'gross_revenue_values_with_vst': '<b>Bruttoertrag</b><br/>{period} Werte <b>mit</b> VSt.-Abzug',
@@ -59,7 +53,6 @@ TRANSLATIONS = {
     'total_gross_revenue_all_values': '<b>Total Bruttoertrag</b> {period} <b>A, B, DA-1</b> und <b>USA</b>-Werte',
     'liabilities_header': '<b>Schulden</b><br/>am {date}',
     'liabilities_interest_summary_header': '<b>Schuldzinsen</b> {period}',
-
     # === BANK ACCOUNTS TABLE ===
     'total_bank_accounts': 'Total Bankkonten',
     'designation_bank_account_interest': 'Bezeichnung<br/>Bankkonto<br/>Zinsen',
@@ -69,7 +62,6 @@ TRANSLATIONS = {
     'total_paid_bank_fees': 'Total bezahlte Bankspesen',
     'tax_value_revenue': 'Steuerwert / Ertrag',
     'dissolution_revenue': 'Auflösung / Ertrag',
-
     # === SECURITIES TABLE ===
     'valor_number_date': 'Valoren-Nr<br/>Datum',
     'depot_number_designation_isin': 'Depot-Nr<br/>Bezeichnung<br/>ISIN',
@@ -93,7 +85,6 @@ TRANSLATIONS = {
     'foreign_tax_credit': '<b>Anrechenbare ausl. Quellen- steuer</b> in CHF',
     'usa_withholding': '<b>Steuerrückbehalt USA</b><br/>in CHF',
     'country_total': 'Total {country}',
-
     # === LIABILITIES TABLE ===
     'designation_liabilities_interest': 'Bezeichnung<br/>Schulden<br/>Zinsen',
     'liabilities_amount_interest_header': 'Schulden<br/>Schuldzinsen',
@@ -101,7 +92,6 @@ TRANSLATIONS = {
     'liabilities_interest_header': '<b>Schuldzinsen</b><br/>{year}<br/>in CHF',
     'tax_value_liabilities_interest': 'Steuerwert / Schuldzinsen',
     'total_liabilities': 'Total Schulden',
-
     # === PAYMENT RECONCILIATION TABLE ===
     'reconciliation_payments': 'Abgleich Zahlungen ({country})',
     'kl_dividend_chf': 'KL Div CHF',
@@ -110,7 +100,6 @@ TRANSLATIONS = {
     'broker_withholding': 'Broker Quellenst.',
     'ok': 'OK',
     'security': 'Wertschrift',
-
     # === INSTRUCTIONS & FOOTNOTES ===
     'footnote_ab_breakdown': '(1) Davon <b>A</b> {} und <b>B</b> {}',
     'instruction_securities_register': 'Werte für Formular <b>"Wertschriften- und Guthabenverzeichnis"</b>\n(inkl. Konti, ohne Werte DA-1 und USA)',
@@ -120,19 +109,15 @@ geltend gemacht wird, sind diese Totalwerte im
 Wertschriftenverzeichnis einzusetzen.''',
     'instruction_liabilities_register': '''Werte für zusätzliches Steuererklärungsformular <b>"Schuldenverzeichnis"</b>''',
     'expense_deductibility_notice': '(2) Über die Abzugsfähigkeit der Spesen entscheidet die zuständige Veranlagungsbehörde.',
-
     # === EXPENSE INFORMATION ===
     'expense_type': 'Spesentyp',
-
     # === PLACEHOLDERS ===
     'minimal_placeholder': '''Dies ist kein echter Steuerauszug. Dieses Minimaldokument dient nur dazu, die Bankdaten über Barcodes zu importieren. Da die Totale nicht ermittelt werden, wird auf eine Zusammenfassung verzichtet.''',
-
     # === CRITICAL WARNINGS ===
     'critical_warnings_title': 'KRITISCHE WARNUNGEN',
     'warning': 'Warnung',
     'warnings': 'Warnungen',
     'critical_warnings_hint': 'Dieser Steuerauszug enthält <b>{count}</b> kritische {plural}. Bitte überprüfen Sie die Informationsseiten am Ende dieses Dokuments.',
-
     # === XML TRANSLATIONS ===
     "debit_interest": "Sollzinsen",
     "credit_interest": "Habenzinsen",
@@ -150,4 +135,3 @@ Wertschriftenverzeichnis einzusetzen.''',
     "option_assignment": "Options-Zuweisung/-Ausübung",
     "transfer": "Aktienübertragung",
 }
-

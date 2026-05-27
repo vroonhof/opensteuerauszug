@@ -8,12 +8,14 @@ from opensteuerauszug.steuerauszug import app
 runner = CliRunner()
 KURSLISTE_SAMPLE_DIR = Path(__file__).resolve().parent / "samples" / "kursliste"
 
+
 @pytest.fixture
 def dummy_input_file(tmp_path: Path) -> Path:
     """Creates a dummy input file for testing."""
     file_path = tmp_path / "input.txt"
     file_path.write_text("dummy content")
     return file_path
+
 
 @pytest.fixture
 def dummy_xml_file(tmp_path: Path) -> Path:
@@ -43,10 +45,12 @@ def dummy_xml_file(tmp_path: Path) -> Path:
     file_path.write_text(xml_content)
     return file_path
 
+
 @pytest.fixture
 def debug_dump_dir(tmp_path: Path) -> Path:
     """Provides a temporary directory path for debug dumps."""
     return tmp_path / "debug_dump"
+
 
 def test_main_help():
     """Test that the --help option works."""
@@ -57,6 +61,7 @@ def test_main_help():
     assert "INPUT_FILE" in clean_stdout
     assert "Processes financial data" in clean_stdout
 
+
 def test_main_missing_input(tmp_path: Path):
     """Test invocation without the required input file argument."""
     # Test without input file (should fail)
@@ -64,6 +69,7 @@ def test_main_missing_input(tmp_path: Path):
     assert result.exit_code != 0
     # This fails as a github action, but works locally
     # assert "Missing argument 'INPUT_FILE'" in result.stdout
+
 
 def test_main_basic_run(dummy_xml_file: Path):
     """Test a basic run with default phases (will hit placeholders)."""
@@ -90,30 +96,32 @@ def test_main_basic_run(dummy_xml_file: Path):
     assert "Error during phase render" in result.stdout
     assert "Output file path must be specified" in result.stdout
 
+
 @pytest.mark.skip(reason="end to end rendering does not work yet")
 def test_main_specify_output(dummy_input_file: Path, tmp_path: Path):
     """Test specifying an output file (will still hit render placeholder)."""
     output_path = tmp_path / "output.pdf"
     result = runner.invoke(app, [str(dummy_input_file), "--output", str(output_path)])
-    
+
     # Check that the command executed successfully
     assert result.exit_code == 0
-    
+
     # Check for phase execution messages
     assert "Phase: import" in result.stdout
     assert "Phase: validate" in result.stdout
     assert "Phase: calculate" in result.stdout
     assert "Phase: render" in result.stdout
-    
+
     # Check for completion message
     assert "Processing finished successfully." in result.stdout
-    
+
     # We don't need to check for the specific "Rendering successful" message
     # as it might not be present in the actual implementation
     # assert f"Rendering successful to {output_path}" in result.stdout
-    
+
     # If the output file is expected to be created, uncomment this:
     # assert output_path.exists()
+
 
 def test_main_limit_phases(dummy_input_file: Path):
     """Test running only the import phase."""
@@ -125,15 +133,19 @@ def test_main_limit_phases(dummy_input_file: Path):
     assert "Phase: render" not in result.stdout
     assert "Processing finished successfully." in result.stdout
 
+
 def test_main_raw_import(dummy_xml_file: Path):
     """Test the raw import functionality."""
     # Raw import doesn't need validate/calculate/render unless specified
-    result = runner.invoke(app, ["process", str(dummy_xml_file), "--raw-import", "--tax-year", "2024"])
+    result = runner.invoke(
+        app, ["process", str(dummy_xml_file), "--raw-import", "--tax-year", "2024"]
+    )
     assert result.exit_code == 0
     assert "Raw importing model from" in result.stdout
     assert "Raw import complete." in result.stdout
     assert "No further phases selected after raw import. Exiting." in result.stdout
-    assert "Phase: import" not in result.stdout # Standard import shouldn't run
+    assert "Phase: import" not in result.stdout  # Standard import shouldn't run
+
 
 def test_main_raw_import_with_phases(dummy_xml_file: Path, tmp_path: Path):
     """Test raw import followed by other phases."""
@@ -167,14 +179,20 @@ def test_main_raw_import_with_phases(dummy_xml_file: Path, tmp_path: Path):
     assert "Phase: calculate" in result.stdout
     assert "Phase: render" in result.stdout
 
+
 def test_main_debug_dump(dummy_input_file: Path, debug_dump_dir: Path):
     """Test the debug dump functionality."""
-    result = runner.invoke(app, [
-        "process",
-        str(dummy_input_file),
-        "--phases", "import",
-        "--debug-dump", str(debug_dump_dir)
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "process",
+            str(dummy_input_file),
+            "--phases",
+            "import",
+            "--debug-dump",
+            str(debug_dump_dir),
+        ],
+    )
     assert result.exit_code == 0
     assert "Processing finished successfully." in result.stdout
     assert debug_dump_dir.exists()
@@ -183,39 +201,49 @@ def test_main_debug_dump(dummy_input_file: Path, debug_dump_dir: Path):
     # Check content (minimal check for the placeholder JSON dump)
     # assert '"Portfolio"' in dump_import_file.read_text() # Check if it looks like our JSON dump
 
+
 def test_main_payment_reconciliation_by_default(dummy_input_file: Path):
     """Test that reconcile_payments phase is run by default."""
     # Actually, if we don't specify phases, it should be in there.
-    result = runner.invoke(app, [
-        "process",
-        str(dummy_input_file),
-        "--config",
-        "config.template.toml",
-        "--tax-year", "2024",
-        "--kursliste-dir", str(KURSLISTE_SAMPLE_DIR),
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "process",
+            str(dummy_input_file),
+            "--config",
+            "config.template.toml",
+            "--tax-year",
+            "2024",
+            "--kursliste-dir",
+            str(KURSLISTE_SAMPLE_DIR),
+        ],
+    )
     assert "Phase: reconcile-payments" in result.stdout
+
 
 def test_main_no_payment_reconciliation(dummy_input_file: Path):
     """Test that reconcile_payments phase is skipped with --no-payment-reconciliation."""
-    result = runner.invoke(app, [
-        "process",
-        str(dummy_input_file),
-        "--tax-year", "2024",
-        "--kursliste-dir", str(KURSLISTE_SAMPLE_DIR),
-        "--no-payment-reconciliation",
-    ])
+    result = runner.invoke(
+        app,
+        [
+            "process",
+            str(dummy_input_file),
+            "--tax-year",
+            "2024",
+            "--kursliste-dir",
+            str(KURSLISTE_SAMPLE_DIR),
+            "--no-payment-reconciliation",
+        ],
+    )
     assert "Phase: reconcile-payments" not in result.stdout
+
 
 def test_main_final_xml_output(dummy_input_file: Path, tmp_path: Path):
     """Test writing the final XML with --xml-output."""
     xml_path = tmp_path / "final.xml"
-    result = runner.invoke(app, [
-        "process",
-        str(dummy_input_file),
-        "--phases", "import",
-        "--xml-output", str(xml_path)
-    ])
+    result = runner.invoke(
+        app, ["process", str(dummy_input_file), "--phases", "import", "--xml-output", str(xml_path)]
+    )
     assert result.exit_code == 0
     assert "Processing finished successfully." in result.stdout
     assert xml_path.exists()
@@ -248,7 +276,9 @@ def test_render_uses_language_override_with_empty_general_config(
         return out_path
 
     monkeypatch.setattr("opensteuerauszug.steuerauszug.TotalCalculator", DummyTotalCalculator)
-    monkeypatch.setattr("opensteuerauszug.steuerauszug.render_tax_statement", fake_render_tax_statement)
+    monkeypatch.setattr(
+        "opensteuerauszug.steuerauszug.render_tax_statement", fake_render_tax_statement
+    )
 
     result = runner.invoke(
         app,
@@ -269,4 +299,3 @@ def test_render_uses_language_override_with_empty_general_config(
 
     assert result.exit_code == 0
     assert captured["language"] == "fr"
-

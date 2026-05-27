@@ -5,16 +5,22 @@ from unittest.mock import MagicMock
 
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from opensteuerauszug.core.kursliste_accessor import KurslisteAccessor
-from opensteuerauszug.model.kursliste import Kursliste, ExchangeRateYearEnd, ExchangeRateMonthly, ExchangeRate
+from opensteuerauszug.model.kursliste import (
+    Kursliste,
+    ExchangeRateYearEnd,
+    ExchangeRateMonthly,
+    ExchangeRate,
+)
 
 # Define a consistent tax year for tests that need it for the accessor
 TEST_TAX_YEAR = 2023
 
+
 class TestKurslisteExchangeRateProvider(unittest.TestCase):
 
     def setUp(self):
-        self.kursliste_manager_mock = MagicMock() # Mock KurslisteManager
-        self.kursliste_mock = MagicMock(spec=Kursliste) # Mock Kursliste (for XML data path)
+        self.kursliste_manager_mock = MagicMock()  # Mock KurslisteManager
+        self.kursliste_mock = MagicMock(spec=Kursliste)  # Mock Kursliste (for XML data path)
 
         # Default behavior: manager returns a KurslisteAccessor wrapping the mock Kursliste
         # The accessor is configured for TEST_TAX_YEAR.
@@ -24,7 +30,7 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
 
         # Initialize exchange rate lists to empty to prevent test interference
         # These are attributes of the self.kursliste_mock, which is inside the accessor.
-        self.kursliste_mock.year = TEST_TAX_YEAR # Ensure the mock Kursliste has the correct year
+        self.kursliste_mock.year = TEST_TAX_YEAR  # Ensure the mock Kursliste has the correct year
         self.kursliste_mock.exchangeRatesYearEnd = []
         self.kursliste_mock.exchangeRatesMonthly = []
         self.kursliste_mock.exchangeRates = []
@@ -41,9 +47,11 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
         test_currency = "USD"
         expected_rate = Decimal("0.901")
         self.kursliste_mock.exchangeRatesYearEnd = [
-            ExchangeRateYearEnd(currency=test_currency, year=test_year, value=expected_rate, valueMiddle=None)
+            ExchangeRateYearEnd(
+                currency=test_currency, year=test_year, value=expected_rate, valueMiddle=None
+            )
         ]
-        
+
         rate = self.provider.get_exchange_rate(test_currency, date(test_year, 12, 31))
         self.assertEqual(expected_rate, rate)
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
@@ -53,9 +61,11 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
         test_currency = "EUR"
         expected_rate_middle = Decimal("1.055")
         self.kursliste_mock.exchangeRatesYearEnd = [
-            ExchangeRateYearEnd(currency=test_currency, year=test_year, value=None, valueMiddle=expected_rate_middle)
+            ExchangeRateYearEnd(
+                currency=test_currency, year=test_year, value=None, valueMiddle=expected_rate_middle
+            )
         ]
-        
+
         rate = self.provider.get_exchange_rate(test_currency, date(test_year, 12, 31))
         self.assertEqual(expected_rate_middle, rate)
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
@@ -65,13 +75,15 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
         test_month_str = "11"
         test_currency = "USD"
         expected_rate = Decimal("0.910")
-        
+
         self.kursliste_mock.exchangeRatesMonthly = [
-            ExchangeRateMonthly(currency=test_currency, year=test_year, month=test_month_str, value=expected_rate)
+            ExchangeRateMonthly(
+                currency=test_currency, year=test_year, month=test_month_str, value=expected_rate
+            )
         ]
         # Ensure year-end is empty for this test or doesn't match
-        self.kursliste_mock.exchangeRatesYearEnd = [] 
-        
+        self.kursliste_mock.exchangeRatesYearEnd = []
+
         rate = self.provider.get_exchange_rate(test_currency, date(test_year, 11, 15))
         self.assertEqual(expected_rate, rate)
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
@@ -100,12 +112,16 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
         rate_monthly = Decimal("0.920")
 
         self.kursliste_mock.exchangeRatesYearEnd = [
-            ExchangeRateYearEnd(currency=test_currency, year=test_year, value=rate_year_end, valueMiddle=None)
+            ExchangeRateYearEnd(
+                currency=test_currency, year=test_year, value=rate_year_end, valueMiddle=None
+            )
         ]
         self.kursliste_mock.exchangeRatesMonthly = [
-            ExchangeRateMonthly(currency=test_currency, year=test_year, month="12", value=rate_monthly)
+            ExchangeRateMonthly(
+                currency=test_currency, year=test_year, month="12", value=rate_monthly
+            )
         ]
-        
+
         rate = self.provider.get_exchange_rate(test_currency, date(test_year, 12, 31))
         self.assertEqual(rate_year_end, rate)
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
@@ -119,34 +135,48 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
         rate_daily = Decimal("0.925")
 
         self.kursliste_mock.exchangeRatesMonthly = [
-            ExchangeRateMonthly(currency=test_currency, year=test_year, month=test_month_str, value=rate_monthly)
+            ExchangeRateMonthly(
+                currency=test_currency, year=test_year, month=test_month_str, value=rate_monthly
+            )
         ]
         self.kursliste_mock.exchangeRates = [
-            ExchangeRate(currency=test_currency, date=date(test_year, int(test_month_str), test_day), value=rate_daily)
+            ExchangeRate(
+                currency=test_currency,
+                date=date(test_year, int(test_month_str), test_day),
+                value=rate_daily,
+            )
         ]
         # Ensure year-end is empty
         self.kursliste_mock.exchangeRatesYearEnd = []
 
-        rate = self.provider.get_exchange_rate(test_currency, date(test_year, int(test_month_str), test_day))
+        rate = self.provider.get_exchange_rate(
+            test_currency, date(test_year, int(test_month_str), test_day)
+        )
         self.assertEqual(rate_monthly, rate)
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
 
     def test_get_exchange_rate_currency_not_found(self):
         test_year = 2023
         # All lists are empty by default from setUp for this mock
-        
-        with self.assertRaisesRegex(ValueError, "Exchange rate for XYZ on 2023-10-10 not found in any Kursliste source for tax year 2023."):
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "Exchange rate for XYZ on 2023-10-10 not found in any Kursliste source for tax year 2023.",
+        ):
             self.provider.get_exchange_rate("XYZ", date(test_year, 10, 10))
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
 
     def test_get_exchange_rate_kursliste_for_year_not_found(self):
-        test_year = 2024 # A year for which the manager will return None (or an empty accessor)
+        test_year = 2024  # A year for which the manager will return None (or an empty accessor)
         # Configure mock manager to return None when get_kurslisten_for_year is called with test_year
-        self.kursliste_manager_mock.get_kurslisten_for_year.return_value = None 
-        
+        self.kursliste_manager_mock.get_kurslisten_for_year.return_value = None
+
         # The provider should raise ValueError if accessor is None.
         # The error message comes from KurslisteExchangeRateProvider itself.
-        with self.assertRaisesRegex(ValueError, f"Exchange rate for USD on {test_year}-01-15 not found in any Kursliste source for tax year {test_year}."):
+        with self.assertRaisesRegex(
+            ValueError,
+            f"Exchange rate for USD on {test_year}-01-15 not found in any Kursliste source for tax year {test_year}.",
+        ):
             self.provider.get_exchange_rate("USD", date(test_year, 1, 15))
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
 
@@ -154,7 +184,7 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
         # This test's premise changes slightly. The Accessor gets a list of Kursliste objects.
         # The Accessor's internal logic will iterate. We need to ensure the mock data is set up
         # on the Kursliste objects that the Accessor will receive.
-        test_year = TEST_TAX_YEAR # Use the consistent tax year
+        test_year = TEST_TAX_YEAR  # Use the consistent tax year
         test_currency = "GBP"
         expected_rate = Decimal("1.15")
 
@@ -162,7 +192,7 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
         kursliste_mock1.year = test_year
         kursliste_mock1.exchangeRatesYearEnd = []
         kursliste_mock1.exchangeRatesMonthly = []
-        kursliste_mock1.exchangeRates = [] 
+        kursliste_mock1.exchangeRates = []
 
         kursliste_mock2 = MagicMock(spec=Kursliste)
         kursliste_mock2.year = test_year
@@ -171,14 +201,19 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
         kursliste_mock2.exchangeRates = [
             ExchangeRate(currency=test_currency, date=date(test_year, 5, 20), value=expected_rate)
         ]
-        
+
         # Configure the mock manager to return an accessor that contains both mocks
-        mock_accessor_with_multiple_kl = KurslisteAccessor([kursliste_mock1, kursliste_mock2], tax_year=test_year)
-        self.kursliste_manager_mock.get_kurslisten_for_year.return_value = mock_accessor_with_multiple_kl
-        
+        mock_accessor_with_multiple_kl = KurslisteAccessor(
+            [kursliste_mock1, kursliste_mock2], tax_year=test_year
+        )
+        self.kursliste_manager_mock.get_kurslisten_for_year.return_value = (
+            mock_accessor_with_multiple_kl
+        )
+
         rate = self.provider.get_exchange_rate(test_currency, date(test_year, 5, 20))
         self.assertEqual(expected_rate, rate)
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -52,6 +52,7 @@ def run_filter_script(tmp_path: Path, *extra_args: str) -> Path:
     assert output_file.exists()
     return output_file
 
+
 def run_filter_script_conids(tmp_path: Path, *extra_args: str) -> Path:
     input_file = tmp_path / "input.xml"
     output_file = tmp_path / "output.xml"
@@ -72,6 +73,7 @@ def run_filter_script_conids(tmp_path: Path, *extra_args: str) -> Path:
     assert output_file.exists()
     return output_file
 
+
 def test_non_selected_isins_are_removed_from_minimal_ibflex_xml(tmp_path):
     output_file = run_filter_script(tmp_path)
     tree = ET.parse(str(output_file))
@@ -83,10 +85,9 @@ def test_non_selected_isins_are_removed_from_minimal_ibflex_xml(tmp_path):
     assert tree.xpath("count(.//CashTransaction[@conid='3'])") == 1.0
     assert tree.xpath("count(.//CashTransaction[@conid='2'])") == 0.0
 
-    output_isins = {
-        value for value in tree.xpath(".//*[@isin]/@isin") if value
-    }
+    output_isins = {value for value in tree.xpath(".//*[@isin]/@isin") if value}
     assert output_isins == {"US0000000001"}
+
 
 def test_non_selected_conids_are_removed_from_minimal_ibflex_xml(tmp_path):
     output_file = run_filter_script_conids(tmp_path)
@@ -98,6 +99,7 @@ def test_non_selected_conids_are_removed_from_minimal_ibflex_xml(tmp_path):
 
     assert tree.xpath("count(.//CashTransaction[@conid='3'])") == 1.0
     assert tree.xpath("count(.//CashTransaction[@conid='2'])") == 0.0
+
 
 def test_account_information_keeps_only_allowed_attributes(tmp_path):
     output_file = run_filter_script(tmp_path)
