@@ -72,7 +72,7 @@ class CleanupCalculator:
 
         # Log if configuration was provided
         if self.config_settings:
-            logger.info(f"Initialized with configuration settings.")
+            logger.info("Initialized with configuration settings.")
         else:
             logger.info("Initialized without configuration settings.")
 

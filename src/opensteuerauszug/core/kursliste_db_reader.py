@@ -153,7 +153,7 @@ class KurslisteDBReader:
         Deserializes a security object from BLOB data using its type identifier.
         """
         if not type_identifier:  # blob_data check is done in _deserialize_object
-            print(f"Warning: No type_identifier provided for security deserialization.")
+            print("Warning: No type_identifier provided for security deserialization.")
             return None
 
         model_class = self._SECURITY_TYPE_MAP.get(type_identifier)

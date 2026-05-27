@@ -157,15 +157,11 @@ class FidelityImporter:
                 error_desc = f"{object_description} (Symbol: " f"{data_object.get('Symbol')})"
             elif data_object.get('Symbol/CUSIP'):
                 error_desc = f"{object_description} (Symbol: " f"{data_object.get('Symbol/CUSIP')})"
-            elif data_object.get('Account Number') and not (
-                'Account:' in object_description
-            ):  # Avoid double "Account:"
+            elif data_object.get('Account Number') and 'Account:' not in object_description:  # Avoid double "Account:"
                 error_desc = (
                     f"{object_description} (Account: " f"{data_object.get('Account Number')})"
                 )
-            elif data_object.get('Account') and not (
-                'Account:' in object_description
-            ):  # Avoid double "Account:"
+            elif data_object.get('Account') and 'Account:' not in object_description:  # Avoid double "Account:"
                 error_desc = f"{object_description} (Account: " f"{data_object.get('Account')})"
             raise ValueError(f"Missing required field '{field_name}' in {error_desc}.")
         if field_name == 'Run Date':
@@ -176,7 +172,7 @@ class FidelityImporter:
                     value = datetime.strptime(tmp_date[tmp_date.index('of') + 1], "%b-%d-%Y").date()
                 else:
                     value = datetime.strptime(value.strip(), "%m/%d/%Y").date()
-            except (ValueError, UnboundLocalError) as e:
+            except (ValueError, UnboundLocalError):
                 logger.warning(
                     "Warning: Could not parse transaction date info : %s from %s",
                     value,
@@ -440,7 +436,7 @@ class FidelityImporter:
         security_asset_category_map: Dict[SecurityPosition, SecurityCategory] = {}
         account_id: Any = None
         if len(all_statements) > 0:
-            logger.info(f"Processing statements")
+            logger.info("Processing statements")
         for stmt in all_statements:
             summary = self._get_required_field(stmt, 'Summary', 'Statement')
             account_id = self._get_required_field(summary, 'Account', 'Statement Summary')
@@ -582,7 +578,7 @@ class FidelityImporter:
                     'Amount',
                     f"Trade {symbol}",
                 )
-                if not action in ['transfer', 'stock_split']:
+                if action not in ['transfer', 'stock_split']:
                     trade_price = self._to_decimal(
                         self._get_required_field(transaction, 'Price ($)', 'Trade'),
                         'Price',

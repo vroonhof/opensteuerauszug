@@ -216,7 +216,7 @@ if __name__ == '__main__':
         # Adjust label position slightly based on new barcode placement logic
         label_x = 5 * mm + 12 * mm + 5 * mm  # Position label to the right of the rotated barcode
         label_y = page_layout[1] - 10 * mm - 10  # Position label slightly below the top of barcode
-        c.drawString(label_x, label_y, f"Rotated Barcode (Page 5)")
+        c.drawString(label_x, label_y, "Rotated Barcode (Page 5)")
 
         # Save the PDF page and file
         c.showPage()

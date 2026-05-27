@@ -540,7 +540,7 @@ class TransactionExtractor:
                     broker_label_original=action,
                 )
                 # Cash stock mutation
-                cash_stock = create_cash_stock(schwab_amount, f"Cash in for Credit Interest")
+                cash_stock = create_cash_stock(schwab_amount, "Cash in for Credit Interest")
 
         elif action in (
             "Dividend",

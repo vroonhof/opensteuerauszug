@@ -240,7 +240,7 @@ def process(
         if not payment_reconciliation and Phase.RECONCILE_PAYMENTS in run_phases:
             run_phases.remove(Phase.RECONCILE_PAYMENTS)
 
-    print(f"Starting OpenSteuerauszug processing...")
+    print("Starting OpenSteuerauszug processing...")
     print(f"Input file: {input_file}")
     # ... (rest of initial print statements and date parsing logic remains the same) ...
     parsed_period_from: Optional[date] = None
@@ -400,7 +400,7 @@ def process(
                 and concrete_accounts_list
             ):
                 raise ValueError(
-                    f"No valid Fidelity account configurations found for broker 'fidelity', though other configurations might exist."
+                    "No valid Fidelity account configurations found for broker 'fidelity', though other configurations might exist."
                 )
             if (
                 target_broker_kind_for_config_loading == "schwab"
@@ -408,7 +408,7 @@ def process(
                 and concrete_accounts_list
             ):
                 raise ValueError(
-                    f"No valid Schwab account configurations found for broker 'schwab', though other configurations might exist."
+                    "No valid Schwab account configurations found for broker 'schwab', though other configurations might exist."
                 )
             if (
                 target_broker_kind_for_config_loading == "ibkr"
@@ -416,7 +416,7 @@ def process(
                 and concrete_accounts_list
             ):
                 logger.debug(
-                    f"Warning: No valid IBKR account configurations loaded for broker 'ibkr', though other configurations might exist."
+                    "Warning: No valid IBKR account configurations loaded for broker 'ibkr', though other configurations might exist."
                 )
 
             if all_fidelity_account_settings_models:
@@ -526,7 +526,7 @@ def process(
                     )
                 if not all_schwab_account_settings_models:
                     print(
-                        f"Error: No valid Schwab account configurations loaded/found for broker 'schwab'. Check config.toml or provide --broker schwab if settings are under a different name."
+                        "Error: No valid Schwab account configurations loaded/found for broker 'schwab'. Check config.toml or provide --broker schwab if settings are under a different name."
                     )
                     raise typer.Exit(code=1)
                 print(
@@ -542,7 +542,7 @@ def process(
                     render_language=render_language,
                 )
                 statement = schwab_importer.import_dir(str(input_file))
-                print(f"Schwab import complete.")
+                print("Schwab import complete.")
 
             elif importer_type == ImporterType.FIDELITY:
                 if not parsed_period_from or not parsed_period_to:
@@ -555,7 +555,7 @@ def process(
                     )
                 if not all_fidelity_account_settings_models:
                     print(
-                        f"Error: No valid Fidelity account configurations loaded/found for broker 'fidelity'. Check config.toml or provide --broker fidelity if settings are under a different name."
+                        "Error: No valid Fidelity account configurations loaded/found for broker 'fidelity'. Check config.toml or provide --broker fidelity if settings are under a different name."
                     )
                     raise typer.Exit(code=1)
                 print(
@@ -571,7 +571,7 @@ def process(
                     render_language=render_language,
                 )
                 statement = fidelity_importer.import_dir(str(input_file))
-                print(f"Fidelity import complete.")
+                print("Fidelity import complete.")
 
             elif importer_type == ImporterType.IBKR:
                 if not parsed_period_from or not parsed_period_to:
@@ -613,7 +613,7 @@ def process(
                 statement = ibkr_importer.import_files(
                     [str(input_file)], corrections_filenames=corrections_files
                 )
-                print(f"IBKR import complete.")
+                print("IBKR import complete.")
 
             elif importer_type == ImporterType.DEGIRO:
                 if not parsed_period_from or not parsed_period_to:
@@ -639,7 +639,7 @@ def process(
                     account_settings_list=all_degiro_account_settings_models,
                 )
                 statement = degiro_importer.import_dir(str(input_file))
-                print(f"Degiro import complete.")
+                print("Degiro import complete.")
 
             elif importer_type == ImporterType.NONE and not raw_import:
                 print(
@@ -665,7 +665,7 @@ def process(
                     client=[Client(clientNumber=ClientNumber(""))],
                 )
 
-            print(f"Import successful.")
+            print("Import successful.")
             dump_debug_model(current_phase.value, statement)
 
         if Phase.CALCULATE in run_phases:
@@ -969,7 +969,7 @@ def process(
             if not statement:
                 raise ValueError("TaxStatement model not loaded. Cannot run validate phase.")
             statement.validate_model()
-            print(f"Validation successful.")
+            print("Validation successful.")
             dump_debug_model(current_phase.value, statement)
 
         if Phase.RENDER in run_phases:
@@ -983,7 +983,7 @@ def process(
             # Fill in missing fields to make rendering possible
             calculator = TotalCalculator(mode=CalculationMode.FILL)
             statement = calculator.calculate(statement)
-            print(f"Calculation successful.")
+            print("Calculation successful.")
             dump_debug_model(current_phase.value, statement)
 
             if org_nr is not None:

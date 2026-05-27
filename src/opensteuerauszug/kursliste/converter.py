@@ -526,11 +526,11 @@ def convert_kursliste_xml_to_sqlite(
         conn.commit()
 
         total_count += batch_count
-        print(f"\nCreating indexes...")
+        print("\nCreating indexes...")
         create_idx(conn)
 
         # Print summary
-        print(f"\nConversion complete:")
+        print("\nConversion complete:")
         print(f"  Shares: {counts['share']}")
         print(f"  Bonds: {counts['bond']}")
         print(f"  Funds: {counts['fund']}")

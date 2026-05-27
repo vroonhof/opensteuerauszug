@@ -1,6 +1,5 @@
 from datetime import date, timedelta
 from decimal import Decimal
-from datetime import date
 from typing import Optional, List, Set
 import logging
 
