@@ -11,7 +11,7 @@ from opensteuerauszug.model.kursliste import (
     Da1Rate,
     SecurityGroupESTV,
     SecurityTypeESTV,
-    Da1RateType
+    Da1RateType,
 )
 
 
@@ -21,6 +21,7 @@ class KurslisteAccessor:
     a KurslisteDBReader (SQLite) or a list of Kursliste XML model objects.
     Caches results of its methods.
     """
+
     # Removed _security_group_to_model_map
     # Removed _dict_to_security_model method
 
@@ -30,7 +31,7 @@ class KurslisteAccessor:
 
         Args:
             data_source: The data source, either a KurslisteDBReader instance or a list of Kursliste model objects.
-            tax_year: The primary tax year this accessor is responsible for. 
+            tax_year: The primary tax year this accessor is responsible for.
                       Used mainly for security lookups that are year-specific.
         """
         self.data_source = data_source
@@ -49,18 +50,18 @@ class KurslisteAccessor:
         Returns:
             The exchange rate as a Decimal, or None if not found.
         """
-        if currency == "CHF": # CHF is always 1:1 with itself
+        if currency == "CHF":  # CHF is always 1:1 with itself
             return Decimal("1")
 
         if isinstance(self.data_source, KurslisteDBReader):
             # KurslisteDBReader.get_exchange_rate is already cached
             return self.data_source.get_exchange_rate(currency, reference_date)
-        
-        elif isinstance(self.data_source, list): # List[Kursliste]
+
+        elif isinstance(self.data_source, list):  # List[Kursliste]
             # Iterate through each Kursliste object (typically one, but could be multiple for the same year)
             for kursliste_instance in self.data_source:
                 if not isinstance(kursliste_instance, Kursliste):
-                    continue # Should not happen with correct type hints but good for safety
+                    continue  # Should not happen with correct type hints but good for safety
 
                 # Logic similar to _get_exchange_rate_from_xml_kursliste from KurslisteExchangeRateProvider
                 # The tax_year for comparison within XML rates should be based on the reference_date's year
@@ -75,15 +76,21 @@ class KurslisteAccessor:
                                 denomination = Decimal(1)
                                 if rate.value is not None:
                                     return Decimal(str(rate.value)) / denomination
-                                elif rate.valueMiddle is not None: # Fallback for certain year-end rates
+                                elif (
+                                    rate.valueMiddle is not None
+                                ):  # Fallback for certain year-end rates
                                     return Decimal(str(rate.valueMiddle)) / denomination
-                
+
                 # Monthly Average Logic
                 if hasattr(kursliste_instance, 'exchangeRatesMonthly'):
                     month_str = f"{reference_date.month:02d}"
                     for rate in kursliste_instance.exchangeRatesMonthly:
-                        if rate.currency == currency and rate.year == xml_tax_year and rate.month == month_str:
-                            #denomination = Decimal(str(rate.denomination) if rate.denomination else 1)
+                        if (
+                            rate.currency == currency
+                            and rate.year == xml_tax_year
+                            and rate.month == month_str
+                        ):
+                            # denomination = Decimal(str(rate.denomination) if rate.denomination else 1)
                             denomination = Decimal(1)
                             if rate.value is not None:
                                 return Decimal(str(rate.value)) / denomination
@@ -91,14 +98,16 @@ class KurslisteAccessor:
                 # Daily Rate Logic
                 if hasattr(kursliste_instance, 'exchangeRates'):
                     for rate in kursliste_instance.exchangeRates:
-                        if rate.currency == currency and rate.date == reference_date: # Direct date match
-                            #denomination = Decimal(str(rate.denomination) if rate.denomination else 1)
+                        if (
+                            rate.currency == currency and rate.date == reference_date
+                        ):  # Direct date match
+                            # denomination = Decimal(str(rate.denomination) if rate.denomination else 1)
                             denomination = Decimal(1)
                             if rate.value is not None:
                                 return Decimal(str(rate.value)) / denomination
-            return None # No rate found in any Kursliste XML object in the list
-        
-        return None # Should not be reached if data_source is correctly typed and handled above
+            return None  # No rate found in any Kursliste XML object in the list
+
+        return None  # Should not be reached if data_source is correctly typed and handled above
 
     @lru_cache(maxsize=None)
     def get_security_by_valor(self, valor_number: int) -> Optional[Security]:
@@ -109,12 +118,14 @@ class KurslisteAccessor:
         if isinstance(self.data_source, KurslisteDBReader):
             # KurslisteDBReader.find_security_by_valor now returns Optional[Security]
             return self.data_source.find_security_by_valor(valor_number, self.tax_year)
-        elif isinstance(self.data_source, list): # List[Kursliste]
+        elif isinstance(self.data_source, list):  # List[Kursliste]
             for kl_instance in self.data_source:
-                if kl_instance.year == self.tax_year: # Ensure Kursliste year matches accessor's year context
+                if (
+                    kl_instance.year == self.tax_year
+                ):  # Ensure Kursliste year matches accessor's year context
                     security = kl_instance.find_security_by_valor(valor_number)
                     if security:
-                        return security # Returns the first one found
+                        return security  # Returns the first one found
             return None
         return None
 
@@ -127,12 +138,12 @@ class KurslisteAccessor:
         if isinstance(self.data_source, KurslisteDBReader):
             # KurslisteDBReader.find_security_by_isin now returns Optional[Security]
             return self.data_source.find_security_by_isin(isin, self.tax_year)
-        elif isinstance(self.data_source, list): # List[Kursliste]
+        elif isinstance(self.data_source, list):  # List[Kursliste]
             for kl_instance in self.data_source:
                 if kl_instance.year == self.tax_year:
                     security = kl_instance.find_security_by_isin(isin)
                     if security:
-                        return security # Returns the first one found
+                        return security  # Returns the first one found
             return None
         return None
 
@@ -145,14 +156,14 @@ class KurslisteAccessor:
         if isinstance(self.data_source, KurslisteDBReader):
             # KurslisteDBReader.find_securities_by_valor now returns List[Security]
             return self.data_source.find_securities_by_valor(valor_number, self.tax_year)
-        elif isinstance(self.data_source, list): # List[Kursliste]
+        elif isinstance(self.data_source, list):  # List[Kursliste]
             results: List[Security] = []
             for kl_instance in self.data_source:
                 if kl_instance.year == self.tax_year:
                     securities_from_xml = kl_instance.find_securities_by_valor(valor_number)
                     results.extend(securities_from_xml)
             return results
-        return [] # Should not be reached if data_source is correctly typed
+        return []  # Should not be reached if data_source is correctly typed
 
     @lru_cache(maxsize=None)
     def get_sign_by_value(self, sign_value: str) -> Optional[Sign]:
@@ -162,7 +173,7 @@ class KurslisteAccessor:
         """
         if isinstance(self.data_source, KurslisteDBReader):
             return self.data_source.get_sign_by_value(sign_value, self.tax_year)
-        elif isinstance(self.data_source, list): # List[Kursliste]
+        elif isinstance(self.data_source, list):  # List[Kursliste]
             for kl_instance in self.data_source:
                 if kl_instance.year == self.tax_year:
                     if hasattr(kl_instance, 'signs') and kl_instance.signs:
@@ -173,10 +184,14 @@ class KurslisteAccessor:
         return None
 
     @lru_cache(maxsize=None)
-    def get_da1_rate(self, country: str, security_group: SecurityGroupESTV,
-                     security_type: Optional[SecurityTypeESTV] = None,
-                     da1_rate_type: Optional[Da1RateType] = None,
-                     reference_date: Optional[date] = None) -> Optional[Da1Rate]:
+    def get_da1_rate(
+        self,
+        country: str,
+        security_group: SecurityGroupESTV,
+        security_type: Optional[SecurityTypeESTV] = None,
+        da1_rate_type: Optional[Da1RateType] = None,
+        reference_date: Optional[date] = None,
+    ) -> Optional[Da1Rate]:
         """
         Retrieves a Da1Rate object based on criteria for the accessor's tax_year.
         It first attempts to find a rate matching the specific security_type,
@@ -186,11 +201,12 @@ class KurslisteAccessor:
         candidates: List[Da1Rate] = []
         if isinstance(self.data_source, KurslisteDBReader):
             # The DB reader returns all candidates matching country and security_group
-            candidates = self.data_source.get_da1_rate(
-                country=country,
-                security_group=security_group,
-                tax_year=self.tax_year
-            ) or []
+            candidates = (
+                self.data_source.get_da1_rate(
+                    country=country, security_group=security_group, tax_year=self.tax_year
+                )
+                or []
+            )
         elif isinstance(self.data_source, list):  # List[Kursliste]
             for kl_instance in self.data_source:
                 if kl_instance.year == self.tax_year and hasattr(kl_instance, 'da1Rates'):
@@ -245,11 +261,11 @@ class KurslisteAccessor:
         if isinstance(self.data_source, KurslisteDBReader):
             # KurslisteDBReader.find_securities_by_isin now returns List[Security]
             return self.data_source.find_securities_by_isin(isin, self.tax_year)
-        elif isinstance(self.data_source, list): # List[Kursliste]
+        elif isinstance(self.data_source, list):  # List[Kursliste]
             results: List[Security] = []
             for kl_instance in self.data_source:
                 if kl_instance.year == self.tax_year:
                     securities_from_xml = kl_instance.find_securities_by_isin(isin)
                     results.extend(securities_from_xml)
             return results
-        return [] # Should not be reached if data_source is correctly typed
+        return []  # Should not be reached if data_source is correctly typed

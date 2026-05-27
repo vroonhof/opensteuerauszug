@@ -6,7 +6,6 @@ from opensteuerauszug.importers.degiro.portfolio_csv_parser import (
     load_portfolio_csv,
 )
 
-
 SAMPLE_PORTFOLIO_CSV = """\
 Product,Symbol/ISIN,Amount,Closing,Local value,,Value in CHF
 CASH & CASH FUND & FTX CASH (CHF),,,,CHF,500.00,500.00

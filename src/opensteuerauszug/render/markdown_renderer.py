@@ -5,19 +5,21 @@ from markdown.extensions import Extension
 from reportlab.platypus import Paragraph, Spacer, ListFlowable, ListItem
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
+
 # The Markdown parser builds ElementTree nodes internally; this module does not parse XML input.
 from xml.etree.ElementTree import Element  # nosec: B405
+
 
 def _etree_to_string(element: Element) -> str:
     """Recursively converts an ElementTree element to a string with ReportLab XML tags."""
     text = element.text or ""
-    
+
     tag_map = {
         'strong': 'b',
         'em': 'i',
         'code': 'font name="Courier"',
     }
-    
+
     for child in element:
         if child.tag in tag_map:
             open_tag = f"<{tag_map[child.tag]}>"
@@ -25,13 +27,14 @@ def _etree_to_string(element: Element) -> str:
         else:
             open_tag = ""
             close_tag = ""
-            
+
         text += open_tag + _etree_to_string(child) + close_tag
-        
+
         if child.tail:
             text += child.tail
-            
+
     return text.strip()
+
 
 class SectionExtractorTreeprocessor(Treeprocessor):
     def __init__(self, md, section=None):
@@ -43,27 +46,31 @@ class SectionExtractorTreeprocessor(Treeprocessor):
             return root
 
         section_content = []
-        
+
         # The marker is a paragraph with the literal text like "{: .short-version }".
         start_marker = f"{{: .{self.section} }}"
-        
+
         start_marker_index = -1
         for i, element in enumerate(root):
             if element.tag == 'p' and element.text and element.text.strip() == start_marker:
                 start_marker_index = i
                 break
-        
+
         if start_marker_index != -1:
             # Content starts from the element *after* the marker.
             content_start_index = start_marker_index + 1
-            
+
             # Find the end of the section, which is the next marker or end of doc.
             end_marker_index = len(root)
             for i in range(content_start_index, len(root)):
                 element = root[i]
-                if element.tag == 'p' and element.text and (
-                    element.text.strip() == "{: .short-version }" or
-                    element.text.strip() == "{: .long-version }"
+                if (
+                    element.tag == 'p'
+                    and element.text
+                    and (
+                        element.text.strip() == "{: .short-version }"
+                        or element.text.strip() == "{: .long-version }"
+                    )
                 ):
                     end_marker_index = i
                     break
@@ -73,12 +80,12 @@ class SectionExtractorTreeprocessor(Treeprocessor):
         title = []
         if len(root) > 0 and root[0].tag.startswith('h'):
             title.append(root[0])
-            
+
         # Replace the original root with the new one
         root.clear()
         root.extend(title)
         root.extend(section_content)
-            
+
         return root
 
 
@@ -99,7 +106,7 @@ class PlatypusTreeprocessor(Treeprocessor):
             self.flowables.append(Paragraph(text, self.styles[style_name]))
             self.flowables.append(Spacer(1, 0.2 * cm))
 
-        for element in root[1:]: # Skip the title
+        for element in root[1:]:  # Skip the title
             if element.tag.startswith('h'):
                 level = int(element.tag[1])
                 style_name = f'h{level}'
@@ -118,7 +125,7 @@ class PlatypusTreeprocessor(Treeprocessor):
                 for li in element:
                     text = _etree_to_string(li)
                     items.append(ListItem(Paragraph(text, self.styles['Normal'])))
-                
+
                 list_flowable = ListFlowable(
                     items,  # type: ignore[arg-type]
                     bulletType='1' if element.tag == 'ol' else 'bullet',
@@ -137,11 +144,15 @@ class PlatypusExtension(Extension):
         super().__init__(*args, **kwargs)
 
     def extendMarkdown(self, md):
-        md.treeprocessors.register(SectionExtractorTreeprocessor(md, self.section), 'section_extractor', 6)
+        md.treeprocessors.register(
+            SectionExtractorTreeprocessor(md, self.section), 'section_extractor', 6
+        )
         md.treeprocessors.register(PlatypusTreeprocessor(md, self.styles), 'platypus', 5)
 
 
-def markdown_to_platypus(markdown_text: str, section: Optional[str] = None, styles=None) -> List[Any]:
+def markdown_to_platypus(
+    markdown_text: str, section: Optional[str] = None, styles=None
+) -> List[Any]:
     """
     Converts a Markdown string to a list of ReportLab Platypus Flowables.
     """
@@ -150,6 +161,6 @@ def markdown_to_platypus(markdown_text: str, section: Optional[str] = None, styl
     platypus_ext = PlatypusExtension(section=section, styles=styles)
     md = Markdown(extensions=['attr_list', platypus_ext], output_format="html")
     md.convert(markdown_text)
-    
+
     processor: Any = md.treeprocessors['platypus']
     return processor.flowables

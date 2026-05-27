@@ -1,15 +1,17 @@
 import logging
 from typing import Dict, List
 
+
 class CustomFormatter(logging.Formatter):
     """Custom formatter to remove the project name from the logger name."""
 
     def format(self, record):
         if record.name.startswith('opensteuerauszug'):
-            record.name = record.name[len('opensteuerauszug'):]
+            record.name = record.name[len('opensteuerauszug') :]
             if record.name.startswith('.'):
                 record.name = record.name[1:]
         return super().format(record)
+
 
 def setup_logging(verbose: bool):
     """Set up logging for the application."""
@@ -17,7 +19,7 @@ def setup_logging(verbose: bool):
     formatter = CustomFormatter('%(levelname)s:%(name)s:%(message)s')
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
-    
+
     root_logger = logging.getLogger('opensteuerauszug')
     root_logger.setLevel(level)
     # Clear existing handlers to avoid duplicates if called multiple times
@@ -25,13 +27,12 @@ def setup_logging(verbose: bool):
     root_logger.addHandler(handler)
     # Prevent propagation to the root logger to avoid duplicate messages
     root_logger.propagate = False
-    
+
     # Suppress pypdf warnings to avoid cluttering output with benign warnings
     # about rotated text and other PDF layout issues
     pypdf_logger = logging.getLogger('pypdf')
     pypdf_logger.setLevel(logging.ERROR)
 
-    
 
 class RemarkCollector:
     """Collects remarks for securities and global notes."""

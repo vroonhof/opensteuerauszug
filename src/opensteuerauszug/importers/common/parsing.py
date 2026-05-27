@@ -21,9 +21,7 @@ def to_decimal(value: object | None, field_name: str, context: str) -> Decimal:
         ValueError: if *value* is ``None`` or cannot be parsed as Decimal.
     """
     if value is None:
-        raise ValueError(
-            f"Cannot convert None to Decimal for field '{field_name}' in {context}"
-        )
+        raise ValueError(f"Cannot convert None to Decimal for field '{field_name}' in {context}")
     try:
         return Decimal(str(value))
     except InvalidOperation:

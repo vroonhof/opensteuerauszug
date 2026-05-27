@@ -2,6 +2,7 @@ import pytest
 from decimal import Decimal
 from opensteuerauszug.util import round_accounting
 
+
 # fmt: off
 @pytest.mark.parametrize(
     "input_value, expected_output",
@@ -57,31 +58,35 @@ def test_round_accounting(input_value, expected_output):
     """Tests the round_accounting function with various inputs."""
     assert round_accounting(input_value) == expected_output
 
+
 # Test specifically the rounding rule (DIN 1333 / ROUND_HALF_UP)
 @pytest.mark.parametrize(
     "input_value, precision, expected_output",
     [
-        (Decimal("10.124"), 2, Decimal("10.12")), # < 5 rounds down
-        (Decimal("10.125"), 2, Decimal("10.13")), # = 5 rounds up
-        (Decimal("10.126"), 2, Decimal("10.13")), # > 5 rounds up
-        (Decimal("10.1234"), 3, Decimal("10.123")), # < 5 rounds down
-        (Decimal("10.1235"), 3, Decimal("10.124")), # = 5 rounds up
-        (Decimal("10.1236"), 3, Decimal("10.124")), # > 5 rounds up
-    ]
+        (Decimal("10.124"), 2, Decimal("10.12")),  # < 5 rounds down
+        (Decimal("10.125"), 2, Decimal("10.13")),  # = 5 rounds up
+        (Decimal("10.126"), 2, Decimal("10.13")),  # > 5 rounds up
+        (Decimal("10.1234"), 3, Decimal("10.123")),  # < 5 rounds down
+        (Decimal("10.1235"), 3, Decimal("10.124")),  # = 5 rounds up
+        (Decimal("10.1236"), 3, Decimal("10.124")),  # > 5 rounds up
+    ],
 )
 def test_rounding_mode(input_value, precision, expected_output):
     """Verifies the rounding mode specifically."""
     if abs(input_value) < 100:
-         # For values < 100, we expect 3 decimal places
-         assert round_accounting(input_value) == input_value.quantize(Decimal("0.001"), rounding='ROUND_HALF_UP')
+        # For values < 100, we expect 3 decimal places
+        assert round_accounting(input_value) == input_value.quantize(
+            Decimal("0.001"), rounding='ROUND_HALF_UP'
+        )
     else:
-         # For values >= 100, we expect 2 decimal places
-         assert round_accounting(input_value) == input_value.quantize(Decimal("0.01"), rounding='ROUND_HALF_UP')
+        # For values >= 100, we expect 2 decimal places
+        assert round_accounting(input_value) == input_value.quantize(
+            Decimal("0.01"), rounding='ROUND_HALF_UP'
+        )
 
     # Direct check based on precision param for clarity
     if precision == 2:
         quantizer = Decimal("0.01")
-    else: # precision == 3
+    else:  # precision == 3
         quantizer = Decimal("0.001")
     assert input_value.quantize(quantizer, rounding='ROUND_HALF_UP') == expected_output
-

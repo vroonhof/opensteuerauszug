@@ -5,10 +5,8 @@ TRANSLATIONS = {
     "created_with": "created with OpenSteuerauszug",
     "converted_with": "converted with OpenSteuerauszug",
     "taxstatement": "tax statement",
-
     # === PAGE STRUCTURE ===
     "page": "page {page} of {total}",
-
     # === CLIENT INFORMATION ===
     "client": "Client",
     "client_number": "Ctno.",
@@ -19,7 +17,6 @@ TRANSLATIONS = {
     "period": "Period",
     "portfolio": "Ctno.",
     "created_at": "Created on",
-
     # === SECTION TITLES ===
     "summary": "Overview",
     "bank_accounts": "Bank accounts",
@@ -30,10 +27,8 @@ TRANSLATIONS = {
     "liabilities_title": "Liabilities",
     "reconciliation_kursliste_broker": "Kursliste / broker payments reconciliation",
     "tax_statement_in_chf": "Tax statement in CHF",
-
     # === BARCODE PAGE ===
     "barcode_page": "Barcode page {page} of {total}",
-
     # === COMMON LABELS ===
     "date": "Date",
     "description": "Description",
@@ -43,7 +38,6 @@ TRANSLATIONS = {
     "na": "n/a",
     "column_a": "A",
     "column_b": "B",
-
     # === SUMMARY TABLE HEADERS ===
     "tax_value_ab_header": "<b>Tax value</b> of<br/><b>A</b>- and <b>B</b>-values<br/>at {date}",
     "gross_revenue_values_with_vst": "<b>Gross revenue</b><br/>{period} values <b>with</b><br/>WHT-deduction",
@@ -59,7 +53,6 @@ TRANSLATIONS = {
     "total_gross_revenue_all_values": "<b>Total gross revenue</b> {period}<br/><b>A, B, DA-1</b> and <b>USA</b>-values",
     "liabilities_header": "<b>Liabilities</b><br/>at {date}",
     "liabilities_interest_summary_header": "<b>Debt<br/>interests</b> {period}",
-
     # === BANK ACCOUNTS TABLE ===
     "total_bank_accounts": "Total bank accounts",
     "designation_bank_account_interest": "Description<br/>Bank account<br/>Interests",
@@ -69,7 +62,6 @@ TRANSLATIONS = {
     "total_paid_bank_fees": "Total expenses",
     "tax_value_revenue": "Tax value / Gross revenue",
     "dissolution_revenue": "Dissolution / Gross revenue",
-
     # === SECURITIES TABLE ===
     "valor_number_date": "Valor-No.<br/>Date",
     "depot_number_designation_isin": "Depot-No.<br/>Description<br/>ISIN",
@@ -93,7 +85,6 @@ TRANSLATIONS = {
     "foreign_tax_credit": "<b>Recognition<br/>foreign WHT</b><br/>in CHF",
     "usa_withholding": "<b>Withholding<br/>tax USA</b><br/>in CHF",
     'country_total': 'Total {country}',
-
     # === LIABILITIES TABLE ===
     "designation_liabilities_interest": "Description<br/>Debts<br/>Interests",
     "liabilities_amount_interest_header": "Debts<br/>Debt<br/>interests",
@@ -101,7 +92,6 @@ TRANSLATIONS = {
     "liabilities_interest_header": "<b>Debt interests</b><br/>{year}<br/>in CHF",
     "tax_value_liabilities_interest": "Debts / Debt interests",
     "total_liabilities": "Total liabilities",
-
     # === PAYMENT RECONCILIATION TABLE ===
     "reconciliation_payments": "Payment reconciliation ({country})",
     "kl_dividend_chf": "KL dividend CHF",
@@ -110,7 +100,6 @@ TRANSLATIONS = {
     "broker_withholding": "Broker withholding",
     "ok": "OK",
     "security": "Security",
-
     # === INSTRUCTIONS & FOOTNOTES ===
     "footnote_ab_breakdown": "(1) Thereof <b>A</b> {} and <b>B</b> {}",
     "instruction_securities_register": 'Values for the <b>"State of Securities and Other Capital Investment"</b> form (including accounts, without DA-1 and USA values)',
@@ -118,19 +107,15 @@ TRANSLATIONS = {
     "instruction_no_da1": "If <b>no</b> recognition of foreign withholding tax (DA-1) is claimed, then\nthe total values must be entered in the list of securities.",
     "instruction_liabilities_register": 'Values for the supplementary tax return form <b>"State of debts"</b>',
     "expense_deductibility_notice": "(2) Expenses: The competent tax authority decides on the deductibility of expenses.",
-
     # === EXPENSE INFORMATION ===
     "expense_type": "Expenses",
-
     # === PLACEHOLDERS ===
     "minimal_placeholder": "This is not a real tax statement. This minimal document only serves to import bank data via barcodes. Since totals are not determined, no summary is shown.",
-
     # === CRITICAL WARNINGS ===
     "critical_warnings_title": "CRITICAL WARNINGS",
     "warning": "warning",
     "warnings": "warnings",
     "critical_warnings_hint": "This statement has <b>{count}</b> critical {plural}. Please review the information pages at the end of this document.",
-
     # === XML TRANSLATIONS ===
     "debit_interest": "Interest Payments",
     "credit_interest": "Credit Interest",

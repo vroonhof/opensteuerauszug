@@ -23,14 +23,14 @@ from opensteuerauszug.model.ech0196 import (
     Security,
     ValorNumber,
     ISINType,
-    ListOfSecurities
+    ListOfSecurities,
 )
 from opensteuerauszug.render.render import (
     render_tax_statement,
     render_statement_info,
     make_barcode_pages,
     BarcodeDocTemplate,
-    create_bank_accounts_table
+    create_bank_accounts_table,
 )
 import opensteuerauszug.render.render as render
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -40,10 +40,12 @@ from opensteuerauszug.calculate.base import CalculationMode
 from tests.utils.samples import get_sample_files
 from opensteuerauszug.util.styles import get_custom_styles
 
+
 # Helper to create a dummy PIL Image
 def create_dummy_pil_image(width=100, height=30):
-    img = PILImage.new('RGB', (width, height), color = 'red')
+    img = PILImage.new('RGB', (width, height), color='red')
     return img
+
 
 @pytest.fixture
 def sample_tax_statement():
@@ -62,7 +64,7 @@ def sample_tax_statement():
                 clientNumber=ClientNumber("C1"),
                 firstName="Max",
                 lastName="Muster",
-                salutation="2"  # "2" is code for "Mr"
+                salutation="2",  # "2" is code for "Mr"
             )
         ],
         totalTaxValue=Decimal("1000.50"),
@@ -70,8 +72,9 @@ def sample_tax_statement():
         svTaxValueB=Decimal("100.50"),
         totalGrossRevenueA=Decimal("100.00"),
         totalGrossRevenueB=Decimal("50.00"),
-        totalWithHoldingTaxClaim=Decimal("35.00")
+        totalWithHoldingTaxClaim=Decimal("35.00"),
     )
+
 
 def test_render_statement_info(sample_tax_statement):
     """Test that the statement info is correctly rendered to story elements without rendering a PDF."""
@@ -79,30 +82,31 @@ def test_render_statement_info(sample_tax_statement):
     story = []
     styles = getSampleStyleSheet()
     client_info_style = ParagraphStyle(name='ClientInfo', parent=styles['Normal'], fontSize=9)
-    
+
     # Call the function
     render_statement_info(sample_tax_statement, story, client_info_style)
-    
+
     # Check that the expected elements were added to the story
-    # We should have 4 paragraphs (customer name, portfolio, period, creation date) 
+    # We should have 4 paragraphs (customer name, portfolio, period, creation date)
     # and 1 spacer at the end (institution and tax year are now in left header)
     assert len(story) == 5
-    
+
     # All elements except the last should be Paragraph objects
     assert all(isinstance(elem, Paragraph) for elem in story[:-1])
-    
+
     # Check the last element is a Spacer
     assert isinstance(story[-1], Spacer)
-    
+
     # Convert paragraphs to text for easier assertions
     paragraph_texts = [p.text for p in story[:-1]]  # Exclude the Spacer
-    
+
     # Check that each expected piece of information is in the paragraph texts
     assert '<b>Kunde:</b> Herr Max Muster' in paragraph_texts
     assert '<b>Portfolio:</b> C1' in paragraph_texts
     assert '<b>Periode:</b> 01.01.2023 - 31.12.2023' in paragraph_texts
     assert '<b>Erstellt am:</b> 26.10.2023' in paragraph_texts
     # Institution and tax year are now in the left header, not in the story
+
 
 @mock.patch('opensteuerauszug.render.render.render_to_barcodes')
 def test_render_tax_statement_content(mock_render_to_barcodes, sample_tax_statement):
@@ -111,64 +115,65 @@ def test_render_tax_statement_content(mock_render_to_barcodes, sample_tax_statem
 
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
         temp_path = temp_file.name
-    
+
     # Set some values for the new fields
     sample_tax_statement.steuerwert_ab = Decimal("1000.50")
     sample_tax_statement.steuerwert_a = Decimal("800.00")
     sample_tax_statement.steuerwert_b = Decimal("200.50")
     sample_tax_statement.brutto_mit_vst = Decimal("100.00")
     sample_tax_statement.brutto_ohne_vst = Decimal("50.00")
-    
+
     try:
         # Render the tax statement to PDF
         render_tax_statement(sample_tax_statement, temp_path)
-        
+
         # Check that the file exists and has content
         assert os.path.exists(temp_path)
         assert os.path.getsize(temp_path) > 0
-        
+
         # Check content in the PDF
         with open(temp_path, "rb") as f:
             pdf_reader = pypdf.PdfReader(f)
             text = pdf_reader.pages[0].extract_text()
-            
+
             # Verify client information appears in the PDF
             assert "Max" in text
             assert "Muster" in text
             assert "Herr" in text
-            
+
             # Verify institution information
             assert "Test Bank AG" in text
-            
+
             # Verify period information
             assert "2023" in text
-            assert "01.01.2023" in text 
+            assert "01.01.2023" in text
             assert "31.12.2023" in text
-            
+
             # Verify summary data (we're checking for the values, not exact format)
             # Because the PDF might format these numbers differently
             assert "1'001" in text  # totalTaxValue
-            assert "100" in text   # totalGrossRevenueA
-            assert "50" in text    # totalGrossRevenueB
-            assert "35" in text    # totalWithHoldingTaxClaim
-            assert "150" in text   # total
+            assert "100" in text  # totalGrossRevenueA
+            assert "50" in text  # totalGrossRevenueB
+            assert "35" in text  # totalWithHoldingTaxClaim
+            assert "150" in text  # total
     finally:
         # Clean up the temporary file
         if os.path.exists(temp_path):
             os.unlink(temp_path)
 
+
 @mock.patch('opensteuerauszug.render.render.render_to_barcodes')
 def test_render_tax_statement(mock_render_to_barcodes, sample_tax_statement):
     """Test that a tax statement can be rendered to PDF."""
     mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
-    
+
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
         temp_path = temp_file.name
-    
+
     try:
         # Render the tax statement to PDF
         render_tax_statement(sample_tax_statement, temp_path)
-        
+
         # Check that the file exists and has content
         assert os.path.exists(temp_path)
         assert os.path.getsize(temp_path) > 0
@@ -176,6 +181,7 @@ def test_render_tax_statement(mock_render_to_barcodes, sample_tax_statement):
         # Clean up the temporary file
         if os.path.exists(temp_path):
             os.unlink(temp_path)
+
 
 @mock.patch('opensteuerauszug.render.render.render_to_barcodes')
 def test_pdf_page_count(mock_render_to_barcodes, sample_tax_statement):
@@ -184,27 +190,27 @@ def test_pdf_page_count(mock_render_to_barcodes, sample_tax_statement):
 
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp_path = tmp.name
-    
+
     try:
         # Render the tax statement to PDF
         render_tax_statement(sample_tax_statement, tmp_path)
-        
+
         # Check that the file exists
         assert os.path.exists(tmp_path)
-        
+
         # Check the number of pages using PyPDF2
         with open(tmp_path, "rb") as f:
             pdf_reader = pypdf.PdfReader(f)
             # The PDF should now have four pages (content, two info pages, barcode)
             assert len(pdf_reader.pages) == 4
-            
+
             # Check page content for validation
             text = pdf_reader.pages[0].extract_text()
             assert "Steuerauszug" in text
             assert "Zusammenfassung" in text
             # Standard page templates usually only show current page number
             assert "Seite 1" in text
-            
+
             # Check the barcode page
             text2 = pdf_reader.pages[3].extract_text()
             assert "Barcode Seite" in text2
@@ -234,6 +240,7 @@ def test_render_tax_statement_minimal_placeholder(mock_render_to_barcodes, sampl
         if os.path.exists(temp_path):
             os.unlink(temp_path)
 
+
 @mock.patch('opensteuerauszug.render.render.render_to_barcodes')
 def test_pdf_title_metadata(mock_render_to_barcodes, sample_tax_statement):
     """Verify that the rendered PDF sets a descriptive title."""
@@ -247,13 +254,11 @@ def test_pdf_title_metadata(mock_render_to_barcodes, sample_tax_statement):
 
         with open(tmp_path, "rb") as f:
             pdf_reader = pypdf.PdfReader(f)
-            assert (
-                pdf_reader.metadata.title
-                == "Steuerauszug Test Bank AG 2023"
-            )
+            assert pdf_reader.metadata.title == "Steuerauszug Test Bank AG 2023"
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
 
 @mock.patch('opensteuerauszug.render.render.render_to_barcodes')
 def test_barcode_rendering(mock_render_to_barcodes, sample_tax_statement):
@@ -262,25 +267,25 @@ def test_barcode_rendering(mock_render_to_barcodes, sample_tax_statement):
 
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp_path = tmp.name
-    
+
     try:
         # Render the tax statement (now always includes a barcode page)
         render_tax_statement(sample_tax_statement, tmp_path)
-        
+
         # Check that the file exists
         assert os.path.exists(tmp_path)
-        
+
         # Check the number of pages using PyPDF2
         with open(tmp_path, "rb") as f:
             pdf_reader = pypdf.PdfReader(f)
             # Should have 4 pages (content, two info pages, barcode page)
             assert len(pdf_reader.pages) == 4
-            
+
             # Check content in the regular page
             text1 = pdf_reader.pages[0].extract_text()
             assert "Steuerauszug" in text1
             assert "Zusammenfassung" in text1
-            
+
             # Check content in the barcode page
             text2 = pdf_reader.pages[3].extract_text()
             assert "Barcode Seite" in text2
@@ -288,6 +293,7 @@ def test_barcode_rendering(mock_render_to_barcodes, sample_tax_statement):
         # Cleanup temporary file
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
 
 def test_make_barcode_pages(sample_tax_statement, monkeypatch):
     """Test that make_barcode_pages correctly configures the document and story."""
@@ -297,42 +303,48 @@ def test_make_barcode_pages(sample_tax_statement, monkeypatch):
     doc = BarcodeDocTemplate(buffer, pagesize=(800, 600))
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(name='SectionTitle', parent=styles['h2'], fontSize=10)
-    barcode_style = ParagraphStyle(name='BarcodeTitle', parent=title_style)  # add seperate style to exclude from bookmarks
-    
+    barcode_style = ParagraphStyle(
+        name='BarcodeTitle', parent=title_style
+    )  # add seperate style to exclude from bookmarks
+
     # Mock the render_to_barcodes function to return a list of mock images
     def mock_render_to_barcodes(tax_statement):
         # Create a simple 100x100 black image
         img = PILImage.new('RGB', (100, 100), color='black')
         # Return a list with one image
         return [img]
-    
+
     # Apply the monkeypatch
-    monkeypatch.setattr('opensteuerauszug.render.render.render_to_barcodes', mock_render_to_barcodes)
-    
+    monkeypatch.setattr(
+        'opensteuerauszug.render.render.render_to_barcodes', mock_render_to_barcodes
+    )
+
     # Call the function
     make_barcode_pages(doc, story, sample_tax_statement, title_style, barcode_style)
-    
+
     # Check that the story has been populated with elements
     assert len(story) > 0
-    
+
     # Check for presence of key elements without making assumptions about specific implementation
     # Look for a paragraph that contains barcode text
     barcode_paragraph_found = any(
-        isinstance(item, Paragraph) and "Barcode" in item.text 
-        for item in story
+        isinstance(item, Paragraph) and "Barcode" in item.text for item in story
     )
     assert barcode_paragraph_found, "No barcode-related paragraph found"
-    
+
     # Check that at least one spacer is present (common in ReportLab layouts)
     spacer_found = any(isinstance(item, Spacer) for item in story)
     assert spacer_found, "No spacer found in the story"
 
+
 @pytest.mark.integration
 @pytest.mark.parametrize("sample_file", get_sample_files("*.xml"))
-@mock.patch('opensteuerauszug.render.render.render_to_barcodes') # Mock at the source
+@mock.patch('opensteuerauszug.render.render.render_to_barcodes')  # Mock at the source
 def test_integration_render_all_samples(mock_render_to_barcodes, sample_file):
     """Integration test: run total calculator in FILL mode and render all sample imports to PDF."""
-    mock_render_to_barcodes.return_value = [create_dummy_pil_image()] # Return a list with one dummy image
+    mock_render_to_barcodes.return_value = [
+        create_dummy_pil_image()
+    ]  # Return a list with one dummy image
 
     # Load the tax statement from XML
     tax_statement = TaxStatement.from_xml_file(sample_file)
@@ -347,14 +359,16 @@ def test_integration_render_all_samples(mock_render_to_barcodes, sample_file):
         assert os.path.exists(tmp_path)
         assert os.path.getsize(tmp_path) > 0
     finally:
-        if os.path.exists(tmp_path): # ensure it exists before trying to remove
+        if os.path.exists(tmp_path):  # ensure it exists before trying to remove
             os.remove(tmp_path)
+
 
 def test_create_bank_accounts_table_none():
     styles = getSampleStyleSheet()
     tax_statement = TaxStatement(minorVersion=2)
     result = create_bank_accounts_table(tax_statement, styles, 737)
     assert result is None
+
 
 def test_create_bank_accounts_table_single_minimal():
     styles = get_custom_styles()
@@ -372,18 +386,18 @@ def test_create_bank_accounts_table_single_minimal():
                         balanceCurrency="CHF",
                         balance=Decimal("100.00"),
                         exchangeRate=Decimal("1.0"),
-                        value=Decimal("100.00")
+                        value=Decimal("100.00"),
                     ),
                     payment=[],
                     totalTaxValue=Decimal("100.00"),
                     totalGrossRevenueA=Decimal("10.00"),
-                    totalGrossRevenueB=Decimal("5.00")
+                    totalGrossRevenueB=Decimal("5.00"),
                 )
             ],
             totalTaxValue=Decimal("100.00"),
             totalGrossRevenueA=Decimal("10.00"),
-            totalGrossRevenueB=Decimal("5.00")
-        )
+            totalGrossRevenueB=Decimal("5.00"),
+        ),
     )
     table = create_bank_accounts_table(tax_statement, styles, 737)
     assert isinstance(table, Table)
@@ -394,6 +408,7 @@ def test_create_bank_accounts_table_single_minimal():
     assert any("Datum" in t for t in header_texts)
     assert any("Bezeichnung" in t for t in header_texts)
     assert any("Bruttoertrag" in t for t in header_texts)
+
 
 def test_create_bank_accounts_table_multiple_accounts_with_payments():
     styles = get_custom_styles()
@@ -411,7 +426,7 @@ def test_create_bank_accounts_table_multiple_accounts_with_payments():
                         balanceCurrency="CHF",
                         balance=Decimal("200.00"),
                         exchangeRate=Decimal("1.0"),
-                        value=Decimal("200.00")
+                        value=Decimal("200.00"),
                     ),
                     payment=[
                         BankAccountPayment(
@@ -421,12 +436,12 @@ def test_create_bank_accounts_table_multiple_accounts_with_payments():
                             amount=Decimal("2.50"),
                             exchangeRate=Decimal("1.0"),
                             grossRevenueA=Decimal("2.50"),
-                            grossRevenueB=Decimal("0.00")
+                            grossRevenueB=Decimal("0.00"),
                         )
                     ],
                     totalTaxValue=Decimal("200.00"),
                     totalGrossRevenueA=Decimal("2.50"),
-                    totalGrossRevenueB=Decimal("0.00")
+                    totalGrossRevenueB=Decimal("0.00"),
                 ),
                 BankAccount(
                     bankAccountName=BankAccountName("Konto2"),
@@ -436,18 +451,18 @@ def test_create_bank_accounts_table_multiple_accounts_with_payments():
                         balanceCurrency="EUR",
                         balance=Decimal("300.00"),
                         exchangeRate=Decimal("0.95"),
-                        value=Decimal("285.00")
+                        value=Decimal("285.00"),
                     ),
                     payment=[],
                     totalTaxValue=Decimal("285.00"),
                     totalGrossRevenueA=Decimal("0.00"),
-                    totalGrossRevenueB=Decimal("0.00")
-                )
+                    totalGrossRevenueB=Decimal("0.00"),
+                ),
             ],
             totalTaxValue=Decimal("485.00"),
             totalGrossRevenueA=Decimal("2.50"),
-            totalGrossRevenueB=Decimal("0.00")
-        )
+            totalGrossRevenueB=Decimal("0.00"),
+        ),
     )
     table = create_bank_accounts_table(tax_statement, styles, 737)
     assert isinstance(table, Table)
@@ -625,20 +640,20 @@ def test_format_exchange_rate():
     """Test exchange rate formatting with 6 decimal digits."""
     # Test normal exchange rate with 6 decimals
     assert render.format_exchange_rate(Decimal("1.234567")) == "1.234567"
-    
+
     # Test exchange rate with fewer decimals - should pad with zeros
     assert render.format_exchange_rate(Decimal("1.23")) == "1.230000"
-    
+
     # Test exchange rate that needs rounding
     assert render.format_exchange_rate(Decimal("1.2345678")) == "1.234568"
-    
+
     # Test exchange rate of 1 should return default (empty string)
     assert render.format_exchange_rate(Decimal("1")) == ""
     assert render.format_exchange_rate(Decimal("1.0")) == ""
-    
+
     # Test None should return default
     assert render.format_exchange_rate(None) == ""
-    
+
     # Test typical ESTV exchange rates (6 decimals)
     assert render.format_exchange_rate(Decimal("0.952381")) == "0.952381"
     assert render.format_exchange_rate(Decimal("1.095890")) == "1.095890"
@@ -649,19 +664,22 @@ def test_escape_html_for_paragraph():
     # Test ampersand escaping
     assert render.escape_html_for_paragraph("S&P 500") == "S&amp;P 500"
     assert render.escape_html_for_paragraph("ISHARES CORE S&P 500") == "ISHARES CORE S&amp;P 500"
-    
+
     # Test other HTML special characters
     assert render.escape_html_for_paragraph("<TEST>") == "&lt;TEST&gt;"
     assert render.escape_html_for_paragraph('"QUOTED"') == "&quot;QUOTED&quot;"
     assert render.escape_html_for_paragraph("A & B") == "A &amp; B"
-    
+
     # Test combination of special characters
-    assert render.escape_html_for_paragraph('TEST <FUND> "GROWTH" & \'VALUE\'') == 'TEST &lt;FUND&gt; &quot;GROWTH&quot; &amp; &#x27;VALUE&#x27;'
-    
+    assert (
+        render.escape_html_for_paragraph('TEST <FUND> "GROWTH" & \'VALUE\'')
+        == 'TEST &lt;FUND&gt; &quot;GROWTH&quot; &amp; &#x27;VALUE&#x27;'
+    )
+
     # Test plain text (no escaping needed)
     assert render.escape_html_for_paragraph("Plain text") == "Plain text"
     assert render.escape_html_for_paragraph("TEST123") == "TEST123"
-    
+
     # Test empty string
     assert render.escape_html_for_paragraph("") == ""
 
@@ -670,7 +688,7 @@ def test_escape_html_for_paragraph():
 def test_security_name_with_ampersand_renders_correctly(mock_render_to_barcodes):
     """Test that ampersands in security names don't cause PDF rendering errors."""
     mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
-    
+
     # Create a tax statement with a security containing an ampersand
     tax_statement = TaxStatement(
         minorVersion=2,
@@ -686,7 +704,7 @@ def test_security_name_with_ampersand_renders_correctly(mock_render_to_barcodes)
                 clientNumber=ClientNumber("C1"),
                 firstName="Max",
                 lastName="Muster & Co",
-                salutation="2"
+                salutation="2",
             )
         ],
         listOfSecurities=ListOfSecurities(
@@ -704,7 +722,7 @@ def test_security_name_with_ampersand_renders_correctly(mock_render_to_barcodes)
                             valorNumber=ValorNumber(12345678),
                             totalTaxValue=Decimal("950.00"),
                             totalGrossRevenueA=Decimal("0"),
-                            totalGrossRevenueB=Decimal("0")
+                            totalGrossRevenueB=Decimal("0"),
                         )
                     ]
                 )
@@ -717,36 +735,38 @@ def test_security_name_with_ampersand_renders_correctly(mock_render_to_barcodes)
             totalNonRecoverableTax=Decimal("0"),
             totalAdditionalWithHoldingTaxUSA=Decimal("0"),
             totalGrossRevenueIUP=Decimal("0"),
-            totalGrossRevenueConversion=Decimal("0")
+            totalGrossRevenueConversion=Decimal("0"),
         ),
         totalTaxValue=Decimal("950.00"),
         svTaxValueA=Decimal("950.00"),
         svTaxValueB=Decimal("0"),
         totalGrossRevenueA=Decimal("0"),
         totalGrossRevenueB=Decimal("0"),
-        totalWithHoldingTaxClaim=Decimal("0")
+        totalWithHoldingTaxClaim=Decimal("0"),
     )
-    
+
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
         temp_path = temp_file.name
-    
+
     try:
         # Main test: Render the tax statement to PDF should not crash
         render_tax_statement(tax_statement, temp_path)
-        
+
         # Check that the file exists and has content
         assert os.path.exists(temp_path)
         assert os.path.getsize(temp_path) > 0
-        
+
         # Check content in the PDF - verify client name with ampersand renders correctly
         with open(temp_path, "rb") as f:
             pdf_reader = pypdf.PdfReader(f)
             all_text = ""
             for page in pdf_reader.pages:
                 all_text += page.extract_text()
-            
+
             # Client name should appear without spurious semicolons
-            assert "Muster & Co" in all_text or "Muster &amp; Co" in all_text or "Muster" in all_text
+            assert (
+                "Muster & Co" in all_text or "Muster &amp; Co" in all_text or "Muster" in all_text
+            )
             # Make sure there's no spurious semicolon from incorrect HTML entity parsing
             assert "Muster &amp; ; Co" not in all_text
             assert "Muster &; Co" not in all_text
@@ -760,7 +780,7 @@ def test_security_name_with_ampersand_renders_correctly(mock_render_to_barcodes)
 def test_security_name_with_html_special_chars_renders_correctly(mock_render_to_barcodes):
     """Test that HTML special characters in security names don't crash PDF rendering."""
     mock_render_to_barcodes.return_value = [create_dummy_pil_image()]
-    
+
     # Create a tax statement with securities containing various HTML special characters
     tax_statement = TaxStatement(
         minorVersion=2,
@@ -773,10 +793,7 @@ def test_security_name_with_html_special_chars_renders_correctly(mock_render_to_
         institution=Institution(name="Test Bank AG"),
         client=[
             Client(
-                clientNumber=ClientNumber("C1"),
-                firstName="Max",
-                lastName="Muster",
-                salutation="2"
+                clientNumber=ClientNumber("C1"), firstName="Max", lastName="Muster", salutation="2"
             )
         ],
         listOfSecurities=ListOfSecurities(
@@ -794,7 +811,7 @@ def test_security_name_with_html_special_chars_renders_correctly(mock_render_to_
                             valorNumber=ValorNumber(12345679),
                             totalTaxValue=Decimal("237.50"),
                             totalGrossRevenueA=Decimal("0"),
-                            totalGrossRevenueB=Decimal("0")
+                            totalGrossRevenueB=Decimal("0"),
                         )
                     ]
                 )
@@ -807,28 +824,28 @@ def test_security_name_with_html_special_chars_renders_correctly(mock_render_to_
             totalNonRecoverableTax=Decimal("0"),
             totalAdditionalWithHoldingTaxUSA=Decimal("0"),
             totalGrossRevenueIUP=Decimal("0"),
-            totalGrossRevenueConversion=Decimal("0")
+            totalGrossRevenueConversion=Decimal("0"),
         ),
         totalTaxValue=Decimal("237.50"),
         svTaxValueA=Decimal("237.50"),
         svTaxValueB=Decimal("0"),
         totalGrossRevenueA=Decimal("0"),
         totalGrossRevenueB=Decimal("0"),
-        totalWithHoldingTaxClaim=Decimal("0")
+        totalWithHoldingTaxClaim=Decimal("0"),
     )
-    
+
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
         temp_path = temp_file.name
-    
+
     try:
         # Main test: Render the tax statement to PDF should not crash
         # even with special characters in security names
         render_tax_statement(tax_statement, temp_path)
-        
+
         # Check that the file exists and has content
         assert os.path.exists(temp_path)
         assert os.path.getsize(temp_path) > 0
-        
+
         # The PDF was created successfully - that's the main test
         # (actual security rendering may require more complete data structure)
     finally:
@@ -837,29 +854,29 @@ def test_security_name_with_html_special_chars_renders_correctly(mock_render_to_
             os.unlink(temp_path)
 
 
-
 def test_depot_headers_in_securities_table():
     """Test that depot headers appear before securities in each depot."""
     from opensteuerauszug.model.ech0196 import TaxStatement
     from pathlib import Path
-    
+
     # Load test file with multiple depots
     test_file = Path(__file__).parent.parent / "test_data" / "multi_depot_statement.xml"
     tax_statement = TaxStatement.from_xml_file(test_file)
-    
+
     # Get custom styles
     styles = get_custom_styles()
-    
+
     # Create a securities table for type A (both securities are type A)
     from opensteuerauszug.render.render import create_securities_table
+
     securities_table = create_securities_table(tax_statement, styles, 800, "A")
-    
+
     # Verify that a table was created
     assert securities_table is not None, "Securities table should be created"
-    
+
     # Get table data
     table_data = securities_table._cellvalues
-    
+
     # Find depot header rows (should contain "Depot" in bold in second column)
     depot_header_rows = []
     for i, row in enumerate(table_data):
@@ -867,15 +884,21 @@ def test_depot_headers_in_securities_table():
             text = row[1].text
             if '<b>Depot' in text:
                 depot_header_rows.append((i, text))
-    
+
     # Verify we have exactly 2 depot headers
-    assert len(depot_header_rows) == 2, f"Expected 2 depot headers but found {len(depot_header_rows)}"
-    
+    assert (
+        len(depot_header_rows) == 2
+    ), f"Expected 2 depot headers but found {len(depot_header_rows)}"
+
     # Verify the depot numbers are correct
     depot_texts = [text for _, text in depot_header_rows]
-    assert '<b>Depot DEPOT-001</b>' in depot_texts[0], f"First depot header should contain DEPOT-001, got: {depot_texts[0]}"
-    assert '<b>Depot DEPOT-002</b>' in depot_texts[1], f"Second depot header should contain DEPOT-002, got: {depot_texts[1]}"
-    
+    assert (
+        '<b>Depot DEPOT-001</b>' in depot_texts[0]
+    ), f"First depot header should contain DEPOT-001, got: {depot_texts[0]}"
+    assert (
+        '<b>Depot DEPOT-002</b>' in depot_texts[1]
+    ), f"Second depot header should contain DEPOT-002, got: {depot_texts[1]}"
+
     # Verify depot headers appear before their securities
     # After header row (0), we should have DEPOT-001 header, then Roche, then DEPOT-002 header, then Novartis
     roche_rows = []
@@ -886,16 +909,20 @@ def test_depot_headers_in_securities_table():
                 roche_rows.append(i)
             if 'Novartis' in row[1].text:
                 novartis_rows.append(i)
-    
+
     # Verify Roche securities appear after DEPOT-001 header
     depot_001_row = depot_header_rows[0][0]
     assert len(roche_rows) > 0, "Should find Roche security"
-    assert depot_001_row < roche_rows[0], f"DEPOT-001 header (row {depot_001_row}) should appear before Roche (row {roche_rows[0]})"
-    
+    assert (
+        depot_001_row < roche_rows[0]
+    ), f"DEPOT-001 header (row {depot_001_row}) should appear before Roche (row {roche_rows[0]})"
+
     # Verify Novartis securities appear after DEPOT-002 header
     depot_002_row = depot_header_rows[1][0]
     assert len(novartis_rows) > 0, "Should find Novartis security"
-    assert depot_002_row < novartis_rows[0], f"DEPOT-002 header (row {depot_002_row}) should appear before Novartis (row {novartis_rows[0]})"
+    assert (
+        depot_002_row < novartis_rows[0]
+    ), f"DEPOT-002 header (row {depot_002_row}) should appear before Novartis (row {novartis_rows[0]})"
 
 
 class TestFormatUidForFooter:
@@ -906,10 +933,7 @@ class TestFormatUidForFooter:
         from opensteuerauszug.render.render import format_uid_for_footer
         from opensteuerauszug.model.ech0196 import Uid
 
-        uid = Uid(
-            uidOrganisationIdCategorie="CHE",
-            uidOrganisationId=489219513
-        )
+        uid = Uid(uidOrganisationIdCategorie="CHE", uidOrganisationId=489219513)
 
         result = format_uid_for_footer(uid)
         assert result == "CHE-489.219.513 MWST"
@@ -921,7 +945,7 @@ class TestFormatUidForFooter:
 
         uid = Uid(
             uidOrganisationIdCategorie="CHE",
-            uidOrganisationId=123456  # Should be formatted as 000.123.456
+            uidOrganisationId=123456,  # Should be formatted as 000.123.456
         )
 
         result = format_uid_for_footer(uid)
@@ -932,10 +956,7 @@ class TestFormatUidForFooter:
         from opensteuerauszug.render.render import format_uid_for_footer
         from opensteuerauszug.model.ech0196 import Uid
 
-        uid = Uid(
-            uidOrganisationIdCategorie="CHE1",
-            uidOrganisationId=123456789
-        )
+        uid = Uid(uidOrganisationIdCategorie="CHE1", uidOrganisationId=123456789)
 
         result = format_uid_for_footer(uid)
         assert result == "CHE1-123.456.789 MWST"
@@ -945,10 +966,7 @@ class TestFormatUidForFooter:
         from opensteuerauszug.render.render import format_uid_for_footer
         from opensteuerauszug.model.ech0196 import Uid
 
-        uid = Uid(
-            uidOrganisationIdCategorie="ADM",
-            uidOrganisationId=999888777
-        )
+        uid = Uid(uidOrganisationIdCategorie="ADM", uidOrganisationId=999888777)
 
         result = format_uid_for_footer(uid)
         assert result == "ADM-999.888.777 MWST"
@@ -965,10 +983,7 @@ class TestFormatUidForFooter:
         from opensteuerauszug.render.render import format_uid_for_footer
         from opensteuerauszug.model.ech0196 import Uid
 
-        uid = Uid(
-            uidOrganisationIdCategorie="CHE",
-            uidOrganisationId=999999999
-        )
+        uid = Uid(uidOrganisationIdCategorie="CHE", uidOrganisationId=999999999)
 
         result = format_uid_for_footer(uid)
         assert result == "CHE-999.999.999 MWST"
@@ -978,10 +993,7 @@ class TestFormatUidForFooter:
         from opensteuerauszug.render.render import format_uid_for_footer
         from opensteuerauszug.model.ech0196 import Uid
 
-        uid = Uid(
-            uidOrganisationIdCategorie="CHE",
-            uidOrganisationId=0
-        )
+        uid = Uid(uidOrganisationIdCategorie="CHE", uidOrganisationId=0)
 
         result = format_uid_for_footer(uid)
         assert result == "CHE-000.000.000 MWST"

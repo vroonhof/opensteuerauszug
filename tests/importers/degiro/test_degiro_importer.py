@@ -76,6 +76,7 @@ def test_degiro_import_integration(sample_dir):
 # Non-sample tests
 # ---------------------------------------------------------------------------
 
+
 def test_import_dir_raises_on_missing_files(tmp_path):
     importer = DegiroImporter(
         period_from=PERIOD_FROM,
@@ -112,14 +113,16 @@ def test_trade_re_matches(desc, action, qty, price, currency):
     assert m.group(5) == currency
 
 
-@pytest.mark.parametrize("raw,expected", [
-    ("60", "60"),
-    ("1'000", "1000"),
-    ("1'000.50", "1000.50"),
-    ("20.08", "20.08"),
-    ("1.000,50", "1000.50"),
-    ("20,08", "20.08"),
-])
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("60", "60"),
+        ("1'000", "1000"),
+        ("1'000.50", "1000.50"),
+        ("20.08", "20.08"),
+        ("1.000,50", "1000.50"),
+        ("20,08", "20.08"),
+    ],
+)
 def test_normalize_number(raw, expected):
     assert _normalize_number(raw) == expected
-

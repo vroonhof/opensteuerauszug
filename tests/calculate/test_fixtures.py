@@ -40,7 +40,7 @@ def test_exchange_rate_provider_fixture(exchange_rate_provider: KurslisteExchang
     # Test getting CHF rate (should always be 1.0)
     from datetime import date
     from decimal import Decimal
-    
+
     chf_rate = exchange_rate_provider.get_exchange_rate("CHF", date(2023, 12, 31))
     assert chf_rate == Decimal("1")
     print(f"CHF exchange rate: {chf_rate}")

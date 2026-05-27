@@ -7,6 +7,7 @@ import os
 import fitz  # PyMuPDF
 import traceback
 
+
 def decode_barcode(image, context=""):
     """
     Decodes PDF417 barcodes from a given image.
@@ -25,7 +26,8 @@ def decode_barcode(image, context=""):
         return decoder.barcodes_info
     else:
         print(f"No barcodes found in {context}")
-        return [] # Return empty list if no barcodes are found.
+        return []  # Return empty list if no barcodes are found.
+
 
 def write_file(data, file_name):
     """
@@ -41,6 +43,7 @@ def write_file(data, file_name):
         print(f"Successfully wrote data to {file_name}")
     except Exception as e:
         print(f"Error writing to file {file_name}: {e}")
+
 
 def process_output(info_list, output_file, decode_zlib=True):
     """
@@ -71,6 +74,7 @@ def process_output(info_list, output_file, decode_zlib=True):
         print(f"Error: Decompression error: {e}")
         sys.exit(1)
 
+
 def process_pdf(pdf_path, output_file, verbose=False, decode_zlib=True):
     """
     Processes a PDF file, rendering each page as an image and decoding barcodes.
@@ -85,7 +89,9 @@ def process_pdf(pdf_path, output_file, verbose=False, decode_zlib=True):
         info_list = []
         for page_number in range(pdf_document.page_count):
             page = pdf_document.load_page(page_number)  # Load each page
-            pix = page.get_pixmap(matrix=fitz.Matrix(300/72, 300/72))  # Get pixel map of the page at 300 dpi
+            pix = page.get_pixmap(
+                matrix=fitz.Matrix(300 / 72, 300 / 72)
+            )  # Get pixel map of the page at 300 dpi
             try:
                 # Convert to a PIL-compatible format.
                 if pix.colorspace.n == 1:
@@ -111,7 +117,9 @@ def process_pdf(pdf_path, output_file, verbose=False, decode_zlib=True):
             # temp_image_path = f"temp_page_{page_number + 1}.png"
             # pil_image.save(temp_image_path)
             # Decode the barcode from the temporary image
-            decoded_info = decode_barcode(pil_image, context=f"page {page_number + 1} of {pdf_path}") # Pass the page number and pdf_path
+            decoded_info = decode_barcode(
+                pil_image, context=f"page {page_number + 1} of {pdf_path}"
+            )  # Pass the page number and pdf_path
             if decoded_info:
                 info_list.extend(decoded_info)
             # if os.path.exists(temp_image_path):  # Clean up the temporary image
@@ -125,6 +133,7 @@ def process_pdf(pdf_path, output_file, verbose=False, decode_zlib=True):
             traceback.print_exc()  # Print the traceback
         sys.exit(1)
 
+
 def process_images(image_files):
     """
     Processes a list of image files, decoding barcodes from each.
@@ -137,31 +146,49 @@ def process_images(image_files):
     """
     info_list = []
     for file_path in image_files:
-        try: #added try and except
-            image = Image.open(file_path) # open image
-            decoded_info = decode_barcode(image, context=file_path)  # Pass the file path as context, and the image object
+        try:  # added try and except
+            image = Image.open(file_path)  # open image
+            decoded_info = decode_barcode(
+                image, context=file_path
+            )  # Pass the file path as context, and the image object
             if decoded_info:
                 info_list.extend(decoded_info)
         except Exception as e:
-            print(f"Error processing image {file_path}: {e}") #error message
+            print(f"Error processing image {file_path}: {e}")  # error message
     return info_list
+
 
 def main():
     """
     Main function to parse command line arguments, decode barcodes,
     assemble data, and write to a file.
     """
-    parser = argparse.ArgumentParser(description="Decode PDF417 barcodes from images and save the data.")
-    parser.add_argument("files", nargs='+', help="Paths to the barcode image files or a single PDF file.")
-    parser.add_argument("-o", "--output", help="Path to the output file. Defaults to the first image/PDF file name with .xml extension.", default=None)
-    parser.add_argument("-v", "--verbose", action='store_true', help="Enable verbose output, including tracebacks for PDF processing errors.")
-    parser.add_argument("-z", "--zlib", action='store_true', help="Zlib decompression.", default=False)
-
+    parser = argparse.ArgumentParser(
+        description="Decode PDF417 barcodes from images and save the data."
+    )
+    parser.add_argument(
+        "files", nargs='+', help="Paths to the barcode image files or a single PDF file."
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="Path to the output file. Defaults to the first image/PDF file name with .xml extension.",
+        default=None,
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action='store_true',
+        help="Enable verbose output, including tracebacks for PDF processing errors.",
+    )
+    parser.add_argument(
+        "-z", "--zlib", action='store_true', help="Zlib decompression.", default=False
+    )
 
     args = parser.parse_args()
     files = args.files
     output_file = args.output
-    verbose = args.verbose # Get the value of the verbose argument
+    verbose = args.verbose  # Get the value of the verbose argument
     decode_zlib = args.zlib
 
     if not output_file:
@@ -170,11 +197,11 @@ def main():
         output_file = base_name + ".xml"
 
     if len(files) == 1 and files[0].lower().endswith(".pdf"):
-        process_pdf(files[0], output_file, verbose, decode_zlib) 
+        process_pdf(files[0], output_file, verbose, decode_zlib)
     else:
-        info_list = process_images(files) # Call process_images to handle image files
-        process_output(info_list, output_file, decode_zlib) # Pass the zlib flag
-        
+        info_list = process_images(files)  # Call process_images to handle image files
+        process_output(info_list, output_file, decode_zlib)  # Pass the zlib flag
+
 
 if __name__ == "__main__":
     main()

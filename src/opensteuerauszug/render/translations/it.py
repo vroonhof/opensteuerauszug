@@ -5,10 +5,8 @@ TRANSLATIONS = {
     "created_with": "creato con OpenSteuerauszug",
     "converted_with": "convertito con OpenSteuerauszug",
     "taxstatement": "estratto fiscale",
-
     # === PAGE STRUCTURE ===
     "page": "pagina {page} di {total}",
-
     # === CLIENT INFORMATION ===
     "client": "Cliente",
     "client_number": "Ctn°",
@@ -19,7 +17,6 @@ TRANSLATIONS = {
     "period": "Periodo",
     "portfolio": "Ctn°",
     "created_at": "Creato il",
-
     # === SECTION TITLES ===
     "summary": "Sommario",
     "bank_accounts": "Conti bancari",
@@ -30,10 +27,8 @@ TRANSLATIONS = {
     "liabilities_title": "Debiti",
     "reconciliation_kursliste_broker": "Confronto Kursliste / pagamenti broker",
     "tax_statement_in_chf": "Dichiarazione fiscale in CHF",
-
     # === BARCODE PAGE ===
     "barcode_page": "Pagina codici a barre {page} di {total}",
-
     # === COMMON LABELS ===
     "date": "Data",
     "description": "Descrizione",
@@ -43,7 +38,6 @@ TRANSLATIONS = {
     "na": "n.d.",
     "column_a": "A",
     "column_b": "B",
-
     # === SUMMARY TABLE HEADERS ===
     "tax_value_ab_header": "<b>Valore fiscale</b><br/>dei valori <b>A</b> e <b>B</b><br/>al {date}",
     "gross_revenue_values_with_vst": "<b>Reddito lordo</b><br/>{period} valore <b>con</b><br/>ritenuta alla fonte",
@@ -59,7 +53,6 @@ TRANSLATIONS = {
     "total_gross_revenue_all_values": "<b>Totale reddito lordo</b> {period} dei valori <b>A, B, DA-1</b> e <b>USA</b>",
     "liabilities_header": "<b>Debiti</b><br/>al {date}",
     "liabilities_interest_summary_header": "<b>Interessi</b><br/><b>passivi</b> {period}",
-
     # === BANK ACCOUNTS TABLE ===
     "total_bank_accounts": "Totale conti bancari",
     "designation_bank_account_interest": "Descrizione<br/>Conto bancario<br/>Interessi",
@@ -69,7 +62,6 @@ TRANSLATIONS = {
     "total_paid_bank_fees": "Totale spese",
     "tax_value_revenue": "Valore fiscale / Reddito lordo",
     "dissolution_revenue": "Liquidazione / Reddito lordo",
-
     # === SECURITIES TABLE ===
     "valor_number_date": "Valore-N°<br/>Data",
     "depot_number_designation_isin": "Deposito-N°<br/>Descrizione<br/>ISIN",
@@ -93,7 +85,6 @@ TRANSLATIONS = {
     "foreign_tax_credit": "<b>Imposta alla fonte<br/>estera ammissibile</b><br/>in CHF",
     "usa_withholding": "<b>Ritenuta<br/>d'acconto USA</b><br/>in CHF",
     'country_total': 'Totale {country}',
-
     # === LIABILITIES TABLE ===
     "designation_liabilities_interest": "Descrizione<br/>Debiti<br/>Interessi",
     "liabilities_amount_interest_header": "Debiti<br/>Interessi<br/>passivi",
@@ -101,7 +92,6 @@ TRANSLATIONS = {
     "liabilities_interest_header": "<b>Interessi passivi</b><br/>{year}<br/>in CHF",
     "tax_value_liabilities_interest": "Debito / Interessi passivi",
     "total_liabilities": "Totale debiti",
-
     # === PAYMENT RECONCILIATION TABLE ===
     "reconciliation_payments": "Confronto pagamenti ({country})",
     "kl_dividend_chf": "KL dividendo CHF",
@@ -110,7 +100,6 @@ TRANSLATIONS = {
     "broker_withholding": "Ritenuta broker",
     "ok": "OK",
     "security": "Titolo",
-
     # === INSTRUCTIONS & FOOTNOTES ===
     "footnote_ab_breakdown": "(1) Di cui <b>A</b> {} e <b>B</b> {}",
     "instruction_securities_register": 'Valori per il modulo <b>"Elenco dei titoli e altri collocamenti in\ncapitale"</b> (compresi i conti, senza valori DA-1 e USA)',
@@ -118,19 +107,15 @@ TRANSLATIONS = {
     "instruction_no_da1": "Se <b>non</b> viene richiesto alcun credito per l'imposta alla fonte\nestera (DA-1), questi valori totali devono essere inseriti nell'\nelenco titoli.",
     "instruction_liabilities_register": 'Valori per il modulo di dichiarazione dei redditi complementare\n<b>"Elenco debiti"</b>',
     "expense_deductibility_notice": "* Spese: L'autorità fiscale competente decide sulla deducibilità delle spese.",
-
     # === EXPENSE INFORMATION ===
     "expense_type": "Spese",
-
     # === PLACEHOLDERS ===
     "minimal_placeholder": "Questo non è un estratto fiscale ufficiale. Questo documento minimale serve solo per importare i dati bancari tramite codici a barre. Poiché i totali non sono calcolati, non viene mostrato alcun riepilogo.",
-
     # === CRITICAL WARNINGS ===
     "critical_warnings_title": "AVVISI CRITICI",
     "warning": "avviso",
     "warnings": "avvisi",
     "critical_warnings_hint": "Questo estratto contiene <b>{count}</b> {plural} critico/i. Si prega di consultare le pagine informative alla fine di questo documento.",
-
     # === XML TRANSLATIONS ===
     "debit_interest": "Pagamenti di interessi",
     "credit_interest": "Interessi attivi",

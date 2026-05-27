@@ -4,18 +4,33 @@ from typing import List, Optional, Dict, Any, cast, get_args
 from decimal import Decimal
 import logging
 from opensteuerauszug.model.ech0196 import (
-    Security, SecurityTaxValue, TaxStatement, SecurityStock,
-    Client, ClientNumber, CantonAbbreviation, LiabilityAccount, LiabilityAccountTaxValue,
-    ListOfLiabilities, BankAccountName, LiabilityAccountPayment
+    Security,
+    SecurityTaxValue,
+    TaxStatement,
+    SecurityStock,
+    Client,
+    ClientNumber,
+    CantonAbbreviation,
+    LiabilityAccount,
+    LiabilityAccountTaxValue,
+    ListOfLiabilities,
+    BankAccountName,
+    LiabilityAccountPayment,
 )
 from opensteuerauszug.model.critical_warning import CriticalWarning, CriticalWarningCategory
-from opensteuerauszug.util.sorting import find_index_of_date, sort_security_stocks, sort_payments, sort_security_payments
+from opensteuerauszug.util.sorting import (
+    find_index_of_date,
+    sort_security_stocks,
+    sort_payments,
+    sort_security_payments,
+)
 from opensteuerauszug.config.models import GeneralSettings
 from opensteuerauszug.core.position_reconciler import PositionReconciler
 from opensteuerauszug.core.organisation import compute_org_nr
 from opensteuerauszug.render.translations import get_text, Language, DEFAULT_LANGUAGE
 
 logger = logging.getLogger(__name__)
+
 
 class CleanupCalculator:
     """
@@ -25,18 +40,21 @@ class CleanupCalculator:
     3. Optionally enriching securities with missing ISIN/Valor from a provided map.
     4. Setting canton and client name from configuration if not already set.
     """
-    def __init__(self,
-                 period_from: date,
-                 period_to: date,
-                 importer_name: str,
-                 identifier_map: Optional[Dict[str, Dict[str, Any]]] = None,
-                 enable_filtering: bool = True,
-                 override_org_nr: Optional[str] = None,
-                 config_settings: Optional[GeneralSettings] = None,
-                 render_language: Language = DEFAULT_LANGUAGE):
+
+    def __init__(
+        self,
+        period_from: date,
+        period_to: date,
+        importer_name: str,
+        identifier_map: Optional[Dict[str, Dict[str, Any]]] = None,
+        enable_filtering: bool = True,
+        override_org_nr: Optional[str] = None,
+        config_settings: Optional[GeneralSettings] = None,
+        render_language: Language = DEFAULT_LANGUAGE,
+    ):
         self.period_from = period_from
         self.period_to = period_to
-        self.importer_name = importer_name # Store importer_name
+        self.importer_name = importer_name  # Store importer_name
         self.identifier_map = identifier_map
         self.enable_filtering = enable_filtering
         self.override_org_nr = override_org_nr
@@ -45,8 +63,10 @@ class CleanupCalculator:
         self.modified_fields: List[str] = []
 
         # Log if an identifier map was provided
-        if self.identifier_map is not None: # Check if it's not None, could be an empty dict
-            logger.info(f"Initialized with an identifier map containing {len(self.identifier_map)} entries.")
+        if self.identifier_map is not None:  # Check if it's not None, could be an empty dict
+            logger.info(
+                f"Initialized with an identifier map containing {len(self.identifier_map)} entries."
+            )
         else:
             logger.info("Initialized without an identifier map. Enrichment will be skipped.")
 
@@ -55,9 +75,6 @@ class CleanupCalculator:
             logger.info(f"Initialized with configuration settings.")
         else:
             logger.info("Initialized without configuration settings.")
-
-    
-
 
     def _check_negative_balances(self, security: Security, pos_id: str) -> None:
         """Surface negative non-mutation balances on a security.
@@ -70,26 +87,21 @@ class CleanupCalculator:
         handle.
         """
         negative_balances = [
-            s for s in (security.stock or [])
+            s
+            for s in (security.stock or [])
             if not s.mutation and s.quantity is not None and s.quantity < 0
         ]
         if not negative_balances:
             return
 
         if security.securityCategory == "OPTION":
-            issue_ref = (
-                "https://github.com/vroonhof/opensteuerauszug/issues/261"
-            )
+            issue_ref = "https://github.com/vroonhof/opensteuerauszug/issues/261"
         else:
-            issue_ref = (
-                "https://github.com/vroonhof/opensteuerauszug/issues/309"
-            )
+            issue_ref = "https://github.com/vroonhof/opensteuerauszug/issues/309"
         message = (
             f"Negative balance(s) for security '{pos_id}' "
             f"(category {security.securityCategory}): "
-            + ", ".join(
-                f"{s.quantity} on {s.referenceDate}" for s in negative_balances
-            )
+            + ", ".join(f"{s.quantity} on {s.referenceDate}" for s in negative_balances)
             + ". Please double-check the data; "
             f"if you are intentionally holding a short position, see {issue_ref}."
         )
@@ -108,13 +120,15 @@ class CleanupCalculator:
         """
         # 1. Country Code (2 chars)
         country_code = statement.country
-        if not country_code or not country_code.strip(): # Check for None or empty/whitespace string
+        if (
+            not country_code or not country_code.strip()
+        ):  # Check for None or empty/whitespace string
             country_code = "XX"
             logger.warning("TaxStatement.country is None, using 'XX' for ID generation.")
         else:
             country_code = country_code.strip()
         country_code = country_code.upper()
-        country_code = country_code[:2] # Ensure 2 chars
+        country_code = country_code[:2]  # Ensure 2 chars
 
         # 2. Clearing Number (5 digits, numeric)
         # Use the existing compute_org_nr function which generates fake clearing numbers
@@ -137,11 +151,15 @@ class CleanupCalculator:
             else:
                 customer_id_raw = "NOIDENTIFIER"  # Placeholder before padding
                 customer_id_source = "placeholder_no_client_id"
-                logger.warning("No clientNumber or TIN found for the first client. Using placeholder for customer ID part.")
+                logger.warning(
+                    "No clientNumber or TIN found for the first client. Using placeholder for customer ID part."
+                )
         else:
             customer_id_raw = "NOCLIENTDATA"  # Placeholder before padding
             customer_id_source = "placeholder_no_clients"
-            logger.warning("statement.client list is empty. Using placeholder for customer ID part.")
+            logger.warning(
+                "statement.client list is empty. Using placeholder for customer ID part."
+            )
 
         # Normalize importer name (uppercase alphanumeric) and customer/account id (alphanumeric)
         importer_prefix = re.sub(r'[^a-zA-Z0-9]', '', (self.importer_name or '').upper())
@@ -170,7 +188,7 @@ class CleanupCalculator:
             f"ImporterPrefix='{importer_prefix}', CustRaw='{customer_id_raw}' (Source: {customer_id_source}), "
             f"CustCombined='{customer_id}', Date='{date_str}', Seq='{seq_no}'"
         )
-        
+
         return final_id
 
     def calculate(self, statement: TaxStatement) -> TaxStatement:
@@ -183,7 +201,7 @@ class CleanupCalculator:
         statement.periodTo = self.period_to
         # Defensive for simpler testing in isolation
         statement.taxPeriod = self.period_to.year if self.period_to else None
-        statement.country = "CH" # We are handling Swiss taxes
+        statement.country = "CH"  # We are handling Swiss taxes
 
         # if set assume the importer used the stastment time.
         if not statement.creationDate:
@@ -199,8 +217,10 @@ class CleanupCalculator:
                 self.modified_fields.append("TaxStatement.canton (from config)")
                 logger.info(f"Set canton from configuration: {statement.canton}")
             else:
-                logger.warning(f"Invalid canton '{canton_value}'. Valid cantons are: {', '.join(valid_cantons)}")
-        
+                logger.warning(
+                    f"Invalid canton '{canton_value}'. Valid cantons are: {', '.join(valid_cantons)}"
+                )
+
         # Validate that canton is set by either config or importer
         if not statement.canton:
             error_msg = (
@@ -214,7 +234,7 @@ class CleanupCalculator:
         # Set client name from configuration if client exists but lacks name
         if self.config_settings and self.config_settings.full_name:
             config_full_name = self.config_settings.full_name
-            
+
             # Parse the full name (assuming "First Last" format)
             name_parts = config_full_name.strip().split()
             if len(name_parts) >= 2:
@@ -232,7 +252,7 @@ class CleanupCalculator:
                 new_client = Client(
                     clientNumber=ClientNumber("NOIDENTI"),
                     firstName=config_first_name,
-                    lastName=config_last_name
+                    lastName=config_last_name,
                 )
                 statement.client = [new_client]
                 self.modified_fields.append("TaxStatement.client (created from config)")
@@ -267,7 +287,9 @@ class CleanupCalculator:
 
                     if client_modified:
                         self.modified_fields.append(f"TaxStatement.client[{i}] (name from config)")
-                        logger.info(f"Updated client[{i}] name from configuration: {config_full_name}")
+                        logger.info(
+                            f"Updated client[{i}] name from configuration: {config_full_name}"
+                        )
 
         # Generate statement ID if it's missing
         if statement.id is None:
@@ -275,9 +297,9 @@ class CleanupCalculator:
                 statement.id = self._generate_tax_statement_id(statement)
                 logger.info(f"Generated new TaxStatement.id: {statement.id}")
                 self.modified_fields.append("TaxStatement.id (generated)")
-            except NotImplementedError as e: # Should ideally not be raised if logic is complete
+            except NotImplementedError as e:  # Should ideally not be raised if logic is complete
                 logger.error(f"Error generating TaxStatement.id (NotImplemented): {e}")
-            #except Exception as e: # Catch any other unexpected error during ID generation
+            # except Exception as e: # Catch any other unexpected error during ID generation
             #    logger.error(f"Unexpected error during TaxStatement.id generation: {e}")
             #    # statement.id will remain None, allowing process to potentially continue
 
@@ -286,14 +308,19 @@ class CleanupCalculator:
 
         if statement.listOfBankAccounts and statement.listOfBankAccounts.bankAccount:
             for idx, bank_account in enumerate(statement.listOfBankAccounts.bankAccount):
-                account_id = bank_account.bankAccountNumber or bank_account.iban or f"BankAccount_{idx+1}"
+                account_id = (
+                    bank_account.bankAccountNumber or bank_account.iban or f"BankAccount_{idx+1}"
+                )
 
                 # Clear openingDate if it falls outside the reporting window
                 if bank_account.openingDate is not None:
                     if not (self.period_from <= bank_account.openingDate <= self.period_to):
                         logger.debug(
                             "  BankAccount %s: Clearing openingDate %s (outside period %s - %s).",
-                            account_id, bank_account.openingDate, self.period_from, self.period_to,
+                            account_id,
+                            bank_account.openingDate,
+                            self.period_from,
+                            self.period_to,
                         )
                         bank_account.openingDate = None
                         self.modified_fields.append(f"{account_id}.openingDate (cleared)")
@@ -303,7 +330,10 @@ class CleanupCalculator:
                     if not (self.period_from <= bank_account.closingDate <= self.period_to):
                         logger.debug(
                             "  BankAccount %s: Clearing closingDate %s (outside period %s - %s).",
-                            account_id, bank_account.closingDate, self.period_from, self.period_to,
+                            account_id,
+                            bank_account.closingDate,
+                            self.period_from,
+                            self.period_to,
                         )
                         bank_account.closingDate = None
                         self.modified_fields.append(f"{account_id}.closingDate (cleared)")
@@ -312,7 +342,11 @@ class CleanupCalculator:
                 if bank_account.taxValue and bank_account.taxValue.balance is not None:
                     if bank_account.taxValue.balance < 0:
                         negative_balance = abs(bank_account.taxValue.balance)
-                        negative_value = abs(bank_account.taxValue.value) if bank_account.taxValue.value is not None else negative_balance
+                        negative_value = (
+                            abs(bank_account.taxValue.value)
+                            if bank_account.taxValue.value is not None
+                            else negative_balance
+                        )
 
                         logger.info(
                             f"  BankAccount {account_id}: Found negative balance {bank_account.taxValue.balance}. "
@@ -338,11 +372,13 @@ class CleanupCalculator:
                                 balanceCurrency=bank_account.taxValue.balanceCurrency,
                                 balance=negative_balance,
                                 exchangeRate=bank_account.taxValue.exchangeRate,
-                                value=negative_value
-                            )
+                                value=negative_value,
+                            ),
                         )
                         liabilities_to_add.append(liability_account)
-                        self.modified_fields.append(f"{account_id}.taxValue (converted to liability)")
+                        self.modified_fields.append(
+                            f"{account_id}.taxValue (converted to liability)"
+                        )
 
                         # Set bank account balance to 0
                         bank_account.taxValue.balance = Decimal("0")
@@ -364,24 +400,30 @@ class CleanupCalculator:
                     if self.enable_filtering:
                         if self.period_from and self.period_to:
                             filtered_payments = [
-                                p for p in bank_account.payment
+                                p
+                                for p in bank_account.payment
                                 if self.period_from <= p.paymentDate <= self.period_to
                             ]
                             removed_count = len(bank_account.payment) - len(filtered_payments)
                             if removed_count > 0:
                                 bank_account.payment = filtered_payments
                                 self.modified_fields.append(f"{account_id}.payment (filtered)")
-                                logger.debug(f"  BankAccount {account_id}: Filtered {original_payment_count} payments to {len(bank_account.payment)} for period [{self.period_from} - {self.period_to}].")
+                                logger.debug(
+                                    f"  BankAccount {account_id}: Filtered {original_payment_count} payments to {len(bank_account.payment)} for period [{self.period_from} - {self.period_to}]."
+                                )
                             # No log if no payments were removed by filtering
                         else:
-                            logger.info(f"  BankAccount {account_id}: Payment filtering skipped (tax period not fully defined).")
+                            logger.info(
+                                f"  BankAccount {account_id}: Payment filtering skipped (tax period not fully defined)."
+                            )
                     # No log if filtering is disabled globally
 
                     # Move negative payments to liabilities. The amount is
                     # captured alongside the payment so type-checkers can see
                     # it has been narrowed to non-None.
                     negative_payments = [
-                        (p, p.amount) for p in bank_account.payment
+                        (p, p.amount)
+                        for p in bank_account.payment
                         if p.amount is not None and p.amount < 0
                     ]
                     if negative_payments:
@@ -401,18 +443,25 @@ class CleanupCalculator:
 
                         # Check if liability account already exists for this currency
                         existing_liability = None
-                        if statement.listOfLiabilities and statement.listOfLiabilities.liabilityAccount:
+                        if (
+                            statement.listOfLiabilities
+                            and statement.listOfLiabilities.liabilityAccount
+                        ):
                             for liability in statement.listOfLiabilities.liabilityAccount:
-                                if (liability.bankAccountNumber == bank_account.bankAccountNumber and
-                                    liability.bankAccountCurrency == currency):
+                                if (
+                                    liability.bankAccountNumber == bank_account.bankAccountNumber
+                                    and liability.bankAccountCurrency == currency
+                                ):
                                     existing_liability = liability
                                     break
 
                         # Also check in liabilities_to_add (from negative balances processed earlier)
                         if not existing_liability:
                             for liability in liabilities_to_add:
-                                if (liability.bankAccountNumber == bank_account.bankAccountNumber and
-                                    liability.bankAccountCurrency == currency):
+                                if (
+                                    liability.bankAccountNumber == bank_account.bankAccountNumber
+                                    and liability.bankAccountCurrency == currency
+                                ):
                                     existing_liability = liability
                                     break
 
@@ -435,7 +484,8 @@ class CleanupCalculator:
                             liability_account = LiabilityAccount(
                                 iban=bank_account.iban,
                                 bankAccountNumber=bank_account.bankAccountNumber,
-                                bankAccountName=bank_account.bankAccountName or BankAccountName(account_id),
+                                bankAccountName=bank_account.bankAccountName
+                                or BankAccountName(account_id),
                                 bankAccountCountry=bank_account.bankAccountCountry or "CH",
                                 bankAccountCurrency=currency,
                                 openingDate=bank_account.openingDate,
@@ -451,8 +501,8 @@ class CleanupCalculator:
                                     name=get_text("debit_interest", self.render_language),
                                     balanceCurrency=currency,
                                     balance=Decimal("0"),
-                                    value=Decimal("0")
-                                )
+                                    value=Decimal("0"),
+                                ),
                             )
                             list_of_liabilities.liabilityAccount.append(liability_account)
                             logger.info(
@@ -460,8 +510,12 @@ class CleanupCalculator:
                             )
 
                         # Remove negative payments from bank account
-                        bank_account.payment = [p for p in bank_account.payment if p.amount is None or p.amount >= 0]
-                        self.modified_fields.append(f"{account_id}.payment (moved negative to liabilities)")
+                        bank_account.payment = [
+                            p for p in bank_account.payment if p.amount is None or p.amount >= 0
+                        ]
+                        self.modified_fields.append(
+                            f"{account_id}.payment (moved negative to liabilities)"
+                        )
 
         else:
             logger.info("No bank accounts found to process.")
@@ -469,22 +523,35 @@ class CleanupCalculator:
         # Add any liabilities created from negative bank account balances
         if liabilities_to_add:
             if statement.listOfLiabilities is None:
-                logger.info(f"Created listOfLiabilities to hold {len(liabilities_to_add)} liability account(s) from negative bank balances.")
+                logger.info(
+                    f"Created listOfLiabilities to hold {len(liabilities_to_add)} liability account(s) from negative bank balances."
+                )
             list_of_liabilities = statement.listOfLiabilities or ListOfLiabilities()
             statement.listOfLiabilities = list_of_liabilities
 
             # Add the new liabilities
             list_of_liabilities.liabilityAccount.extend(liabilities_to_add)
-            logger.info(f"Added {len(liabilities_to_add)} liability account(s) from negative bank account balances.")
-            self.modified_fields.append(f"listOfLiabilities (added {len(liabilities_to_add)} accounts from negative balances)")
+            logger.info(
+                f"Added {len(liabilities_to_add)} liability account(s) from negative bank account balances."
+            )
+            self.modified_fields.append(
+                f"listOfLiabilities (added {len(liabilities_to_add)} accounts from negative balances)"
+            )
 
         # Clear zero-balance taxValues on existing liability accounts
         if statement.listOfLiabilities and statement.listOfLiabilities.liabilityAccount:
             for liability in statement.listOfLiabilities.liabilityAccount:
                 if liability.taxValue and liability.taxValue.balance == Decimal("0"):
-                    liability_id = str(liability.iban or liability.bankAccountNumber or liability.bankAccountName or "?")
+                    liability_id = str(
+                        liability.iban
+                        or liability.bankAccountNumber
+                        or liability.bankAccountName
+                        or "?"
+                    )
                     liability.taxValue = None
-                    self.modified_fields.append(f"liability {liability_id}.taxValue (cleared, zero balance)")
+                    self.modified_fields.append(
+                        f"liability {liability_id}.taxValue (cleared, zero balance)"
+                    )
 
         # Process Securities Accounts
         if statement.listOfSecurities and statement.listOfSecurities.depot:
@@ -495,10 +562,12 @@ class CleanupCalculator:
                         security_id_parts = [
                             security.isin,
                             str(security.valorNumber) if security.valorNumber else None,
-                            security.securityName
+                            security.securityName,
                         ]
-                        security_display_id = next((s_id for s_id in security_id_parts if s_id), f"Security_{sec_idx+1}")
-                        pos_id = f"{depot_id}/{security_display_id}" # Original pos_id for logging before enrichment
+                        security_display_id = next(
+                            (s_id for s_id in security_id_parts if s_id), f"Security_{sec_idx+1}"
+                        )
+                        pos_id = f"{depot_id}/{security_display_id}"  # Original pos_id for logging before enrichment
 
                         # Identifier Enrichment Logic
                         if self.identifier_map:
@@ -508,40 +577,56 @@ class CleanupCalculator:
                                 lookup_key = security.securityName
                             else:
                                 continue
-                            
-                            if (not security.isin or not security.valorNumber or security.valorNumber == 0) and lookup_key in self.identifier_map:
+
+                            if (
+                                not security.isin
+                                or not security.valorNumber
+                                or security.valorNumber == 0
+                            ) and lookup_key in self.identifier_map:
                                 found_identifiers = self.identifier_map[lookup_key]
                                 enriched = False
                                 if not security.isin and found_identifiers.get('isin'):
                                     security.isin = found_identifiers['isin']
                                     enriched = True
-                                
-                                if (not security.valorNumber or security.valorNumber == 0) and found_identifiers.get('valor'):
+
+                                if (
+                                    not security.valorNumber or security.valorNumber == 0
+                                ) and found_identifiers.get('valor'):
                                     # Valor in map is already int or None due to loading logic
                                     security.valorNumber = found_identifiers['valor']
                                     enriched = True
-                                
+
                                 if enriched:
                                     # Update security_display_id and pos_id for subsequent logging if identifiers changed
                                     new_security_id_parts = [
                                         security.isin,
                                         str(security.valorNumber) if security.valorNumber else None,
-                                        security.securityName
+                                        security.securityName,
                                     ]
-                                    security_display_id = next((s_id for s_id in new_security_id_parts if s_id), f"Security_{sec_idx+1}")
+                                    security_display_id = next(
+                                        (s_id for s_id in new_security_id_parts if s_id),
+                                        f"Security_{sec_idx+1}",
+                                    )
                                     # Reconstruct pos_id based on potentially new security_display_id
                                     # This ensures logs for filtering etc. use the enriched ID.
                                     # However, for the enrichment log itself, we use the original pos_id or lookup_symbol.
-                                    log_pos_id_for_enrichment = f"{depot_id}/{lookup_key}" # Use symbol for this specific log.
-                                    logger.info(f"  Security {log_pos_id_for_enrichment}: Enriched ISIN/Valor from identifier file using symbol '{lookup_key}'.")
-                                    self.modified_fields.append(f"{log_pos_id_for_enrichment} (enriched)")
+                                    log_pos_id_for_enrichment = f"{depot_id}/{lookup_key}"  # Use symbol for this specific log.
+                                    logger.info(
+                                        f"  Security {log_pos_id_for_enrichment}: Enriched ISIN/Valor from identifier file using symbol '{lookup_key}'."
+                                    )
+                                    self.modified_fields.append(
+                                        f"{log_pos_id_for_enrichment} (enriched)"
+                                    )
                                     # Update pos_id for subsequent operations in this loop, if needed
                                     pos_id = f"{depot_id}/{security_display_id}"
 
                         # After enrichment attempt, warn about symbols that still
                         # lack an ISIN and valor number.  This typically means the
                         # symbol could not be mapped via the identifiers CSV.
-                        if security.symbol and (not security.isin and (not security.valorNumber or security.valorNumber == 0)):
+                        if security.symbol and (
+                            not security.isin
+                            and (not security.valorNumber or security.valorNumber == 0)
+                        ):
                             warning_msg = (
                                 f"Symbol '{security.symbol}' could not be mapped "
                                 "to an ISIN or Valor number. Add it to the "
@@ -576,17 +661,24 @@ class CleanupCalculator:
                                 find_index = find_index_of_date(period_end_plus_one, security.stock)
                                 if find_index < len(security.stock):
                                     candidate = security.stock[find_index]
-                                    if candidate.referenceDate == period_end_plus_one and not candidate.mutation:
+                                    if (
+                                        candidate.referenceDate == period_end_plus_one
+                                        and not candidate.mutation
+                                    ):
                                         # First balance after the period end is the end balance of the period.
                                         # Omit taxValue for zero closing balances; also clear any pre-existing one.
-                                        if candidate.quantity is not None and candidate.quantity != Decimal('0'):
+                                        if (
+                                            candidate.quantity is not None
+                                            and candidate.quantity != Decimal('0')
+                                        ):
                                             security.taxValue = SecurityTaxValue(
                                                 referenceDate=self.period_to,
                                                 quotationType=candidate.quotationType,
                                                 quantity=candidate.quantity,
                                                 balanceCurrency=candidate.balanceCurrency,
                                                 balance=candidate.balance,
-                                                unitPrice=candidate.unitPrice)
+                                                unitPrice=candidate.unitPrice,
+                                            )
                                         else:
                                             security.taxValue = None
 
@@ -598,15 +690,19 @@ class CleanupCalculator:
                                     newly_filtered_stocks = []
                                     for s_event in security.stock:
                                         keep_event = False
-                                        if s_event.mutation: # It's a transaction/mutation
+                                        if s_event.mutation:  # It's a transaction/mutation
                                             # Keep mutations if they fall within the tax period
-                                            if self.period_from <= s_event.referenceDate <= self.period_to:
+                                            if (
+                                                self.period_from
+                                                <= s_event.referenceDate
+                                                <= self.period_to
+                                            ):
                                                 keep_event = True
-                                        else: # It's a balance (not a mutation)
+                                        else:  # It's a balance (not a mutation)
                                             # Keep balances only if they are at the start of the period
                                             if s_event.referenceDate == self.period_from:
                                                 keep_event = True
-                                        
+
                                         if keep_event:
                                             newly_filtered_stocks.append(s_event)
 
@@ -614,10 +710,14 @@ class CleanupCalculator:
                                     if removed_count > 0:
                                         security.stock = newly_filtered_stocks
                                         self.modified_fields.append(f"{pos_id}.stock (filtered)")
-                                        logger.debug(f"  Security {pos_id}: Filtered {original_stock_count} stock events to {len(security.stock)} for period [{self.period_from} - {self.period_to}] (retaining start/end balances & period mutations).")
+                                        logger.debug(
+                                            f"  Security {pos_id}: Filtered {original_stock_count} stock events to {len(security.stock)} for period [{self.period_from} - {self.period_to}] (retaining start/end balances & period mutations)."
+                                        )
                                     # No log if no stock events were removed by filtering
                                 else:
-                                    logger.info(f"  Security {pos_id}: Stock event filtering skipped (tax period not fully defined).")
+                                    logger.info(
+                                        f"  Security {pos_id}: Stock event filtering skipped (tax period not fully defined)."
+                                    )
                             # No log if filtering is disabled globally
 
                         # Process Security Payments for the current security
@@ -642,22 +742,33 @@ class CleanupCalculator:
                             if self.enable_filtering:
                                 if self.period_from and self.period_to:
                                     filtered_sec_payments = [
-                                        p for p in security.payment
+                                        p
+                                        for p in security.payment
                                         if self.period_from <= p.paymentDate <= self.period_to
                                     ]
-                                    removed_sec_payment_count = len(security.payment) - len(filtered_sec_payments)
+                                    removed_sec_payment_count = len(security.payment) - len(
+                                        filtered_sec_payments
+                                    )
                                     if removed_sec_payment_count > 0:
                                         security.payment = filtered_sec_payments
                                         self.modified_fields.append(f"{pos_id}.payment (filtered)")
-                                        logger.debug(f"  Security {pos_id}: Filtered {original_sec_payment_count} security payments to {len(security.payment)} for period [{self.period_from} - {self.period_to}].")
+                                        logger.debug(
+                                            f"  Security {pos_id}: Filtered {original_sec_payment_count} security payments to {len(security.payment)} for period [{self.period_from} - {self.period_to}]."
+                                        )
                                 else:
-                                    logger.info(f"  Security {pos_id}: Security payment filtering skipped (tax period not fully defined).")
+                                    logger.info(
+                                        f"  Security {pos_id}: Security payment filtering skipped (tax period not fully defined)."
+                                    )
 
                             # --- Calculate SecurityPayment.quantity where it is missing (None) ---
                             # This block is now only entered if security.stock is guaranteed to be non-empty (due to the check above)
                             # OR if no payments needed update in the first place.
-                            if payments_needing_qty_update and security.stock: # security.stock check is technically redundant here but safe
-                                reconciler = PositionReconciler(full_stock_history, identifier=f"{pos_id}-payment-qty-reconcile")
+                            if (
+                                payments_needing_qty_update and security.stock
+                            ):  # security.stock check is technically redundant here but safe
+                                reconciler = PositionReconciler(
+                                    full_stock_history, identifier=f"{pos_id}-payment-qty-reconcile"
+                                )
                                 for payment_event in security.payment:
                                     if payment_event.quantity is None:
                                         date_to_use_for_reconciliation = payment_event.paymentDate
@@ -667,16 +778,25 @@ class CleanupCalculator:
                                             log_date_source = "exDate"
                                             # Removed the preliminary "Using exDate..." log as requested.
                                             # The information will be in the success or error message.
-                                        reconciled_quantity_info = reconciler.synthesize_position_at_date(
-                                            date_to_use_for_reconciliation,
-                                            assume_zero_if_no_balances=True
+                                        reconciled_quantity_info = (
+                                            reconciler.synthesize_position_at_date(
+                                                date_to_use_for_reconciliation,
+                                                assume_zero_if_no_balances=True,
+                                            )
                                         )
 
-                                        if reconciled_quantity_info is not None and reconciled_quantity_info.quantity is not None:
+                                        if (
+                                            reconciled_quantity_info is not None
+                                            and reconciled_quantity_info.quantity is not None
+                                        ):
                                             original_dummy_qty = payment_event.quantity
-                                            payment_event.quantity = reconciled_quantity_info.quantity
+                                            payment_event.quantity = (
+                                                reconciled_quantity_info.quantity
+                                            )
                                             payment_identifier_log = f"Payment (Name: {payment_event.name or 'N/A'}, Date: {payment_event.paymentDate}, exDate: {payment_event.exDate or 'N/A'})"
-                                            self.modified_fields.append(f"{pos_id}.{payment_identifier_log}.quantity (updated via {log_date_source})")
+                                            self.modified_fields.append(
+                                                f"{pos_id}.{payment_identifier_log}.quantity (updated via {log_date_source})"
+                                            )
                                             logger.debug(
                                                 f"  Security {pos_id}: Updated quantity for {payment_identifier_log} to {payment_event.quantity} "
                                                 f"using {log_date_source} ({date_to_use_for_reconciliation}). Original dummy: {original_dummy_qty}."
@@ -699,8 +819,10 @@ class CleanupCalculator:
             logger.info("No securities accounts found to process.")
 
         if self.modified_fields:
-            logger.info(f"Cleanup calculation finished. Summary: Modified fields count: {len(self.modified_fields)}")
+            logger.info(
+                f"Cleanup calculation finished. Summary: Modified fields count: {len(self.modified_fields)}"
+            )
             logger.debug(f"Detailed list of modified fields: {', '.join(self.modified_fields)}")
         else:
-            logger.info("Cleanup calculation finished. No data was modified.") # Adjusted log
+            logger.info("Cleanup calculation finished. No data was modified.")  # Adjusted log
         return statement

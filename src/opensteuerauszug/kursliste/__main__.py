@@ -15,6 +15,7 @@ from .converter import (
 
 app = typer.Typer(help="Manage Kursliste files.")
 
+
 @app.callback()
 def main():
     """
@@ -22,11 +23,21 @@ def main():
     """
     pass
 
+
 @app.command()
 def download(
     year: int = typer.Option(..., "--year", help="Tax year to download Kursliste for."),
-    destination: Optional[Path] = typer.Option(None, "--destination", "-d", help="Directory to save the Kursliste XML file. Defaults to XDG data home."),
-    convert: bool = typer.Option(True, "--convert/--no-convert", help="Automatically convert the downloaded XML to SQLite for faster processing.")
+    destination: Optional[Path] = typer.Option(
+        None,
+        "--destination",
+        "-d",
+        help="Directory to save the Kursliste XML file. Defaults to XDG data home.",
+    ),
+    convert: bool = typer.Option(
+        True,
+        "--convert/--no-convert",
+        help="Automatically convert the downloaded XML to SQLite for faster processing.",
+    ),
 ):
     """
     Downloads and prepares the Kursliste XML file for a given year.
@@ -52,17 +63,17 @@ def download(
 
         if convert and sqlite_path.exists():
             metadata = read_kursliste_metadata(sqlite_path)
-            converter_schema_version = read_metadata_value(
-                sqlite_path, "converter_schema_version"
-            )
+            converter_schema_version = read_metadata_value(sqlite_path, "converter_schema_version")
             if (
                 metadata is not None
                 and metadata.newest_file_hash == latest_kursliste_metadata.newest_file_hash
                 and converter_schema_version == CONVERTER_SCHEMA_VERSION
             ):
-                logging.info(f"Kursliste for {year} is already up-to-date "
+                logging.info(
+                    f"Kursliste for {year} is already up-to-date "
                     f"(archive hash {latest_kursliste_metadata.newest_file_hash}). "
-                    "Skipping download and conversion.")
+                    "Skipping download and conversion."
+                )
                 return
 
         xml_path = download_kursliste(year, effective_destination, export_info=latest_export)
@@ -84,10 +95,18 @@ def download(
         logging.error(f"Error downloading Kursliste: {e}")
         raise typer.Exit(code=1)
 
+
 @app.command()
 def convert(
-    input_xml: Path = typer.Argument(..., exists=True, dir_okay=False, help="Input Kursliste XML file."),
-    output_sqlite: Optional[Path] = typer.Option(None, "--output", "-o", help="Output SQLite file. Defaults to input filename with .sqlite extension.")
+    input_xml: Path = typer.Argument(
+        ..., exists=True, dir_okay=False, help="Input Kursliste XML file."
+    ),
+    output_sqlite: Optional[Path] = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output SQLite file. Defaults to input filename with .sqlite extension.",
+    ),
 ):
     """
     Convert a Kursliste XML file to SQLite format.
@@ -104,6 +123,7 @@ def convert(
     except Exception as e:
         logging.error(f"Error converting Kursliste: {e}")
         raise typer.Exit(code=1)
+
 
 if __name__ == "__main__":
     app()

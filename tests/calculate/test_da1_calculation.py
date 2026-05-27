@@ -26,7 +26,9 @@ def test_da1_calculation_with_q_sign(kursliste_manager, monkeypatch):
     Test that a security with a (Q) sign payment is treated as a share for DA-1 calculation.
     """
     provider = KurslisteExchangeRateProvider(kursliste_manager)
-    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider, render_language=DEFAULT_LANGUAGE)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.FILL, exchange_rate_provider=provider, render_language=DEFAULT_LANGUAGE
+    )
 
     # Mock a Kursliste security with a (Q) sign payment
     kl_sec = Share(
@@ -46,7 +48,7 @@ def test_da1_calculation_with_q_sign(kursliste_manager, monkeypatch):
                 exchangeRate=Decimal("0.9"),
                 sign="(Q)",
             )
-        ]
+        ],
     )
 
     # Provide a DA-1 rate via a patched accessor method instead of mutating the
@@ -116,12 +118,15 @@ def test_da1_calculation_with_q_sign(kursliste_manager, monkeypatch):
     assert payment.nonRecoverableTaxPercent == Decimal("0")
     assert payment.nonRecoverableTaxAmount == Decimal("0")
 
+
 def test_da1_calculation_for_share(kursliste_manager, monkeypatch):
     """
     Test DA-1 calculation for a regular share.
     """
     provider = KurslisteExchangeRateProvider(kursliste_manager)
-    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider, render_language=DEFAULT_LANGUAGE)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.FILL, exchange_rate_provider=provider, render_language=DEFAULT_LANGUAGE
+    )
 
     kl_sec = Share(
         id=2,
@@ -139,7 +144,7 @@ def test_da1_calculation_for_share(kursliste_manager, monkeypatch):
                 paymentValueCHF=Decimal("4.8"),
                 exchangeRate=Decimal("0.96"),
             )
-        ]
+        ],
     )
 
     accessor = kursliste_manager.get_kurslisten_for_year(2024)
@@ -207,12 +212,15 @@ def test_da1_calculation_for_share(kursliste_manager, monkeypatch):
     assert payment.nonRecoverableTaxPercent == Decimal("11.375")
     assert payment.nonRecoverableTaxAmount == Decimal("109.2")  # 960 * 0.11375
 
+
 def test_da1_calculation_v_sign_raises_error(kursliste_manager):
     """
     Test that a (V) sign payment raises NotImplementedError.
     """
     provider = KurslisteExchangeRateProvider(kursliste_manager)
-    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider, render_language=DEFAULT_LANGUAGE)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.FILL, exchange_rate_provider=provider, render_language=DEFAULT_LANGUAGE
+    )
 
     kl_sec = Share(
         id=3,
@@ -231,7 +239,7 @@ def test_da1_calculation_v_sign_raises_error(kursliste_manager):
                 exchangeRate=Decimal("0.9"),
                 sign="(V)",
             )
-        ]
+        ],
     )
 
     sec = Security(

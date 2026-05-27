@@ -74,10 +74,15 @@ class PaymentReconciliationCalculator:
         "kapitalgewinn",
     )
 
-    def __init__(self, tolerance_chf: Decimal = Decimal("0.05"), tolerance_frac: Decimal = Decimal("0.001"), allow_above_treaty_withholding: bool = False):
+    def __init__(
+        self,
+        tolerance_chf: Decimal = Decimal("0.05"),
+        tolerance_frac: Decimal = Decimal("0.001"),
+        allow_above_treaty_withholding: bool = False,
+    ):
         self.tolerance_chf = tolerance_chf
         self.tolerance_frac = tolerance_frac
-        self.allow_above_treaty_withholding=allow_above_treaty_withholding
+        self.allow_above_treaty_withholding = allow_above_treaty_withholding
 
     def calculate(self, tax_statement: TaxStatement) -> TaxStatement:
         report = PaymentReconciliationReport()
@@ -145,7 +150,9 @@ class PaymentReconciliationCalculator:
             ]
 
     def _reconcile_security(self, security: Security) -> List[PaymentReconciliationRow]:
-        broker_payments = security.broker_payments or [p for p in security.payment if not p.kursliste]
+        broker_payments = security.broker_payments or [
+            p for p in security.payment if not p.kursliste
+        ]
         kursliste_payments = [p for p in security.payment if p.kursliste]
         security_has_sensitive_overwithholding = (
             security.country in self._COUNTRIES_WHERE_OVERWITHHOLDING_SUGGESTS_CALCULATION_ISSUE
@@ -198,8 +205,7 @@ class PaymentReconciliationCalculator:
                 matched = True
                 original_wht = kurs.original_withholding_chf
                 note = (
-                    f"Withholding capped to broker level ("
-                    f"{kurs.withholding_chf:.2f} CHF)."
+                    f"Withholding capped to broker level (" f"{kurs.withholding_chf:.2f} CHF)."
                     if kurs.withholding_chf is not None
                     else "Withholding capped to broker level."
                 )
@@ -208,14 +214,13 @@ class PaymentReconciliationCalculator:
                 note = "Accumulating fund payment expected to be absent in broker cash flow."
                 matched = True
             elif has_kurs and has_broker:
-                div_note=''
-                w_note=''
+                div_note = ''
+                w_note = ''
                 allow_broker_dividend_above_kursliste = (
                     kurs.allows_broker_above_kursliste or broker.allows_broker_above_kursliste
                 )
                 allow_broker_withholding_above_kursliste = (
-                    allow_broker_dividend_above_kursliste
-                    or self.allow_above_treaty_withholding
+                    allow_broker_dividend_above_kursliste or self.allow_above_treaty_withholding
                 )
                 div_diff = self._component_mismatches(
                     kurs_value_chf=kurs.dividend_chf,
@@ -236,7 +241,7 @@ class PaymentReconciliationCalculator:
                     div_note = f'Broker dividend differs from Kursliste value beyond tolerance. delta={div_diff} CHF.'
                 if w_diff:
                     w_note = f'Broker withholding differs from Kursliste value beyond tolerance. delta={w_diff} CHF.'
-                note =' '.join([div_note, w_note])
+                note = ' '.join([div_note, w_note])
                 if (
                     w_diff
                     and not div_diff
@@ -245,8 +250,10 @@ class PaymentReconciliationCalculator:
                     and abs((broker_with_chf / kurs.withholding_chf) - 2) < 0.01
                     and country == "US"
                 ):
-                    note = (f'Broker withholding is twice Kursliste value, check that your broker has a valid '
-                            f'W8-BEN. delta={w_diff} CHF.')
+                    note = (
+                        f'Broker withholding is twice Kursliste value, check that your broker has a valid '
+                        f'W8-BEN. delta={w_diff} CHF.'
+                    )
                 matched = not (div_diff or w_diff)
                 status = "match" if matched else "mismatch"
                 if kurs.short_stock and div_diff < Decimal("0") and not kurs.dividend_chf:
@@ -256,9 +263,8 @@ class PaymentReconciliationCalculator:
             elif not has_kurs and has_broker:
                 note = "Broker payment has no Kursliste entry."
             elif has_kurs and not has_broker:
-                if (
-                    abs(kurs.dividend_chf) < Decimal("0.01")
-                    and abs(kurs.withholding_chf) < Decimal("0.01")
+                if abs(kurs.dividend_chf) < Decimal("0.01") and abs(kurs.withholding_chf) < Decimal(
+                    "0.01"
                 ):
                     status = "match"
                     matched = True
@@ -279,7 +285,9 @@ class PaymentReconciliationCalculator:
                     kursliste_withholding_chf=kurs.original_withholding_chf or kurs.withholding_chf,
                     broker_dividend_amount=broker.dividend if broker.dividend_currency else None,
                     broker_dividend_currency=broker.dividend_currency,
-                    broker_withholding_amount=broker.withholding if broker.withholding_currency else None,
+                    broker_withholding_amount=(
+                        broker.withholding if broker.withholding_currency else None
+                    ),
                     broker_withholding_currency=broker.withholding_currency,
                     broker_withholding_entry_text=broker.withholding_entry_text,
                     exchange_rate=kurs.exchange_rate,
@@ -291,6 +299,7 @@ class PaymentReconciliationCalculator:
             )
 
         return rows
+
     # Return Decimal('0') if there is no mismatch, otherwise the CHF delta.
     def _component_mismatches(
         self,
@@ -345,10 +354,11 @@ class PaymentReconciliationCalculator:
         agg.dividend_currency = payment.amountCurrency
 
     def _accumulate_kursliste(self, agg: _KurslisteAgg, payment: SecurityPayment) -> None:
-        agg.dividend_chf += (payment.grossRevenueA or Decimal("0")) + (payment.grossRevenueB or Decimal("0"))
-        agg.withholding_chf += (
-            (payment.withHoldingTaxClaim or Decimal("0"))
-            + (payment.nonRecoverableTaxAmount or Decimal("0"))
+        agg.dividend_chf += (payment.grossRevenueA or Decimal("0")) + (
+            payment.grossRevenueB or Decimal("0")
+        )
+        agg.withholding_chf += (payment.withHoldingTaxClaim or Decimal("0")) + (
+            payment.nonRecoverableTaxAmount or Decimal("0")
         )
         if agg.exchange_rate is None and payment.exchangeRate is not None:
             agg.exchange_rate = payment.exchangeRate
@@ -368,7 +378,10 @@ class PaymentReconciliationCalculator:
             agg.original_withholding_chf = payment.withholding_capped_original_wht_chf
 
     def _is_broker_above_kursliste_allowlisted(self, payment: SecurityPayment) -> bool:
-        if payment.sign is not None and payment.sign in self._BROKER_ABOVE_KURSLISTE_ALLOWLIST_SIGNS:
+        if (
+            payment.sign is not None
+            and payment.sign in self._BROKER_ABOVE_KURSLISTE_ALLOWLIST_SIGNS
+        ):
             return True
 
         searchable_values = [

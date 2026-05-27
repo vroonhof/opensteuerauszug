@@ -5,7 +5,6 @@ from pathlib import Path
 
 import lxml.etree as ET
 
-
 ACCOUNT_INFO_ALLOWED_ATTRIBUTES = {
     "accountId",
     "acctAlias",
@@ -55,7 +54,9 @@ def element_matches_isin(element: ET._Element, target_isins: set[str]) -> bool:
     return False
 
 
-def collect_linked_conids(statement: ET._Element, target_isins: set[str], target_conids: set[str]) -> set[str]:
+def collect_linked_conids(
+    statement: ET._Element, target_isins: set[str], target_conids: set[str]
+) -> set[str]:
     linked_conids: set[str] = set()
     for element in statement.iter():
         if not isinstance(element.tag, str):
@@ -70,6 +71,7 @@ def collect_linked_conids(statement: ET._Element, target_isins: set[str], target
     # Include explicitly specified contract IDs
     linked_conids.update(target_conids)
     return linked_conids
+
 
 def element_matches_targets(
     element: ET._Element,
@@ -103,13 +105,18 @@ def prune_non_matching_descendants(
         prune_non_matching_descendants(child, target_isins, linked_conids)
         has_element_children = any(isinstance(grandchild.tag, str) for grandchild in child)
 
-        if not element_matches_targets(child, target_isins, linked_conids) and not has_element_children:
+        if (
+            not element_matches_targets(child, target_isins, linked_conids)
+            and not has_element_children
+        ):
             container.remove(child)
+
 
 def sanitize_statement_information(statement: ET._Element) -> None:
     for name, value in ACCOUNT_INFO_ANONYMIZED_VALUES.items():
         if statement.get(name) is not None:
             statement.set(name, value)
+
 
 def sanitize_account_information(statement: ET._Element) -> None:
     account_information = None
@@ -135,7 +142,9 @@ def sanitize_account_information(statement: ET._Element) -> None:
     account_information.attrib.update(allowed_attributes)
 
 
-def filter_statement(statement: ET._Element, target_isins: set[str], target_conids: set[str]) -> None:
+def filter_statement(
+    statement: ET._Element, target_isins: set[str], target_conids: set[str]
+) -> None:
     linked_conids = collect_linked_conids(statement, target_isins, target_conids)
 
     sanitize_statement_information(statement)
@@ -192,8 +201,14 @@ def main() -> int:
         logging.error("No valid ISINs or Contract IDs were provided.")
         return 1
 
-    logging.info("Keeping %s ISIN(s): %s / %s Contract ID(s): %s", len(target_isins), sorted(target_isins), len(target_conids), sorted(target_conids))
-    
+    logging.info(
+        "Keeping %s ISIN(s): %s / %s Contract ID(s): %s",
+        len(target_isins),
+        sorted(target_isins),
+        len(target_conids),
+        sorted(target_conids),
+    )
+
     try:
         parser = ET.XMLParser(remove_blank_text=True)
         tree = ET.parse(args.input_file, parser)

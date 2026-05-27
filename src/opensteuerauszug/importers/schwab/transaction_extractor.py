@@ -11,30 +11,85 @@ logger = logging.getLogger(__name__)
 
 # Known actions from formats.md
 KNOWN_ACTIONS = {
-    "Buy", "Cash Dividend", "Cash In Lieu", "Credit Interest", "Deposit", "Dividend", "Journal",
+    "Buy",
+    "Cash Dividend",
+    "Cash In Lieu",
+    "Credit Interest",
+    "Deposit",
+    "Dividend",
+    "Journal",
     "Journaled Shares",
-    "ADR Mgmt Fee", "Adjustment", "Bond Interest", "Cash Merger", "Cash Merger Adj", "Div Adjustment",
-    "Full Redemption", "Full Redemption Adj", "Foreign Tax Paid", "Funds Received", "IRS Withhold Adj", "Long Term Cap Gain",
-    "Misc Cash Entry", "MoneyLink Adj", "MoneyLink Deposit", "MoneyLink Transfer",
-    "NRA Tax Adj", "NRA Withholding", "Non-Qualified Div", "Qualified Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Reinvest Shares", "Sale", "Sell",
-    "Lapse", "Service Fee", "Short Term Cap Gain", "Special Qual Div", "Spin-off", "Stock Plan Activity", "Stock Split",
-    "Visa Purchase", "Wire Funds", "Wire Funds Received", "Wire Sent",
-    "Tax Reversal", "Tax Withholding", "Transfer", "Security Transfer", "Wire Transfer"
+    "ADR Mgmt Fee",
+    "Adjustment",
+    "Bond Interest",
+    "Cash Merger",
+    "Cash Merger Adj",
+    "Div Adjustment",
+    "Full Redemption",
+    "Full Redemption Adj",
+    "Foreign Tax Paid",
+    "Funds Received",
+    "IRS Withhold Adj",
+    "Long Term Cap Gain",
+    "Misc Cash Entry",
+    "MoneyLink Adj",
+    "MoneyLink Deposit",
+    "MoneyLink Transfer",
+    "NRA Tax Adj",
+    "NRA Withholding",
+    "Non-Qualified Div",
+    "Qualified Dividend",
+    "Reinvest Dividend",
+    "Qual Div Reinvest",
+    "Reinvest Shares",
+    "Sale",
+    "Sell",
+    "Lapse",
+    "Service Fee",
+    "Short Term Cap Gain",
+    "Special Qual Div",
+    "Spin-off",
+    "Stock Plan Activity",
+    "Stock Split",
+    "Visa Purchase",
+    "Wire Funds",
+    "Wire Funds Received",
+    "Wire Sent",
+    "Tax Reversal",
+    "Tax Withholding",
+    "Transfer",
+    "Security Transfer",
+    "Wire Transfer",
 }
+
 
 class TransactionExtractor:
     """
     Extracts transaction data from Schwab JSON files in the expected format.
     """
+
     def __init__(self, filename: str, render_language: Language = DEFAULT_LANGUAGE):
         self.filename = filename
         self.render_language = render_language
 
     def _translate(self, key: str) -> str:
         from opensteuerauszug.render.translations import get_text
+
         return get_text(key, self.render_language)
 
-    def extract_transactions(self) -> Optional[List[Tuple[Position, List[SecurityStock], Optional[List[SecurityPayment]], str, Tuple[date, date]]]]:
+    def extract_transactions(
+        self,
+    ) -> Optional[
+        List[
+            Tuple[
+                Position,
+                List[SecurityStock],
+                Optional[List[SecurityPayment]],
+                str,
+                Tuple[date, date],
+            ]
+        ]
+    ]:
         """
         Parses the JSON file and returns a list of tuples:
             (Position, list of SecurityStock, optional list of SecurityPayment, depot, covered date range)
@@ -44,7 +99,17 @@ class TransactionExtractor:
             data = json.load(f)
         return self._extract_transactions_from_dict(data)
 
-    def _extract_transactions_from_dict(self, data: dict) -> Optional[List[Tuple[Position, List[SecurityStock], Optional[List[SecurityPayment]], str, Tuple[date, date]]]]:
+    def _extract_transactions_from_dict(self, data: dict) -> Optional[
+        List[
+            Tuple[
+                Position,
+                List[SecurityStock],
+                Optional[List[SecurityPayment]],
+                str,
+                Tuple[date, date],
+            ]
+        ]
+    ]:
         """
         Helper method to process the loaded JSON data and extract transactions.
         Refactored to use _process_single_transaction returning tuple.
@@ -65,9 +130,9 @@ class TransactionExtractor:
         except ValueError:
             # print(f"Warning: Could not parse FromDate ('{from_date_str}') or ToDate ('{to_date_str}').")
             return None
-        
+
         date_range = (start_date, end_date)
-        
+
         processed_transactions = []
         depot: str
         raw_transactions: List[dict]
@@ -88,13 +153,17 @@ class TransactionExtractor:
                 numeric_part = ''.join(filter(str.isdigit, depot_identifier))
                 if len(numeric_part) >= 3:
                     depot = numeric_part[-3:]
-                elif numeric_part: # if there are some digits but less than 3
+                elif numeric_part:  # if there are some digits but less than 3
                     depot = numeric_part
-                else: # if no digits found, or original identifier was non-numeric
-                    print(f"Warning: Could not reliably extract 3-digit depot from filename: {self.filename}. Using full identifier: {depot_identifier}")
-                    depot = depot_identifier # Fallback
+                else:  # if no digits found, or original identifier was non-numeric
+                    print(
+                        f"Warning: Could not reliably extract 3-digit depot from filename: {self.filename}. Using full identifier: {depot_identifier}"
+                    )
+                    depot = depot_identifier  # Fallback
             except Exception:
-                print(f"Warning: Could not parse depot from filename: {self.filename}. Using 'UNKNOWN_BROKERAGE_DEPOT'.")
+                print(
+                    f"Warning: Could not parse depot from filename: {self.filename}. Using 'UNKNOWN_BROKERAGE_DEPOT'."
+                )
                 depot = "UNKNOWN_BROKERAGE_DEPOT"
             raw_transactions = data.get("BrokerageTransactions", [])
         elif "Transactions" in data:
@@ -106,7 +175,7 @@ class TransactionExtractor:
 
         # Group transactions by symbol (or lack thereof for cash)
         grouped_by_position: dict[Position, dict[str, Any]] = {}
-        default_cash_currency = "USD" # Assume USD for Schwab cash
+        default_cash_currency = "USD"  # Assume USD for Schwab cash
 
         for schwab_tx in raw_transactions:
             action = schwab_tx.get("Action", "").strip()
@@ -120,11 +189,18 @@ class TransactionExtractor:
             security_pos_key: Optional[SecurityPosition] = None
             if symbol_in_tx:
                 desc = schwab_tx.get("Description")
-                if not desc or desc == symbol_in_tx: desc = None
-                security_pos_key = SecurityPosition(depot=depot, symbol=symbol_in_tx, description=desc)
+                if not desc or desc == symbol_in_tx:
+                    desc = None
+                security_pos_key = SecurityPosition(
+                    depot=depot, symbol=symbol_in_tx, description=desc
+                )
                 if security_pos_key not in grouped_by_position:
-                    grouped_by_position[security_pos_key] = {"position": security_pos_key, "stocks": [], "payments": []}
-            
+                    grouped_by_position[security_pos_key] = {
+                        "position": security_pos_key,
+                        "stocks": [],
+                        "payments": [],
+                    }
+
             # Determine context for _process_single_transaction
             # If there's a symbol, context is that security. Otherwise, a generic cash context.
             context_for_processing: Position
@@ -134,71 +210,104 @@ class TransactionExtractor:
                 # This is a transaction without a symbol (e.g. pure cash journal in brokerage)
                 # The cash_account_id for this context cash position will be None, even for AWARDS,
                 # as there's no symbol from the transaction to specify it.
-                context_for_processing = CashPosition(depot=depot, currentCy=default_cash_currency, cash_account_id=None)
+                context_for_processing = CashPosition(
+                    depot=depot, currentCy=default_cash_currency, cash_account_id=None
+                )
                 # Ensure this generic cash position is in grouped_by_position if it's the primary target for non-stock/non-payment items
                 if context_for_processing not in grouped_by_position:
-                     grouped_by_position[context_for_processing] = {"position": context_for_processing, "stocks": [], "payments": []}
+                    grouped_by_position[context_for_processing] = {
+                        "position": context_for_processing,
+                        "stocks": [],
+                        "payments": [],
+                    }
 
             # Process the transaction
             # The pos_object argument to _process_single_transaction is context_for_processing
-            sec_stock, sec_payment, cash_stock_mutation = self._process_single_transaction(schwab_tx, context_for_processing)
+            sec_stock, sec_payment, cash_stock_mutation = self._process_single_transaction(
+                schwab_tx, context_for_processing
+            )
 
             # Assign results to appropriate lists
             if sec_stock:
-                 if security_pos_key: # sec_stock always belongs to a security identified by symbol_in_tx
-                      grouped_by_position[security_pos_key]["stocks"].append(sec_stock)
-                 else:
-                      # This case should ideally not occur if sec_stock is only generated when a symbol is present.
-                      print(f"Warning: sec_stock generated but no security_pos_key (symbol_in_tx was empty?) for TX: {schwab_tx}")
-                      
+                if (
+                    security_pos_key
+                ):  # sec_stock always belongs to a security identified by symbol_in_tx
+                    grouped_by_position[security_pos_key]["stocks"].append(sec_stock)
+                else:
+                    # This case should ideally not occur if sec_stock is only generated when a symbol is present.
+                    print(
+                        f"Warning: sec_stock generated but no security_pos_key (symbol_in_tx was empty?) for TX: {schwab_tx}"
+                    )
+
             if sec_payment:
-                 if action == "Credit Interest": # Special case: payment belongs to a cash account
-                     _cash_account_id_for_interest = None
-                     if depot == 'AWARDS':
-                         if symbol_in_tx:
-                             _cash_account_id_for_interest = symbol_in_tx
-                         else:
-                             print(f"Warning: 'Credit Interest' for AWARDS depot has no Symbol in TX: {schwab_tx}. Associating with non-specific cash account.")
-                    
-                     target_cash_pos_for_interest = CashPosition(depot=depot, currentCy=default_cash_currency, cash_account_id=_cash_account_id_for_interest)
-                     if target_cash_pos_for_interest not in grouped_by_position:
-                         grouped_by_position[target_cash_pos_for_interest] = {"position": target_cash_pos_for_interest, "stocks": [], "payments": []}
-                     grouped_by_position[target_cash_pos_for_interest]["payments"].append(sec_payment)
-                 elif security_pos_key: # Other payments (e.g., Dividend) belong to the security
-                      grouped_by_position[security_pos_key]["payments"].append(sec_payment)
-                 else:
-                      # This implies a payment was generated for a transaction with no symbol, and it's not Credit Interest.
-                      print(f"Warning: sec_payment for action '{action}' but no security_pos_key (symbol_in_tx was empty?) for TX: {schwab_tx}")
+                if action == "Credit Interest":  # Special case: payment belongs to a cash account
+                    _cash_account_id_for_interest = None
+                    if depot == 'AWARDS':
+                        if symbol_in_tx:
+                            _cash_account_id_for_interest = symbol_in_tx
+                        else:
+                            print(
+                                f"Warning: 'Credit Interest' for AWARDS depot has no Symbol in TX: {schwab_tx}. Associating with non-specific cash account."
+                            )
+
+                    target_cash_pos_for_interest = CashPosition(
+                        depot=depot,
+                        currentCy=default_cash_currency,
+                        cash_account_id=_cash_account_id_for_interest,
+                    )
+                    if target_cash_pos_for_interest not in grouped_by_position:
+                        grouped_by_position[target_cash_pos_for_interest] = {
+                            "position": target_cash_pos_for_interest,
+                            "stocks": [],
+                            "payments": [],
+                        }
+                    grouped_by_position[target_cash_pos_for_interest]["payments"].append(
+                        sec_payment
+                    )
+                elif security_pos_key:  # Other payments (e.g., Dividend) belong to the security
+                    grouped_by_position[security_pos_key]["payments"].append(sec_payment)
+                else:
+                    # This implies a payment was generated for a transaction with no symbol, and it's not Credit Interest.
+                    print(
+                        f"Warning: sec_payment for action '{action}' but no security_pos_key (symbol_in_tx was empty?) for TX: {schwab_tx}"
+                    )
 
             if cash_stock_mutation:
-                 _cash_account_id_for_mutation = None
-                 if depot == 'AWARDS':
-                     if symbol_in_tx:
-                         _cash_account_id_for_mutation = symbol_in_tx
-                     else:
-                         print(f"Warning: Cash mutation for AWARDS depot from TX with no Symbol: {schwab_tx}. Associating with non-specific cash account.")
-                 
-                 target_cash_pos_for_mutation = CashPosition(depot=depot, currentCy=default_cash_currency, cash_account_id=_cash_account_id_for_mutation)
-                 if target_cash_pos_for_mutation not in grouped_by_position:
-                      grouped_by_position[target_cash_pos_for_mutation] = {
-                          "position": target_cash_pos_for_mutation,
-                          "stocks": [], "payments": []
-                      }
-                 grouped_by_position[target_cash_pos_for_mutation]["stocks"].append(cash_stock_mutation)
+                _cash_account_id_for_mutation = None
+                if depot == 'AWARDS':
+                    if symbol_in_tx:
+                        _cash_account_id_for_mutation = symbol_in_tx
+                    else:
+                        print(
+                            f"Warning: Cash mutation for AWARDS depot from TX with no Symbol: {schwab_tx}. Associating with non-specific cash account."
+                        )
 
-        # --- Assemble final list (No more second pass) --- 
+                target_cash_pos_for_mutation = CashPosition(
+                    depot=depot,
+                    currentCy=default_cash_currency,
+                    cash_account_id=_cash_account_id_for_mutation,
+                )
+                if target_cash_pos_for_mutation not in grouped_by_position:
+                    grouped_by_position[target_cash_pos_for_mutation] = {
+                        "position": target_cash_pos_for_mutation,
+                        "stocks": [],
+                        "payments": [],
+                    }
+                grouped_by_position[target_cash_pos_for_mutation]["stocks"].append(
+                    cash_stock_mutation
+                )
+
+        # --- Assemble final list (No more second pass) ---
         processed_transactions = []
         for group_data in grouped_by_position.values():
             pos = group_data["position"]
             stocks = group_data["stocks"]
             payments_list = group_data["payments"]
             payments = payments_list if payments_list else None
-            
+
             if stocks or payments:
-                 processed_transactions.append(
-                     (pos, stocks, payments, pos.depot, date_range)
-                 )
-        
+                processed_transactions.append((pos, stocks, payments, pos.depot, date_range))
+
         return processed_transactions if processed_transactions else None
 
     def _parse_schwab_decimal(self, value_str: Optional[str]) -> Optional[Decimal]:
@@ -212,7 +321,9 @@ class TransactionExtractor:
             print(f"Warning: Could not parse decimal from string: '{value_str}'")
             return None
 
-    def _process_single_transaction(self, schwab_tx: dict, pos_object: Position) -> Tuple[Optional[SecurityStock], Optional[SecurityPayment], Optional[SecurityStock]]:
+    def _process_single_transaction(
+        self, schwab_tx: dict, pos_object: Position
+    ) -> Tuple[Optional[SecurityStock], Optional[SecurityPayment], Optional[SecurityStock]]:
         """
         Processes a single Schwab transaction and returns the resulting objects:
         (security_stock, security_payment, cash_mutation_stock)
@@ -223,19 +334,19 @@ class TransactionExtractor:
         """
         action = schwab_tx.get("Action", "").strip()
         tx_date_str = schwab_tx.get("Date")
-        
+
         sec_stock: Optional[SecurityStock] = None
         sec_payment: Optional[SecurityPayment] = None
         cash_stock: Optional[SecurityStock] = None
 
         if not tx_date_str:
             print(f"Warning: Skipping transaction with no date: {schwab_tx}")
-            return None, None, None # Return tuple of Nones
-        
+            return None, None, None  # Return tuple of Nones
+
         # Date parsing logic
         actual_tx_date_str_part: str
         as_of_date_str_part: Optional[str] = None
-        tx_date: Optional[date] = None 
+        tx_date: Optional[date] = None
         as_of_date_parsed: Optional[date] = None
 
         if " as of " in tx_date_str:
@@ -245,11 +356,13 @@ class TransactionExtractor:
                 as_of_date_str_part = parts[1].strip()
         else:
             actual_tx_date_str_part = tx_date_str.strip()
-        
+
         try:
             tx_date = datetime.strptime(actual_tx_date_str_part, "%m/%d/%Y").date()
         except ValueError:
-            print(f"Warning: Could not parse transaction date part: '{actual_tx_date_str_part}' from full string '{tx_date_str}' in {schwab_tx}")
+            print(
+                f"Warning: Could not parse transaction date part: '{actual_tx_date_str_part}' from full string '{tx_date_str}' in {schwab_tx}"
+            )
             return None, None, None
 
         if as_of_date_str_part:
@@ -257,34 +370,42 @@ class TransactionExtractor:
                 as_of_date_parsed = datetime.strptime(as_of_date_str_part, "%m/%d/%Y").date()
                 log_context_action = schwab_tx.get('Action', 'N/A')
                 log_context_symbol = schwab_tx.get('Symbol', '')
-                logger.debug(f"Extracted 'as of' date: {as_of_date_parsed} (transaction date: {tx_date}) from full string '{tx_date_str}' for action '{log_context_action}' symbol '{log_context_symbol}'.")
+                logger.debug(
+                    f"Extracted 'as of' date: {as_of_date_parsed} (transaction date: {tx_date}) from full string '{tx_date_str}' for action '{log_context_action}' symbol '{log_context_symbol}'."
+                )
             except ValueError:
-                print(f"Warning: Could not parse 'as of' date part: '{as_of_date_str_part}' from full string '{tx_date_str}' in {schwab_tx}")
+                print(
+                    f"Warning: Could not parse 'as of' date part: '{as_of_date_str_part}' from full string '{tx_date_str}' in {schwab_tx}"
+                )
                 # as_of_date_parsed remains None, processing continues with tx_date
 
         schwab_qty = self._parse_schwab_decimal(schwab_tx.get("Quantity"))
         schwab_price = self._parse_schwab_decimal(schwab_tx.get("Price"))
         schwab_amount = self._parse_schwab_decimal(schwab_tx.get("Amount"))
-        schwab_fees = self._parse_schwab_decimal(schwab_tx.get("Fees & Comm")) or self._parse_schwab_decimal(schwab_tx.get("FeesAndCommissions"))
+        schwab_fees = self._parse_schwab_decimal(
+            schwab_tx.get("Fees & Comm")
+        ) or self._parse_schwab_decimal(schwab_tx.get("FeesAndCommissions"))
 
         description = schwab_tx.get("Description", action)
-        currency = "USD" # Assume USD
+        currency = "USD"  # Assume USD
 
-        # --- Handle specific actions --- 
-        
+        # --- Handle specific actions ---
+
         # Helper to create cash stock mutation.
         # Set requires_settlement=True for trade-linked cash flows (Buy/Sell/Cash In Lieu)
         # that settle T+1 under US equity rules.  Same-day items (dividends, interest,
         # journal entries, wire transfers) should leave it at the default False.
-        def create_cash_stock(amount: Decimal, name: str, requires_settlement: bool = False) -> SecurityStock:
+        def create_cash_stock(
+            amount: Decimal, name: str, requires_settlement: bool = False
+        ) -> SecurityStock:
             return SecurityStock(
                 referenceDate=tx_date,
                 mutation=True,
                 quotationType="PIECE",
-                quantity=amount, # Positive for inflow, negative for outflow
-                balanceCurrency=currency, # Pass the string directly
+                quantity=amount,  # Positive for inflow, negative for outflow
+                balanceCurrency=currency,  # Pass the string directly
                 name=name,
-                balance=amount, # For cash, balance change equals quantity change
+                balance=amount,  # For cash, balance change equals quantity change
                 requires_settlement=requires_settlement,
             )
 
@@ -298,24 +419,34 @@ class TransactionExtractor:
                     # This should actually never be the case, as we should have amount
                     calculated_cost = schwab_qty * schwab_price
                     cash_flow = -abs(calculated_cost)
-                
+
                 # TODO: Factor in schwab_fees into cost/cash_flow if needed
 
                 sec_stock = SecurityStock(
-                    referenceDate=tx_date, mutation=True, quotationType="PIECE", 
-                    quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    unitPrice=schwab_price, name=action,
+                    referenceDate=tx_date,
+                    mutation=True,
+                    quotationType="PIECE",
+                    quantity=schwab_qty,
+                    balanceCurrency=currency,  # Use currency string
+                    unitPrice=schwab_price,
+                    name=action,
                 )
                 if cash_flow:
-                     cash_stock = create_cash_stock(cash_flow, f"Cash out for {action} {pos_object.symbol}", requires_settlement=True)
+                    cash_stock = create_cash_stock(
+                        cash_flow,
+                        f"Cash out for {action} {pos_object.symbol}",
+                        requires_settlement=True,
+                    )
 
         elif action == "Sale" or action == "Sell":
-             if schwab_qty and isinstance(pos_object, SecurityPosition):
+            if schwab_qty and isinstance(pos_object, SecurityPosition):
                 if schwab_qty < 0:
-                    raise ValueError(f"Invalid negative quantity ({schwab_qty}) for '{action}' action for symbol {pos_object.symbol}. Sales should have positive quantities representing shares sold.")
-                
+                    raise ValueError(
+                        f"Invalid negative quantity ({schwab_qty}) for '{action}' action for symbol {pos_object.symbol}. Sales should have positive quantities representing shares sold."
+                    )
+
                 # Quantity should be negative for a sale in our system
-                final_qty = -schwab_qty 
+                final_qty = -schwab_qty
 
                 calculated_proceeds = None
                 cash_flow = None
@@ -327,30 +458,44 @@ class TransactionExtractor:
                     # we should have amount
                     calculated_proceeds = abs_qty * schwab_price
                     cash_flow = abs(calculated_proceeds)
-                
+
                 # TODO: Factor in schwab_fees into proceeds/cash_flow if needed
 
                 sec_stock = SecurityStock(
-                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                    quantity=final_qty, balanceCurrency=currency, # Use currency string
-                    unitPrice=schwab_price, name=action,
+                    referenceDate=tx_date,
+                    mutation=True,
+                    quotationType="PIECE",
+                    quantity=final_qty,
+                    balanceCurrency=currency,  # Use currency string
+                    unitPrice=schwab_price,
+                    name=action,
                 )
                 if cash_flow:
-                     cash_stock = create_cash_stock(cash_flow, f"Cash in for {action} {pos_object.symbol}", requires_settlement=True)
+                    cash_stock = create_cash_stock(
+                        cash_flow,
+                        f"Cash in for {action} {pos_object.symbol}",
+                        requires_settlement=True,
+                    )
 
         elif action == "Stock Plan Activity":
             if schwab_qty and schwab_qty > 0 and isinstance(pos_object, SecurityPosition):
                 sec_stock = SecurityStock(
-                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                    quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    unitPrice=None, name=action,
+                    referenceDate=tx_date,
+                    mutation=True,
+                    quotationType="PIECE",
+                    quantity=schwab_qty,
+                    balanceCurrency=currency,  # Use currency string
+                    unitPrice=None,
+                    name=action,
                 )
                 # Stock Plan Activity usually has no direct cash flow in the brokerage account (it's the vesting)
                 # Any cash flow (taxes) is usually handled by separate Journal or Tax Withholding entries.
 
         elif action == "Lapse":
             if not isinstance(pos_object, SecurityPosition) or pos_object.depot != "AWARDS":
-                raise ValueError(f"Lapse action is only handled for the Equity Awards depot: {schwab_tx}")
+                raise ValueError(
+                    f"Lapse action is only handled for the Equity Awards depot: {schwab_tx}"
+                )
             if schwab_amount is not None and schwab_amount != 0:
                 raise ValueError(f"Lapse action should not carry a cash amount: {schwab_tx}")
 
@@ -365,10 +510,9 @@ class TransactionExtractor:
             if transaction_details:
                 details = transaction_details[0].get("Details", {}) or {}
             net_shares = self._parse_schwab_decimal(details.get("NetSharesDeposited"))
-            shares_withheld = (
-                self._parse_schwab_decimal(details.get("SharesSoldWithheldForTaxes"))
-                or Decimal("0")
-            )
+            shares_withheld = self._parse_schwab_decimal(
+                details.get("SharesSoldWithheldForTaxes")
+            ) or Decimal("0")
             if schwab_qty is not None and net_shares is not None:
                 expected_qty = net_shares + shares_withheld
                 if schwab_qty != expected_qty:
@@ -386,8 +530,10 @@ class TransactionExtractor:
             if schwab_amount and schwab_amount > 0:
                 # Payment record (will be associated with CashPosition by caller)
                 sec_payment = SecurityPayment(
-                    paymentDate=tx_date, quotationType="PIECE", 
-                    quantity=None, amountCurrency=currency, # Use currency string
+                    paymentDate=tx_date,
+                    quotationType="PIECE",
+                    quantity=None,
+                    amountCurrency=currency,  # Use currency string
                     amount=schwab_amount,
                     name=self._translate("credit_interest"),
                     grossRevenueB=schwab_amount,
@@ -396,61 +542,92 @@ class TransactionExtractor:
                 # Cash stock mutation
                 cash_stock = create_cash_stock(schwab_amount, f"Cash in for Credit Interest")
 
-        elif action in ("Dividend", "Reinvest Dividend", "Qual Div Reinvest", "Qualified Dividend", "Cash Dividend",
-                        "Non-Qualified Div", "Special Qual Div", "Div Adjustment"):
+        elif action in (
+            "Dividend",
+            "Reinvest Dividend",
+            "Qual Div Reinvest",
+            "Qualified Dividend",
+            "Cash Dividend",
+            "Non-Qualified Div",
+            "Special Qual Div",
+            "Div Adjustment",
+        ):
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
                 if schwab_qty is not None and schwab_qty != Decimal(0):
-                    print(f"Warning: Ignoring non-zero quantity ({schwab_qty}) for action '{action}' on symbol {pos_object.symbol}. Payment quantity will be left unset and synthesized later.")
+                    print(
+                        f"Warning: Ignoring non-zero quantity ({schwab_qty}) for action '{action}' on symbol {pos_object.symbol}. Payment quantity will be left unset and synthesized later."
+                    )
                 payment_quantity = None
                 sec_payment = SecurityPayment(
-                    paymentDate=tx_date, quotationType="PIECE",
-                    quantity=payment_quantity, amountCurrency=currency, # Use currency string
-                    amount=schwab_amount, name=self._translate("dividend"),
+                    paymentDate=tx_date,
+                    quotationType="PIECE",
+                    quantity=payment_quantity,
+                    amountCurrency=currency,  # Use currency string
+                    amount=schwab_amount,
+                    name=self._translate("dividend"),
                     grossRevenueB=schwab_amount,
                     broker_label_original=action,
                     # TODO: Withholding tax check might generate cash_stock here later
                 )
-                cash_stock = create_cash_stock(schwab_amount, f"Cash in for Dividend {pos_object.symbol}")
+                cash_stock = create_cash_stock(
+                    schwab_amount, f"Cash in for Dividend {pos_object.symbol}"
+                )
             else:
-                raise ValueError(f"Dividend action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}")
-                
+                raise ValueError(
+                    f"Dividend action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}"
+                )
+
         elif action in ("Short Term Cap Gain", "Long Term Cap Gain"):
             # Capital gain distributions are not recoverable or taxable in
             # Switzerland (capital gains are tax-free for private investors), so
             # we record only the cash flow without a taxable payment entry.
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
-                cash_stock = create_cash_stock(schwab_amount, f"Cash in for {action} {pos_object.symbol}")
+                cash_stock = create_cash_stock(
+                    schwab_amount, f"Cash in for {action} {pos_object.symbol}"
+                )
             else:
-                raise ValueError(f"Capital gain action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}")
+                raise ValueError(
+                    f"Capital gain action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}"
+                )
 
         elif action == "Bond Interest":
             # Bond interest has a Symbol (CUSIP) — payment attaches to the security position
             if schwab_amount and schwab_amount > 0 and isinstance(pos_object, SecurityPosition):
                 sec_payment = SecurityPayment(
-                    paymentDate=tx_date, quotationType="PIECE",
-                    quantity=None, amountCurrency=currency,
-                    amount=schwab_amount, name="Bond Interest",
+                    paymentDate=tx_date,
+                    quotationType="PIECE",
+                    quantity=None,
+                    amountCurrency=currency,
+                    amount=schwab_amount,
+                    name="Bond Interest",
                     grossRevenueB=schwab_amount,
                     broker_label_original=action,
                 )
-                cash_stock = create_cash_stock(schwab_amount, f"Cash in for Bond Interest {pos_object.symbol}")
+                cash_stock = create_cash_stock(
+                    schwab_amount, f"Cash in for Bond Interest {pos_object.symbol}"
+                )
             else:
-                raise ValueError(f"Bond Interest action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}")
+                raise ValueError(
+                    f"Bond Interest action requires a positive amount and a valid SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}"
+                )
 
         elif action == "Stock Split":
             if schwab_qty and schwab_qty != 0 and isinstance(pos_object, SecurityPosition):
                 # TODOD: Format date string in swiss format
                 if as_of_date_parsed:
-                    name=f"{self._translate('stock_split')} ({as_of_date_parsed})"
+                    name = f"{self._translate('stock_split')} ({as_of_date_parsed})"
                 else:
-                    name=self._translate("stock_split")
+                    name = self._translate("stock_split")
                 sec_stock = SecurityStock(
                     # TODO format date string in swiss format
-                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                    quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    name=name
+                    referenceDate=tx_date,
+                    mutation=True,
+                    quotationType="PIECE",
+                    quantity=schwab_qty,
+                    balanceCurrency=currency,  # Use currency string
+                    name=name,
                 )
-        
+
         elif action == "Spin-off":
             # Corporate action: new shares appear in the account. We don't model
             # a cash component here, so reject any non-empty Amount loudly
@@ -461,14 +638,19 @@ class TransactionExtractor:
                 )
             if schwab_qty and schwab_qty > 0 and isinstance(pos_object, SecurityPosition):
                 sec_stock = SecurityStock(
-                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                    quantity=schwab_qty, balanceCurrency=currency,
+                    referenceDate=tx_date,
+                    mutation=True,
+                    quotationType="PIECE",
+                    quantity=schwab_qty,
+                    balanceCurrency=currency,
                     name="Spin-off",
                 )
             else:
-                raise ValueError(f"Spin-off action requires a positive quantity and a valid SecurityPosition. Quantity: {schwab_qty}, Position: {pos_object}")
+                raise ValueError(
+                    f"Spin-off action requires a positive quantity and a valid SecurityPosition. Quantity: {schwab_qty}, Position: {pos_object}"
+                )
 
-        elif action == "Deposit": # Shares deposited into account
+        elif action == "Deposit":  # Shares deposited into account
             if schwab_qty and schwab_qty > 0 and isinstance(pos_object, SecurityPosition):
                 award_details_str = ""
                 vest_fmv_decimal = None
@@ -488,16 +670,27 @@ class TransactionExtractor:
                     # Assumption: Deposit/Vesting implies value received, treat as cash OUT if we consider cost basis?
                     # Or is it just shares appearing with no cash flow in this account? Let's assume NO cash flow for now.
                     # cash_flow = -abs(calculated_balance_deposit)
-                
+
                 sec_stock = SecurityStock(
-                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                    quantity=schwab_qty, balanceCurrency=currency, # Use currency string
-                    unitPrice=vest_fmv_decimal, name=f"Deposit{award_details_str}",
+                    referenceDate=tx_date,
+                    mutation=True,
+                    quotationType="PIECE",
+                    quantity=schwab_qty,
+                    balanceCurrency=currency,  # Use currency string
+                    unitPrice=vest_fmv_decimal,
+                    name=f"Deposit{award_details_str}",
                 )
                 # if cash_flow:
                 #     cash_stock = create_cash_stock(cash_flow, f"Implied cash out for Deposit {pos_object.symbol}")
-        
-        elif action in ("Tax Withholding", "NRA Tax Adj", "Tax Reversal", "NRA Withholding", "Foreign Tax Paid", "IRS Withhold Adj"):
+
+        elif action in (
+            "Tax Withholding",
+            "NRA Tax Adj",
+            "Tax Reversal",
+            "NRA Withholding",
+            "Foreign Tax Paid",
+            "IRS Withhold Adj",
+        ):
             # Withholding-tax related entries only ever influence nonRecoverableTax,
             # never grossRevenueB. A negative schwab_amount means tax was withheld
             # (positive nonRecoverableTax); a positive schwab_amount means a
@@ -508,17 +701,25 @@ class TransactionExtractor:
             if schwab_amount and schwab_amount != 0:
                 tax_amount = -schwab_amount
                 sec_payment = SecurityPayment(
-                    paymentDate=tx_date, quotationType="PIECE",
-                    quantity=None, amountCurrency=currency, # Use currency string
-                    amount=schwab_amount, name=f"{action}",
+                    paymentDate=tx_date,
+                    quotationType="PIECE",
+                    quantity=None,
+                    amountCurrency=currency,  # Use currency string
+                    amount=schwab_amount,
+                    name=f"{action}",
                     nonRecoverableTax=tax_amount,
                     broker_label_original=action,
                     nonRecoverableTaxAmountOriginal=tax_amount,
                 )
                 # Cash stock reflects the actual cash movement
-                cash_stock = create_cash_stock(schwab_amount, f"Cash flow for {action} {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
+                cash_stock = create_cash_stock(
+                    schwab_amount,
+                    f"Cash flow for {action} {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}",
+                )
             else:
-                raise ValueError(f"Withholding tax action '{action}' requires a non-zero amount in transaction: {schwab_tx}")
+                raise ValueError(
+                    f"Withholding tax action '{action}' requires a non-zero amount in transaction: {schwab_tx}"
+                )
 
         elif action in ("Cash Merger", "Full Redemption"):
             # Forced sale/redemption: cash received for the shares. Cash-only
@@ -531,7 +732,10 @@ class TransactionExtractor:
                 raise ValueError(
                     f"{action} requires a positive amount. Amount: {schwab_amount}, transaction: {schwab_tx}"
                 )
-            cash_stock = create_cash_stock(schwab_amount, f"Cash in for {action} {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
+            cash_stock = create_cash_stock(
+                schwab_amount,
+                f"Cash in for {action} {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}",
+            )
 
         elif action in ("Cash Merger Adj", "Full Redemption Adj"):
             # Shares removed as part of a cash merger or full redemption. The
@@ -546,70 +750,109 @@ class TransactionExtractor:
                     f"{action} requires a non-zero quantity and a valid SecurityPosition. Quantity: {schwab_qty}, Position: {pos_object}, transaction: {schwab_tx}"
                 )
             sec_stock = SecurityStock(
-                referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                quantity=schwab_qty, balanceCurrency=currency,
+                referenceDate=tx_date,
+                mutation=True,
+                quotationType="PIECE",
+                quantity=schwab_qty,
+                balanceCurrency=currency,
                 name=action.replace(" Adj", ""),
             )
 
         elif action == "Cash In Lieu":
-             if schwab_amount and schwab_amount > 0:
+            if schwab_amount and schwab_amount > 0:
                 # Assume Cash in Lieue are from stock splits and capital events
                 # so they are income neutral, e.g. no taxable event
                 # sec_payment = SecurityPayment(
-                #     paymentDate=tx_date, quotationType="PIECE", 
+                #     paymentDate=tx_date, quotationType="PIECE",
                 #     quantity=Decimal("1"), amountCurrency=currency, # Use currency string
                 #     amount=schwab_amount, name="Cash In Lieu",
                 #     grossRevenueB=schwab_amount
                 # )
-                cash_stock = create_cash_stock(schwab_amount, f"Cash in for Cash In Lieu {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}")
+                cash_stock = create_cash_stock(
+                    schwab_amount,
+                    f"Cash in for Cash In Lieu {pos_object.symbol if isinstance(pos_object, SecurityPosition) else 'Cash'}",
+                )
 
         elif action == "Journal" or action == "Journaled Shares":
-            if schwab_qty and pos_object.type == "security": # Security journal
+            if schwab_qty and pos_object.type == "security":  # Security journal
                 # Assume no cash impact unless Amount/Price present and non-zero?
                 cash_flow = None
                 calculated_value = None
                 if schwab_amount and schwab_amount != 0:
-                     calculated_value = schwab_amount
-                     # If qty > 0 (in), cash is out? If qty < 0 (out), cash is in?
-                     cash_flow = -schwab_amount if schwab_qty > 0 else abs(schwab_amount)
+                    calculated_value = schwab_amount
+                    # If qty > 0 (in), cash is out? If qty < 0 (out), cash is in?
+                    cash_flow = -schwab_amount if schwab_qty > 0 else abs(schwab_amount)
 
                 # In equity awards files, a Journal (not "Journaled Shares") represents
                 # shares moving OUT to the brokerage account, so the sign is inverted
                 # relative to a brokerage Journal where positive qty = shares coming in.
-                final_qty = -schwab_qty if (action == "Journal" and pos_object.depot == "AWARDS") else schwab_qty
+                final_qty = (
+                    -schwab_qty
+                    if (action == "Journal" and pos_object.depot == "AWARDS")
+                    else schwab_qty
+                )
 
                 sec_stock = SecurityStock(
-                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                    quantity=final_qty, balanceCurrency=currency, # Use currency string
-                    name=f"{action} (Shares)"
+                    referenceDate=tx_date,
+                    mutation=True,
+                    quotationType="PIECE",
+                    quantity=final_qty,
+                    balanceCurrency=currency,  # Use currency string
+                    name=f"{action} (Shares)",
                 )
                 if cash_flow:
-                     cash_stock = create_cash_stock(cash_flow, f"Cash flow for Journal {pos_object.symbol}")
+                    cash_stock = create_cash_stock(
+                        cash_flow, f"Cash flow for Journal {pos_object.symbol}"
+                    )
 
-            elif schwab_amount: # Cash journal
-                 # Just generate cash stock mutation
-                 cash_stock = create_cash_stock(schwab_amount, "Cash Journal")
+            elif schwab_amount:  # Cash journal
+                # Just generate cash stock mutation
+                cash_stock = create_cash_stock(schwab_amount, "Cash Journal")
 
-        elif action in ("Wire Transfer", "MoneyLink Transfer", "MoneyLink Adj",
-                        "Misc Cash Entry", "Service Fee", "Wire Funds", "Wire Sent",
-                        "Funds Received", "Visa Purchase", "MoneyLink Deposit", "Wire Funds Received",
-                        "ADR Mgmt Fee", "Adjustment"):
+        elif action in (
+            "Wire Transfer",
+            "MoneyLink Transfer",
+            "MoneyLink Adj",
+            "Misc Cash Entry",
+            "Service Fee",
+            "Wire Funds",
+            "Wire Sent",
+            "Funds Received",
+            "Visa Purchase",
+            "MoneyLink Deposit",
+            "Wire Funds Received",
+            "ADR Mgmt Fee",
+            "Adjustment",
+        ):
             if schwab_amount:
-                cash_stock = create_cash_stock(schwab_amount, f"{action}{' ' + pos_object.symbol if isinstance(pos_object, SecurityPosition) else ''}")
+                cash_stock = create_cash_stock(
+                    schwab_amount,
+                    f"{action}{' ' + pos_object.symbol if isinstance(pos_object, SecurityPosition) else ''}",
+                )
 
         elif action == "Transfer" or action == "Security Transfer":
-            if schwab_qty and schwab_tx.get("Symbol") and isinstance(pos_object, SecurityPosition): # Share transfer
+            if (
+                schwab_qty and schwab_tx.get("Symbol") and isinstance(pos_object, SecurityPosition)
+            ):  # Share transfer
                 # Schwab transfer rows represent shares moving out of this account.
                 final_qty = -abs(schwab_qty)
 
                 sec_stock = SecurityStock(
-                    referenceDate=tx_date, mutation=True, quotationType="PIECE",
-                    quantity=final_qty, balanceCurrency=currency, # Use currency string
-                    unitPrice=schwab_price, name="Transfer (Shares)",
+                    referenceDate=tx_date,
+                    mutation=True,
+                    quotationType="PIECE",
+                    quantity=final_qty,
+                    balanceCurrency=currency,  # Use currency string
+                    unitPrice=schwab_price,
+                    name="Transfer (Shares)",
                 )
 
-            elif schwab_amount and not schwab_tx.get("Symbol") and isinstance(pos_object, CashPosition): # Cash transfer
-                  cash_stock = create_cash_stock(schwab_amount, "Cash Transfer")
+            elif (
+                schwab_amount
+                and not schwab_tx.get("Symbol")
+                and isinstance(pos_object, CashPosition)
+            ):  # Cash transfer
+                cash_stock = create_cash_stock(schwab_amount, "Cash Transfer")
         elif action in KNOWN_ACTIONS:
             raise InvalidOperation('Unhandled action in _process_single_transaction', action)
         elif pos_object.type == "security":
@@ -618,15 +861,21 @@ class TransactionExtractor:
             raise InvalidOperation("Unhandled position type", pos_object.type)
         else:
             if not schwab_amount:
-                raise ValueError(f"Unknown action '{action}' for cash position with no amount: {schwab_tx}") 
+                raise ValueError(
+                    f"Unknown action '{action}' for cash position with no amount: {schwab_tx}"
+                )
             # This is a cash position with an unknown action, which we can recover from
             # Assume the amount is always representing the cash balance change
             cash_stock = create_cash_stock(schwab_amount, f"Cash flow for {action} {description}")
 
         # Fees are ignored for now in cash flow calculation
         if schwab_amount and schwab_amount != 0:
-            assert cash_stock is not None, f"Cash stock mutation should be generated for action '{action}' with amount {schwab_amount} in transaction: {schwab_tx}"
-            assert cash_stock.quantity == schwab_amount, f"Cash stock quantity should match the amount in transaction: {schwab_tx}"
+            assert (
+                cash_stock is not None
+            ), f"Cash stock mutation should be generated for action '{action}' with amount {schwab_amount} in transaction: {schwab_tx}"
+            assert (
+                cash_stock.quantity == schwab_amount
+            ), f"Cash stock quantity should match the amount in transaction: {schwab_tx}"
         # Ensure that for any known action, at least one type of record is generated.
         # If not, it indicates an unhandled case or data combination for that action.
         # The KNOWN_ACTIONS check in the calling _extract_transactions_from_dict method

@@ -11,8 +11,11 @@ if src_path.exists():
 try:
     from opensteuerauszug.kursliste.converter import convert_kursliste_xml_to_sqlite
 except ImportError:
-    print("Error: Could not import opensteuerauszug.kursliste.converter. Please ensure the package is installed or PYTHONPATH includes src/.")
+    print(
+        "Error: Could not import opensteuerauszug.kursliste.converter. Please ensure the package is installed or PYTHONPATH includes src/."
+    )
     sys.exit(1)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Convert Kursliste XML to SQLite database.")
@@ -26,8 +29,9 @@ def main():
     except Exception as e:
         print(f"Error: {e}")
         return 1
-    
+
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

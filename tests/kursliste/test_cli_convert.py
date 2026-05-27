@@ -4,6 +4,7 @@ import sqlite3
 
 runner = CliRunner()
 
+
 def test_convert_cli_command(tmp_path):
     # Sample XML
     sample_xml = """<?xml version="1.0" encoding="UTF-8"?>

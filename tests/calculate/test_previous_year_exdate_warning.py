@@ -94,9 +94,7 @@ def _make_kursliste(shares, tax_year=2024):
 def _make_provider(kursliste, tax_year=2024):
     """Wrap a Kursliste into a KurslisteExchangeRateProvider."""
     manager = KurslisteManager()
-    manager.kurslisten[tax_year] = KurslisteAccessor(
-        data_source=[kursliste], tax_year=tax_year
-    )
+    manager.kurslisten[tax_year] = KurslisteAccessor(data_source=[kursliste], tax_year=tax_year)
     return KurslisteExchangeRateProvider(manager)
 
 
@@ -251,9 +249,15 @@ def test_previous_year_exdate_warning_dismissed_when_reconciliation_matches():
         withHoldingTax=False,
     )
     share = Share(
-        id=1, institutionId=1, institutionName="Test",
-        valorNumber=12345, isin=isin, securityName=name,
-        country="US", currency="USD", securityGroup="SHARE",
+        id=1,
+        institutionId=1,
+        institutionName="Test",
+        valorNumber=12345,
+        isin=isin,
+        securityName=name,
+        country="US",
+        currency="USD",
+        securityGroup="SHARE",
         payment=[payment],
     )
     provider = _make_provider(_make_kursliste(shares=[share]))
@@ -266,8 +270,7 @@ def test_previous_year_exdate_warning_dismissed_when_reconciliation_matches():
     result = calculator.calculate(statement)
 
     assert any(
-        w.category == CriticalWarningCategory.PREVIOUS_YEAR_EXDATE
-        for w in result.critical_warnings
+        w.category == CriticalWarningCategory.PREVIOUS_YEAR_EXDATE for w in result.critical_warnings
     )
 
     # Add matching broker payment (grossRevenueB=8.50 CHF → 10 USD at 0.85 rate)
@@ -287,8 +290,7 @@ def test_previous_year_exdate_warning_dismissed_when_reconciliation_matches():
 
     report = result.payment_reconciliation_report
     assert any(
-        r.identifier == isin and r.payment_date == payment_date and r.matched
-        for r in report.rows
+        r.identifier == isin and r.payment_date == payment_date and r.matched for r in report.rows
     )
 
     warnings_after = [
@@ -342,5 +344,3 @@ def test_previous_year_exdate_warning_kept_when_reconciliation_mismatches():
         if w.category == CriticalWarningCategory.PREVIOUS_YEAR_EXDATE
     ]
     assert len(warnings_after) == 1
-
-

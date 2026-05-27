@@ -1,11 +1,12 @@
-
 import pytest
 from pathlib import Path
 from opensteuerauszug.model.kursliste import Kursliste
 
+
 @pytest.fixture
 def samples_dir() -> Path:
     return Path(__file__).parent.parent / "samples" / "kursliste"
+
 
 def test_load_v2_2_kursliste(samples_dir):
     """Test loading the updated v2.2 Kursliste file."""
@@ -18,6 +19,7 @@ def test_load_v2_2_kursliste(samples_dir):
     assert len(kursliste.currencies) == 4
     # Check if a specific element is found (just basic validation)
     assert kursliste.find_security_by_valor(1246192) is not None
+
 
 def test_load_v2_0_kursliste_compat():
     """Test loading the legacy v2.0 Kursliste file (compatibility mode)."""
@@ -35,6 +37,7 @@ def test_load_v2_0_kursliste_compat():
     # Check if data is preserved
     assert len(kursliste.currencies) == 4
     assert kursliste.find_security_by_valor(1246192) is not None
+
 
 def test_version_pattern_validation():
     """Verify that version pattern supports both 2.0 and 2.2."""

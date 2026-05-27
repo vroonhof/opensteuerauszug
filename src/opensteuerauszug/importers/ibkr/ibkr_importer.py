@@ -9,8 +9,14 @@ logger = logging.getLogger(__name__)
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
-    BankAccountPayment, Institution, ISINType, SecurityCategory,
-    SecurityPayment, SecurityStock, TaxStatement, Client,
+    BankAccountPayment,
+    Institution,
+    ISINType,
+    SecurityCategory,
+    SecurityPayment,
+    SecurityStock,
+    TaxStatement,
+    Client,
 )
 from opensteuerauszug.config.models import IbkrAccountSettings
 from opensteuerauszug.importers.common import (
@@ -53,9 +59,7 @@ def is_summary_level(entry: object) -> bool:
     if level_of_detail is None:
         return False
     level_value = (
-        level_of_detail.value
-        if hasattr(level_of_detail, "value")
-        else str(level_of_detail)
+        level_of_detail.value if hasattr(level_of_detail, "value") else str(level_of_detail)
     )
     return str(level_value).upper() == "SUMMARY"
 
@@ -66,47 +70,51 @@ def should_skip_pseudo_account_entry(entry: object) -> bool:
     # we only treat missing accountId rows as pseudo entries when they
     # are marked as SUMMARY.
     entry_account_id = getattr(entry, "accountId", None)
-    return entry_account_id == "-" or (
-        entry_account_id is None and is_summary_level(entry)
-    )
+    return entry_account_id == "-" or (entry_account_id is None and is_summary_level(entry))
+
 
 class IbkrImporter:
     """
     Imports Interactive Brokers account data for a given tax period
     from Flex Query XML files.
     """
-    def _get_required_field(self, data_object: object, field_name: str,
-                              object_description: str) -> Any:
+
+    def _get_required_field(
+        self, data_object: object, field_name: str, object_description: str
+    ) -> Any:
         """Helper to get a required field or raise ValueError if missing."""
         value = getattr(data_object, field_name, None)
         if value is None:
             error_desc = object_description  # Use the passed in description
             if hasattr(data_object, 'symbol'):
-                error_desc = (f"{object_description} (Symbol: "
-                              f"{getattr(data_object, 'symbol', 'N/A')})")
-            elif (hasattr(data_object, 'accountId') and
-                  not ('Account:' in object_description)):  # Avoid double "Account:"
-                error_desc = (f"{object_description} (Account: "
-                              f"{getattr(data_object, 'accountId', 'N/A')})")
-            raise ValueError(
-                f"Missing required field '{field_name}' in {error_desc}."
-            )
+                error_desc = (
+                    f"{object_description} (Symbol: " f"{getattr(data_object, 'symbol', 'N/A')})"
+                )
+            elif hasattr(data_object, 'accountId') and not (
+                'Account:' in object_description
+            ):  # Avoid double "Account:"
+                error_desc = (
+                    f"{object_description} (Account: "
+                    f"{getattr(data_object, 'accountId', 'N/A')})"
+                )
+            raise ValueError(f"Missing required field '{field_name}' in {error_desc}.")
         if isinstance(value, str) and not value.strip():
             error_desc = object_description  # Use the passed in description
             if hasattr(data_object, 'symbol'):
-                error_desc = (f"{object_description} (Symbol: "
-                              f"{getattr(data_object, 'symbol', 'N/A')})")
-            elif (hasattr(data_object, 'accountId') and
-                  not ('Account:' in object_description)):
-                error_desc = (f"{object_description} (Account: "
-                              f"{getattr(data_object, 'accountId', 'N/A')})")
-            raise ValueError(
-                f"Empty required field '{field_name}' in {error_desc}."
-            )
+                error_desc = (
+                    f"{object_description} (Symbol: " f"{getattr(data_object, 'symbol', 'N/A')})"
+                )
+            elif hasattr(data_object, 'accountId') and not ('Account:' in object_description):
+                error_desc = (
+                    f"{object_description} (Account: "
+                    f"{getattr(data_object, 'accountId', 'N/A')})"
+                )
+            raise ValueError(f"Empty required field '{field_name}' in {error_desc}.")
         return value
-    
-    def _price_apply_multiplier(self, data_object: Any, price: Decimal,
-                              object_description: str) -> Decimal:
+
+    def _price_apply_multiplier(
+        self, data_object: Any, price: Decimal, object_description: str
+    ) -> Decimal:
         """Helper to apply multiplier to quantity."""
         if price:
             value = getattr(data_object, "assetCategory", None)
@@ -114,14 +122,15 @@ class IbkrImporter:
                 multiplier = self._to_decimal(
                     self._get_required_field(data_object, "multiplier", object_description),
                     "multiplier",
-                    object_description
+                    object_description,
                 )
                 return price * multiplier
 
         return price
 
-    def _to_decimal(self, value: object | None, field_name: str,
-                    object_description: str) -> Decimal:
+    def _to_decimal(
+        self, value: object | None, field_name: str, object_description: str
+    ) -> Decimal:
         """Converts a value to Decimal, raising ValueError on failure."""
         return to_decimal(value, field_name, object_description)
 
@@ -155,11 +164,13 @@ class IbkrImporter:
         if not existing:
             security_country_map[sec_pos] = country_code
 
-    def __init__(self,
-                 period_from: date,
-                 period_to: date,
-                 account_settings_list: List[IbkrAccountSettings],
-                 render_language: Language = DEFAULT_LANGUAGE):
+    def __init__(
+        self,
+        period_from: date,
+        period_to: date,
+        account_settings_list: List[IbkrAccountSettings],
+        render_language: Language = DEFAULT_LANGUAGE,
+    ):
         """
         Initialize the importer with a tax period.
 
@@ -176,15 +187,12 @@ class IbkrImporter:
 
         if not self.account_settings_list:
             # Currently no account info is used so we keep stumm.
-            logger.debug(
-                "IbkrImporter initialized with an empty list of "
-                "account settings."
-            )
+            logger.debug("IbkrImporter initialized with an empty list of " "account settings.")
         # else:
-            # print(
-            #     f"IbkrImporter initialized. Primary account (if used): "
-            #     f"{self.account_settings_list[0].account_id}"
-            # )
+        # print(
+        #     f"IbkrImporter initialized. Primary account (if used): "
+        #     f"{self.account_settings_list[0].account_id}"
+        # )
 
     def _aggregate_stocks(self, stocks: List[SecurityStock]) -> List[SecurityStock]:
         """Aggregate buy and sell entries on the same date with equal order id if present without reordering."""
@@ -231,13 +239,9 @@ class IbkrImporter:
                         filename,
                     )
             except FlexParserError as e:
-                raise ValueError(
-                    f"Failed to parse {error_label} {filename} with ibflex: {e}"
-                )
+                raise ValueError(f"Failed to parse {error_label} {filename} with ibflex: {e}")
             except Exception as e:
-                raise RuntimeError(
-                    f"An unexpected error occurred while parsing {filename}: {e}"
-                )
+                raise RuntimeError(f"An unexpected error occurred while parsing {filename}: {e}")
 
         return statements
 
@@ -266,9 +270,7 @@ class IbkrImporter:
             valor=None,
             isin=ISINType(isin_attr) if isin_attr else None,
             symbol=str(security_id),
-            description=(
-                f"{description} ({symbol_attr})" if symbol_attr else description
-            ),
+            description=(f"{description} ({symbol_attr})" if symbol_attr else description),
         )
 
     def _apply_withholding_tax_fields(
@@ -396,8 +398,9 @@ class IbkrImporter:
                 corrections_count,
             )
 
-
-    def import_files(self, filenames: List[str], corrections_filenames: Optional[List[str]] = None) -> TaxStatement:
+    def import_files(
+        self, filenames: List[str], corrections_filenames: Optional[List[str]] = None
+    ) -> TaxStatement:
         """
         Import data from IBKR Flex Query XMLs and return a TaxStatement.
 
@@ -424,25 +427,28 @@ class IbkrImporter:
             # This might be an error or just a case of no relevant data.
             # "If data is missing do a hard error" - might need adjustment
             logger.warning(
-                "No Flex statements were successfully parsed. "
-                "Returning empty TaxStatement."
+                "No Flex statements were successfully parsed. " "Returning empty TaxStatement."
             )
             return TaxStatement(
-                minorVersion=1, periodFrom=self.period_from,
+                minorVersion=1,
+                periodFrom=self.period_from,
                 periodTo=self.period_to,
-                taxPeriod=self.period_from.year, listOfSecurities=None,
-                listOfBankAccounts=None
+                taxPeriod=self.period_from.year,
+                listOfSecurities=None,
+                listOfBankAccounts=None,
             )
 
         # Key: SecurityPosition or tuple for cash. Value: dict with 'stocks', 'payments'
-        processed_security_positions: defaultdict[SecurityPosition, SecurityPositionData] = \
+        processed_security_positions: defaultdict[SecurityPosition, SecurityPositionData] = (
             defaultdict(lambda: {'stocks': [], 'payments': []})
+        )
 
         # Best-name-wins registry for security display names.
         security_name_registry = SecurityNameRegistry()
 
-        processed_cash_positions: defaultdict[tuple, CashPositionData] = \
-            defaultdict(lambda: {'stocks': [], 'payments': []})
+        processed_cash_positions: defaultdict[tuple, CashPositionData] = defaultdict(
+            lambda: {'stocks': [], 'payments': []}
+        )
         security_country_map: Dict[SecurityPosition, str] = {}
 
         # Map to store assetCategory and subCategory for each security
@@ -450,9 +456,7 @@ class IbkrImporter:
         rights_issue_positions: set[SecurityPosition] = set()
 
         for stmt in all_flex_statements:
-            account_id = self._get_required_field(
-                stmt, 'accountId', 'FlexStatement'
-            )
+            account_id = self._get_required_field(stmt, 'accountId', 'FlexStatement')
             # account_id_processed = account_id # Keep track for summary
             logger.info(f"Processing statement for account: {account_id}")
 
@@ -476,19 +480,11 @@ class IbkrImporter:
                         continue
                     if should_skip_entry(trade, "Trade"):
                         continue
-                    trade_date = self._get_required_field(
-                        trade, 'tradeDate', 'Trade'
-                    )
-                    settle_date = self._get_required_field(
-                        trade, 'settleDateTarget', 'Trade'
-                    )
+                    trade_date = self._get_required_field(trade, 'tradeDate', 'Trade')
+                    settle_date = self._get_required_field(trade, 'settleDateTarget', 'Trade')
                     symbol = self._get_required_field(trade, 'symbol', 'Trade')
-                    description = self._get_required_field(
-                        trade, 'description', 'Trade'
-                    )
-                    asset_category = self._get_required_field(
-                        trade, 'assetCategory', 'Trade'
-                    )
+                    description = self._get_required_field(trade, 'description', 'Trade')
+                    asset_category = self._get_required_field(trade, 'assetCategory', 'Trade')
 
                     conid = str(self._get_required_field(trade, 'conid', 'Trade'))
                     isin = trade.isin  # Optional field always present on dataclass
@@ -496,21 +492,24 @@ class IbkrImporter:
 
                     quantity = self._to_decimal(
                         self._get_required_field(trade, 'quantity', 'Trade'),
-                        'quantity', f"Trade {symbol}"
+                        'quantity',
+                        f"Trade {symbol}",
                     )
                     trade_price = self._to_decimal(
                         self._get_required_field(trade, 'tradePrice', 'Trade'),
-                        'tradePrice', f"Trade {symbol}"
+                        'tradePrice',
+                        f"Trade {symbol}",
                     )
-                    trade_price = self._price_apply_multiplier(trade, trade_price, f"Trade {symbol}")
+                    trade_price = self._price_apply_multiplier(
+                        trade, trade_price, f"Trade {symbol}"
+                    )
 
                     trade_money = self._to_decimal(
                         self._get_required_field(trade, 'tradeMoney', 'Trade'),
-                        'tradeMoney', f"Trade {symbol}"
+                        'tradeMoney',
+                        f"Trade {symbol}",
                     )
-                    currency = self._get_required_field(
-                        trade, 'currency', 'Trade'
-                    )
+                    currency = self._get_required_field(trade, 'currency', 'Trade')
                     # 'BUY' or 'SELL'
                     buy_sell = self._get_required_field(trade, 'buySell', 'Trade')
 
@@ -520,7 +519,8 @@ class IbkrImporter:
 
                     ib_commission = self._to_decimal(
                         trade.ibCommission if trade.ibCommission is not None else '0',
-                        'ibCommission', f"Trade {symbol}"
+                        'ibCommission',
+                        f"Trade {symbol}",
                     )
 
                     if asset_category == "CASH":
@@ -528,9 +528,7 @@ class IbkrImporter:
                         logger.debug("Skipped CASH trade {symbol}")
                         continue
 
-                    if asset_category not in [
-                        "STK", "OPT", "FUT", "BOND", "ETF", "FUND", "FOP"
-                    ]:
+                    if asset_category not in ["STK", "OPT", "FUT", "BOND", "ETF", "FUND", "FOP"]:
                         logger.warning(
                             f"Skipping trade for unhandled asset "
                             f"category: {asset_category} (Symbol: {symbol})"
@@ -542,7 +540,7 @@ class IbkrImporter:
                         valor=valor,
                         isin=ISINType(isin) if isin else None,
                         symbol=conid,
-                        description=f"{description} ({symbol})"
+                        description=f"{description} ({symbol})",
                     )
 
                     # Update name metadata (Priority: 8 for Trades)
@@ -566,17 +564,27 @@ class IbkrImporter:
                     unit_price = trade_price if trade_price != Decimal(0) else None
                     name = get_text(buy_sell.value.lower(), self.render_language)
                     # Trade price is 0 for expired, assigned or exercised options.
-                    if (trade_price == Decimal(0) and asset_category in ["OPT", "FOP"]):
+                    if trade_price == Decimal(0) and asset_category in ["OPT", "FOP"]:
                         if transaction_type is None:
-                            raise ValueError(f"Transaction type is missing for category {asset_category} with zero price")
+                            raise ValueError(
+                                f"Transaction type is missing for category {asset_category} with zero price"
+                            )
                         if transaction_type == TradeType.BOOKTRADE:
                             if close_price is None:
-                                raise ValueError(f"Close price is missing for category {asset_category} with zero price")
-                            if close_price == Decimal(0) and (expiry_date is None or expiry_date is not None and expiry_date == trade_date):
+                                raise ValueError(
+                                    f"Close price is missing for category {asset_category} with zero price"
+                                )
+                            if close_price == Decimal(0) and (
+                                expiry_date is None
+                                or expiry_date is not None
+                                and expiry_date == trade_date
+                            ):
                                 # For expired options with zero close price, we can assume they expired worthless. However, we need corresponding OptionEAE entry to be sure. But taxwise it does not matter.
                                 name = get_text('option_expiration', self.render_language)
                             elif close_price != Decimal(0):
-                                name = get_text('option_assignment', self.render_language)   # can be assignemnt or exercise, but for that we would need to link the trade to the corresponding OptionEAE entry
+                                name = get_text(
+                                    'option_assignment', self.render_language
+                                )  # can be assignemnt or exercise, but for that we would need to link the trade to the corresponding OptionEAE entry
                         unit_price = Decimal(0)
 
                     stock_mutation = SecurityStock(
@@ -587,11 +595,9 @@ class IbkrImporter:
                         name=name,
                         orderId=trade.ibOrderID,
                         balanceCurrency=currency,
-                        quotationType="PIECE"
+                        quotationType="PIECE",
                     )
-                    processed_security_positions[sec_pos]['stocks'].append(
-                        stock_mutation
-                    )
+                    processed_security_positions[sec_pos]['stocks'].append(stock_mutation)
 
                     # Cash movements resulting from trades are tracked via the cash transaction section. Only the stock mutation is stored here.
 
@@ -609,34 +615,24 @@ class IbkrImporter:
                     _ = self._get_required_field(
                         open_pos, 'reportDate', 'OpenPosition'
                     )  # validation only
-                    symbol = self._get_required_field(
-                        open_pos, 'symbol', 'OpenPosition'
-                    )
-                    description = self._get_required_field(
-                        open_pos, 'description', 'OpenPosition'
-                    )
+                    symbol = self._get_required_field(open_pos, 'symbol', 'OpenPosition')
+                    description = self._get_required_field(open_pos, 'description', 'OpenPosition')
                     asset_category = self._get_required_field(
                         open_pos, 'assetCategory', 'OpenPosition'
                     )
 
-                    conid = str(self._get_required_field(
-                        open_pos, 'conid', 'OpenPosition'
-                    ))
+                    conid = str(self._get_required_field(open_pos, 'conid', 'OpenPosition'))
                     isin = open_pos.isin
                     valor = None
 
                     quantity = self._to_decimal(
-                        self._get_required_field(open_pos, 'position',
-                                                 'OpenPosition'),
-                        'position', f"OpenPosition {symbol}"
+                        self._get_required_field(open_pos, 'position', 'OpenPosition'),
+                        'position',
+                        f"OpenPosition {symbol}",
                     )
-                    currency = self._get_required_field(
-                        open_pos, 'currency', 'OpenPosition'
-                    )
+                    currency = self._get_required_field(open_pos, 'currency', 'OpenPosition')
 
-                    if asset_category not in [
-                        "STK", "OPT", "FUT", "BOND", "ETF", "FUND", "FOP"
-                    ]:
+                    if asset_category not in ["STK", "OPT", "FUT", "BOND", "ETF", "FUND", "FOP"]:
                         logger.warning(
                             f"Skipping open position for unhandled "
                             f"asset category: {asset_category} "
@@ -649,7 +645,7 @@ class IbkrImporter:
                         valor=valor,
                         isin=ISINType(isin) if isin else None,
                         symbol=conid,
-                        description=f"{description} ({symbol})"
+                        description=f"{description} ({symbol})",
                     )
 
                     # Update name metadata (Priority: 10 for OpenPositions)
@@ -672,12 +668,18 @@ class IbkrImporter:
 
                     mark_price = None
                     if getattr(open_pos, 'markPrice', None) is not None:
-                        mark_price = self._to_decimal(open_pos.markPrice, 'markPrice', f"OpenPosition {symbol}")
-                        mark_price = self._price_apply_multiplier(open_pos, mark_price, f"OpenPosition {symbol}")
-                    
+                        mark_price = self._to_decimal(
+                            open_pos.markPrice, 'markPrice', f"OpenPosition {symbol}"
+                        )
+                        mark_price = self._price_apply_multiplier(
+                            open_pos, mark_price, f"OpenPosition {symbol}"
+                        )
+
                     pos_value = None
                     if getattr(open_pos, 'positionValue', None) is not None:
-                        pos_value = self._to_decimal(open_pos.positionValue, 'positionValue', f"OpenPosition {symbol}")
+                        pos_value = self._to_decimal(
+                            open_pos.positionValue, 'positionValue', f"OpenPosition {symbol}"
+                        )
 
                     balance_stock = SecurityStock(
                         # Balance as of the period end + 1
@@ -689,20 +691,18 @@ class IbkrImporter:
                         unitPrice=mark_price,
                         balance=pos_value,
                     )
-                    processed_security_positions[sec_pos]['stocks'].append(
-                        balance_stock
-                    )
+                    processed_security_positions[sec_pos]['stocks'].append(balance_stock)
 
             # --- Process Transfers ---
             if stmt.Transfers:
                 for transfer in stmt.Transfers:
                     if should_skip_entry(transfer, "Transfer"):
                         continue
-                    asset_category = self._get_required_field(
-                        transfer, 'assetCategory', 'Transfer'
-                    )
+                    asset_category = self._get_required_field(transfer, 'assetCategory', 'Transfer')
                     asset_cat_val = (
-                        asset_category.value if hasattr(asset_category, 'value') else str(asset_category)
+                        asset_category.value
+                        if hasattr(asset_category, 'value')
+                        else str(asset_category)
                     )
                     if str(asset_cat_val).upper() == 'CASH':
                         continue
@@ -716,15 +716,14 @@ class IbkrImporter:
                         raise ValueError('Transfer missing date/dateTime')
 
                     symbol = self._get_required_field(transfer, 'symbol', 'Transfer')
-                    description = self._get_required_field(
-                        transfer, 'description', 'Transfer'
-                    )
+                    description = self._get_required_field(transfer, 'description', 'Transfer')
                     conid = str(self._get_required_field(transfer, 'conid', 'Transfer'))
                     isin = transfer.isin
 
                     quantity = self._to_decimal(
                         self._get_required_field(transfer, 'quantity', 'Transfer'),
-                        'quantity', f"Transfer {symbol}"
+                        'quantity',
+                        f"Transfer {symbol}",
                     )
 
                     direction = transfer.direction
@@ -741,13 +740,9 @@ class IbkrImporter:
                             f" for {symbol}"
                         )
 
-                    currency = self._get_required_field(
-                        transfer, 'currency', 'Transfer'
-                    )
+                    currency = self._get_required_field(transfer, 'currency', 'Transfer')
 
-                    transfer_type = self._get_required_field(
-                        transfer, 'type', 'Transfer'
-                    )
+                    transfer_type = self._get_required_field(transfer, 'type', 'Transfer')
                     transfer_type_val = transfer_type.value
                     account = self._get_required_field(transfer, 'account', 'Transfer')
 
@@ -766,14 +761,13 @@ class IbkrImporter:
                         referenceDate=tx_date,
                         mutation=True,
                         quantity=quantity,
-                        name=f"{transfer_type_val} {account}" + (" (Cancelled)" if is_cancel else ""),
+                        name=f"{transfer_type_val} {account}"
+                        + (" (Cancelled)" if is_cancel else ""),
                         balanceCurrency=currency,
                         quotationType="PIECE",
                     )
 
-                    processed_security_positions[sec_pos]['stocks'].append(
-                        stock_mutation
-                    )
+                    processed_security_positions[sec_pos]['stocks'].append(stock_mutation)
 
             # --- Process Corporate Actions ---
             if stmt.CorporateActions:
@@ -854,36 +848,30 @@ class IbkrImporter:
                         quotationType="PIECE",
                     )
 
-                    processed_security_positions[sec_pos]["stocks"].append(
-                        stock_mutation
-                    )
+                    processed_security_positions[sec_pos]["stocks"].append(stock_mutation)
 
             # --- Process Cash Transactions ---
             if stmt.CashTransactions:
                 for cash_tx in stmt.CashTransactions:
                     if should_skip_entry(cash_tx, "CashTransaction"):
                         continue
-                    tx_date_time = self._get_required_field(
-                        cash_tx, 'dateTime', 'CashTransaction'
-                    )
+                    tx_date_time = self._get_required_field(cash_tx, 'dateTime', 'CashTransaction')
                     # Ensure tx_date is a date object
-                    tx_date = (tx_date_time.date()
-                               if hasattr(tx_date_time, 'date')
-                               else self._get_required_field(
-                                   cash_tx, 'tradeDate', 'CashTransaction'
-                               ))
+                    tx_date = (
+                        tx_date_time.date()
+                        if hasattr(tx_date_time, 'date')
+                        else self._get_required_field(cash_tx, 'tradeDate', 'CashTransaction')
+                    )
 
                     description = self._get_required_field(
                         cash_tx, 'description', 'CashTransaction'
                     )
                     amount = self._to_decimal(
-                        self._get_required_field(cash_tx, 'amount',
-                                                 'CashTransaction'),
-                        'amount', f"CashTransaction {description[:30]}"
+                        self._get_required_field(cash_tx, 'amount', 'CashTransaction'),
+                        'amount',
+                        f"CashTransaction {description[:30]}",
                     )
-                    currency = self._get_required_field(
-                        cash_tx, 'currency', 'CashTransaction'
-                    )
+                    currency = self._get_required_field(cash_tx, 'currency', 'CashTransaction')
 
                     security_id = cash_tx.conid
                     tx_type = cash_tx.type
@@ -921,7 +909,10 @@ class IbkrImporter:
                         if asset_category:
                             sub_category = getattr(cash_tx, 'subCategory', None)
                             if sec_pos_key not in security_asset_category_map:
-                                security_asset_category_map[sec_pos_key] = (asset_category, sub_category)
+                                security_asset_category_map[sec_pos_key] = (
+                                    asset_category,
+                                    sub_category,
+                                )
 
                         # Update name metadata (Priority: 0 for CashTransactions - lowest)
                         # Use description or symbol if description is generic?
@@ -930,7 +921,7 @@ class IbkrImporter:
                         security_name_registry.update(
                             sec_pos_key,
                             f"{description} ({sym_attr})" if sym_attr else description,
-                            0
+                            0,
                         )
 
                         sec_payment = self._build_security_payment(
@@ -940,9 +931,7 @@ class IbkrImporter:
                             amount=amount,
                             tx_type=tx_type,
                         )
-                        processed_security_positions[sec_pos_key]['payments'].append(
-                            sec_payment
-                        )
+                        processed_security_positions[sec_pos_key]['payments'].append(sec_payment)
                     else:
                         if tx_type in [ibflex.CashAction.DEPOSITWITHDRAW]:
                             # Not Tax Relant event
@@ -954,15 +943,21 @@ class IbkrImporter:
                                 pass
                             else:
                                 # TODO: CREDIT INT is charged on positive balance and would belong to fees (not liabilities).
-                                logger.warning(f"Broker credit interest payment {description} with amount {amount} is not handled, would belong to fees.")
+                                logger.warning(
+                                    f"Broker credit interest payment {description} with amount {amount} is not handled, would belong to fees."
+                                )
                                 continue
                         elif tx_type in [ibflex.CashAction.FEES]:
                             # TODO: Optionally create a costs sections.
-                            logger.warning(f"Fees paid for {description} are ignored for statement.")
+                            logger.warning(
+                                f"Fees paid for {description} are ignored for statement."
+                            )
                             continue
                         elif tx_type in [ibflex.CashAction.ADVISORFEES]:
                             # TODO: Optionally create a costs sections.
-                            logger.warning(f"Fees paid for {description} are ignored for statement.")
+                            logger.warning(
+                                f"Fees paid for {description} are ignored for statement."
+                            )
                             continue
                         elif tx_type in [ibflex.CashAction.BROKERINTRCVD]:
                             # Tax relevant event. Fall through to create a bank payment.
@@ -972,18 +967,18 @@ class IbkrImporter:
                             # Tax relevant event. Fall through to create a bank payment.
                             pass
                         else:
-                            raise ValueError(f"CashTransaction type {tx_type} is not supported for {description}")
+                            raise ValueError(
+                                f"CashTransaction type {tx_type} is not supported for {description}"
+                            )
                         cash_pos_key = (account_id, currency, "MAIN_CASH")
 
                         bank_payment = BankAccountPayment(
                             paymentDate=tx_date,
                             name=description,
                             amountCurrency=currency,
-                            amount=amount
+                            amount=amount,
                         )
-                        processed_cash_positions[cash_pos_key]['payments'].append(
-                            bank_payment
-                        )
+                        processed_cash_positions[cash_pos_key]['payments'].append(bank_payment)
 
         # --- Process Corrections Flex Files ---
         # Import withholding-tax corrections from a post-year-end flex export.
@@ -1013,16 +1008,12 @@ class IbkrImporter:
         }
 
         def _hints_for(sec_pos: SecurityPosition) -> PositionHints:
-            asset_cat, _sub_category = security_asset_category_map.get(
-                sec_pos, ("STK", None)
-            )
+            asset_cat, _sub_category = security_asset_category_map.get(sec_pos, ("STK", None))
             sec_category = IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY.get(asset_cat)
             if not sec_category:
                 raise ValueError(f"Unknown asset category: {asset_cat}")
             is_rights = sec_pos in rights_issue_positions
-            skip_if_zero = is_rights and ignore_rights_issues_by_account.get(
-                sec_pos.depot, False
-            )
+            skip_if_zero = is_rights and ignore_rights_issues_by_account.get(sec_pos.depot, False)
             return PositionHints(
                 security_category=sec_category,
                 country=security_country_map.get(sec_pos, "US"),
@@ -1040,9 +1031,7 @@ class IbkrImporter:
         # --- Collect per-account dateOpened / dateClosed + CashReport seeds ---
         account_dates: Dict[str, Dict[str, date | None]] = {}
         for s_stmt in all_flex_statements:
-            stmt_account_id = self._get_required_field(
-                s_stmt, 'accountId', 'FlexStatement'
-            )
+            stmt_account_id = self._get_required_field(s_stmt, 'accountId', 'FlexStatement')
             if s_stmt.AccountInformation:
                 acc_info = s_stmt.AccountInformation
                 account_dates[stmt_account_id] = {
@@ -1110,9 +1099,7 @@ class IbkrImporter:
         # Fill in institution
         # Name is sufficient. Avoid setting legal identifiers avoid implying this is
         # officially from the broker.
-        tax_statement.institution = Institution(
-            name="Interactive Brokers"
-        )
+        tax_statement.institution = Institution(name="Interactive Brokers")
 
         # --- Create Client object ---
         # TODO: Handle joint accounts

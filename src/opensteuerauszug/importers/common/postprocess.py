@@ -64,7 +64,6 @@ from .security_name import SecurityNameRegistry
 from .stock_aggregation import aggregate_mutations
 from .types import CashPositionData, SecurityPositionData
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -140,9 +139,7 @@ def _synthesize_boundary_balances(
     end_plus_one = period_to + timedelta(days=1)
 
     if run_initial_consistency_check:
-        initial = PositionReconciler(
-            list(stocks), identifier=f"{identifier}-initial_check"
-        )
+        initial = PositionReconciler(list(stocks), identifier=f"{identifier}-initial_check")
         is_consistent, _ = initial.check_consistency(
             print_log=True,
             raise_on_error=strict_consistency,
@@ -150,14 +147,11 @@ def _synthesize_boundary_balances(
         )
         if not is_consistent and not strict_consistency:
             logger.warning(
-                "%s: initial consistency check on raw data failed; "
-                "proceeding with synthesis.",
+                "%s: initial consistency check on raw data failed; " "proceeding with synthesis.",
                 identifier,
             )
 
-    reconciler = PositionReconciler(
-        list(stocks), identifier=f"{identifier}-reconcile"
-    )
+    reconciler = PositionReconciler(list(stocks), identifier=f"{identifier}-reconcile")
     end_pos = reconciler.synthesize_position_at_date(
         end_plus_one, assume_zero_if_no_balances=assume_zero_if_no_balances
     )
@@ -169,9 +163,7 @@ def _synthesize_boundary_balances(
     if start_pos:
         opening_balance = start_pos.quantity
     else:
-        trades_quantity_total = sum(
-            (s.quantity for s in stocks if s.mutation), Decimal("0")
-        )
+        trades_quantity_total = sum((s.quantity for s in stocks if s.mutation), Decimal("0"))
         opening_balance = closing_balance - trades_quantity_total
 
     return opening_balance, closing_balance, end_plus_one
@@ -187,9 +179,7 @@ def _append_boundary_stock_if_missing(
     name: Optional[str],
     skip_when_zero: bool,
 ) -> None:
-    exists = any(
-        (not s.mutation and s.referenceDate == reference_date) for s in stocks
-    )
+    exists = any((not s.mutation and s.referenceDate == reference_date) for s in stocks)
     if exists:
         return
     if skip_when_zero and quantity == 0:
@@ -279,8 +269,7 @@ def augment_list_of_securities(
 
         if hints.skip_if_zero and opening_balance == 0 and closing_balance == 0:
             logger.info(
-                "Skipping security %s because balances are zero and "
-                "skip_if_zero is set.",
+                "Skipping security %s because balances are zero and " "skip_if_zero is set.",
                 identifier,
             )
             continue
@@ -304,9 +293,7 @@ def augment_list_of_securities(
             skip_when_zero=False,
         )
 
-        sorted_stocks = sorted(
-            sorted_stocks, key=lambda s: (s.referenceDate, s.mutation)
-        )
+        sorted_stocks = sorted(sorted_stocks, key=lambda s: (s.referenceDate, s.mutation))
 
         security = Security(
             positionId=position_id,
@@ -315,11 +302,7 @@ def augment_list_of_securities(
             securityCategory=hints.security_category,
             securityName=name_registry.resolve(sec_pos_obj),
             symbol=sec_pos_obj.symbol,
-            isin=(
-                ISINType(sec_pos_obj.isin)
-                if sec_pos_obj.isin is not None
-                else None
-            ),
+            isin=(ISINType(sec_pos_obj.isin) if sec_pos_obj.isin is not None else None),
             valorNumber=sec_pos_obj.valor,
             country=hints.country,
             stock=sorted_stocks,
@@ -333,9 +316,7 @@ def augment_list_of_securities(
         for depot_id, securities in depot_securities_map.items()
         if securities
     ]
-    statement.listOfSecurities = (
-        ListOfSecurities(depot=depots) if depots else None
-    )
+    statement.listOfSecurities = ListOfSecurities(depot=depots) if depots else None
 
 
 # ---------------------------------------------------------------------------
@@ -425,9 +406,7 @@ def augment_list_of_bank_accounts(
         # different eCH profile (e.g. Schwab stock-plan accounts) keep
         # ``bankAccountNumber=None``.
         number = entry.number
-        sorted_payments = sorted(
-            entry.payments or [], key=lambda p: p.paymentDate
-        )
+        sorted_payments = sorted(entry.payments or [], key=lambda p: p.paymentDate)
         tax_value = BankAccountTaxValue(
             referenceDate=period_to,
             balanceCurrency=entry.currency,

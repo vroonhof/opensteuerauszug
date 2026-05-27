@@ -8,7 +8,13 @@ from opensteuerauszug.core.exchange_rate_provider import ExchangeRateProvider
 from opensteuerauszug.core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
 from opensteuerauszug.core.kursliste_manager import KurslisteManager
 from opensteuerauszug.core.flag_override_provider import FlagOverrideProvider
-from opensteuerauszug.model.ech0196 import Security, SecurityTaxValue, SecurityPayment, SecurityStock, PaymentTypeOriginal
+from opensteuerauszug.model.ech0196 import (
+    Security,
+    SecurityTaxValue,
+    SecurityPayment,
+    SecurityStock,
+    PaymentTypeOriginal,
+)
 from opensteuerauszug.model.kursliste import PaymentTypeESTV, SecurityGroupESTV
 from opensteuerauszug.model.critical_warning import CriticalWarning, CriticalWarningCategory
 from opensteuerauszug.core.position_reconciler import PositionReconciler
@@ -350,8 +356,10 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
 
         # Alternative date: paydate <-> exdate swap
         alt_date = reconciliation_date if is_gratis else payment_date
-        if alt_date and alt_date != primary_date and not _has_intervening_event(
-            primary_date, alt_date, event_dates
+        if (
+            alt_date
+            and alt_date != primary_date
+            and not _has_intervening_event(primary_date, alt_date, event_dates)
         ):
             candidate_dates.append(alt_date)
 
@@ -409,9 +417,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     f"Please verify this security manually."
                 )
                 logger.warning(msg)
-                self._stock_split_warnings.append(
-                    {"message": msg, "identifier": sec_ident}
-                )
+                self._stock_split_warnings.append({"message": msg, "identifier": sec_ident})
                 return
             mutation_quantities = {m.quantity for m in mutations_on_date}
             if expected_delta not in mutation_quantities:
@@ -425,9 +431,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     f"Please verify this security manually."
                 )
                 logger.warning(msg)
-                self._stock_split_warnings.append(
-                    {"message": msg, "identifier": sec_ident}
-                )
+                self._stock_split_warnings.append({"message": msg, "identifier": sec_ident})
                 return
         else:
             # ---- Cross-ISIN split (valorNumberNew): two securities involved ----
@@ -448,9 +452,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     f"Please verify this security manually."
                 )
                 logger.warning(msg)
-                self._stock_split_warnings.append(
-                    {"message": msg, "identifier": sec_ident}
-                )
+                self._stock_split_warnings.append({"message": msg, "identifier": sec_ident})
                 return
 
             # 2. Validate the positive mutation on the new security
@@ -484,9 +486,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     f"Please verify this security manually."
                 )
                 logger.warning(msg)
-                self._stock_split_warnings.append(
-                    {"message": msg, "identifier": sec_ident}
-                )
+                self._stock_split_warnings.append({"message": msg, "identifier": sec_ident})
                 return
 
             new_sec_ident = new_security.isin or new_security.securityName
@@ -515,9 +515,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     f"Please verify this security manually."
                 )
                 logger.warning(msg)
-                self._stock_split_warnings.append(
-                    {"message": msg, "identifier": sec_ident}
-                )
+                self._stock_split_warnings.append({"message": msg, "identifier": sec_ident})
                 return
             new_mutation_quantities = {m.quantity for m in new_mutations_on_date}
             if expected_addition not in new_mutation_quantities:
@@ -533,9 +531,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                     f"Please verify this security manually."
                 )
                 logger.warning(msg)
-                self._stock_split_warnings.append(
-                    {"message": msg, "identifier": sec_ident}
-                )
+                self._stock_split_warnings.append({"message": msg, "identifier": sec_ident})
                 return
 
             logger.info(
@@ -641,7 +637,9 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                         }
                     )
 
-            pos = reconciler.synthesize_position_at_date(reconciliation_date, assume_zero_if_no_balances=True)
+            pos = reconciler.synthesize_position_at_date(
+                reconciliation_date, assume_zero_if_no_balances=True
+            )
             if pos is None:
                 raise ValueError(
                     f"No position found for {security.isin or security.securityName} on date {reconciliation_date}"

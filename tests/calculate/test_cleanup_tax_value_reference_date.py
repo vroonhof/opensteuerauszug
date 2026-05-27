@@ -18,28 +18,34 @@ from decimal import Decimal
 
 from opensteuerauszug.calculate.cleanup import CleanupCalculator
 from opensteuerauszug.model.ech0196 import (
-    TaxStatement, Security, SecurityStock, Depot, ListOfSecurities,
-    ValorNumber, ISINType, DepotNumber
+    TaxStatement,
+    Security,
+    SecurityStock,
+    Depot,
+    ListOfSecurities,
+    ValorNumber,
+    ISINType,
+    DepotNumber,
 )
 
 
 class TestCleanupTaxValueReferenceDate:
     """Test SecurityTaxValue reference date handling in CleanupCalculator."""
-    
+
     def test_tax_value_reference_date_from_end_of_period_balance(self):
         """
-        Test that SecurityTaxValue.referenceDate is set to period_to when created from 
+        Test that SecurityTaxValue.referenceDate is set to period_to when created from
         end-of-period balance, not to the balance's date (period_end_plus_one).
-        
+
         This test would FAIL without the bugfix because the referenceDate would be
-        incorrectly set to 2024-01-01 (candidate.referenceDate) instead of the 
+        incorrectly set to 2024-01-01 (candidate.referenceDate) instead of the
         correct 2023-12-31 (self.period_to).
         """
         # Define test period
         period_from = date(2023, 1, 1)
         period_to = date(2023, 12, 31)
         period_end_plus_one = period_to + timedelta(days=1)  # 2024-01-01
-        
+
         # Create a security with a balance after the period end
         # This represents the end-of-period balance that should be used for tax value
         end_balance_stock = SecurityStock(
@@ -50,9 +56,9 @@ class TestCleanupTaxValueReferenceDate:
             balanceCurrency="CHF",
             name="End of Period Balance",
             unitPrice=Decimal("50.00"),
-            balance=Decimal("5000.00")
+            balance=Decimal("5000.00"),
         )
-        
+
         # Create security without initial taxValue (will be set by cleanup)
         security = Security(
             positionId=1,
@@ -64,16 +70,13 @@ class TestCleanupTaxValueReferenceDate:
             quotationType="PIECE",
             securityCategory="SHARE",
             securityName="Test Security",
-            stock=[end_balance_stock]
+            stock=[end_balance_stock],
             # Note: taxValue is None initially - will be set by CleanupCalculator
         )
-        
+
         # Create depot and statement
-        depot = Depot(
-            depotNumber=DepotNumber("TEST_DEPOT"),
-            security=[security]
-        )
-        
+        depot = Depot(depotNumber=DepotNumber("TEST_DEPOT"), security=[security])
+
         statement = TaxStatement(
             id="test-statement",
             creationDate=datetime(2023, 1, 1),
@@ -83,23 +86,23 @@ class TestCleanupTaxValueReferenceDate:
             country="CH",
             canton="ZH",
             minorVersion=2,
-            listOfSecurities=ListOfSecurities(depot=[depot])
+            listOfSecurities=ListOfSecurities(depot=[depot]),
         )
-        
+
         # Run cleanup calculator
         calculator = CleanupCalculator(
             period_from=period_from,
             period_to=period_to,
             importer_name="TestImporter",
-            enable_filtering=False
+            enable_filtering=False,
         )
-        
+
         result_statement = calculator.calculate(statement)
-        
+
         # Verify that the cleanup calculator created a SecurityTaxValue
         result_security = result_statement.listOfSecurities.depot[0].security[0]
         assert result_security.taxValue is not None, "SecurityTaxValue should be created by cleanup"
-        
+
         # THIS IS THE CRITICAL TEST: referenceDate should be period_to, NOT period_end_plus_one
         assert result_security.taxValue.referenceDate == period_to, (
             f"SecurityTaxValue.referenceDate should be {period_to} (period end), "
@@ -107,7 +110,7 @@ class TestCleanupTaxValueReferenceDate:
             f"This indicates the bug where referenceDate was set to candidate.referenceDate "
             f"({period_end_plus_one}) instead of self.period_to ({period_to})."
         )
-        
+
         # Verify other fields are correctly copied from the balance
         assert result_security.taxValue.quantity == Decimal("100")
         assert result_security.taxValue.quotationType == "PIECE"
@@ -122,7 +125,7 @@ class TestCleanupTaxValueReferenceDate:
         """
         period_from = date(2023, 1, 1)
         period_to = date(2023, 12, 31)
-        
+
         # Create a security with only a transaction during the period (no end balance)
         transaction_stock = SecurityStock(
             referenceDate=date(2023, 6, 15),  # Some date during the period
@@ -132,9 +135,9 @@ class TestCleanupTaxValueReferenceDate:
             balanceCurrency="CHF",
             name="Mid-period Transaction",
             unitPrice=Decimal("45.00"),
-            balance=Decimal("2250.00")
+            balance=Decimal("2250.00"),
         )
-        
+
         security = Security(
             positionId=1,
             valorNumber=ValorNumber(123456),
@@ -145,14 +148,11 @@ class TestCleanupTaxValueReferenceDate:
             quotationType="PIECE",
             securityCategory="SHARE",
             securityName="Test Security",
-            stock=[transaction_stock]
+            stock=[transaction_stock],
         )
-        
-        depot = Depot(
-            depotNumber=DepotNumber("TEST_DEPOT"),
-            security=[security]
-        )
-        
+
+        depot = Depot(depotNumber=DepotNumber("TEST_DEPOT"), security=[security])
+
         statement = TaxStatement(
             id="test-statement",
             creationDate=datetime(2023, 1, 1),
@@ -162,23 +162,23 @@ class TestCleanupTaxValueReferenceDate:
             country="CH",
             canton="ZH",
             minorVersion=2,
-            listOfSecurities=ListOfSecurities(depot=[depot])
+            listOfSecurities=ListOfSecurities(depot=[depot]),
         )
-        
+
         calculator = CleanupCalculator(
             period_from=period_from,
             period_to=period_to,
             importer_name="TestImporter",
-            enable_filtering=False
+            enable_filtering=False,
         )
-        
+
         result_statement = calculator.calculate(statement)
-        
+
         # Verify that no SecurityTaxValue was created
         result_security = result_statement.listOfSecurities.depot[0].security[0]
-        assert result_security.taxValue is None, (
-            "SecurityTaxValue should not be created when there's no end-of-period balance"
-        )
+        assert (
+            result_security.taxValue is None
+        ), "SecurityTaxValue should not be created when there's no end-of-period balance"
 
     def test_tax_value_not_created_when_balance_is_mutation(self):
         """
@@ -188,7 +188,7 @@ class TestCleanupTaxValueReferenceDate:
         period_from = date(2023, 1, 1)
         period_to = date(2023, 12, 31)
         period_end_plus_one = period_to + timedelta(days=1)
-        
+
         # Create a transaction on period_end_plus_one (mutation=True)
         # This should NOT trigger tax value creation
         transaction_after_period = SecurityStock(
@@ -199,9 +199,9 @@ class TestCleanupTaxValueReferenceDate:
             balanceCurrency="CHF",
             name="Transaction After Period",
             unitPrice=Decimal("52.00"),
-            balance=Decimal("1300.00")
+            balance=Decimal("1300.00"),
         )
-        
+
         security = Security(
             positionId=1,
             valorNumber=ValorNumber(123456),
@@ -212,14 +212,11 @@ class TestCleanupTaxValueReferenceDate:
             quotationType="PIECE",
             securityCategory="SHARE",
             securityName="Test Security",
-            stock=[transaction_after_period]
+            stock=[transaction_after_period],
         )
-        
-        depot = Depot(
-            depotNumber=DepotNumber("TEST_DEPOT"),
-            security=[security]
-        )
-        
+
+        depot = Depot(depotNumber=DepotNumber("TEST_DEPOT"), security=[security])
+
         statement = TaxStatement(
             id="test-statement",
             creationDate=datetime(2023, 1, 1),
@@ -229,18 +226,18 @@ class TestCleanupTaxValueReferenceDate:
             country="CH",
             canton="ZH",
             minorVersion=2,
-            listOfSecurities=ListOfSecurities(depot=[depot])
+            listOfSecurities=ListOfSecurities(depot=[depot]),
         )
-        
+
         calculator = CleanupCalculator(
             period_from=period_from,
             period_to=period_to,
             importer_name="TestImporter",
-            enable_filtering=False
+            enable_filtering=False,
         )
-        
+
         result_statement = calculator.calculate(statement)
-        
+
         # Verify that no SecurityTaxValue was created because the stock entry is a mutation
         result_security = result_statement.listOfSecurities.depot[0].security[0]
         assert result_security.taxValue is None, (
@@ -256,7 +253,7 @@ class TestCleanupTaxValueReferenceDate:
         period_from = date(2023, 1, 1)
         period_to = date(2023, 12, 31)
         period_end_plus_one = period_to + timedelta(days=1)
-        
+
         # Create first balance on period_end_plus_one (should be used)
         first_balance = SecurityStock(
             referenceDate=period_end_plus_one,
@@ -266,9 +263,9 @@ class TestCleanupTaxValueReferenceDate:
             balanceCurrency="CHF",
             name="First Balance After Period",
             unitPrice=Decimal("50.00"),
-            balance=Decimal("5000.00")
+            balance=Decimal("5000.00"),
         )
-        
+
         # Create second balance later (should be ignored)
         second_balance = SecurityStock(
             referenceDate=date(2024, 1, 5),
@@ -278,9 +275,9 @@ class TestCleanupTaxValueReferenceDate:
             balanceCurrency="CHF",
             name="Later Balance",
             unitPrice=Decimal("55.00"),
-            balance=Decimal("8250.00")
+            balance=Decimal("8250.00"),
         )
-        
+
         security = Security(
             positionId=1,
             valorNumber=ValorNumber(123456),
@@ -291,14 +288,11 @@ class TestCleanupTaxValueReferenceDate:
             quotationType="PIECE",
             securityCategory="SHARE",
             securityName="Test Security",
-            stock=[first_balance, second_balance]
+            stock=[first_balance, second_balance],
         )
-        
-        depot = Depot(
-            depotNumber=DepotNumber("TEST_DEPOT"),
-            security=[security]
-        )
-        
+
+        depot = Depot(depotNumber=DepotNumber("TEST_DEPOT"), security=[security])
+
         statement = TaxStatement(
             id="test-statement",
             creationDate=datetime(2023, 1, 1),
@@ -308,28 +302,28 @@ class TestCleanupTaxValueReferenceDate:
             country="CH",
             canton="ZH",
             minorVersion=2,
-            listOfSecurities=ListOfSecurities(depot=[depot])
+            listOfSecurities=ListOfSecurities(depot=[depot]),
         )
-        
+
         calculator = CleanupCalculator(
             period_from=period_from,
             period_to=period_to,
             importer_name="TestImporter",
-            enable_filtering=False
+            enable_filtering=False,
         )
-        
+
         result_statement = calculator.calculate(statement)
-        
+
         # Verify that SecurityTaxValue was created
         result_security = result_statement.listOfSecurities.depot[0].security[0]
         assert result_security.taxValue is not None
-        
+
         # Verify it uses the first balance, not the second
         assert result_security.taxValue.referenceDate == period_to  # The bug fix
         assert result_security.taxValue.quantity == Decimal("100")  # From first balance
         assert result_security.taxValue.unitPrice == Decimal("50.00")  # From first balance
         assert result_security.taxValue.balance == Decimal("5000.00")  # From first balance
-        
+
         # Should NOT have values from the second balance
         assert result_security.taxValue.quantity != Decimal("150")
         assert result_security.taxValue.unitPrice != Decimal("55.00")

@@ -2,6 +2,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from .date_coverage import DateRangeCoverage  # noqa: F401
 from .known_issues import is_known_issue  # noqa: F401
 
+
 def round_accounting(value: Decimal | float | int) -> Decimal:
     """
     Rundet einen Betrag gemäss eCH-0196 Spezifikation.
@@ -23,7 +24,7 @@ def round_accounting(value: Decimal | float | int) -> Decimal:
     Returns:
         Der gerundete Betrag als Decimal.
     """
-    val_decimal = Decimal(str(value)) # Ensure Decimal for precision
+    val_decimal = Decimal(str(value))  # Ensure Decimal for precision
 
     if abs(val_decimal) < 100:
         # Round to 3 decimal places

@@ -2,12 +2,8 @@ import sqlite3
 from decimal import Decimal
 from typing import Dict, Type
 
-from opensteuerauszug.model.kursliste import (
-    Security, Share, Bond, Fund,
-    SecurityTypeESTV
-)
+from opensteuerauszug.model.kursliste import Security, Share, Bond, Fund, SecurityTypeESTV
 from opensteuerauszug.kursliste.converter import convert_kursliste_xml_to_sqlite
-
 
 SAMPLE_XML_CONTENT = """<?xml version="1.0" encoding="UTF-8"?>
 <kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste"
@@ -48,16 +44,18 @@ SAMPLE_XML_CONTENT = """<?xml version="1.0" encoding="UTF-8"?>
 </kursliste>
 """
 
+
 def get_table_info(conn, table_name):
     cursor = conn.cursor()
     cursor.execute(f"PRAGMA table_info({table_name})")
     return {row['name'] for row in cursor.fetchall()}
 
+
 def test_convert_kursliste_xml_to_sqlite(tmp_path):
     # a. Prepare paths and run the conversion directly
     sample_xml_file = tmp_path / "sample_kursliste_for_db_test.xml"
     sample_xml_file.write_text(SAMPLE_XML_CONTENT)
-    
+
     output_db_file = tmp_path / "kursliste_test.sqlite"
 
     convert_kursliste_xml_to_sqlite(str(sample_xml_file), str(output_db_file))
@@ -65,25 +63,35 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
 
     # b. Connect to the generated SQLite DB
     conn = sqlite3.connect(output_db_file)
-    conn.row_factory = sqlite3.Row # Access columns by name
+    conn.row_factory = sqlite3.Row  # Access columns by name
     cursor = conn.cursor()
 
     # c. Verify table existence and schema (key columns) for securities
-    securities_expected_cols = {"kl_id", "valor_number", "isin", "tax_year", "security_type_identifier", "security_object_blob"}
-    
+    securities_expected_cols = {
+        "kl_id",
+        "valor_number",
+        "isin",
+        "tax_year",
+        "security_type_identifier",
+        "security_object_blob",
+    }
+
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
     tables = {row['name'] for row in cursor.fetchall()}
     assert "securities" in tables, "Table 'securities' not found."
-    
+
     actual_securities_cols = get_table_info(conn, "securities")
-    assert securities_expected_cols.issubset(actual_securities_cols), \
-        f"Table 'securities' does not have all expected columns. Missing: {securities_expected_cols - actual_securities_cols}"
+    assert securities_expected_cols.issubset(
+        actual_securities_cols
+    ), f"Table 'securities' does not have all expected columns. Missing: {securities_expected_cols - actual_securities_cols}"
 
     # Verify indexes on securities table
-    indexes_info = {info['name'] for info in cursor.execute("PRAGMA index_list('securities');").fetchall()}
+    indexes_info = {
+        info['name'] for info in cursor.execute("PRAGMA index_list('securities');").fetchall()
+    }
     assert "idx_securities_isin_tax_year" in indexes_info
     assert "idx_securities_valor_tax_year" in indexes_info
-    
+
     # d. Verify Pydantic Model Reconstruction for securities
     expected_tax_year = 2023
 
@@ -97,7 +105,10 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     }
 
     # Test Share
-    cursor.execute("SELECT security_object_blob, security_type_identifier FROM securities WHERE kl_id = ?", ('101',))
+    cursor.execute(
+        "SELECT security_object_blob, security_type_identifier FROM securities WHERE kl_id = ?",
+        ('101',),
+    )
     share_row = cursor.fetchone()
     assert share_row is not None
     share_model_class = SECURITY_TYPE_MAP.get(share_row["security_type_identifier"])
@@ -114,7 +125,10 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     assert reconstructed_share.institutionName == "Test Bank Share"
 
     # Test Bond
-    cursor.execute("SELECT security_object_blob, security_type_identifier FROM securities WHERE kl_id = ?", ('202',))
+    cursor.execute(
+        "SELECT security_object_blob, security_type_identifier FROM securities WHERE kl_id = ?",
+        ('202',),
+    )
     bond_row = cursor.fetchone()
     assert bond_row is not None
     bond_model_class = SECURITY_TYPE_MAP.get(bond_row["security_type_identifier"])
@@ -131,7 +145,10 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     assert reconstructed_bond.institutionName == "Test Bank Bond"
 
     # Test Fund
-    cursor.execute("SELECT security_object_blob, security_type_identifier FROM securities WHERE kl_id = ?", ('303',))
+    cursor.execute(
+        "SELECT security_object_blob, security_type_identifier FROM securities WHERE kl_id = ?",
+        ('303',),
+    )
     fund_row = cursor.fetchone()
     assert fund_row is not None
     fund_model_class = SECURITY_TYPE_MAP.get(fund_row["security_type_identifier"])
@@ -147,13 +164,12 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     assert reconstructed_fund.institutionId == 997
     assert reconstructed_fund.institutionName == "Test Bank Fund"
 
-
     # e. Verify exchange rate tables (existing logic adapted)
     # Verify exchange_rates_daily data
     cursor.execute("SELECT * FROM exchange_rates_daily ORDER BY currency_code, date")
     daily_rates_rows = cursor.fetchall()
     # The sample XML only has one USD daily rate now for simplicity in this update.
-    assert len(daily_rates_rows) == 2 # USD and GBP from original sample
+    assert len(daily_rates_rows) == 2  # USD and GBP from original sample
     # The sample XML was updated, re-check these assertions.
     # Original SAMPLE_XML_CONTENT had USD and GBP daily rates.
     # New SAMPLE_XML_CONTENT has only USD daily rate specified within the template.
@@ -162,21 +178,21 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     # If GBP was intended, it should be in the new SAMPLE_XML_CONTENT.
     # The provided diff for SAMPLE_XML_CONTENT only shows USD for daily.
     # So, len(daily_rates_rows) should be 1.
-    
+
     # Re-evaluating based on the new SAMPLE_XML_CONTENT provided in the prompt.
     # It has: <exchangeRate currency="USD" date="2023-11-10" denomination="1" value="0.8950" />
     # and also: <exchangeRate currency="GBP" date="2023-11-12" denomination="1" value="1.12345" />
     # from the original diff. So, 2 daily rates.
 
-    assert len(daily_rates_rows) == 2 # GBP and USD
+    assert len(daily_rates_rows) == 2  # GBP and USD
 
-    gbp_daily = daily_rates_rows[0] 
+    gbp_daily = daily_rates_rows[0]
     assert gbp_daily["currency_code"] == "GBP"
-    assert gbp_daily["date"] == f"{expected_tax_year}-11-12" # Date from original sample
-    assert Decimal(str(gbp_daily["rate"])) == Decimal("1.12345") # Value from original sample
+    assert gbp_daily["date"] == f"{expected_tax_year}-11-12"  # Date from original sample
+    assert Decimal(str(gbp_daily["rate"])) == Decimal("1.12345")  # Value from original sample
     assert gbp_daily["tax_year"] == expected_tax_year
     # source_file is no longer in exchange rate tables per new schema, removing check
-    # assert gbp_daily["source_file"] == source_file_name 
+    # assert gbp_daily["source_file"] == source_file_name
 
     usd_daily = daily_rates_rows[1]
     assert usd_daily["currency_code"] == "USD"
@@ -184,7 +200,7 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     assert Decimal(str(usd_daily["rate"])) == Decimal("0.8950")
     assert usd_daily["tax_year"] == expected_tax_year
     # assert usd_daily["source_file"] == source_file_name
-    
+
     # Verify exchange_rates_monthly data
     # Original sample had USD and JPY monthly.
     cursor.execute("SELECT * FROM exchange_rates_monthly ORDER BY currency_code, month")
@@ -194,15 +210,15 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     jpy_monthly = monthly_rates_rows[0]
     assert jpy_monthly["currency_code"] == "JPY"
     assert jpy_monthly["year"] == expected_tax_year
-    assert jpy_monthly["month"] == "10" # From original sample
-    assert Decimal(str(jpy_monthly["rate"])) == Decimal("0.6500") # From original sample
+    assert jpy_monthly["month"] == "10"  # From original sample
+    assert Decimal(str(jpy_monthly["rate"])) == Decimal("0.6500")  # From original sample
     assert jpy_monthly["tax_year"] == expected_tax_year
 
     usd_monthly = monthly_rates_rows[1]
     assert usd_monthly["currency_code"] == "USD"
     assert usd_monthly["year"] == expected_tax_year
-    assert usd_monthly["month"] == "11" # From original sample
-    assert Decimal(str(usd_monthly["rate"])) == Decimal("0.9000") # From original sample
+    assert usd_monthly["month"] == "11"  # From original sample
+    assert Decimal(str(usd_monthly["rate"])) == Decimal("0.9000")  # From original sample
     assert usd_monthly["tax_year"] == expected_tax_year
 
     # Verify exchange_rates_year_end data
@@ -210,23 +226,23 @@ def test_convert_kursliste_xml_to_sqlite(tmp_path):
     cursor.execute("SELECT * FROM exchange_rates_year_end ORDER BY currency_code")
     year_end_rates_rows = cursor.fetchall()
     assert len(year_end_rates_rows) == 2
-    
+
     eur_ye = year_end_rates_rows[0]
     assert eur_ye["currency_code"] == "EUR"
     assert eur_ye["year"] == expected_tax_year
-    assert Decimal(str(eur_ye["rate"])) == Decimal("0.9600") # From original sample
-    assert eur_ye["rate_middle"] is None 
+    assert Decimal(str(eur_ye["rate"])) == Decimal("0.9600")  # From original sample
+    assert eur_ye["rate_middle"] is None
     assert eur_ye["tax_year"] == expected_tax_year
 
     usd_ye = year_end_rates_rows[1]
     assert usd_ye["currency_code"] == "USD"
     assert usd_ye["year"] == expected_tax_year
-    assert Decimal(str(usd_ye["rate"])) == Decimal("0.8800") # From original sample
-    assert Decimal(str(usd_ye["rate_middle"])) == Decimal("0.8850") # From original sample
+    assert Decimal(str(usd_ye["rate"])) == Decimal("0.8800")  # From original sample
+    assert Decimal(str(usd_ye["rate_middle"])) == Decimal("0.8850")  # From original sample
     assert usd_ye["tax_year"] == expected_tax_year
 
     conn.close()
-    
+
     # Clean up the sample XML file explicitly if not using tmp_path features that auto-cleanup
     # sample_xml_file.unlink() # tmp_path should handle this
     # output_db_file.unlink() # tmp_path should handle this

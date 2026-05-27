@@ -3,6 +3,7 @@ import unittest
 from src.opensteuerauszug.render.markdown_renderer import markdown_to_platypus
 from reportlab.platypus import Paragraph, Spacer
 
+
 class TestMarkdownSectionExtractor(unittest.TestCase):
 
     def test_no_section_filtering(self):
@@ -132,7 +133,7 @@ Content of the short section.
         self.assertIn("Document Title", text_content)
         self.assertNotIn("Short Section", text_content)
         self.assertNotIn("Content of the short section", text_content)
-        
+
         # Expect only title and a spacer
         self.assertEqual(len(flowables), 2)
         self.assertIsInstance(flowables[0], Paragraph)

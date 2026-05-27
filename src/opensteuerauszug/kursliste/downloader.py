@@ -30,9 +30,7 @@ def _initialize_session(session: requests.Session) -> None:
         logger.warning(f"Session initialization failed: {e}")
 
 
-def get_latest_initial_export(
-    year: int, session: requests.Session | None = None
-) -> Dict[str, Any]:
+def get_latest_initial_export(year: int, session: requests.Session | None = None) -> Dict[str, Any]:
     own_session = session is None
     session = session or requests.Session()
     if own_session:
@@ -44,8 +42,7 @@ def get_latest_initial_export(
     response = session.post(API_URL, json=payload, timeout=30)
     if response.status_code == 403:
         logger.error(
-            "403 Forbidden: The API rejected the request. "
-            f"Content: {response.text[:200]}"
+            "403 Forbidden: The API rejected the request. " f"Content: {response.text[:200]}"
         )
     response.raise_for_status()
 

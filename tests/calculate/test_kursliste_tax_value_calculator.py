@@ -166,6 +166,7 @@ def test_handle_security_tax_value_from_kursliste(kursliste_manager):
     assert stv.balanceCurrency == "CHF"
     assert stv.balance == Decimal("127750")
 
+
 def test_handle_security_tax_value_updates_foreign_balance(kursliste_manager):
     """
     Test that when a security's tax value is updated from Kursliste,
@@ -173,7 +174,9 @@ def test_handle_security_tax_value_updates_foreign_balance(kursliste_manager):
     if the original balance was in a foreign currency.
     """
     provider = KurslisteExchangeRateProvider(kursliste_manager)
-    calc = KurslisteTaxValueCalculator(mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.OVERWRITE, exchange_rate_provider=provider
+    )
     sec = Security(
         country="CH",
         securityName="Roche",
@@ -186,16 +189,16 @@ def test_handle_security_tax_value_updates_foreign_balance(kursliste_manager):
             referenceDate=date(2024, 12, 31),
             quotationType="PIECE",
             quantity=Decimal("500"),
-            balanceCurrency="USD", # Intentionally using foreign currency to test behavior
-            balance=Decimal("150000"), # Random USD balance from a broker
+            balanceCurrency="USD",  # Intentionally using foreign currency to test behavior
+            balance=Decimal("150000"),  # Random USD balance from a broker
         ),
         stock=[],
     )
-    
+
     calc._handle_Security(sec, "sec")
     stv = sec.taxValue
     calc._handle_SecurityTaxValue(stv, "sec.taxValue")
-    
+
     assert stv.unitPrice == Decimal("255.5")
     assert stv.value == Decimal("127750")
     assert stv.exchangeRate == Decimal("1")
@@ -203,6 +206,7 @@ def test_handle_security_tax_value_updates_foreign_balance(kursliste_manager):
     assert stv.balanceCurrency == "CHF"
     # Balance should equal value because Kursliste forced currency to CHF.
     assert stv.balance == Decimal("127750")
+
 
 def test_handle_security_tax_value_sets_undefined_when_not_in_kursliste(kursliste_manager):
     """Test that SecurityTaxValue.undefined is set to True when security is not found in Kursliste."""
@@ -472,7 +476,8 @@ def test_compute_payments_stock_split_requires_mutation():
 
     result = calc.calculate(statement)
     split_warnings = [
-        w for w in result.critical_warnings
+        w
+        for w in result.critical_warnings
         if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
     ]
     assert len(split_warnings) == 1
@@ -739,7 +744,8 @@ def test_cross_isin_stock_split_error_when_removal_mutation_missing():
 
     result = calc.calculate(statement)
     split_warnings = [
-        w for w in result.critical_warnings
+        w
+        for w in result.critical_warnings
         if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
     ]
     assert len(split_warnings) == 1
@@ -1021,7 +1027,8 @@ def test_cross_isin_stock_split_resolves_new_security_without_old_tax_value():
 
     result = calc.calculate(statement)
     split_warnings = [
-        w for w in result.critical_warnings
+        w
+        for w in result.critical_warnings
         if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
     ]
     assert split_warnings == []
@@ -1131,7 +1138,8 @@ def test_cross_isin_stock_split_error_when_new_security_missing():
 
     result = calc.calculate(statement)
     split_warnings = [
-        w for w in result.critical_warnings
+        w
+        for w in result.critical_warnings
         if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
     ]
     assert len(split_warnings) == 1
@@ -1269,7 +1277,8 @@ def test_cross_isin_stock_split_error_when_new_security_addition_wrong():
 
     result = calc.calculate(statement)
     split_warnings = [
-        w for w in result.critical_warnings
+        w
+        for w in result.critical_warnings
         if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
     ]
     assert len(split_warnings) == 1
@@ -1399,7 +1408,8 @@ def test_cross_isin_stock_split_error_when_new_security_has_no_mutations():
 
     result = calc.calculate(statement)
     split_warnings = [
-        w for w in result.critical_warnings
+        w
+        for w in result.critical_warnings
         if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
     ]
     assert len(split_warnings) == 1
@@ -1498,7 +1508,8 @@ def test_same_isin_stock_split_error_message_is_descriptive():
 
     result = calc.calculate(statement)
     split_warnings = [
-        w for w in result.critical_warnings
+        w
+        for w in result.critical_warnings
         if w.category == CriticalWarningCategory.STOCK_SPLIT_MISMATCH
     ]
     assert len(split_warnings) == 1
@@ -1881,6 +1892,7 @@ def test_compute_payments_skip_zero_quantity(kursliste_manager):
     calc._handle_Security(sec, "sec")
     # Should not generate any payments since quantity is zero on payment dates
     assert len(sec.payment) == 0
+
 
 def test_compute_payments_negative_quantity(kursliste_manager):
     """
@@ -2310,7 +2322,8 @@ def test_no_missing_kursliste_warning_for_rights_issue_with_no_tax_value():
     result = calc.calculate(statement)
 
     missing_warnings = [
-        w for w in result.critical_warnings
+        w
+        for w in result.critical_warnings
         if w.category == CriticalWarningCategory.MISSING_KURSLISTE
     ]
     assert missing_warnings == []
@@ -2387,7 +2400,8 @@ def test_missing_kursliste_warning_for_security_with_no_tax_value_but_stock_tran
     result = calc.calculate(statement)
 
     missing_warnings = [
-        w for w in result.critical_warnings
+        w
+        for w in result.critical_warnings
         if w.category == CriticalWarningCategory.MISSING_KURSLISTE
     ]
     assert len(missing_warnings) == 1
@@ -2556,4 +2570,3 @@ def test_kursliste_calculator_fails_on_bond_security(kursliste_manager):
 
     assert "Bonds are not supported" in str(excinfo.value)
     assert "#262" in str(excinfo.value)
-

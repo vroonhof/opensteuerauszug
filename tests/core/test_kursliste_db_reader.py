@@ -6,12 +6,7 @@ from datetime import date
 from scripts.convert_kursliste_to_sqlite import convert_kursliste_xml_to_sqlite
 
 from opensteuerauszug.core.kursliste_db_reader import KurslisteDBReader
-from opensteuerauszug.model.kursliste import (
-    Share,
-    Bond,
-    Fund,
-    SecurityTypeESTV
-)
+from opensteuerauszug.model.kursliste import Share, Bond, Fund, SecurityTypeESTV
 
 TAX_YEAR = 2023
 
@@ -68,6 +63,7 @@ SAMPLE_XML_CONTENT = f"""<?xml version="1.0" encoding="UTF-8"?>
 </kursliste>
 """
 
+
 @pytest.fixture
 def db_path(tmp_path):
     """
@@ -76,22 +72,24 @@ def db_path(tmp_path):
     """
     sample_xml_file = tmp_path / f"sample_kursliste_{TAX_YEAR}.xml"
     sample_xml_file.write_text(SAMPLE_XML_CONTENT)
-    
+
     output_db_file = tmp_path / f"kursliste_test_{TAX_YEAR}.sqlite"
-    
+
     # Use direct function call instead of subprocess for easier debugging
     convert_kursliste_xml_to_sqlite(str(sample_xml_file), str(output_db_file))
-    
+
     assert output_db_file.exists(), "SQLite DB file was not created by conversion script."
-    
+
     return output_db_file
 
+
 # Test Cases
+
 
 def test_find_security_by_valor_singular(db_path):
     with KurslisteDBReader(str(db_path)) as reader:
         # Existing security (Share)
-        sec = reader.find_security_by_valor(123456, TAX_YEAR) # Valor from Test Share AG
+        sec = reader.find_security_by_valor(123456, TAX_YEAR)  # Valor from Test Share AG
         assert sec is not None
         assert isinstance(sec, Share)
         assert sec.id == 101
@@ -110,24 +108,24 @@ def test_find_security_by_valor_singular(db_path):
 def test_find_securities_by_valor_plural(db_path):
     with KurslisteDBReader(str(db_path)) as reader:
         secs = reader.find_securities_by_valor(123456, TAX_YEAR)
-        assert len(secs) == 2 
+        assert len(secs) == 2
         assert all(isinstance(s, Share) for s in secs)
         names = sorted([s.securityName for s in secs if s.securityName is not None])
         assert names == ["Test Share AG", "Test Share AG Duplicate Valor"]
         ids = sorted([s.id for s in secs])
         assert ids == [101, 401]
 
-        secs_single = reader.find_securities_by_valor(789012, TAX_YEAR) 
+        secs_single = reader.find_securities_by_valor(789012, TAX_YEAR)
         assert len(secs_single) == 1
         assert isinstance(secs_single[0], Bond)
         assert secs_single[0].id == 202
-        
+
         assert len(reader.find_securities_by_valor(888888, TAX_YEAR)) == 0
 
 
 def test_find_security_by_isin_singular(db_path):
     with KurslisteDBReader(str(db_path)) as reader:
-        sec = reader.find_security_by_isin("CH0078901234", TAX_YEAR) 
+        sec = reader.find_security_by_isin("CH0078901234", TAX_YEAR)
         assert sec is not None
         assert isinstance(sec, Bond)
         assert sec.id == 202
@@ -150,11 +148,11 @@ def test_find_securities_by_isin_plural(db_path):
         ids = sorted([s.id for s in secs])
         assert ids == [303, 501]
 
-        secs_single = reader.find_securities_by_isin("CH0012345678", TAX_YEAR) 
+        secs_single = reader.find_securities_by_isin("CH0012345678", TAX_YEAR)
         assert len(secs_single) == 1
         assert isinstance(secs_single[0], Share)
         assert secs_single[0].id == 101
-        
+
         assert len(reader.find_securities_by_isin("YY0000000000", TAX_YEAR)) == 0
 
 

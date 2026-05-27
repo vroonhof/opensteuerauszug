@@ -65,8 +65,10 @@ class WithholdingCapCalculator:
 
         # Only consider Kursliste payments that carry withholding.
         wht_payments = [
-            p for p in kursliste_payments
-            if (p.withHoldingTaxClaim or Decimal("0")) + (p.nonRecoverableTaxAmount or Decimal("0")) > Decimal("0")
+            p
+            for p in kursliste_payments
+            if (p.withHoldingTaxClaim or Decimal("0")) + (p.nonRecoverableTaxAmount or Decimal("0"))
+            > Decimal("0")
         ]
         if not wht_payments:
             return
@@ -107,9 +109,8 @@ class WithholdingCapCalculator:
             broker_wht_chf = max(Decimal("0"), broker_wht_chf)
 
             # Kursliste WHT may use withHoldingTaxClaim or nonRecoverableTaxAmount.
-            kurs_wht_chf = (
-                (kl_payment.withHoldingTaxClaim or Decimal("0"))
-                + (kl_payment.nonRecoverableTaxAmount or Decimal("0"))
+            kurs_wht_chf = (kl_payment.withHoldingTaxClaim or Decimal("0")) + (
+                kl_payment.nonRecoverableTaxAmount or Decimal("0")
             )
 
             # No cap needed when broker WHT is at or above kursliste.
@@ -130,7 +131,10 @@ class WithholdingCapCalculator:
             if broker_wht_chf <= self.tolerance_chf:
                 # Full reversal – move everything to grossRevenueB (no WHT).
                 self._apply_full_reversal(security, kl_payment, kurs_wht_chf, d)
-            elif kl_payment.nonRecoverableTaxAmount is not None and kl_payment.nonRecoverableTaxAmount > Decimal("0"):
+            elif (
+                kl_payment.nonRecoverableTaxAmount is not None
+                and kl_payment.nonRecoverableTaxAmount > Decimal("0")
+            ):
                 # Partial cap is supported for nonRecoverableTaxAmount.
                 self._apply_partial_cap(security, kl_payment, kurs_wht_chf, broker_wht_chf, d)
             else:
@@ -173,8 +177,7 @@ class WithholdingCapCalculator:
         self._track(security.securityName, d)
 
         logger.info(
-            "Capped withholding for %s on %s: Kursliste %.2f CHF → 0.00 CHF "
-            "(full reversal)",
+            "Capped withholding for %s on %s: Kursliste %.2f CHF → 0.00 CHF " "(full reversal)",
             security.securityName,
             d,
             original_wht_chf,

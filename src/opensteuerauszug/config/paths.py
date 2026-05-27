@@ -2,21 +2,26 @@ from pathlib import Path
 from typing import Optional, Union
 from platformdirs import user_config_path, user_data_path
 
+
 def get_app_config_dir() -> Path:
     """Returns the application config directory under XDG config home."""
     return user_config_path("opensteuerauszug")
+
 
 def get_app_data_dir() -> Path:
     """Returns the application data directory under XDG data home."""
     return user_data_path("opensteuerauszug")
 
+
 def get_cwd_config_file() -> Path:
     """Returns path to config.toml in current working directory."""
     return Path.cwd() / "config.toml"
 
+
 def get_cwd_data_dir() -> Path:
     """Returns path to data directory in current working directory."""
     return Path.cwd() / "data"
+
 
 def resolve_config_file(path_arg: Optional[Union[str, Path]] = None) -> Path:
     """
@@ -40,6 +45,7 @@ def resolve_config_file(path_arg: Optional[Union[str, Path]] = None) -> Path:
 
     return app_config
 
+
 def resolve_kursliste_dir(path_arg: Optional[Union[str, Path]] = None) -> Path:
     """
     Resolves the Kursliste directory path.
@@ -61,6 +67,7 @@ def resolve_kursliste_dir(path_arg: Optional[Union[str, Path]] = None) -> Path:
         return cwd_kursliste
 
     return app_kursliste
+
 
 def resolve_security_identifiers_file(path_arg: Optional[Union[str, Path]] = None) -> Path:
     """
