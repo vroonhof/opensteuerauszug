@@ -898,7 +898,10 @@ class IbkrImporter:
                     if security_id:
                         tx_type_str = tx_type.value
                         tx_type_str_lower = str(tx_type_str).lower()
-                        assert 'interest' not in tx_type_str_lower
+                        asset_category = getattr(cash_tx, 'assetCategory', None)
+                        # We assert that we do not book general broker/cash interest accidentally under a security.
+                        # However, bond interest is fine at import time (assetCategory == "BOND").
+                        assert 'interest' not in tx_type_str_lower or asset_category == 'BOND'
 
                         sec_pos_key = self._find_processed_security_position(
                             processed_security_positions,
@@ -914,6 +917,11 @@ class IbkrImporter:
                                 cash_tx,
                                 description,
                             )
+
+                        if asset_category:
+                            sub_category = getattr(cash_tx, 'subCategory', None)
+                            if sec_pos_key not in security_asset_category_map:
+                                security_asset_category_map[sec_pos_key] = (asset_category, sub_category)
 
                         # Update name metadata (Priority: 0 for CashTransactions - lowest)
                         # Use description or symbol if description is generic?

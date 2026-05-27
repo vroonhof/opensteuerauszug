@@ -2534,3 +2534,26 @@ def test_compute_payments_single_variant_does_not_raise(kursliste_manager):
     # Should not raise - only one variant value present
     calc.computePayments(sec, "sec")
     assert len(sec.payment) == 1
+
+
+def test_kursliste_calculator_fails_on_bond_security(kursliste_manager):
+    """Verify that a security with securityCategory='BOND' causes a ValueError referring to issue #262."""
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(mode=CalculationMode.FILL, exchange_rate_provider=provider)
+
+    security = Security(
+        country="US",
+        securityName="US Treasury Bond",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="BOND",
+        isin=ISINType("US91282CHT18"),
+    )
+
+    with pytest.raises(ValueError) as excinfo:
+        calc._handle_Security(security, "security")
+
+    assert "Bonds are not supported" in str(excinfo.value)
+    assert "#262" in str(excinfo.value)
+
