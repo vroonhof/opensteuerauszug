@@ -33,12 +33,17 @@ OpenSteuerAuszug is a Python package for generating Swiss tax statements (Steuer
   assert len(statement.securities) == 3
   ```
 
-## Linting
+## Linting and Formatting
 
 - **Flake8**: `flake8 .` with settings from `pyproject.toml` (`max-line-length=127`).
 - **Black**: line-length 100, target Python 3.10.
 - **isort**: profile "black", line-length 100.
 - CI runs flake8 for syntax errors/undefined names (`E9,F63,F7,F82`) as a hard gate.
+
+### Guidelines for AI Coding Agents:
+1. **Run Black Formatter**: Always run Black (`.venv/bin/black src/ tests/ scripts/`) to auto-format all created or modified Python files before concluding your task.
+2. **Quote Preference**: Match the existing style of the file you are editing. If creating a new file, prefer double quotes (`"..."`) for string literals (matching Black's standard default).
+3. **Preserve Format Blocks**: Absolutely preserve and do **not** modify or restructure code regions wrapped in `# fmt: off` and `# fmt: on` (which protect visual test data matrices).
 
 ## Code Organization
 
