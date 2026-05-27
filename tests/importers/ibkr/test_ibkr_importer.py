@@ -999,6 +999,7 @@ def test_cash_transaction_security_interest_assert(sample_ibkr_settings):
 #   And then assert only 1 payment (Initial Deposit) in the BankAccount.
 #   assert len(usd_account.payment) == 1
 
+# fmt: off
 # Parameterized test data for client information
 CLIENT_INFO_TEST_CASES = [
     # Scenario 1: name provided
@@ -1056,6 +1057,7 @@ CLIENT_INFO_TEST_CASES = [
         "description": "Other attributes present but no name field, client should include accountId",
     },
 ]
+# fmt: on
 
 
 @pytest.mark.parametrize("client_data", CLIENT_INFO_TEST_CASES)

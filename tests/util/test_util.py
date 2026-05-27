@@ -2,6 +2,7 @@ import pytest
 from decimal import Decimal
 from opensteuerauszug.util import round_accounting
 
+# fmt: off
 @pytest.mark.parametrize(
     "input_value, expected_output",
     [
@@ -51,6 +52,7 @@ from opensteuerauszug.util import round_accounting
 
     ],
 )
+# fmt: on
 def test_round_accounting(input_value, expected_output):
     """Tests the round_accounting function with various inputs."""
     assert round_accounting(input_value) == expected_output
