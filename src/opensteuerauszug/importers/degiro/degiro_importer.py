@@ -51,7 +51,7 @@ from opensteuerauszug.model.ech0196 import (
 )
 from opensteuerauszug.model.position import SecurityPosition
 
-from ._number import normalize_number as _normalize_number
+from ._number import normalize_number
 from .account_csv_parser import (
     DegiroRow,
     DegiroRowKind,
@@ -346,8 +346,8 @@ class DegiroImporter:
             return
 
         action, qty_str, _name, price_str, currency = m.groups()
-        qty = Decimal(_normalize_number(qty_str))
-        price = Decimal(_normalize_number(price_str))
+        qty = Decimal(normalize_number(qty_str))
+        price = Decimal(normalize_number(price_str))
 
         if action in ("Sell", "Vendita", "Vente", "Verkauf"):
             qty = -qty

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional
 
-from ._number import to_decimal_localized as to_decimal
+from ._number import to_decimal_localized
 
 PORTFOLIO_CSV_FIELDNAMES = [
     "Product",
@@ -52,22 +52,26 @@ def load_portfolio_csv(path: str) -> list[PortfolioEntry]:
             isin = raw.get("Symbol_ISIN", "").strip()
             amount_str = raw.get("Amount", "").strip()
             amount = (
-                to_decimal(amount_str, "Amount", f"row {row_num}") if amount_str else Decimal("0")
+                to_decimal_localized(amount_str, "Amount", f"row {row_num}")
+                if amount_str
+                else Decimal("0")
             )
             closing_str = raw.get("Closing", "").strip()
             closing_price = (
-                to_decimal(closing_str, "Closing", f"row {row_num}") if closing_str else None
+                to_decimal_localized(closing_str, "Closing", f"row {row_num}")
+                if closing_str
+                else None
             )
             local_currency = raw.get("Local_currency", "").strip()
             local_amount_str = raw.get("Local_amount", "").strip()
             local_amount = (
-                to_decimal(local_amount_str, "Local_amount", f"row {row_num}")
+                to_decimal_localized(local_amount_str, "Local_amount", f"row {row_num}")
                 if local_amount_str
                 else Decimal("0")
             )
             value_chf_str = raw.get("Value_CHF", "").strip()
             value_chf = (
-                to_decimal(value_chf_str, "Value_CHF", f"row {row_num}")
+                to_decimal_localized(value_chf_str, "Value_CHF", f"row {row_num}")
                 if value_chf_str
                 else Decimal("0")
             )

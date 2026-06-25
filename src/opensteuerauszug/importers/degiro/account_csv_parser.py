@@ -17,7 +17,7 @@ from decimal import Decimal
 from enum import Enum, auto
 from typing import Optional
 
-from ._number import to_decimal_localized as to_decimal
+from ._number import to_decimal_localized
 
 ACCOUNT_CSV_FIELDNAMES = [
     "Date",
@@ -184,16 +184,16 @@ def load_account_csv(path: str) -> list[DegiroRow]:
                 continue
             vd_str = raw.get("Value date", "").strip()
             fx_str = raw.get("FX", "").strip()
-            fx_rate = to_decimal(fx_str, "FX", f"row {row_num}") if fx_str else None
+            fx_rate = to_decimal_localized(fx_str, "FX", f"row {row_num}") if fx_str else None
             change_str = raw.get("Change_amount", "").strip()
             change_amount = (
-                to_decimal(change_str, "Change_amount", f"row {row_num}")
+                to_decimal_localized(change_str, "Change_amount", f"row {row_num}")
                 if change_str
                 else Decimal("0")
             )
             balance_str = raw.get("Balance_amount", "").strip()
             balance_amount = (
-                to_decimal(balance_str, "Balance_amount", f"row {row_num}")
+                to_decimal_localized(balance_str, "Balance_amount", f"row {row_num}")
                 if balance_str
                 else Decimal("0")
             )

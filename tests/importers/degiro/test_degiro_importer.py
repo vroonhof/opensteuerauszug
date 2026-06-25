@@ -11,10 +11,10 @@ from datetime import date
 
 import pytest
 
+from opensteuerauszug.importers.degiro._number import normalize_number
 from opensteuerauszug.importers.degiro.degiro_importer import (
     DegiroImporter,
     _TRADE_RE,
-    _normalize_number,
 )
 from tests.utils.samples import get_sample_dirs
 
@@ -125,4 +125,4 @@ def test_trade_re_matches(desc, action, qty, price, currency):
     ],
 )
 def test_normalize_number(raw, expected):
-    assert _normalize_number(raw) == expected
+    assert normalize_number(raw) == expected
