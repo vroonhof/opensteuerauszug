@@ -17,7 +17,7 @@ from decimal import Decimal
 from enum import Enum, auto
 from typing import Optional
 
-from opensteuerauszug.importers.common.parsing import to_decimal
+from ._number import to_decimal_localized as to_decimal
 
 ACCOUNT_CSV_FIELDNAMES = [
     "Date",

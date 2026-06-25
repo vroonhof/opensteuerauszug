@@ -88,3 +88,23 @@ def test_load_portfolio_csv_no_closing_price_for_cash(tmp_path):
     entries = load_portfolio_csv(path)
     cash = entries[0]
     assert cash.closing_price is None
+
+
+SAMPLE_PORTFOLIO_CSV_EU = """\
+Product,Symbol/ISIN,Amount,Closing,Local value,,Value in CHF
+CASH & CASH FUND & FTX CASH (EUR),,,,EUR,"500,00","485,00"
+ADVANCED MICRO DEVICES INC,US0079031078,10,"150,00",USD,"1.500,00","1.350,00"
+"""
+
+
+def test_load_portfolio_csv_european_decimal_comma(tmp_path):
+    """Degiro German/Italian/French exports use ``,`` as decimal separator."""
+    path = _write_temp_csv(tmp_path, SAMPLE_PORTFOLIO_CSV_EU)
+    entries = load_portfolio_csv(path)
+    cash = entries[0]
+    assert cash.local_amount == Decimal("500.00")
+    assert cash.value_chf == Decimal("485.00")
+    amd = entries[1]
+    assert amd.closing_price == Decimal("150.00")
+    assert amd.local_amount == Decimal("1500.00")
+    assert amd.value_chf == Decimal("1350.00")

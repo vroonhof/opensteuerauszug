@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional
 
-from opensteuerauszug.importers.common.parsing import to_decimal
+from ._number import to_decimal_localized as to_decimal
 
 PORTFOLIO_CSV_FIELDNAMES = [
     "Product",

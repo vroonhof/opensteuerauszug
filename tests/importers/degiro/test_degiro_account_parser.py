@@ -210,6 +210,31 @@ def test_load_account_csv_raw_row_numbers(tmp_path):
     assert rows[1].raw_row == 3
 
 
+SAMPLE_ACCOUNT_CSV_EU = """\
+Date,Time,Value date,Product,ISIN,Description,FX,Change,,Balance,,Order Id
+23-12-2025,10:20,23-12-2025,,,Degiro Cash Sweep Transfer,,EUR,"3487,66",EUR,"370,03",
+28-12-2023,10:00,27-12-2023,VANGUARD S&P 500 UCITS ETF USD DIS,IE00B3XXRP09,Dividend,,USD,"1.234,56",USD,"1.234,56",
+"""
+
+
+def test_load_account_csv_european_decimal_comma(tmp_path):
+    """Degiro German/Italian/French exports use ``,`` as decimal separator."""
+    path = _write_temp_csv(tmp_path, SAMPLE_ACCOUNT_CSV_EU)
+    rows = load_account_csv(path)
+    sweep = rows[0]
+    assert sweep.change_amount == Decimal("3487.66")
+    assert sweep.balance_amount == Decimal("370.03")
+
+
+def test_load_account_csv_european_thousands_dot(tmp_path):
+    """German/French style uses ``.`` for thousands and ``,`` for decimal."""
+    path = _write_temp_csv(tmp_path, SAMPLE_ACCOUNT_CSV_EU)
+    rows = load_account_csv(path)
+    div = rows[1]
+    assert div.change_amount == Decimal("1234.56")
+    assert div.balance_amount == Decimal("1234.56")
+
+
 def test_load_account_csv_skips_empty_date_lines(tmp_path):
     content = (
         "Date,Time,Value date,Product,ISIN,Description,FX,Change,,Balance,,Order Id\n"

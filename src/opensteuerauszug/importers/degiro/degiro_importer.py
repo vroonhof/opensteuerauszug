@@ -51,6 +51,7 @@ from opensteuerauszug.model.ech0196 import (
 )
 from opensteuerauszug.model.position import SecurityPosition
 
+from ._number import normalize_number as _normalize_number
 from .account_csv_parser import (
     DegiroRow,
     DegiroRowKind,
@@ -80,20 +81,6 @@ _ISIN_RE = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 
 def _valid_isin(isin: str) -> bool:
     return bool(_ISIN_RE.match(isin))
-
-
-def _normalize_number(s: str) -> str:
-    """Strip thousands separators (' and .) from a numeric string.
-
-    Handles Swiss/Italian style (1'000.50) and German style (1.000,50).
-    """
-    if "," in s and "." in s:
-        if s.rindex(",") > s.rindex("."):
-            return s.replace(".", "").replace(",", ".")
-        return s.replace(",", "")
-    if "," in s:
-        return s.replace(",", ".")
-    return s.replace("'", "")
 
 
 def _infer_category(product: str) -> SecurityCategory:
