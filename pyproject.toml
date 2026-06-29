@@ -54,6 +54,11 @@ dev = [
     "pdf417decoder @ git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python",
     "pyrefly>=0.62,<0.70",
 ]
+web = [
+    "Flask>=2.3",
+    "defusedxml>=0.7.1",
+    "waitress>=3.0",
+]
 
 [tool.black]
 line-length = 100

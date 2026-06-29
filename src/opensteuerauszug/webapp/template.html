@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenSteuerAuszug Web</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f8f7f5;
+        --text: #2c2c2c;
+        --container-bg: #fff;
+        --subtitle: #666;
+        --border: #ddd;
+        --focus: #666;
+        --button-bg: #333;
+        --button-hover: #1a1a1a;
+        --error-bg: #fee;
+        --error-border: #f00;
+        --error-text: #c00;
+        --status-text: #555;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #111318;
+          --text: #e7eaf0;
+          --container-bg: #1b1f27;
+          --subtitle: #b1bac8;
+          --border: #3a4250;
+          --focus: #8392ad;
+          --button-bg: #55647f;
+          --button-hover: #647698;
+          --error-bg: #3a1e24;
+          --error-border: #e66;
+          --error-text: #ffb3b3;
+          --status-text: #c6cfdd;
+        }
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+      .container { max-width: 600px; margin: 40px auto; padding: 32px; background: var(--container-bg); border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+      .header-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+      h1 { font-size: 24px; margin-bottom: 8px; font-weight: 600; }
+      .subtitle { color: var(--subtitle); font-size: 14px; margin-bottom: 24px; }
+      .notice { margin-bottom: 24px; padding: 12px; background: #fff3cd; border-radius: 4px; border-left: 3px solid #ff9800; color: #856404; font-size: 14px; }
+      @media (prefers-color-scheme: dark) {
+        .notice { background: #664d03; border-left-color: #ffc107; color: #ffecb5; }
+      }
+      .header-link { font-size: 14px; font-weight: 600; }
+      label { display: block; margin-top: 16px; margin-bottom: 6px; font-weight: 500; font-size: 14px; }
+      .label-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+      .help-link { font-size: 12px; }
+      a { color: #2f6fed; }
+      input[type="file"], select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: var(--container-bg); color: var(--text); }
+      input[type="file"]:focus, select:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 2px rgba(0,0,0,0.05); }
+      .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+      input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+      .checkbox-label { font-weight: normal; margin: 0; cursor: pointer; }
+      button { width: 100%; margin-top: 24px; padding: 12px; border: none; border-radius: 4px; background: var(--button-bg); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+      button:hover { background: var(--button-hover); }
+      button:active { transform: scale(0.98); }
+      .error { margin-top: 16px; padding: 12px; background: var(--error-bg); border-radius: 4px; border-left: 3px solid var(--error-border); color: var(--error-text); font-size: 14px; }
+      .error .error-help { display: block; margin-top: 8px; font-size: 12px; }
+      .status { margin-top: 12px; font-size: 14px; color: var(--status-text); min-height: 20px; }
+      hr { margin-bottom: 36px; margin-top: 36px; border: 1px solid var(--border); }
+      h2 { font-size: 18px; margin-bottom: 16px; }
+      .faq-item { margin-bottom: 8px; }
+      .faq-item summary { font-weight: 600; cursor: pointer; padding: 8px; }
+      .faq-answer { padding: 16px; }
+      .faq-answer p, .faq-answer ul { margin: 0 0 16px 0; padding-left: 16px; }
+      .faq-answer ul { list-style-type: disc; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header-row">
+        <h1>OpenSteuerAuszug</h1>
+        <a class="header-link" href="https://github.com/vroonhof/opensteuerauszug/" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </div>
+      <p class="subtitle">Open-source and free service to generate Swiss e-tax statements (eSteuerauszug) from IBKR Flex Query XML reports.</p>
+      <div class="notice">
+        <strong>Note:</strong> Although this online version produces the same output as the locally installed version, it is intended primarily for testing and demonstration. The <a href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/user_guide.md" target="_blank" rel="noopener noreferrer">installed</a> offline version is clearly the suggested way to generate real PDFs for privacy and security reasons.
+      </div>
+      {% if error %}
+      <div class="error">
+        {{ error }}
+      </div>
+      {% endif %}
+      <div id="client_error" class="error" hidden>
+        <span id="client_error_message"></span>
+        <a class="error-help" href="https://github.com/vroonhof/opensteuerauszug/issues" target="_blank" rel="noopener noreferrer">Report issue</a>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+      <form id="form" method="post" action="{{ url_for('generate') }}" enctype="multipart/form-data" aria-busy="false">
+        <div class="label-row">
+          <label for="xml_file">IBKR Flex Query XML</label>
+          <a class="help-link" href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/importer_ibkr.md" target="_blank" rel="noopener noreferrer">How to set up Flex Query</a>
+        </div>
+        <input id="xml_file" name="xml_file" type="file" accept=".xml" required />
+
+        <div class="label-row">
+          <label for="corrections_flex">Corrections Flex XML (optional)</label>
+          <span class="help-link" title="IBKR Flex Query XML file(s) covering the post-year-end period (e.g. Jan–Mar of the following year). Only withholding-tax CashTransactions whose settleDate falls within the tax period are imported, allowing 1042-S corrections to be netted.">(?)</span>
+        </div>
+        <input id="corrections_flex" name="corrections_flex" type="file" accept=".xml" />
+
+        <div class="label-row">
+          <label for="pre_amble">Pre-amble PDF (optional)</label>
+          <span class="help-link" title="PDF document to add before the main steuerauszug. For example, 1042-S or activity report PDFs can be embedded this way.">(?)</span>
+        </div>
+        <input id="pre_amble" name="pre_amble" type="file" accept=".pdf" />
+
+        <div class="label-row">
+          <label for="post_amble">Post-amble PDF (optional)</label>
+          <span class="help-link" title="PDF document to add after the main steuerauszug. For example, 1042-S or activity report PDFs can be embedded this way.">(?)</span>
+        </div>
+        <input id="post_amble" name="post_amble" type="file" accept=".pdf" />
+
+        <label for="tax_year">Tax year</label>
+        <select id="tax_year" name="tax_year" required>
+          {% for year in years %}
+          <option value="{{ year }}">{{ year }}</option>
+          {% endfor %}
+        </select>
+
+        <label for="language">Language</label>
+        <select id="language" name="language" required>
+          {% for lang in languages %}
+          <option value="{{ lang }}">{{ lang }}</option>
+          {% endfor %}
+        </select>
+
+        <div class="checkbox-row">
+          <input id="privacy_mode" name="privacy_mode" type="checkbox" checked />
+          <label for="privacy_mode" class="checkbox-label">Remove client name in browser before transmitting to server</label>
+        </div>
+
+        <button type="submit">Generate PDF</button>
+      </form>
+      <hr />
+      <h2>Frequently Asked Questions</h2>
+      <details class="faq-item">
+        <summary>Is this service free?</summary>
+        <div class="faq-answer">
+          <p>Yes, this service is completely free and without any guarantee. You are fully responsible for verifying the correctness of the generated PDF.</p>
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>How can I report issues?</summary>
+        <div class="faq-answer">
+          <p>This project is fully open source. Reports are very welcome to improve the software. Please report issues at <a href="https://github.com/vroonhof/opensteuerauszug/issues" target="_blank" rel="noopener noreferrer">GitHub Issues</a>.</p>
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>Are there alternatives?</summary>
+        <div class="faq-answer">
+          <p>Yes, there are paid alternatives available:</p>
+          <ul>
+            <li><a href="https://ibkr.datalevel.ch/" target="_blank" rel="noopener noreferrer">ibkr.datalevel.ch</a></li>
+            <li><a href="https://etaxify.ch/" target="_blank" rel="noopener noreferrer">etaxify.ch</a></li>
+          </ul>
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>Where can I find the source code?</summary>
+        <div class="faq-answer">
+          <p>The full source code is available at <a href="https://github.com/vroonhof/opensteuerauszug/" target="_blank" rel="noopener noreferrer">GitHub</a> under open-source MIT licence.</p>
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>Do you store or track the uploaded data?</summary>
+        <div class="faq-answer">
+          <p>No uploaded data is stored longer than necessary for processing or tracked in this online version.</p>
+        </div>
+      </details>
+      <details class="faq-item">
+        <summary>Where is the online service hosted?</summary>
+        <div class="faq-answer">
+          <p>The online service is hosted at Render.com free plan ("Hobby"). This may cause a longer initial startup time after a period of inactivity.</p>
+        </div>
+      </details>
+    </div>
+    <script>
+      const form = document.getElementById('form');
+      const statusEl = document.getElementById('status');
+      const clientErrorEl = document.getElementById('client_error');
+      const clientErrorMessageEl = document.getElementById('client_error_message');
+
+      function setProcessingState(isProcessing) {
+        form.setAttribute('aria-busy', isProcessing ? 'true' : 'false');
+        form.style.pointerEvents = isProcessing ? 'none' : 'auto';
+        form.style.opacity = isProcessing ? '0.6' : '1';
+        statusEl.textContent = isProcessing ? 'Processing your upload... This may take a few minutes.' : '';
+      }
+
+      function showClientError(message) {
+        clientErrorMessageEl.textContent = message;
+        clientErrorEl.hidden = false;
+      }
+
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        clientErrorEl.hidden = true;
+        clientErrorMessageEl.textContent = '';
+
+        const xmlFile = document.getElementById('xml_file').files[0];
+        const correctionsFlexFile = document.getElementById('corrections_flex').files[0];
+        const preAmbleFile = document.getElementById('pre_amble').files[0];
+        const postAmbleFile = document.getElementById('post_amble').files[0];
+        const privacyMode = document.getElementById('privacy_mode').checked;
+        const selectedTaxYear = document.getElementById('tax_year').value;
+
+        if (!xmlFile) {
+          showClientError('Please select an XML file');
+          return;
+        }
+
+        let fileToUpload = xmlFile;
+        let correctionsFileToUpload = correctionsFlexFile;
+        let preAmbleFileToUpload = preAmbleFile;
+        let postAmbleFileToUpload = postAmbleFile;
+
+        if (privacyMode) {
+          try {
+            const xmlContent = await xmlFile.text();
+            const filteredXml = filterXmlPrivacy(xmlContent);
+            fileToUpload = new File([filteredXml], xmlFile.name, { type: 'application/xml' });
+          } catch (err) {
+            showClientError('Error processing file for privacy mode: ' + err.message);
+            return;
+          }
+        }
+
+        // Reconstruct FormData with possibly filtered file
+        const formData = new FormData();
+        formData.append('xml_file', fileToUpload);
+        if (correctionsFileToUpload) {
+          formData.append('corrections_flex', correctionsFileToUpload);
+        }
+        if (preAmbleFileToUpload) {
+          formData.append('pre_amble', preAmbleFileToUpload);
+        }
+        if (postAmbleFileToUpload) {
+          formData.append('post_amble', postAmbleFileToUpload);
+        }
+        formData.append('tax_year', document.getElementById('tax_year').value);
+        formData.append('language', document.getElementById('language').value);
+
+        // Submit via fetch
+        setProcessingState(true);
+
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData
+          });
+
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'steuerauszug_' + selectedTaxYear + '.pdf';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+          } else {
+            const text = await response.text();
+            const parsed = new DOMParser().parseFromString(text, 'text/html');
+            const serverError = parsed.querySelector('.error')?.textContent?.trim();
+            showClientError(serverError || `Request failed (${response.status}).`);
+          }
+        } catch (err) {
+          showClientError('Error: ' + err.message);
+        } finally {
+          setProcessingState(false);
+        }
+      });
+
+      function filterXmlPrivacy(xmlContent) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(xmlContent, 'application/xml');
+
+        if (doc.getElementsByTagName('parsererror').length > 0) {
+          throw new Error('Invalid XML document');
+        }
+
+        const allowedAttrs = ['accountId', 'acctAlias', 'currency', 'dateOpened', 'dateFunded', 'dateClosed', 'stateResidentialAddress'];
+        const accountElements = doc.getElementsByTagName('AccountInformation');
+
+        for (let elem of accountElements) {
+          const attrsToRemove = [];
+          for (let attr of elem.attributes) {
+            if (!allowedAttrs.includes(attr.name)) {
+              attrsToRemove.push(attr.name);
+            }
+          }
+          for (let attrName of attrsToRemove) {
+            elem.removeAttribute(attrName);
+          }
+        }
+
+        const serializer = new XMLSerializer();
+        return serializer.serializeToString(doc);
+      }
+    </script>
+  </body>
+</html>
