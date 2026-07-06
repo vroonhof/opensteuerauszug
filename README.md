@@ -14,6 +14,14 @@ For more information on required due diligence see the the user guide.
 
 ## Usage
 
+### Standalone web app (no installation)
+
+OpenSteuerAuszug also ships as a **single HTML file** that runs the whole
+pipeline in your browser via WebAssembly — download it, open it, and a
+wizard guides you through the steps. Your financial data never leaves your
+computer. See the [web app guide](docs/webapp.md) for where to get it and
+how it works, or build it yourself with `python scripts/build_web_app.py`.
+
 ### Main usage case: Generating Steuerauszug from Broker Data
 
 After installing, use the [User Guide](docs/user_guide.md) as the main

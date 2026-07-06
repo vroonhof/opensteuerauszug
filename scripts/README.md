@@ -116,3 +116,16 @@ This will:
 create a check run. When you opt in to `--confirm-upload` without `--upload-artifacts`, only the
 stderr text is sent to the check run summary. Only opt in after reviewing outputs and confirming
 they are safe to publish.
+
+### Web App Builder (`scripts/build_web_app.py`)
+
+Builds the standalone single-file web app (`dist/web/opensteuerauszug.html`)
+that runs the whole pipeline in the browser via Pyodide/WebAssembly. It
+builds wheels for this repository and the git-pinned dependencies and embeds
+them into `web/app_template.html`. Requires network access (PyPI + GitHub).
+
+```bash
+python scripts/build_web_app.py
+```
+
+See [docs/webapp.md](../docs/webapp.md) for details.
