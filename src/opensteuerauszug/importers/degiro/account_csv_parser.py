@@ -76,6 +76,7 @@ _EXACT_MATCH: dict[str, DegiroRowKind] = {
     "Dividend Tax": DegiroRowKind.DIVIDEND_TAX,
     "Imposta sui dividendi": DegiroRowKind.DIVIDEND_TAX,
     "Impôt sur les dividendes": DegiroRowKind.DIVIDEND_TAX,
+    "Impôts sur dividende": DegiroRowKind.DIVIDEND_TAX,
     "Dividendensteuer": DegiroRowKind.DIVIDEND_TAX,
     "Dividend": DegiroRowKind.DIVIDEND,
     "Dividendo": DegiroRowKind.DIVIDEND,
@@ -83,10 +84,14 @@ _EXACT_MATCH: dict[str, DegiroRowKind] = {
     "FX Credit": DegiroRowKind.FX_CREDIT,
     "Credito FX": DegiroRowKind.FX_CREDIT,
     "Crédit FX": DegiroRowKind.FX_CREDIT,
+    "Opération de change - Crédit": DegiroRowKind.FX_CREDIT,
+    "Operation de change - Crédit": DegiroRowKind.FX_CREDIT,
     "FX-Gutschrift": DegiroRowKind.FX_CREDIT,
     "FX Debit": DegiroRowKind.FX_DEBIT,
     "Prelievo FX": DegiroRowKind.FX_DEBIT,
     "Débit FX": DegiroRowKind.FX_DEBIT,
+    "Opération de change - Débit": DegiroRowKind.FX_DEBIT,
+    "Operation de change - Débit": DegiroRowKind.FX_DEBIT,
     "FX-Belastung": DegiroRowKind.FX_DEBIT,
     "Deposit": DegiroRowKind.DEPOSIT,
     "Deposito": DegiroRowKind.DEPOSIT,
@@ -112,9 +117,12 @@ _PREFIX_MATCH: list[tuple[str, DegiroRowKind]] = [
     ("DELISTING:", DegiroRowKind.DELISTING),
     # CASH_SWEEP
     ("Transfer from", DegiroRowKind.CASH_SWEEP_IN),
+    ("Virement depuis", DegiroRowKind.CASH_SWEEP_IN),
     ("Überweisung von", DegiroRowKind.CASH_SWEEP_IN),
     ("Transfer to", DegiroRowKind.CASH_SWEEP_OUT),
     ("Überweisung an", DegiroRowKind.CASH_SWEEP_OUT),
+    ("Virement vers", DegiroRowKind.CASH_SWEEP_OUT),
+    ("Retrait de fonds", DegiroRowKind.CASH_SWEEP_OUT),
 ]
 
 # Prefix-match descriptions → row kind (case-insensitive).
@@ -126,12 +134,14 @@ _PREFIX_MATCH_NOCASE: list[tuple[str, DegiroRowKind]] = [
     ("degiro costi di transazione", DegiroRowKind.FEE_TRANSACTION),
     ("degiro frais de transaction", DegiroRowKind.FEE_TRANSACTION),
     ("degiro transaktionsgebühren", DegiroRowKind.FEE_TRANSACTION),
+    ("intérêts débiteurs mensuels (débit argent)", DegiroRowKind.FEE_TRANSACTION),
     # FEE_CONNECTION
     ("degiro exchange connection fee", DegiroRowKind.FEE_CONNECTION),
     ("degiro costi di connessione", DegiroRowKind.FEE_CONNECTION),
     ("degiro frais de connexion", DegiroRowKind.FEE_CONNECTION),
     ("degiro börsengebühren", DegiroRowKind.FEE_CONNECTION),
     ("degiro anschlussgebühren", DegiroRowKind.FEE_CONNECTION),
+    ("frais de connexion aux places boursières", DegiroRowKind.FEE_CONNECTION),
 ]
 
 # Substring-match descriptions → row kind (case-insensitive).
