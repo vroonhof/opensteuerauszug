@@ -135,6 +135,7 @@ _PREFIX_MATCH_NOCASE: list[tuple[str, DegiroRowKind]] = [
     ("degiro frais de transaction", DegiroRowKind.FEE_TRANSACTION),
     ("degiro transaktionsgebühren", DegiroRowKind.FEE_TRANSACTION),
     ("intérêts débiteurs mensuels (débit argent)", DegiroRowKind.FEE_TRANSACTION),
+    ("frais degiro de courtage et/ou de parties tierces", DegiroRowKind.FEE_TRANSACTION),
     # FEE_CONNECTION
     ("degiro exchange connection fee", DegiroRowKind.FEE_CONNECTION),
     ("degiro costi di connessione", DegiroRowKind.FEE_CONNECTION),

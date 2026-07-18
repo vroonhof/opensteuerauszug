@@ -98,6 +98,7 @@ def _make_row(**kwargs) -> DegiroRow:
             DegiroRowKind.CASH_SWEEP_OUT,
         ),
         ("DEGIRO frais de transaction et/ou frais tiers", DegiroRowKind.FEE_TRANSACTION),
+        ("Frais DEGIRO de courtage et/ou de parties tierces", DegiroRowKind.FEE_TRANSACTION),
         ("DEGIRO Frais de connexion 2025 (Xetra - XET)", DegiroRowKind.FEE_CONNECTION),
         ("Dépôt", DegiroRowKind.DEPOSIT),
         # German descriptions
