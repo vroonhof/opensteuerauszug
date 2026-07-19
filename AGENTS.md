@@ -11,15 +11,13 @@ OpenSteuerAuszug is a Python package for generating Swiss tax statements (Steuer
 - **Dependency management**: All dependencies go in `pyproject.toml` under `[project.dependencies]` or `[project.optional-dependencies]`. Do **not** use `requirements.txt`.
 - **Install for development**:
   ```bash
-  python -m venv .venv
-  source .venv/bin/activate
-  pip install -e ".[dev]"
-  pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
+  uv sync --locked --extra dev
   ```
+- **Update dependencies**: Run `./scripts/update_lockfiles.sh --upgrade` and commit both `uv.lock` and `pylock.toml`.
 
 ## Testing
 
-- **Run all tests**: `pytest tests/`
+- **Run all tests**: `uv run --locked --extra dev pytest tests/`
 - **Integration tests** (`@pytest.mark.integration` or `@pytest.mark.parametrize` with sample files) must **not** be modified unless the underlying requirements have changed. If they fail, fix the implementation, not the test.
 - **External samples**: The `EXTRA_SAMPLE_DIR` environment variable can point to a directory with real-world XML files used in integration tests. These are never committed.
 - **Test naming**: Name tests after the invariant they verify, not after the function they call.
@@ -35,13 +33,13 @@ OpenSteuerAuszug is a Python package for generating Swiss tax statements (Steuer
 
 ## Linting and Formatting
 
-- **Flake8**: `flake8 .` with settings from `pyproject.toml` (`max-line-length=127`).
+- **Flake8**: `uv run --locked --extra dev flake8 .` with settings from `pyproject.toml` (`max-line-length=127`).
 - **Black**: line-length 100, target Python 3.10.
 - **isort**: profile "black", line-length 100.
 - CI runs flake8 for syntax errors/undefined names (`E9,F63,F7,F82`) as a hard gate.
 
 ### Guidelines for AI Coding Agents:
-1. **Run Black Formatter**: Always run Black (`.venv/bin/black src/ tests/ scripts/`) to auto-format all created or modified Python files before concluding your task.
+1. **Run Black Formatter**: Always run Black (`uv run --locked --extra dev black src/ tests/ scripts/`) to auto-format all created or modified Python files before concluding your task.
 2. **Quote Preference**: Match the existing style of the file you are editing. If creating a new file, prefer double quotes (`"..."`) for string literals (matching Black's standard default).
 3. **Preserve Format Blocks**: Absolutely preserve and do **not** modify or restructure code regions wrapped in `# fmt: off` and `# fmt: on` (which protect visual test data matrices).
 

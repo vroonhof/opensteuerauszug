@@ -43,6 +43,7 @@ opensteuerauszug = "opensteuerauszug.steuerauszug:app"
 
 [project.optional-dependencies]
 dev = [
+    "pip>=25.0",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "black>=23.0.0",
@@ -105,4 +106,3 @@ target-version = "py310"
 [tool.ruff.format]
 quote-style = "preserve"
 skip-magic-trailing-comma = false
-

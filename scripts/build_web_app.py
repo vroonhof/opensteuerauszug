@@ -23,7 +23,7 @@ come from the Pyodide distribution, whose versions are frozen by the
 Usage:
     python scripts/build_web_app.py [--output dist/web/opensteuerauszug.html]
 
-Must run inside the project venv (it locks to the installed versions).
+Must run inside the locked project environment (``uv sync --locked --extra dev``).
 Requires network access (PyPI + GitHub + Pyodide CDN).
 """
 
@@ -127,7 +127,7 @@ def resolve_locked_closure(root_reqs: list, skip_names: set, pyodide_dist: dict)
         except importlib.metadata.PackageNotFoundError:
             raise SystemExit(
                 f"'{req.name}' is not installed here — run this script inside "
-                "the project venv (pip install -e .) so versions can be locked."
+                "the locked project environment (uv sync --locked --extra dev)."
             )
         if req.specifier and not req.specifier.contains(dist.version, prereleases=True):
             raise SystemExit(

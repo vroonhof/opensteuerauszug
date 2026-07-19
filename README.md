@@ -102,17 +102,14 @@ uv run --with git+https://github.com/vroonhof/opensteuerauszug.git opensteueraus
 
 Then continue with the [User Guide](docs/user_guide.md).
 
-### Development install [option 1] (contributors: using python venv)
+### Development install [option 1] (contributors: using uv)
 
 For development and tests, install from source:
 
 ```console
 git clone https://github.com/vroonhof/opensteuerauszug.git
 cd opensteuerauszug
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
-pip install git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python
+uv sync --locked --extra dev
 ```
 ### Development install [option 2] (contributors: using [pixi](https://pixi.prefix.dev/latest/))
 ```console
@@ -143,15 +140,10 @@ For detailed documentation on available scripts, including the Kursliste filteri
 
 ### Setup
 
-To set up the development environment (venv):
+To set up the locked development environment with uv:
 
 ```bash
-# Create and activate virtual environment
-python -m venv .venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -e ".[dev]"
+uv sync --locked --extra dev
 ```
 
 To set up the development environment (pixi):
@@ -163,7 +155,14 @@ To set up the development environment (pixi):
 ### Testing
 
 ```console
-pytest tests/
+uv run --locked --extra dev pytest tests/
+```
+
+To update all dependencies and regenerate both the uv-specific and standard
+PEP 751 lock files:
+
+```console
+./scripts/update_lockfiles.sh --upgrade
 ```
 
 If the environment variable `EXTRA_SAMPLE_DIR` points to a directory with XML files these are validated as part of a set of integration sets. See the [verify](docs/verify_existing.md) documentation for how to invoke that manually.
