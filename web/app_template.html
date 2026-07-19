@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenSteuerAuszug — Swiss tax statement generator</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --text: #1c2733; --muted: #5c6b7a;
+    --accent: #b3261e; --accent-soft: #fbeae9; --ok: #1e7f4f; --ok-soft: #e5f4ec;
+    --warn: #9a6700; --warn-soft: #fff3d6; --err: #b3261e; --err-soft: #fbeae9;
+    --border: #d8dee5; --code-bg: #10161d; --code-text: #d7e2ec;
+    --step-idle: #c3ccd6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10161d; --panel: #1a222c; --text: #e4ebf2; --muted: #93a3b3;
+      --accent: #ff8a80; --accent-soft: #3a2422; --ok: #5fd39a; --ok-soft: #17342a;
+      --warn: #e8b93f; --warn-soft: #3a311f; --err: #ff8a80; --err-soft: #3a2422;
+      --border: #2c3947; --code-bg: #0b1016; --code-text: #cfdae4; --step-idle: #3b4a59;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header.app {
+    padding: 22px 24px 14px; max-width: 900px; margin: 0 auto;
+  }
+  header.app h1 { margin: 0 0 2px; font-size: 22px; }
+  header.app h1 .flag { font-size: 18px; }
+  header.app p { margin: 0; color: var(--muted); font-size: 14px; }
+  main { max-width: 900px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* Stepper */
+  ol.stepper {
+    list-style: none; display: flex; gap: 4px; padding: 0; margin: 18px 0 20px;
+    flex-wrap: wrap;
+  }
+  ol.stepper li {
+    display: flex; align-items: center; gap: 7px; padding: 6px 12px;
+    border-radius: 999px; font-size: 13px; color: var(--muted);
+    border: 1px solid transparent; cursor: default; user-select: none;
+  }
+  ol.stepper li .dot {
+    width: 20px; height: 20px; border-radius: 50%; background: var(--step-idle);
+    color: #fff; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex: none;
+  }
+  ol.stepper li.done .dot { background: var(--ok); }
+  ol.stepper li.active { color: var(--text); border-color: var(--border); background: var(--panel); }
+  ol.stepper li.active .dot { background: var(--accent); }
+  ol.stepper li.clickable { cursor: pointer; }
+
+  section.step { display: none; }
+  section.step.active { display: block; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 22px; margin-bottom: 16px;
+  }
+  .card h2 { margin: 0 0 6px; font-size: 17px; }
+  .card p.lead { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  .notice { border-left: 4px solid var(--warn); background: var(--warn-soft); color: var(--text);
+    padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 13.5px; margin: 12px 0; }
+  .notice.error { border-left-color: var(--err); background: var(--err-soft); }
+  .notice.ok { border-left-color: var(--ok); background: var(--ok-soft); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  label.field { display: block; font-size: 13px; color: var(--muted); }
+  label.field b { display: block; color: var(--text); font-weight: 600; margin-bottom: 4px; font-size: 13.5px; }
+  input[type=text], input[type=number], select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); font: inherit;
+  }
+  textarea.toml { font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; min-height: 200px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .checkbox { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; margin: 8px 0; }
+  .checkbox input { margin-top: 3px; }
+
+  button {
+    font: inherit; font-weight: 600; border-radius: 9px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); padding: 9px 18px; cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:disabled { opacity: .45; cursor: not-allowed; }
+  button.ghost { background: transparent; }
+  button.small { padding: 4px 10px; font-size: 12.5px; font-weight: 500; }
+  .navbtns { display: flex; justify-content: space-between; margin-top: 18px; }
+
+  /* File lists */
+  .filedrop {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 22px; text-align: center;
+    color: var(--muted); font-size: 14px; cursor: pointer; transition: border-color .15s;
+  }
+  .filedrop:hover, .filedrop.drag { border-color: var(--accent); }
+  ul.filelist { list-style: none; padding: 0; margin: 10px 0 0; }
+  ul.filelist li {
+    display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--border);
+    border-radius: 8px; margin-bottom: 6px; font-size: 13.5px; background: var(--bg);
+  }
+  ul.filelist li .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ul.filelist li .meta { color: var(--muted); font-size: 12px; flex: none; }
+
+  /* Accounts editor */
+  .acctrow { display: flex; gap: 8px; margin-bottom: 8px; }
+  .acctrow input { flex: 1; }
+
+  /* Log console */
+  pre.console {
+    background: var(--code-bg); color: var(--code-text); border-radius: 10px; padding: 14px;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    max-height: 340px; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 12px 0 0;
+  }
+  pre.console:empty::before { content: "Output will appear here…"; color: #5c6b7a; }
+
+  /* Engine status bar */
+  .enginebar {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel);
+    border-top: 1px solid var(--border); padding: 9px 24px; font-size: 13px;
+    display: flex; align-items: center; gap: 10px; z-index: 5;
+  }
+  .enginebar .inner { max-width: 852px; margin: 0 auto; width: 100%; }
+  .enginebar .statusrow { display: flex; align-items: center; gap: 10px; }
+  .enginebar .statusrow button { flex: none; }
+  .enginebar #engineErrorBox { max-height: 40vh; margin: 8px 0 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; flex: none; }
+  .pill.loading { background: var(--warn-soft); color: var(--warn); }
+  .pill.ready { background: var(--ok-soft); color: var(--ok); }
+  .pill.error { background: var(--err-soft); color: var(--err); }
+  .spinner { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .enginebar .detail { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  progress { width: 140px; height: 8px; accent-color: var(--accent); flex: none; }
+
+  .dl { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
+  a.dlbtn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px;
+    background: var(--accent); color: #fff; text-decoration: none; font-weight: 700;
+  }
+  a.dlbtn.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  code { background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; font-size: 12.5px; }
+  a { color: var(--accent); }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  details.adv { margin-top: 14px; font-size: 13.5px; }
+  details.adv summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+  footer.page { max-width: 900px; margin: 24px auto 60px; padding: 0 24px; color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1><span class="flag">🇨🇭</span> OpenSteuerAuszug <span style="font-weight:400;color:var(--muted);font-size:15px">— in your browser</span></h1>
+  <p>Generate a Swiss eCH-0196 tax statement (Steuerauszug) from broker data. Everything runs locally in this page — your financial data never leaves your computer.</p>
+</header>
+
+<main>
+  <ol class="stepper" id="stepper"></ol>
+
+  <!-- Step 1: Welcome -->
+  <section class="step" data-step="0">
+    <div class="card">
+      <h2>Welcome</h2>
+      <p class="lead">This wizard walks you through generating your Steuerauszug in five short steps.</p>
+      <ul style="font-size:14px;margin:0 0 10px;padding-left:20px">
+        <li><b>Your details</b> — name, canton, tax year and broker (remembered on this device).</li>
+        <li><b>Kursliste</b> — the official ESTV securities list for your tax year.</li>
+        <li><b>Broker files</b> — the statements you exported from your broker.</li>
+        <li><b>Generate</b> — the processing pipeline runs right here in your browser.</li>
+        <li><b>Download</b> — your PDF (and XML) Steuerauszug.</li>
+      </ul>
+      <div class="notice">
+        <b>Disclaimer.</b> This tool is not formally audited. Tax values are computed on a best-effort,
+        informational basis. <b>You</b> are responsible for verifying every figure before submitting your
+        tax return, and for the contents of that return. See the
+        <a href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/user_guide.md" target="_blank" rel="noopener">user guide</a>.
+      </div>
+      <label class="checkbox">
+        <input type="checkbox" id="ack">
+        <span>I understand that I must verify the generated statement myself and that I remain responsible for my tax return.</span>
+      </label>
+      <div class="notice" id="devModeNotice" style="display:none">
+        This is the un-built template. Run <code>python scripts/build_web_app.py</code> to produce the
+        distributable <code>opensteuerauszug.html</code> with the application code embedded.
+      </div>
+      <details class="adv">
+        <summary>Advanced: runtime options</summary>
+        <p style="font-size:13px;margin:10px 0 6px">The Python runtime (Pyodide) and library dependencies are
+        downloaded once from public CDNs (~40&nbsp;MB, cached by your browser afterwards). Your personal data is
+        never uploaded anywhere. To use a self-hosted copy instead, set the base URL below and reload.</p>
+        <label class="field"><b>Pyodide base URL</b>
+          <input type="text" id="pyodideBase" placeholder="(default: jsDelivr CDN)">
+        </label>
+      </details>
+    </div>
+    <div class="navbtns">
+      <span></span>
+      <button class="primary" id="btnStart" disabled>Get started →</button>
+    </div>
+  </section>
+
+  <!-- Step 2: Settings -->
+  <section class="step" data-step="1">
+    <div class="card">
+      <h2>Your details</h2>
+      <p class="lead">These are stored only in this browser (local storage) and reused next time.</p>
+      <div class="grid">
+        <label class="field"><b>Full name</b>
+          <input type="text" id="fullName" placeholder="Maxine Muster" autocomplete="name">
+        </label>
+        <label class="field"><b>Canton</b>
+          <select id="canton"></select>
+        </label>
+        <label class="field"><b>Tax year</b>
+          <input type="number" id="taxYear" min="2000" max="2100" step="1">
+        </label>
+        <label class="field"><b>Document language</b>
+          <select id="language">
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+            <option value="it">Italiano</option>
+          </select>
+        </label>
+        <label class="field"><b>Broker / importer</b>
+          <select id="importer">
+            <option value="ibkr">Interactive Brokers (Flex Query XML)</option>
+            <option value="schwab">Charles Schwab (statement exports)</option>
+            <option value="fidelity">Fidelity (experimental)</option>
+            <option value="degiro">DEGIRO (experimental)</option>
+          </select>
+        </label>
+        <label class="field"><b>Tax value calculation</b>
+          <select id="taxLevel">
+            <option value="kursliste">Kursliste (recommended)</option>
+            <option value="minimal">Minimal (let tax software compute)</option>
+          </select>
+        </label>
+      </div>
+      <div id="acctBox" style="margin-top:16px">
+        <b style="font-size:13.5px">Accounts</b>
+        <p class="hint" id="acctHint"></p>
+        <div id="acctRows"></div>
+        <button class="small" id="btnAddAcct" type="button">+ Add account</button>
+      </div>
+      <div class="notice" id="experimentalNotice" style="display:none">
+        This importer is <b>experimental</b>. It will be enabled via
+        <code>experimental_importers = true</code> in the generated configuration — double-check results carefully.
+      </div>
+      <details class="adv" id="tomlBox">
+        <summary>Advanced: configuration file (config.toml)</summary>
+        <p style="font-size:13px;margin:10px 0 6px">The settings above are translated into the configuration below.
+          Tick the box to edit it directly (for broker/account overrides described in the
+          <a href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/config.md" target="_blank" rel="noopener">configuration guide</a>).</p>
+        <label class="checkbox"><input type="checkbox" id="tomlCustom"><span>Edit the TOML manually (overrides the form above)</span></label>
+        <textarea class="toml" id="tomlText" readonly spellcheck="false"></textarea>
+      </details>
+    </div>
+    <div class="navbtns">
+      <button class="ghost" data-nav="back">← Back</button>
+      <button class="primary" data-nav="next">Next: Kursliste →</button>
+    </div>
+  </section>
+
+  <!-- Step 3: Kursliste -->
+  <section class="step" data-step="2">
+    <div class="card">
+      <h2>Kursliste (official securities list)</h2>
+      <p class="lead">The pipeline needs the official ESTV Kursliste for your tax year to look up
+        valor numbers, exchange rates and tax values. It is cached in your browser, so you normally
+        only do this once per year.</p>
+      <ol style="font-size:14px;padding-left:20px;margin:0 0 12px">
+        <li>Download the ZIP marked <b>“Initial”</b> (latest version) for your tax year from
+          <a href="https://www.ictax.admin.ch/extern/en.html#/xml" target="_blank" rel="noopener">ictax.admin.ch</a> and unzip it.</li>
+        <li>Add the resulting <code>kursliste_YYYY.xml</code> below.</li>
+      </ol>
+      <p class="hint">The XML is large (&gt;100&nbsp;MB), so the first run converts it to a compact database —
+        that takes a few minutes, after which the database is cached and the XML is no longer needed.
+        If you also use the command line tool, <code>opensteuerauszug kursliste download --year YYYY</code>
+        produces the same <code>kursliste_YYYY.sqlite</code>, which you can add here directly.</p>
+      <div class="filedrop" id="dropKursliste">
+        <b>Drop the Kursliste file here</b> or click to choose<br>
+        <span class="hint">kursliste_YYYY.xml or kursliste_YYYY.sqlite</span>
+        <input type="file" id="fileKursliste" accept=".xml,.sqlite" multiple hidden>
+      </div>
+      <ul class="filelist" id="listKursliste"></ul>
+      <div class="notice" id="kurslisteYearWarn" style="display:none"></div>
+      <div class="notice error" id="idbWarn" style="display:none">
+        Your browser did not allow persistent storage for this page, so the Kursliste will need to be
+        re-added next time you open it. Everything else still works.
+      </div>
+    </div>
+    <div class="navbtns">
+      <button class="ghost" data-nav="back">← Back</button>
+      <button class="primary" data-nav="next">Next: Broker files →</button>
+    </div>
+  </section>
+
+  <!-- Step 4: Broker files -->
+  <section class="step" data-step="3">
+    <div class="card">
+      <h2>Broker files</h2>
+      <p class="lead" id="brokerLead"></p>
+      <div class="notice" id="brokerHelp"></div>
+      <div class="filedrop" id="dropBroker">
+        <b>Drop your broker file(s) here</b> or click to choose
+        <input type="file" id="fileBroker" multiple hidden>
+      </div>
+      <ul class="filelist" id="listBroker"></ul>
+      <details class="adv">
+        <summary>Optional: attach supporting PDFs</summary>
+        <p style="font-size:13px;margin:10px 0 6px">These pages are prepended/appended to the final PDF unchanged
+          (e.g. an original broker statement or a 1042-S form).</p>
+        <div class="grid">
+          <label class="field"><b>Prepend (before statement)</b>
+            <input type="file" id="filePre" accept=".pdf" multiple>
+          </label>
+          <label class="field"><b>Append (after statement)</b>
+            <input type="file" id="filePost" accept=".pdf" multiple>
+          </label>
+        </div>
+      </details>
+    </div>
+    <div class="navbtns">
+      <button class="ghost" data-nav="back">← Back</button>
+      <button class="primary" data-nav="next">Next: Generate →</button>
+    </div>
+  </section>
+
+  <!-- Step 5: Generate -->
+  <section class="step" data-step="4">
+    <div class="card">
+      <h2>Generate</h2>
+      <p class="lead">Review the summary, then run the pipeline. Processing happens entirely in this page and can
+        take from a few seconds up to several minutes (converting a Kursliste XML on the first run is the slow part).</p>
+      <div id="runSummary" style="font-size:14px"></div>
+      <div class="notice error" id="runBlockers" style="display:none"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="primary" id="btnRun" disabled>▶ Generate Steuerauszug</button>
+        <span class="pill loading" id="runStatus" style="display:none"><span class="spinner"></span> Running…</span>
+      </div>
+      <pre class="console" id="runLog"></pre>
+    </div>
+    <div class="navbtns">
+      <button class="ghost" data-nav="back">← Back</button>
+      <span></span>
+    </div>
+  </section>
+
+  <!-- Step 6: Results -->
+  <section class="step" data-step="5">
+    <div class="card">
+      <h2>Your Steuerauszug is ready</h2>
+      <p class="lead" id="resultLead"></p>
+      <div class="dl" id="downloads"></div>
+      <div class="notice" id="resultWarnings" style="display:none"></div>
+      <div class="notice ok">
+        <b>Before you file — verify the document:</b>
+        <ul style="margin:6px 0 0;padding-left:18px">
+          <li>No unresolved errors or warnings in the processing log.</li>
+          <li>All securities are present and mapped to the correct valor number.</li>
+          <li>All transactions and end-of-year positions are correct.</li>
+          <li>Cash balances and interest totals are correct.</li>
+          <li>After importing into your tax software, <b>recalculate</b> the tax values there.</li>
+        </ul>
+      </div>
+      <details class="adv">
+        <summary>Processing log</summary>
+        <pre class="console" id="resultLog"></pre>
+      </details>
+    </div>
+    <div class="navbtns">
+      <button class="ghost" data-nav="back">← Back to generate</button>
+      <button id="btnRestart">Start a new run</button>
+    </div>
+  </section>
+</main>
+
+<div class="enginebar">
+  <div class="inner">
+    <div class="statusrow">
+      <span class="pill loading" id="enginePill"><span class="spinner"></span> <span id="engineState">Waiting</span></span>
+      <progress id="engineProgress" max="100" value="0"></progress>
+      <span class="detail" id="engineDetail">Python engine not started yet.</span>
+      <button class="small ghost" id="engineDetailToggle" style="display:none">Show details</button>
+    </div>
+    <pre class="console" id="engineErrorBox" style="display:none"></pre>
+  </div>
+</div>
+
+<footer class="page">
+  OpenSteuerAuszug <span id="verInfo"></span> — MIT licensed open source software, no warranty.
+  <a href="https://github.com/vroonhof/opensteuerauszug" target="_blank" rel="noopener">Source &amp; documentation</a>.
+  All application code is embedded in this file; the only network requests download the version-pinned Python runtime and its libraries.
+</footer>
+
+<!-- The application bundle (wheels etc.) is injected here by scripts/build_web_app.py -->
+<script type="application/json" id="osa-bundle">__OSA_BUNDLE_JSON__</script>
+
+<!-- Web worker source: runs Pyodide off the main thread so the UI stays responsive -->
+<script type="text/js-worker" id="osa-worker-src">
+"use strict";
+let pyodide = null;
+
+function post(msg, transfer) { self.postMessage(msg, transfer || []); }
+function progress(stage, detail, pct) { post({ type: "progress", stage, detail, pct }); }
+
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+async function init(cfg) {
+  try {
+    progress("runtime", "Downloading Python runtime…", 5);
+    importScripts(cfg.indexURL + "pyodide.js");
+    pyodide = await loadPyodide({ indexURL: cfg.indexURL });
+    progress("runtime", "Python runtime ready. Fetching libraries…", 25);
+
+    await pyodide.loadPackage("micropip", { messageCallback: () => {} });
+    // sqlite3 is a separate loadable package in Pyodide; the fast Kursliste
+    // path uses it. Tolerate failure for runtimes where it is built in.
+    try { await pyodide.loadPackage("sqlite3", { messageCallback: () => {} }); } catch (e) {}
+    const micropip = pyodide.pyimport("micropip");
+
+    // Load the packages that come from the version-pinned Pyodide
+    // distribution (binary builds such as lxml/Pillow).  Everything else is
+    // embedded in this file as wheels — the page never contacts PyPI.
+    const distPkgs = cfg.bundle.pyodidePackages || [];
+    let loaded = 0;
+    progress("deps", "Loading libraries…", 28);
+    await pyodide.loadPackage(distPkgs, { messageCallback: (m) => {
+      if (/^Loaded/.test(m)) {
+        loaded++;
+        progress("deps", m, 28 + Math.round(52 * (loaded / distPkgs.length)));
+      }
+    }});
+
+    // … then the application wheels that are embedded in this HTML file.
+    progress("app", "Installing OpenSteuerAuszug…", 82);
+    pyodide.FS.mkdirTree("/wheels");
+    const wheelPaths = [];
+    for (const wheel of cfg.bundle.wheels) {
+      const path = "/wheels/" + wheel.name;
+      pyodide.FS.writeFile(path, b64ToBytes(wheel.data));
+      wheelPaths.push("emfs:" + path);
+    }
+    await micropip.install.callKwargs(wheelPaths, { deps: false });
+
+    progress("app", "Preparing workspace…", 94);
+    pyodide.runPython(`
+import json
+from opensteuerauszug.util import web_runner
+import opensteuerauszug
+_layout = web_runner.ensure_workspace("/work")
+_version = opensteuerauszug.__version__
+`);
+    if (cfg.bundle.identifiersCsv) {
+      pyodide.FS.writeFile("/work/config/security_identifiers.csv",
+                           b64ToBytes(cfg.bundle.identifiersCsv));
+    }
+    const version = pyodide.globals.get("_version");
+    post({ type: "ready", version: String(version) });
+  } catch (err) {
+    post({ type: "init-error", message: String(err && err.message || err),
+           detail: String(err && (err.stack || err.message) || err) });
+  }
+}
+
+function resetDir(path) {
+  // Remove and recreate a workspace directory between runs.
+  const FS = pyodide.FS;
+  try {
+    for (const entry of FS.readdir(path)) {
+      if (entry === "." || entry === "..") continue;
+      const full = path + "/" + entry;
+      const mode = FS.stat(full).mode;
+      if (FS.isDir(mode)) { resetDir(full); FS.rmdir(full); }
+      else FS.unlink(full);
+    }
+  } catch (e) { FS.mkdirTree(path); }
+}
+
+async function run(job) {
+  if (!pyodide) { post({ type: "done", result: { success: false, log: "Engine not ready." } }); return; }
+  const FS = pyodide.FS;
+  try {
+    for (const dir of ["/work/input", "/work/kursliste", "/work/output", "/work/ambles"])
+      { FS.mkdirTree(dir); resetDir(dir); }
+
+    for (const f of job.brokerFiles)
+      FS.writeFile("/work/input/" + f.name, new Uint8Array(f.buffer));
+    for (const f of job.kurslisteFiles)
+      FS.writeFile("/work/kursliste/" + f.name, new Uint8Array(f.buffer));
+
+    pyodide.globals.set("_log_cb", (line) => post({ type: "log", line: String(line) }));
+
+    // A full Kursliste XML cannot be parsed directly in the browser (it needs
+    // ~30x its size in memory, far beyond the WebAssembly limit).  Convert any
+    // XML to SQLite with the streaming converter first and hand the result
+    // back to the page, which caches it for future runs.
+    if (job.kurslisteFiles.some((f) => /\.xml$/i.test(f.name))) {
+      post({ type: "log", line: "Converting Kursliste XML to a database (one-time; the result is cached in your browser)…" });
+      const convJson = await pyodide.runPythonAsync(`
+import json
+from opensteuerauszug.util import web_runner
+json.dumps(web_runner.convert_kursliste_xmls("/work/kursliste", on_output=_log_cb))
+`);
+      for (const c of JSON.parse(convJson).converted) {
+        const data = FS.readFile(c.path);
+        post({ type: "kursliste-converted", source: c.source, name: c.path.split("/").pop(),
+               buffer: data.buffer }, [data.buffer]);
+      }
+    }
+
+    const extraArgs = [];
+    for (const f of job.preAmble) {
+      const p = "/work/ambles/pre_" + f.name;
+      FS.writeFile(p, new Uint8Array(f.buffer));
+      extraArgs.push("--pre-amble", p);
+    }
+    for (const f of job.postAmble) {
+      const p = "/work/ambles/post_" + f.name;
+      FS.writeFile(p, new Uint8Array(f.buffer));
+      extraArgs.push("--post-amble", p);
+    }
+
+    FS.writeFile("/work/config/config.toml", job.configToml);
+
+    const inputPath = job.singleInputFile
+      ? "/work/input/" + job.brokerFiles[0].name
+      : "/work/input";
+
+    const params = {
+      input_path: inputPath,
+      output_pdf: "/work/output/steuerauszug.pdf",
+      xml_output: "/work/output/steuerauszug.xml",
+      importer: job.importer,
+      tax_year: job.taxYear,
+      kursliste_dir: "/work/kursliste",
+      config_path: "/work/config/config.toml",
+      identifiers_csv: "/work/config/security_identifiers.csv",
+      tax_calculation_level: job.taxLevel,
+      extra_args: extraArgs,
+    };
+
+    pyodide.globals.set("_params_json", JSON.stringify(params));
+    const resultJson = await pyodide.runPythonAsync(`
+import json
+from opensteuerauszug.util import web_runner
+_r = web_runner.run_process(**json.loads(_params_json), on_output=_log_cb)
+json.dumps(_r)
+`);
+    const result = JSON.parse(resultJson);
+    const payload = { success: result.success, exitCode: result.exit_code, files: [] };
+    const transfers = [];
+    for (const [kind, path] of Object.entries(result.outputs || {})) {
+      const data = FS.readFile(path);
+      payload.files.push({ kind, name: path.split("/").pop(), buffer: data.buffer });
+      transfers.push(data.buffer);
+    }
+    post({ type: "done", result: payload }, transfers);
+  } catch (err) {
+    post({ type: "log", line: "Internal error: " + String(err && (err.stack || err.message) || err) });
+    post({ type: "done", result: { success: false, exitCode: -1, files: [] } });
+  }
+}
+
+self.onmessage = (e) => {
+  const msg = e.data;
+  if (msg.type === "init") init(msg);
+  else if (msg.type === "run") run(msg.job);
+};
+</script>
+
+<script>
+"use strict";
+/* ============================== bundle ================================= */
+let BUNDLE = null;
+try { BUNDLE = JSON.parse(document.getElementById("osa-bundle").textContent); } catch (e) { /* template mode */ }
+
+const PYODIDE_VERSION = "0.29.4";
+const DEFAULT_PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v" + PYODIDE_VERSION + "/full/";
+
+/* ============================== state ================================== */
+const CANTONS = ["AG","AI","AR","BE","BL","BS","FR","GE","GL","GR","JU","LU","NE","NW","OW",
+                 "SG","SH","SO","SZ","TG","TI","UR","VD","VS","ZG","ZH"];
+const SETTINGS_KEY = "osa.settings.v1";
+
+const defaultSettings = () => ({
+  acknowledged: false,
+  fullName: "",
+  canton: "ZH",
+  taxYear: new Date().getFullYear() - 1,
+  language: "de",
+  importer: "ibkr",
+  taxLevel: "kursliste",
+  accounts: [],
+  tomlCustom: false,
+  tomlText: "",
+  pyodideBase: "",
+});
+
+let settings = defaultSettings();
+try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")); } catch (e) {}
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} }
+
+const state = {
+  step: 0,
+  engine: "idle",         // idle | loading | ready | error
+  kurslisteFiles: [],      // {name, size, blob, fromCache}
+  brokerFiles: [],         // File[]
+  running: false,
+  lastLog: [],
+  results: null,
+};
+
+/* ============================ utilities ================================ */
+const $ = (id) => document.getElementById(id);
+function fmtSize(n) {
+  if (n > 1048576) return (n / 1048576).toFixed(1) + " MB";
+  if (n > 1024) return (n / 1024).toFixed(0) + " kB";
+  return n + " B";
+}
+function tomlStr(s) { return '"' + String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"'; }
+function sanitizeAlias(s, i) {
+  const a = String(s || "").replace(/[^A-Za-z0-9_-]/g, "_");
+  return a || ("account_" + (i + 1));
+}
+
+/* ====================== configuration generation ====================== */
+const EXPERIMENTAL = { fidelity: true, degiro: true };
+const ACCOUNTS_REQUIRED = { schwab: true, fidelity: true };
+
+function generateToml() {
+  const lines = ["# Generated by the OpenSteuerAuszug web app", "[general]"];
+  if (settings.canton) lines.push("canton = " + tomlStr(settings.canton));
+  if (settings.fullName) lines.push("full_name = " + tomlStr(settings.fullName));
+  lines.push("language = " + tomlStr(settings.language));
+  if (EXPERIMENTAL[settings.importer]) lines.push("experimental_importers = true");
+  const accts = settings.accounts.filter((a) => a.number);
+  accts.forEach((a, i) => {
+    lines.push("");
+    lines.push("[brokers." + settings.importer + ".accounts." + sanitizeAlias(a.alias, i) + "]");
+    lines.push("account_number = " + tomlStr(a.number));
+    if (a.name) lines.push("full_name = " + tomlStr(a.name));
+  });
+  return lines.join("\n") + "\n";
+}
+function effectiveToml() { return settings.tomlCustom && settings.tomlText ? settings.tomlText : generateToml(); }
+
+/* ============================= stepper ================================= */
+const STEPS = ["Welcome", "Your details", "Kursliste", "Broker files", "Generate", "Download"];
+function renderStepper() {
+  const ol = $("stepper");
+  ol.innerHTML = "";
+  STEPS.forEach((name, i) => {
+    const li = document.createElement("li");
+    li.className = (i === state.step ? "active" : "") + (i < state.step ? " done clickable" : "");
+    li.innerHTML = '<span class="dot">' + (i < state.step ? "✓" : i + 1) + "</span>" + name;
+    if (i < state.step) li.onclick = () => go(i);
+    ol.appendChild(li);
+  });
+  document.querySelectorAll("section.step").forEach((s) =>
+    s.classList.toggle("active", Number(s.dataset.step) === state.step));
+}
+function go(step) {
+  state.step = Math.max(0, Math.min(STEPS.length - 1, step));
+  if (state.step === 3) renderBrokerStep();
+  if (state.step === 4) renderRunSummary();
+  renderStepper();
+  window.scrollTo({ top: 0 });
+}
+document.querySelectorAll("[data-nav]").forEach((btn) => {
+  btn.onclick = () => go(state.step + (btn.dataset.nav === "next" ? 1 : -1));
+});
+
+/* ======================== step 1: welcome ============================= */
+$("ack").checked = !!settings.acknowledged;
+$("btnStart").disabled = !settings.acknowledged;
+$("ack").onchange = () => {
+  settings.acknowledged = $("ack").checked;
+  $("btnStart").disabled = !settings.acknowledged;
+  saveSettings();
+};
+$("btnStart").onclick = () => go(1);
+$("pyodideBase").value = settings.pyodideBase || "";
+$("pyodideBase").onchange = () => { settings.pyodideBase = $("pyodideBase").value.trim(); saveSettings(); };
+if (!BUNDLE) $("devModeNotice").style.display = "";
+
+/* ======================== step 2: settings ============================ */
+CANTONS.forEach((c) => {
+  const o = document.createElement("option");
+  o.value = c; o.textContent = c;
+  $("canton").appendChild(o);
+});
+function bindField(id, key, isNumber) {
+  $(id).value = settings[key];
+  $(id).onchange = () => {
+    settings[key] = isNumber ? Number($(id).value) : $(id).value;
+    saveSettings();
+    refreshSettingsUi();
+  };
+}
+bindField("fullName", "fullName");
+bindField("canton", "canton");
+bindField("taxYear", "taxYear", true);
+bindField("language", "language");
+bindField("importer", "importer");
+bindField("taxLevel", "taxLevel");
+
+function renderAccounts() {
+  const box = $("acctRows");
+  box.innerHTML = "";
+  settings.accounts.forEach((acct, i) => {
+    const row = document.createElement("div");
+    row.className = "acctrow";
+    const alias = document.createElement("input");
+    alias.placeholder = "alias (e.g. main)"; alias.value = acct.alias || "";
+    alias.onchange = () => { acct.alias = alias.value; saveSettings(); refreshToml(); };
+    const num = document.createElement("input");
+    num.placeholder = "account number"; num.value = acct.number || "";
+    num.onchange = () => { acct.number = num.value; saveSettings(); refreshToml(); };
+    const del = document.createElement("button");
+    del.type = "button"; del.className = "small"; del.textContent = "✕";
+    del.onclick = () => { settings.accounts.splice(i, 1); saveSettings(); renderAccounts(); refreshToml(); };
+    row.append(alias, num, del);
+    box.appendChild(row);
+  });
+}
+$("btnAddAcct").onclick = () => { settings.accounts.push({ alias: "", number: "" }); renderAccounts(); };
+
+function refreshToml() {
+  if (!settings.tomlCustom) { settings.tomlText = generateToml(); saveSettings(); }
+  $("tomlText").value = settings.tomlCustom ? settings.tomlText : generateToml();
+  $("tomlText").readOnly = !settings.tomlCustom;
+}
+$("tomlCustom").checked = !!settings.tomlCustom;
+$("tomlCustom").onchange = () => {
+  settings.tomlCustom = $("tomlCustom").checked;
+  if (settings.tomlCustom && !settings.tomlText) settings.tomlText = generateToml();
+  saveSettings(); refreshToml();
+};
+$("tomlText").onchange = () => {
+  if (settings.tomlCustom) { settings.tomlText = $("tomlText").value; saveSettings(); }
+};
+
+function refreshSettingsUi() {
+  $("experimentalNotice").style.display = EXPERIMENTAL[settings.importer] ? "" : "none";
+  const required = ACCOUNTS_REQUIRED[settings.importer];
+  $("acctHint").textContent = required
+    ? "This importer needs at least one account number so statements can be matched (see the broker guide)."
+    : "Optional for this importer — add account-specific overrides only if you need them.";
+  refreshToml();
+}
+renderAccounts();
+refreshSettingsUi();
+
+/* ==================== IndexedDB kursliste cache ======================== */
+let idb = null;
+function idbOpen() {
+  return new Promise((resolve) => {
+    if (!("indexedDB" in window)) return resolve(null);
+    const req = indexedDB.open("opensteuerauszug", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("files", { keyPath: "name" });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(null);
+  });
+}
+function idbPut(entry) {
+  return new Promise((resolve) => {
+    if (!idb) return resolve(false);
+    const tx = idb.transaction("files", "readwrite");
+    tx.objectStore("files").put(entry);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => resolve(false);
+  });
+}
+function idbDelete(name) {
+  return new Promise((resolve) => {
+    if (!idb) return resolve(false);
+    const tx = idb.transaction("files", "readwrite");
+    tx.objectStore("files").delete(name);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => resolve(false);
+  });
+}
+function idbAll() {
+  return new Promise((resolve) => {
+    if (!idb) return resolve([]);
+    const req = idb.transaction("files").objectStore("files").getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => resolve([]);
+  });
+}
+
+/* ======================= step 3: kursliste ============================= */
+function renderKursliste() {
+  const ul = $("listKursliste");
+  ul.innerHTML = "";
+  state.kurslisteFiles.forEach((f) => {
+    const li = document.createElement("li");
+    li.innerHTML = '<span class="name">📊 ' + f.name + '</span><span class="meta">' +
+      fmtSize(f.size) + (f.fromCache ? " · cached" : "") + "</span>";
+    const del = document.createElement("button");
+    del.className = "small"; del.textContent = "Remove";
+    del.onclick = async () => {
+      state.kurslisteFiles = state.kurslisteFiles.filter((x) => x.name !== f.name);
+      await idbDelete(f.name);
+      renderKursliste();
+    };
+    li.appendChild(del);
+    ul.appendChild(li);
+  });
+  const warn = $("kurslisteYearWarn");
+  const year = String(settings.taxYear);
+  if (state.kurslisteFiles.length && !state.kurslisteFiles.some((f) => f.name.includes(year))) {
+    warn.textContent = "None of the added files mentions " + year + " in its name. Files must be named " +
+      "kursliste_" + year + ".xml (or .sqlite) to be picked up for tax year " + year + ".";
+    warn.style.display = "";
+  } else warn.style.display = "none";
+}
+async function addKurslisteFiles(files) {
+  for (const file of files) {
+    if (!/\.(xml|sqlite)$/i.test(file.name)) continue;
+    state.kurslisteFiles = state.kurslisteFiles.filter((x) => x.name !== file.name);
+    state.kurslisteFiles.push({ name: file.name, size: file.size, blob: file, fromCache: false });
+    await idbPut({ name: file.name, size: file.size, blob: file, added: Date.now() });
+  }
+  renderKursliste();
+}
+function wireDrop(dropId, inputId, handler) {
+  const drop = $(dropId), input = $(inputId);
+  drop.onclick = () => input.click();
+  input.onchange = () => { handler(Array.from(input.files)); input.value = ""; };
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("drag"); };
+  drop.ondragleave = () => drop.classList.remove("drag");
+  drop.ondrop = (e) => {
+    e.preventDefault(); drop.classList.remove("drag");
+    handler(Array.from(e.dataTransfer.files));
+  };
+}
+wireDrop("dropKursliste", "fileKursliste", addKurslisteFiles);
+
+/* ====================== step 4: broker files =========================== */
+const BROKER_INFO = {
+  ibkr: {
+    lead: "Interactive Brokers: one Flex Query XML file covering the whole tax year.",
+    help: 'Create a Flex Query with the sections described in the <a target="_blank" rel="noopener" ' +
+      'href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/importer_ibkr.md">IBKR guide</a> ' +
+      "and download it as XML. Add that single file below.",
+    accept: ".xml", multiple: false,
+  },
+  schwab: {
+    lead: "Charles Schwab: all exported statement files for the tax year.",
+    help: 'Export the files described in the <a target="_blank" rel="noopener" ' +
+      'href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/importer_schwab.md">Schwab guide</a> ' +
+      "(transaction history JSON/CSV, positions, equity awards) and add them all below.",
+    accept: "", multiple: true,
+  },
+  fidelity: {
+    lead: "Fidelity (experimental): all exported statement files for the tax year.",
+    help: 'See the <a target="_blank" rel="noopener" ' +
+      'href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/importer_fidelity.md">Fidelity guide</a> ' +
+      "for the required exports, then add them all below.",
+    accept: "", multiple: true,
+  },
+  degiro: {
+    lead: "DEGIRO (experimental): the account and transaction CSV exports for the tax year.",
+    help: 'See the <a target="_blank" rel="noopener" ' +
+      'href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/importer_degiro.md">DEGIRO guide</a> ' +
+      "for the required exports, then add them all below.",
+    accept: ".csv", multiple: true,
+  },
+};
+function renderBrokerStep() {
+  const info = BROKER_INFO[settings.importer];
+  $("brokerLead").textContent = info.lead;
+  $("brokerHelp").innerHTML = info.help;
+  $("fileBroker").accept = info.accept;
+  $("fileBroker").multiple = info.multiple;
+  renderBrokerFiles();
+}
+function renderBrokerFiles() {
+  const ul = $("listBroker");
+  ul.innerHTML = "";
+  state.brokerFiles.forEach((f, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = '<span class="name">📄 ' + f.name + '</span><span class="meta">' + fmtSize(f.size) + "</span>";
+    const del = document.createElement("button");
+    del.className = "small"; del.textContent = "Remove";
+    del.onclick = () => { state.brokerFiles.splice(i, 1); renderBrokerFiles(); };
+    li.appendChild(del);
+    ul.appendChild(li);
+  });
+}
+wireDrop("dropBroker", "fileBroker", (files) => {
+  const info = BROKER_INFO[settings.importer];
+  if (!info.multiple) state.brokerFiles = files.slice(0, 1);
+  else state.brokerFiles.push(...files);
+  renderBrokerFiles();
+});
+
+/* ========================= engine / worker ============================= */
+let worker = null;
+function setEngine(cls, label, detail, pct, errorDetail) {
+  state.engine = cls;
+  const pill = $("enginePill");
+  pill.className = "pill " + (cls === "ready" ? "ready" : cls === "error" ? "error" : "loading");
+  pill.innerHTML = (cls === "loading" ? '<span class="spinner"></span> ' : cls === "ready" ? "✓ " : "✕ ") +
+    "<span>" + label + "</span>";
+  $("engineDetail").textContent = detail || "";
+  if (pct != null) $("engineProgress").value = pct;
+  $("engineProgress").style.display = cls === "loading" ? "" : "none";
+  const toggle = $("engineDetailToggle"), box = $("engineErrorBox");
+  if (cls === "error" && errorDetail) {
+    box.textContent = errorDetail;
+    toggle.style.display = "";
+  } else {
+    box.style.display = "none";
+    toggle.style.display = "none";
+    toggle.textContent = "Show details";
+  }
+  refreshRunButton();
+}
+$("engineDetailToggle").onclick = () => {
+  const box = $("engineErrorBox");
+  const show = box.style.display === "none";
+  box.style.display = show ? "" : "none";
+  $("engineDetailToggle").textContent = show ? "Hide details" : "Show details";
+};
+function startEngine() {
+  if (worker || !BUNDLE) return;
+  const src = document.getElementById("osa-worker-src").textContent;
+  worker = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+  worker.onmessage = (e) => {
+    const msg = e.data;
+    if (msg.type === "progress") setEngine("loading", "Loading engine", msg.detail, msg.pct);
+    else if (msg.type === "ready") {
+      setEngine("ready", "Engine ready", "OpenSteuerAuszug " + msg.version + " · Pyodide " + PYODIDE_VERSION);
+      $("verInfo").textContent = "v" + msg.version;
+    }
+    else if (msg.type === "init-error")
+      setEngine("error", "Engine failed", msg.message + " — check your internet connection and reload.",
+                null, msg.detail || msg.message);
+    else if (msg.type === "log") {
+      state.lastLog.push(msg.line);
+      const log = $("runLog");
+      log.textContent += msg.line + "\n";
+      log.scrollTop = log.scrollHeight;
+    }
+    else if (msg.type === "kursliste-converted") onKurslisteConverted(msg);
+    else if (msg.type === "done") onRunDone(msg.result);
+  };
+  worker.onerror = (e) => setEngine("error", "Engine failed", e.message || "Worker error", null,
+    [e.message || "Worker error", e.filename ? "at " + e.filename + ":" + e.lineno : ""].filter(Boolean).join("\n"));
+  const params = new URLSearchParams(location.search);
+  const base = params.get("pyodide") || settings.pyodideBase || DEFAULT_PYODIDE_BASE;
+  const indexURL = base.endsWith("/") ? base : base + "/";
+  setEngine("loading", "Loading engine", "Starting…", 2);
+  worker.postMessage({ type: "init", indexURL, bundle: BUNDLE });
+}
+
+/* ========================= step 5: generate ============================ */
+function runBlockers() {
+  const problems = [];
+  if (!BUNDLE) problems.push("This template has not been built — run scripts/build_web_app.py.");
+  if (state.engine === "error") problems.push("The Python engine failed to load.");
+  if (state.engine !== "ready") problems.push("The Python engine is still loading (see the bar below).");
+  if (!state.kurslisteFiles.length) problems.push("No Kursliste file added (step 3).");
+  if (!state.brokerFiles.length) problems.push("No broker files added (step 4).");
+  if (settings.importer === "ibkr" && state.brokerFiles.length > 1)
+    problems.push("The IBKR importer expects a single Flex Query XML file.");
+  if (ACCOUNTS_REQUIRED[settings.importer] && !settings.tomlCustom &&
+      !settings.accounts.some((a) => a.number))
+    problems.push("This importer requires at least one account number (step 2).");
+  if (!settings.taxYear || settings.taxYear < 2000) problems.push("Tax year looks invalid (step 2).");
+  return problems;
+}
+function renderRunSummary() {
+  const rows = [
+    ["Tax year", settings.taxYear],
+    ["Broker", $("importer").selectedOptions[0].textContent],
+    ["Name", settings.fullName || "(not set)"],
+    ["Canton", settings.canton],
+    ["Calculation", settings.taxLevel === "kursliste" ? "Kursliste values" : "Minimal"],
+    ["Kursliste", state.kurslisteFiles.map((f) => f.name).join(", ") || "—"],
+    ["Broker files", state.brokerFiles.length + " file(s)"],
+  ];
+  $("runSummary").innerHTML = rows.map(([k, v]) =>
+    "<div><b style='display:inline-block;min-width:110px'>" + k + ":</b> " + String(v) + "</div>").join("");
+  refreshRunButton();
+}
+function refreshRunButton() {
+  if (state.step !== 4) return;
+  const problems = runBlockers();
+  const box = $("runBlockers");
+  if (problems.length && !(problems.length === 1 && state.engine === "loading")) {
+    box.innerHTML = "<b>Before you can run:</b><ul style='margin:6px 0 0;padding-left:18px'>" +
+      problems.map((p) => "<li>" + p + "</li>").join("") + "</ul>";
+    box.style.display = "";
+  } else box.style.display = "none";
+  $("btnRun").disabled = problems.length > 0 || state.running;
+}
+$("btnRun").onclick = async () => {
+  if (state.running) return;
+  state.running = true;
+  state.lastLog = [];
+  $("runLog").textContent = "";
+  $("runStatus").style.display = "";
+  $("btnRun").disabled = true;
+  try {
+    const toBuf = async (fileLike) => ({
+      name: fileLike.name,
+      buffer: await (fileLike.blob || fileLike).arrayBuffer(),
+    });
+    const job = {
+      importer: settings.importer,
+      taxYear: settings.taxYear,
+      taxLevel: settings.taxLevel,
+      configToml: effectiveToml(),
+      singleInputFile: settings.importer === "ibkr",
+      brokerFiles: await Promise.all(state.brokerFiles.map(toBuf)),
+      kurslisteFiles: await Promise.all(state.kurslisteFiles.map(toBuf)),
+      preAmble: await Promise.all(Array.from($("filePre").files).map(toBuf)),
+      postAmble: await Promise.all(Array.from($("filePost").files).map(toBuf)),
+    };
+    const transfers = [];
+    for (const list of [job.brokerFiles, job.kurslisteFiles, job.preAmble, job.postAmble])
+      for (const f of list) transfers.push(f.buffer);
+    worker.postMessage({ type: "run", job }, transfers);
+  } catch (err) {
+    $("runLog").textContent += "Failed to prepare files: " + err + "\n";
+    state.running = false;
+    $("runStatus").style.display = "none";
+    refreshRunButton();
+  }
+};
+async function onKurslisteConverted(msg) {
+  // The worker converted an uploaded Kursliste XML to SQLite; keep only the
+  // (much faster) database from now on, both in memory and in the cache.
+  const blob = new Blob([msg.buffer], { type: "application/vnd.sqlite3" });
+  state.kurslisteFiles = state.kurslisteFiles.filter(
+    (x) => x.name !== msg.source && x.name !== msg.name);
+  state.kurslisteFiles.push({ name: msg.name, size: blob.size, blob, fromCache: true });
+  await idbDelete(msg.source);
+  await idbPut({ name: msg.name, size: blob.size, blob, added: Date.now() });
+  renderKursliste();
+}
+
+function onRunDone(result) {
+  state.running = false;
+  state.results = result;
+  $("runStatus").style.display = "none";
+  refreshRunButton();
+  if (result.success) {
+    renderResults();
+    go(5);
+  } else {
+    const log = $("runLog");
+    log.textContent += "\n✕ Processing failed (exit code " + result.exitCode + "). " +
+      "Check the messages above — common causes are a missing Kursliste year, a wrong importer, " +
+      "or missing account configuration.\n";
+    log.scrollTop = log.scrollHeight;
+  }
+}
+
+/* ========================= step 6: results ============================= */
+function renderResults() {
+  const box = $("downloads");
+  box.innerHTML = "";
+  const year = settings.taxYear;
+  const labels = { pdf: "⬇ Steuerauszug PDF", xml: "⬇ eCH-0196 XML" };
+  const names = { pdf: "steuerauszug_" + year + ".pdf", xml: "steuerauszug_" + year + ".xml" };
+  const types = { pdf: "application/pdf", xml: "application/xml" };
+  for (const f of state.results.files) {
+    const a = document.createElement("a");
+    a.className = "dlbtn" + (f.kind === "xml" ? " secondary" : "");
+    a.textContent = labels[f.kind] || "⬇ " + f.name;
+    a.href = URL.createObjectURL(new Blob([f.buffer], { type: types[f.kind] || "application/octet-stream" }));
+    a.download = names[f.kind] || f.name;
+    box.appendChild(a);
+  }
+  $("resultLead").textContent = "Tax year " + year + " — import the PDF into your tax software " +
+    "(the machine-readable data is embedded in its barcodes). The XML is the same data for archival or validation.";
+  const warnLines = state.lastLog.filter((l) => /warning|error|mismatch/i.test(l));
+  const warnBox = $("resultWarnings");
+  if (warnLines.length) {
+    warnBox.innerHTML = "<b>The log contains " + warnLines.length +
+      " line(s) with warnings or errors — please review them:</b><br>" +
+      warnLines.slice(0, 12).map((l) => "· " + l.replace(/</g, "&lt;")).join("<br>") +
+      (warnLines.length > 12 ? "<br>…" : "");
+    warnBox.style.display = "";
+  } else warnBox.style.display = "none";
+  $("resultLog").textContent = state.lastLog.join("\n");
+}
+$("btnRestart").onclick = () => { go(3); };
+
+/* ============================== boot =================================== */
+renderStepper();
+go(settings.acknowledged ? 0 : 0);
+(async () => {
+  idb = await idbOpen();
+  if (!idb) $("idbWarn").style.display = "";
+  const cached = await idbAll();
+  for (const entry of cached) {
+    state.kurslisteFiles.push({
+      name: entry.name, size: entry.size, blob: entry.blob, fromCache: true,
+    });
+  }
+  renderKursliste();
+})();
+if (BUNDLE) startEngine();
+</script>
+</body>
+</html>

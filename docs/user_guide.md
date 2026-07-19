@@ -374,7 +374,7 @@ but because the author wisely decided to finish their tax return before embarkin
 * Recruit more testers fro real world data use.
 * Implement plausibility checks, in particular for tax withholding.
 * produce more automated test scenarios.
-* See if this can be deployed as a standalone web pages with WASM.
+* ~~See if this can be deployed as a standalone web pages with WASM.~~ Done — see the [web app guide](webapp.md).
 * Cleanup helper scripts and provide clean pipx executable package
 
 

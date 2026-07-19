@@ -1,0 +1,46 @@
+# Builds the standalone single-file web app (Pyodide based) and uploads it
+# as a workflow artifact. See docs/webapp.md.
+
+name: Web app
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    paths:
+      - "web/**"
+      - "scripts/build_web_app.py"
+      - "src/opensteuerauszug/util/web_runner.py"
+      - "pyproject.toml"
+      - ".github/workflows/web-app.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install git+https://github.com/vroonhof/pdf417-py.git
+      - name: Build single-file web app
+        run: python scripts/build_web_app.py --output dist/web/opensteuerauszug.html
+      - name: Smoke test in headless Chromium
+        run: |
+          npm install playwright
+          npx playwright install --with-deps chromium
+          node web/dev/e2e_smoke.mjs dist/web/opensteuerauszug.html
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opensteuerauszug-webapp
+          path: dist/web/opensteuerauszug.html
+          if-no-files-found: error
