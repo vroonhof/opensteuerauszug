@@ -53,3 +53,60 @@ The software tries to delegate tax decisions to the Kursliste or avoid making th
 
 All of these will likely have negligible effect on the actual tax due. 
 
+## Standalone web app
+
+Implementation details for the [standalone web app](webapp.md), which runs
+the pipeline in the browser via WebAssembly (compiled with
+[Pyodide](https://pyodide.org)).
+
+### Network requests
+
+The page makes exactly two kinds of network requests, both for public
+open-source code:
+
+1. The Pyodide Python runtime from the jsDelivr CDN (~15 MB, once, then
+   cached by the browser).
+2. The Python library dependencies from PyPI (cached likewise).
+
+The OpenSteuerAuszug code itself is embedded inside the HTML file. Settings
+are stored in the browser's local storage, and the Kursliste file is cached
+in IndexedDB.
+
+### Building it yourself
+
+```bash
+python scripts/build_web_app.py            # writes dist/web/opensteuerauszug.html
+```
+
+The script builds a wheel of this repository plus the git-pinned
+dependencies (`ibflex2`, `pdf417gen`), embeds them base64-encoded into
+`web/app_template.html`, and records the PyPI dependency list which the page
+installs at load time via micropip (binary packages such as `lxml` and
+`Pillow` come prebuilt from the Pyodide distribution). Building requires
+network access to PyPI and GitHub.
+
+### Self-hosting / offline Pyodide
+
+By default the page loads Pyodide from jsDelivr. To use a self-hosted copy,
+either open the page with `?pyodide=https://your.host/pyodide/v0.29.4/full/`
+or set the base URL under *Advanced: runtime options* on the welcome step.
+
+### Development notes
+
+- The UI lives in `web/app_template.html` (plain HTML/CSS/JS, no build
+  tooling). The Python side entry point is
+  `src/opensteuerauszug/util/web_runner.py`, which is covered by the normal
+  pytest suite (`tests/util/test_web_runner.py`).
+- `web/dev/e2e_smoke.mjs` drives the whole wizard in headless Chromium
+  against a mock Pyodide runtime (`web/dev/mock_pyodide.js`):
+
+  ```bash
+  python scripts/build_web_app.py
+  npm install playwright && npx playwright install chromium
+  node web/dev/e2e_smoke.mjs dist/web/opensteuerauszug.html
+  ```
+
+- CI builds and smoke-tests the app via `.github/workflows/web-app.yml` and
+  uploads the HTML as an artifact.
+
+
