@@ -52,14 +52,15 @@ def debug_dump_dir(tmp_path: Path) -> Path:
     return tmp_path / "debug_dump"
 
 
-def test_main_help():
-    """Test that the --help option works."""
+def test_process_help_describes_required_input():
+    """Test that process help describes its required input argument."""
     result = runner.invoke(app, ["process", "--help"])
     # Strip ANSI escape sequences from the output
     clean_stdout = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', result.stdout)
+    normalized_stdout = " ".join(clean_stdout.replace("│", " ").split())
     assert result.exit_code == 0
-    assert "INPUT_FILE" in clean_stdout
-    assert "Processes financial data" in clean_stdout
+    assert "Input file (specific format depends on importer, or XML for raw)" in normalized_stdout
+    assert "Processes financial data" in normalized_stdout
 
 
 def test_main_missing_input(tmp_path: Path):
