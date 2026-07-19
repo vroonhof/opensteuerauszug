@@ -4,6 +4,11 @@ OpenSteuerAuszug can run as a **single HTML file in your browser** — no
 Python installation needed. The page contains the full processing pipeline
 and walks you through generating your Steuerauszug step by step.
 
+> **Note:** the browser wizard itself (the UI around the same underlying
+> pipeline as the CLI) is mostly AI-coded and has seen much less real-world
+> testing. If you're comfortable installing the CLI, prefer that; use the
+> web app for convenience, but double-check its output carefully.
+
 ## Privacy model
 
 Your broker statements, personal details and the generated Steuerauszug

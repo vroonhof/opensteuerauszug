@@ -9,6 +9,7 @@ This goal is to eliminate tedious and error prone manual typing into the tax sof
 - the main focus is on getting core transaction and interest data.
 - These need to be verified by the user before submitting with the tax return
 - Tax values are computed best effort for informational purpose (the main Tax software should be able to compute it from the core transaction data.
+- The [standalone web app](docs/webapp.md)'s browser wizard is a separate, mostly AI-coded UI layer and has seen much less real-world testing than the Python/CLI version. Prefer the CLI if you can install it.
 
 For more information on required due diligence see the the user guide.
 
@@ -176,6 +177,10 @@ This project includes utility scripts for development and data management. For d
 This project exists in part for me to try out AI based coding outside of $WORKPLACE to try out various tools. As a result code quality and style is inconsistent and contains various AIisms. Code has been cleaned-up, reviewed and controlled by me where it matters.
 
 That said all mistakes, hallucinations etc are probably mine.
+
+The [standalone web app](docs/webapp.md) is a particularly heavy case: the browser-side
+wizard (`web/app_template.html` and its JS) is mostly AI-generated and has had far less
+real-world exercise than the core library and CLI. Treat it as more experimental.
 
 ## Related projects
 
