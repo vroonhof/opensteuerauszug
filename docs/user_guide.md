@@ -32,6 +32,11 @@ If you prefer not to install the tool, `uv run --with git+https://github.com/vro
 also works for one-off commands.
 
 You can replace `ibkr` with `schwab`, `fidelity`, or `degiro` depending on your source data.
+
+Prefer not to install anything? Download the standalone web app (a single
+HTML file that runs entirely in your browser) and follow the on-screen
+wizard instead — see the [web app guide](webapp.md).
+
 The rest of this guide explains each step in detail.
 
 ## Short Primer on Tax data and calculations

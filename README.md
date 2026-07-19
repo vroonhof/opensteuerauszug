@@ -9,18 +9,11 @@ This goal is to eliminate tedious and error prone manual typing into the tax sof
 - the main focus is on getting core transaction and interest data.
 - These need to be verified by the user before submitting with the tax return
 - Tax values are computed best effort for informational purpose (the main Tax software should be able to compute it from the core transaction data.
+- The [standalone web app](docs/webapp.md)'s browser wizard is a separate, mostly AI-coded UI layer and has seen much less real-world testing than the Python/CLI version. Prefer the CLI if you can install it.
 
 For more information on required due diligence see the the user guide.
 
 ## Usage
-
-### Standalone web app (no installation)
-
-OpenSteuerAuszug also ships as a **single HTML file** that runs the whole
-pipeline in your browser via WebAssembly — download it, open it, and a
-wizard guides you through the steps. Your financial data never leaves your
-computer. See the [web app guide](docs/webapp.md) for where to get it and
-how it works, or build it yourself with `python scripts/build_web_app.py`.
 
 ### Main usage case: Generating Steuerauszug from Broker Data
 
@@ -76,6 +69,13 @@ Agentic browsers are getting very close just be able to do the above all by them
 The [EWV](https://www.ewv-ete.ch/de/ewv-ete/) and SSK publish a [shared set of tools](https://forum.mustachianpost.com/t/programmatic-tax-return/11908/69) that is even referenced in the spec. This used to available online, but is now locked down to a cabal of banks and tax officials. Inquiring minds however have noticed that the JAR is [included in nearly every offline official Tax software](https://mkiesel.ch/posts/swiss-tax-adventures-1/). It includes an official sample renderer for the PDF version given an XML file, so you could also use that instead of the python renderer. It will look a bit more official. I wasn't aware this existed and had to reconstruct from scratch as well as fix a lot of the python PDF417 libraries. The spec refers to the library as open source but non of these actually include the source.
 
 ## Installation
+
+### Standalone web app (no installation)
+
+OpenSteuerAuszug also ships as a **single HTML file** that runs the whole
+pipeline in your browser — download it, open it, and a wizard guides you
+through the steps. Your financial data never leaves your computer. See the
+[web app guide](docs/webapp.md) for where to get it and how it works.
 
 ### Quick install (recommended for users)
 
@@ -177,6 +177,10 @@ This project includes utility scripts for development and data management. For d
 This project exists in part for me to try out AI based coding outside of $WORKPLACE to try out various tools. As a result code quality and style is inconsistent and contains various AIisms. Code has been cleaned-up, reviewed and controlled by me where it matters.
 
 That said all mistakes, hallucinations etc are probably mine.
+
+The [standalone web app](docs/webapp.md) is a particularly heavy case: the browser-side
+wizard (`web/app_template.html` and its JS) is mostly AI-generated and has had far less
+real-world exercise than the core library and CLI. Treat it as more experimental.
 
 ## Related projects
 
