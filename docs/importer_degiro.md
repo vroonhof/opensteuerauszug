@@ -2,7 +2,7 @@
 
 ## Disclaimer and User Responsibility
 
-**Important**: The DEGIRO Importer is **experimental** and may not handle all cases correctly.
+**Important**: The DEGIRO importer is newer and has seen less real-world use than the Schwab and IBKR importers. It is designed to fail safe: if your export contains a row it does not recognize (e.g. from an account language that is not yet covered), processing stops with an error instead of silently dropping data — please [report such rows as a bug](https://github.com/vroonhof/opensteuerauszug/issues) so support can be added.
 
 As stated in the [Disclaimer](user_guide.md#disclaimer-and-user-responsibility), it is crucial to understand your role:
 
@@ -64,15 +64,6 @@ Pass this directory path to the `process` command (see below).
 
 ## Configuration (`config.toml`)
 
-### Enable the Experimental Importer
-
-Because this importer is still experimental, you must explicitly enable it in your `config.toml`:
-
-```toml
-[general]
-experimental_importers = true
-```
-
 ### Account Settings (Optional)
 
 You can optionally configure your DEGIRO account to customise the depot identifier used in the generated Steuerauszug:
@@ -119,7 +110,16 @@ opensteuerauszug process path/to/degiro/ \
 *   **Dividend withholding tax**: `Dividend Tax` rows in `Account.csv` are automatically matched to their parent dividend and reported as `nonRecoverableTaxAmountOriginal` in the generated XML.
 *   **FX rows**: `FX Credit` / `FX Debit` rows that accompany a trade are consumed internally and do not generate separate output entries.
 *   **Cash balance**: The CHF cash balance is taken from the `CASH & CASH FUND` row in `Portfolio.csv`.
-*   **Testing**: This importer has been tested against real data for the 2023 tax year. Other years should work but may reveal edge cases.
+*   **Account language**: Row descriptions in `Account.csv` depend on your account language. English, Italian, French and German are supported; other languages will stop with an "Unknown DEGIRO row" error — please report these so support can be added.
+*   **Testing**: This importer has been tested against real data from multiple users and account languages. Unusual account histories may still reveal edge cases.
+
+## Credits
+
+The DEGIRO importer exists thanks to community contributions:
+
+*   [@manuelgr0](https://github.com/manuelgr0) — original importer implementation.
+*   [@dalpozz](https://github.com/dalpozz) — multilingual support (Italian, French, German).
+*   [@VincentBlondeau](https://github.com/VincentBlondeau) — improved French support and a complete anonymized test export.
 
 ---
 Return to [User Guide](user_guide.md)

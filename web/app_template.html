@@ -248,7 +248,7 @@
             <option value="ibkr">Interactive Brokers (Flex Query XML)</option>
             <option value="schwab">Charles Schwab (statement exports)</option>
             <option value="fidelity">Fidelity (experimental)</option>
-            <option value="degiro">DEGIRO (experimental)</option>
+            <option value="degiro">DEGIRO</option>
           </select>
         </label>
         <label class="field"><b>Tax value calculation</b>
@@ -652,7 +652,7 @@ function sanitizeAlias(s, i) {
 }
 
 /* ====================== configuration generation ====================== */
-const EXPERIMENTAL = { fidelity: true, degiro: true };
+const EXPERIMENTAL = { fidelity: true };
 const ACCOUNTS_REQUIRED = { schwab: true, fidelity: true };
 
 function generateToml() {
@@ -889,7 +889,7 @@ const BROKER_INFO = {
     accept: "", multiple: true,
   },
   degiro: {
-    lead: "DEGIRO (experimental): the account and transaction CSV exports for the tax year.",
+    lead: "DEGIRO: the Account.csv and Portfolio.csv exports for the tax year.",
     help: 'See the <a target="_blank" rel="noopener" ' +
       'href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/importer_degiro.md">DEGIRO guide</a> ' +
       "for the required exports, then add them all below.",

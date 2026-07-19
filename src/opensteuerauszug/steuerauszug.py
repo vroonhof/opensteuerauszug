@@ -323,7 +323,12 @@ def process(
 
     # --- Validation of Importer Type based on experimental flag ---
     if not experimental_importers_enabled:
-        if importer_type not in [ImporterType.SCHWAB, ImporterType.IBKR, ImporterType.NONE]:
+        if importer_type not in [
+            ImporterType.SCHWAB,
+            ImporterType.IBKR,
+            ImporterType.DEGIRO,
+            ImporterType.NONE,
+        ]:
             raise typer.BadParameter(
                 f"Importer '{importer_type.value}' is experimental and requires 'experimental_importers = true' in configuration (general section) to be used."
             )
