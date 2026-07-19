@@ -72,10 +72,11 @@ The [EWV](https://www.ewv-ete.ch/de/ewv-ete/) and SSK publish a [shared set of t
 
 ### Standalone web app (no installation)
 
-OpenSteuerAuszug also ships as a **single HTML file** that runs the whole
-pipeline in your browser — download it, open it, and a wizard guides you
-through the steps. Your financial data never leaves your computer. See the
-[web app guide](docs/webapp.md) for where to get it and how it works.
+OpenSteuerAuszug also runs as a **single HTML page in your browser** — open
+**<https://vroonhof.github.io/opensteuerauszug/>** and a wizard guides you
+through the steps (or save the page locally and open it from disk). Your
+financial data never leaves your computer. See the
+[web app guide](docs/webapp.md) for details.
 
 ### Quick install (recommended for users)
 

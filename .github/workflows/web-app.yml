@@ -1,5 +1,6 @@
-# Builds the standalone single-file web app (Pyodide based) and uploads it
-# as a workflow artifact. See docs/webapp.md.
+# Builds the standalone single-file web app (Pyodide based), uploads it
+# as a workflow artifact and, on pushes to main, deploys it to GitHub
+# Pages. See docs/webapp.md.
 
 name: Web app
 
@@ -13,6 +14,7 @@ on:
       - "src/opensteuerauszug/util/web_runner.py"
       - "pyproject.toml"
       - ".github/workflows/web-app.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -44,3 +46,36 @@ jobs:
           name: opensteuerauszug-webapp
           path: dist/web/opensteuerauszug.html
           if-no-files-found: error
+
+  # Publish the app to GitHub Pages so users get a stable URL instead of
+  # digging through workflow artifacts. Runs only for the main branch.
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download built app
+        uses: actions/download-artifact@v4
+        with:
+          name: opensteuerauszug-webapp
+          path: _site
+      - name: Serve the app at the site root
+        run: cp _site/opensteuerauszug.html _site/index.html
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

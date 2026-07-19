@@ -31,6 +31,17 @@
   header.app h1 { margin: 0 0 2px; font-size: 22px; }
   header.app h1 .flag { font-size: 18px; }
   header.app p { margin: 0; color: var(--muted); font-size: 14px; }
+  header.app .headrow {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+  }
+  a.docs-link {
+    font-size: 14px; font-weight: 600; white-space: nowrap;
+    color: var(--accent); text-decoration: none;
+    border: 1px solid var(--border); border-radius: 999px; padding: 5px 14px;
+    background: var(--panel);
+  }
+  a.docs-link:hover { text-decoration: underline; }
   main { max-width: 900px; margin: 0 auto; padding: 0 24px 96px; }
 
   /* Stepper */
@@ -150,7 +161,10 @@
 <body>
 
 <header class="app">
-  <h1><span class="flag">🇨🇭</span> OpenSteuerAuszug <span style="font-weight:400;color:var(--muted);font-size:15px">— in your browser</span></h1>
+  <div class="headrow">
+    <h1><span class="flag">🇨🇭</span> OpenSteuerAuszug <span style="font-weight:400;color:var(--muted);font-size:15px">— in your browser</span></h1>
+    <a class="docs-link" href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/webapp.md" target="_blank" rel="noopener">📖 Documentation</a>
+  </div>
   <p>Generate a Swiss eCH-0196 tax statement (Steuerauszug) from broker data. Everything runs locally in this page — your financial data never leaves your computer.</p>
 </header>
 
@@ -162,6 +176,11 @@
     <div class="card">
       <h2>Welcome</h2>
       <p class="lead">This wizard walks you through generating your Steuerauszug in five short steps.</p>
+      <p style="font-size:14px;margin:0 0 10px"><b>New here? Start with the documentation:</b>
+        the <a href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/webapp.md" target="_blank" rel="noopener"><b>web app guide</b></a>
+        explains each step below, and the
+        <a href="https://github.com/vroonhof/opensteuerauszug/blob/main/docs/user_guide.md" target="_blank" rel="noopener"><b>user guide</b></a>
+        covers the tax background, broker exports and how to verify the result.</p>
       <ul style="font-size:14px;margin:0 0 10px;padding-left:20px">
         <li><b>Your details</b> — name, canton, tax year and broker (remembered on this device).</li>
         <li><b>Kursliste</b> — the official ESTV securities list for your tax year.</li>
