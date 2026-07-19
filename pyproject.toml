@@ -56,6 +56,9 @@ dev = [
     "pyrefly>=0.62,<0.70",
 ]
 
+[tool.uv]
+exclude-newer = "6 days"
+
 [tool.black]
 line-length = 100
 target-version = ["py310"]
