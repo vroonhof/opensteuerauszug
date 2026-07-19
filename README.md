@@ -55,7 +55,11 @@ For now the focus is on brokers / banks that the author has
 
 - Charles Schwab (main trading account and Equity Awards)
 - Interactive Brokers
-  
+
+Thanks to community contributions we also support
+
+- DEGIRO (contributed by [@manuelgr0](https://github.com/manuelgr0), with multilingual support by [@dalpozz](https://github.com/dalpozz) and [@VincentBlondeau](https://github.com/VincentBlondeau))
+
 Additionally we can recalculate and verify any existing steuerauszug (this is mostly to increase confidence in the software itself)
 
 ## Related work and alternatives
@@ -199,6 +203,8 @@ real-world exercise than the core library and CLI. Treat it as more experimental
 Many thanks to everyone who has tested this tool with their own data and contributed fixes and improvements.
 
 Special thanks to [@pet-zh](https://github.com/pet-zh), whose extensive real-world testing and numerous fixes have made the output significantly more polished and reliable.
+
+The DEGIRO importer is a community effort: contributed by [@manuelgr0](https://github.com/manuelgr0), with multilingual support by [@dalpozz](https://github.com/dalpozz) and improved French support plus test data by [@VincentBlondeau](https://github.com/VincentBlondeau).
 
 ## License
 
