@@ -129,3 +129,19 @@ python scripts/build_web_app.py
 ```
 
 See [docs/webapp.md](../docs/webapp.md) for details.
+
+### Lockfile updater (`scripts/update_lockfiles.sh`)
+
+Updates uv's project lock and exports the same resolution to the standard PEP 751 format.
+Both `uv.lock` and `pylock.toml` are committed so uv can retain its full project metadata
+while other Python tools can consume the standardized lock.
+
+**Usage Example:**
+
+```bash
+./scripts/update_lockfiles.sh --upgrade
+```
+
+Arguments are forwarded to `uv lock`, so `--upgrade-package <name>` can be used for a
+targeted dependency update. The Git dependencies remain sourced from their declared
+repositories and their resolved commit IDs are recorded in both lockfiles.

@@ -43,6 +43,7 @@ opensteuerauszug = "opensteuerauszug.steuerauszug:app"
 
 [project.optional-dependencies]
 dev = [
+    "pip>=25.0",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "black>=23.0.0",
@@ -54,6 +55,9 @@ dev = [
     "pdf417decoder @ git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python",
     "pyrefly>=0.62,<0.70",
 ]
+
+[tool.uv]
+exclude-newer = "6 days"
 
 [tool.black]
 line-length = 100
@@ -105,4 +109,3 @@ target-version = "py310"
 [tool.ruff.format]
 quote-style = "preserve"
 skip-magic-trailing-comma = false
-
