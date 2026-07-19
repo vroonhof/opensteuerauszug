@@ -8,26 +8,40 @@ downloadable HTML file:
   * builds a wheel of this repository,
   * builds wheels for the git-pinned dependencies (ibflex2, pdf417gen)
     which are not available on PyPI,
-  * embeds those wheels (base64) plus the default security identifiers CSV
-    into ``web/app_template.html``,
-  * embeds the list of regular PyPI dependencies, which the page installs
-    at load time via micropip (binary packages such as lxml and Pillow come
-    from the Pyodide distribution).
+  * resolves the full runtime dependency closure against the *current
+    environment* (the tested venv) and downloads the exact ``name==version``
+    pure-Python wheels, so the page installs precisely the code that the
+    test suite ran against — the browser never contacts PyPI,
+  * embeds all those wheels (base64) plus the default security identifiers
+    CSV into ``web/app_template.html``.
+
+Binary packages (lxml, Pillow, pydantic-core, …) cannot be embedded; they
+come from the Pyodide distribution, whose versions are frozen by the
+``PYODIDE_VERSION`` pin in the template.  The script fetches the matching
+``pyodide-lock.json`` to decide which packages those are.
 
 Usage:
     python scripts/build_web_app.py [--output dist/web/opensteuerauszug.html]
 
-Requires network access (PyPI + GitHub) to build the wheels.
+Must run inside the project venv (it locks to the installed versions).
+Requires network access (PyPI + GitHub + Pyodide CDN).
 """
 
 import argparse
 import base64
+import importlib.metadata
 import json
+import re
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+
+from packaging.markers import default_environment
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 
 try:
     import tomllib  # Python >= 3.11
@@ -38,10 +52,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_PATH = REPO_ROOT / "web" / "app_template.html"
 IDENTIFIERS_CSV = REPO_ROOT / "data" / "security_identifiers.csv"
 BUNDLE_PLACEHOLDER = "__OSA_BUNDLE_JSON__"
-
-# Dependencies that must not be sent to micropip.  ``micropip`` itself is
-# provided by Pyodide and installed separately by the page.
-_SKIP_REQUIREMENTS: set = set()
 
 
 def collect_dependencies(pyproject_path: Path) -> tuple:
@@ -56,13 +66,118 @@ def collect_dependencies(pyproject_path: Path) -> tuple:
     git_reqs = []
     for dep in project["dependencies"]:
         requirement = dep.split("#", 1)[0].strip()
-        if not requirement or requirement in _SKIP_REQUIREMENTS:
+        if not requirement:
             continue
         if "@ git+" in requirement:
             git_reqs.append(requirement)
         else:
             pypi_reqs.append(requirement)
     return pypi_reqs, git_reqs, project.get("version", "0.0.0")
+
+
+def read_pyodide_version(template_text: str) -> str:
+    """Extract the Pyodide version pinned in the page template."""
+    match = re.search(r'const PYODIDE_VERSION = "([^"]+)"', template_text)
+    if not match:
+        raise ValueError("template does not define PYODIDE_VERSION")
+    return match.group(1)
+
+
+def fetch_pyodide_distribution(version: str) -> dict:
+    """Map canonical package name -> lockfile key for the Pyodide distribution.
+
+    These packages (binary builds like lxml/Pillow among them) are served from
+    the version-pinned Pyodide CDN, so they are excluded from the embedded
+    wheel set.
+    """
+    url = f"https://cdn.jsdelivr.net/pyodide/v{version}/full/pyodide-lock.json"
+    with urllib.request.urlopen(url) as resp:
+        lock = json.load(resp)
+    return {canonicalize_name(name): name for name in lock["packages"]}
+
+
+def resolve_locked_closure(root_reqs: list, skip_names: set, pyodide_dist: dict) -> tuple:
+    """Walk the runtime dependency closure of the *installed* environment.
+
+    Returns ``(locked, dist_used)`` where ``locked`` maps canonical package
+    name to the exact installed version (to be embedded as a wheel) and
+    ``dist_used`` lists the Pyodide-distribution package names the page must
+    load at runtime.  Markers are evaluated for the build environment; the
+    browser smoke test is the safety net for emscripten-only divergence.
+    """
+    env: dict = dict(default_environment())
+    locked: dict = {}
+    dist_used: set = set()
+    queue = [Requirement(r) for r in root_reqs]
+    seen = set()
+    while queue:
+        req = queue.pop()
+        name = canonicalize_name(req.name)
+        if name in skip_names:
+            continue
+        key = (name, frozenset(req.extras))
+        if key in seen:
+            continue
+        seen.add(key)
+        if name in pyodide_dist:
+            dist_used.add(pyodide_dist[name])
+            continue  # transitive deps come from the Pyodide lockfile
+        try:
+            dist = importlib.metadata.distribution(req.name)
+        except importlib.metadata.PackageNotFoundError:
+            raise SystemExit(
+                f"'{req.name}' is not installed here — run this script inside "
+                "the project venv (pip install -e .) so versions can be locked."
+            )
+        if req.specifier and not req.specifier.contains(dist.version, prereleases=True):
+            raise SystemExit(
+                f"installed {req.name} {dist.version} does not satisfy '{req}'; "
+                "fix the venv before building."
+            )
+        locked[name] = dist.version
+        for dep_str in dist.requires or []:
+            dep = Requirement(dep_str)
+            if dep.marker is not None:
+                extras = req.extras or {""}
+                if not any(dep.marker.evaluate({**env, "extra": e}) for e in extras):
+                    continue
+            queue.append(dep)
+    return locked, sorted(dist_used)
+
+
+def download_locked_wheels(locked: dict, wheel_dir: Path) -> list:
+    """Download the exact ``name==version`` pure-Python wheels from PyPI.
+
+    Anything without a universal (``none-any``) wheel cannot run in the
+    browser unless the Pyodide distribution provides it, so that is a build
+    error rather than something to paper over.
+    """
+    wheel_dir.mkdir(parents=True, exist_ok=True)
+    before = set(wheel_dir.glob("*.whl"))
+    cmd = [
+        sys.executable,
+        "-m",
+        "pip",
+        "download",
+        "--no-deps",
+        "--only-binary",
+        ":all:",
+        "--implementation",
+        "py",
+        "--abi",
+        "none",
+        "--platform",
+        "any",
+        "--dest",
+        str(wheel_dir),
+        *[f"{name}=={version}" for name, version in sorted(locked.items())],
+    ]
+    subprocess.run(cmd, check=True)
+    wheels = sorted(set(wheel_dir.glob("*.whl")) - before) or sorted(wheel_dir.glob("*.whl"))
+    bad = [w.name for w in wheels if not w.name.endswith("-none-any.whl")]
+    if bad:
+        raise RuntimeError(f"not universal pure-Python wheels: {', '.join(bad)}")
+    return wheels
 
 
 def build_wheels(requirements: list, wheel_dir: Path) -> list:
@@ -92,7 +207,8 @@ def build_wheels(requirements: list, wheel_dir: Path) -> list:
 
 def make_bundle(
     wheel_paths: list,
-    pypi_requirements: list,
+    pyodide_packages: list,
+    lock: dict,
     version: str,
     identifiers_csv: Path = IDENTIFIERS_CSV,
 ) -> dict:
@@ -109,7 +225,10 @@ def make_bundle(
     bundle = {
         "version": version,
         "builtAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "requirements": pypi_requirements,
+        # Packages loaded from the version-pinned Pyodide distribution.
+        "pyodidePackages": pyodide_packages,
+        # Informational: the exact versions embedded as wheels.
+        "lock": {name: lock[name] for name in sorted(lock)},
         "wheels": wheels,
         "identifiersCsv": (
             base64.b64encode(identifiers_csv.read_bytes()).decode("ascii")
@@ -152,8 +271,18 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
+    template_text = args.template.read_text(encoding="utf-8")
+    pyodide_version = read_pyodide_version(template_text)
+    print(f"Pyodide distribution: v{pyodide_version}")
+    pyodide_dist = fetch_pyodide_distribution(pyodide_version)
+
     pypi_reqs, git_reqs, version = collect_dependencies(REPO_ROOT / "pyproject.toml")
-    print(f"PyPI requirements ({len(pypi_reqs)}): {', '.join(pypi_reqs)}")
+    skip_names = {canonicalize_name(Requirement(req).name) for req in git_reqs}
+    skip_names.add(canonicalize_name("opensteuerauszug"))
+    locked, dist_used = resolve_locked_closure(pypi_reqs, skip_names, pyodide_dist)
+    print(f"From Pyodide distribution ({len(dist_used)}): {', '.join(dist_used)}")
+    locked_desc = ", ".join(f"{n}=={v}" for n, v in sorted(locked.items()))
+    print(f"Locked PyPI wheels ({len(locked)}): {locked_desc}")
     print(f"Git requirements ({len(git_reqs)}): {', '.join(git_reqs)}")
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -163,6 +292,8 @@ def main(argv=None) -> int:
         for req in git_reqs:
             print(f"Building wheel for {req}…")
             wheel_paths.extend(build_wheels([req], wheel_dir))
+        print("Downloading locked dependency wheels…")
+        wheel_paths.extend(download_locked_wheels(locked, wheel_dir))
         # De-duplicate while keeping order (pip may rebuild into same dir).
         seen = set()
         unique_wheels = []
@@ -171,8 +302,8 @@ def main(argv=None) -> int:
                 seen.add(path.name)
                 unique_wheels.append(path)
 
-        bundle = make_bundle(unique_wheels, pypi_reqs, version)
-        html = render_html(args.template.read_text(encoding="utf-8"), bundle)
+        bundle = make_bundle(unique_wheels, dist_used, locked, version)
+        html = render_html(template_text, bundle)
 
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(html, encoding="utf-8")

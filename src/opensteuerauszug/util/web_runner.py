@@ -13,8 +13,6 @@ import traceback
 from pathlib import Path
 from typing import Callable, List, Optional
 
-import click
-
 OutputCallback = Callable[[str], None]
 
 
@@ -129,17 +127,18 @@ def run_cli(args: List[str], on_output: Optional[OutputCallback] = None) -> dict
     _reset_root_logging()
     exit_code = 0
     try:
+        # Standalone mode makes click (or, for typer >= 0.26, its vendored
+        # copy in typer._click) print CLI errors to our redirected stderr and
+        # signal the exit code via SystemExit — so we never have to touch
+        # click's exception classes, which differ across typer versions.
         command = get_command(app)
-        result = command.main(args=args, prog_name="opensteuerauszug", standalone_mode=False)
-        if isinstance(result, int):
-            exit_code = result
-    except click.exceptions.Exit as exc:
-        exit_code = exc.exit_code
-    except SystemExit as exc:  # pragma: no cover - defensive
-        exit_code = int(exc.code or 0)
-    except click.ClickException as exc:
-        callback(f"Error: {exc.format_message()}")
-        exit_code = exc.exit_code
+        command.main(args=args, prog_name="opensteuerauszug")
+    except SystemExit as exc:
+        if isinstance(exc.code, int):
+            exit_code = exc.code
+        elif exc.code is not None:
+            callback(str(exc.code))
+            exit_code = 1
     except Exception:
         for line in traceback.format_exc(limit=20).splitlines():
             callback(line)

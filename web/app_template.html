@@ -120,7 +120,10 @@
     border-top: 1px solid var(--border); padding: 9px 24px; font-size: 13px;
     display: flex; align-items: center; gap: 10px; z-index: 5;
   }
-  .enginebar .inner { max-width: 852px; margin: 0 auto; display: flex; align-items: center; gap: 10px; width: 100%; }
+  .enginebar .inner { max-width: 852px; margin: 0 auto; width: 100%; }
+  .enginebar .statusrow { display: flex; align-items: center; gap: 10px; }
+  .enginebar .statusrow button { flex: none; }
+  .enginebar #engineErrorBox { max-height: 40vh; margin: 8px 0 0; }
   .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; flex: none; }
   .pill.loading { background: var(--warn-soft); color: var(--warn); }
   .pill.ready { background: var(--ok-soft); color: var(--ok); }
@@ -374,16 +377,20 @@
 
 <div class="enginebar">
   <div class="inner">
-    <span class="pill loading" id="enginePill"><span class="spinner"></span> <span id="engineState">Waiting</span></span>
-    <progress id="engineProgress" max="100" value="0"></progress>
-    <span class="detail" id="engineDetail">Python engine not started yet.</span>
+    <div class="statusrow">
+      <span class="pill loading" id="enginePill"><span class="spinner"></span> <span id="engineState">Waiting</span></span>
+      <progress id="engineProgress" max="100" value="0"></progress>
+      <span class="detail" id="engineDetail">Python engine not started yet.</span>
+      <button class="small ghost" id="engineDetailToggle" style="display:none">Show details</button>
+    </div>
+    <pre class="console" id="engineErrorBox" style="display:none"></pre>
   </div>
 </div>
 
 <footer class="page">
   OpenSteuerAuszug <span id="verInfo"></span> — MIT licensed open source software, no warranty.
   <a href="https://github.com/vroonhof/opensteuerauszug" target="_blank" rel="noopener">Source &amp; documentation</a>.
-  This page makes no network requests other than downloading the Python runtime and open-source libraries.
+  All application code is embedded in this file; the only network requests download the version-pinned Python runtime and its libraries.
 </footer>
 
 <!-- The application bundle (wheels etc.) is injected here by scripts/build_web_app.py -->
@@ -417,14 +424,18 @@ async function init(cfg) {
     try { await pyodide.loadPackage("sqlite3", { messageCallback: () => {} }); } catch (e) {}
     const micropip = pyodide.pyimport("micropip");
 
-    // Install PyPI dependencies first (micropip resolves binary packages such
-    // as lxml/Pillow from the Pyodide distribution automatically) …
-    const reqs = cfg.bundle.requirements;
-    for (let i = 0; i < reqs.length; i++) {
-      progress("deps", "Installing " + reqs[i].replace(/[<>=!~;].*$/, "") + "…",
-               25 + Math.round(55 * (i / reqs.length)));
-      await micropip.install.callKwargs(reqs[i], {});
-    }
+    // Load the packages that come from the version-pinned Pyodide
+    // distribution (binary builds such as lxml/Pillow).  Everything else is
+    // embedded in this file as wheels — the page never contacts PyPI.
+    const distPkgs = cfg.bundle.pyodidePackages || [];
+    let loaded = 0;
+    progress("deps", "Loading libraries…", 28);
+    await pyodide.loadPackage(distPkgs, { messageCallback: (m) => {
+      if (/^Loaded/.test(m)) {
+        loaded++;
+        progress("deps", m, 28 + Math.round(52 * (loaded / distPkgs.length)));
+      }
+    }});
 
     // … then the application wheels that are embedded in this HTML file.
     progress("app", "Installing OpenSteuerAuszug…", 82);
@@ -452,7 +463,8 @@ _version = opensteuerauszug.__version__
     const version = pyodide.globals.get("_version");
     post({ type: "ready", version: String(version) });
   } catch (err) {
-    post({ type: "init-error", message: String(err && err.message || err) });
+    post({ type: "init-error", message: String(err && err.message || err),
+           detail: String(err && (err.stack || err.message) || err) });
   }
 }
 
@@ -531,7 +543,7 @@ json.dumps(_r)
     }
     post({ type: "done", result: payload }, transfers);
   } catch (err) {
-    post({ type: "log", line: "Internal error: " + String(err && err.message || err) });
+    post({ type: "log", line: "Internal error: " + String(err && (err.stack || err.message) || err) });
     post({ type: "done", result: { success: false, exitCode: -1, files: [] } });
   }
 }
@@ -873,7 +885,7 @@ wireDrop("dropBroker", "fileBroker", (files) => {
 
 /* ========================= engine / worker ============================= */
 let worker = null;
-function setEngine(cls, label, detail, pct) {
+function setEngine(cls, label, detail, pct, errorDetail) {
   state.engine = cls;
   const pill = $("enginePill");
   pill.className = "pill " + (cls === "ready" ? "ready" : cls === "error" ? "error" : "loading");
@@ -882,8 +894,23 @@ function setEngine(cls, label, detail, pct) {
   $("engineDetail").textContent = detail || "";
   if (pct != null) $("engineProgress").value = pct;
   $("engineProgress").style.display = cls === "loading" ? "" : "none";
+  const toggle = $("engineDetailToggle"), box = $("engineErrorBox");
+  if (cls === "error" && errorDetail) {
+    box.textContent = errorDetail;
+    toggle.style.display = "";
+  } else {
+    box.style.display = "none";
+    toggle.style.display = "none";
+    toggle.textContent = "Show details";
+  }
   refreshRunButton();
 }
+$("engineDetailToggle").onclick = () => {
+  const box = $("engineErrorBox");
+  const show = box.style.display === "none";
+  box.style.display = show ? "" : "none";
+  $("engineDetailToggle").textContent = show ? "Hide details" : "Show details";
+};
 function startEngine() {
   if (worker || !BUNDLE) return;
   const src = document.getElementById("osa-worker-src").textContent;
@@ -896,7 +923,8 @@ function startEngine() {
       $("verInfo").textContent = "v" + msg.version;
     }
     else if (msg.type === "init-error")
-      setEngine("error", "Engine failed", msg.message + " — check your internet connection and reload.");
+      setEngine("error", "Engine failed", msg.message + " — check your internet connection and reload.",
+                null, msg.detail || msg.message);
     else if (msg.type === "log") {
       state.lastLog.push(msg.line);
       const log = $("runLog");
@@ -905,7 +933,8 @@ function startEngine() {
     }
     else if (msg.type === "done") onRunDone(msg.result);
   };
-  worker.onerror = (e) => setEngine("error", "Engine failed", e.message || "Worker error");
+  worker.onerror = (e) => setEngine("error", "Engine failed", e.message || "Worker error", null,
+    [e.message || "Worker error", e.filename ? "at " + e.filename + ":" + e.lineno : ""].filter(Boolean).join("\n"));
   const params = new URLSearchParams(location.search);
   const base = params.get("pyodide") || settings.pyodideBase || DEFAULT_PYODIDE_BASE;
   const indexURL = base.endsWith("/") ? base : base + "/";

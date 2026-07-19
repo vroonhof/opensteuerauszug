@@ -44,22 +44,46 @@ def test_bundle_embeds_wheels_and_identifiers(build_web_app, tmp_path):
     wheel = _make_dummy_wheel(tmp_path / "dummy-1.0-py3-none-any.whl")
     csv = tmp_path / "ids.csv"
     csv.write_text("isin,valor\n")
-    bundle = build_web_app.make_bundle([wheel], ["pydantic>=2"], "1.2.3", identifiers_csv=csv)
+    bundle = build_web_app.make_bundle(
+        [wheel], ["pydantic"], {"typer": "0.24.2"}, "1.2.3", identifiers_csv=csv
+    )
     assert bundle["version"] == "1.2.3"
-    assert bundle["requirements"] == ["pydantic>=2"]
+    assert bundle["pyodidePackages"] == ["pydantic"]
+    assert bundle["lock"] == {"typer": "0.24.2"}
     assert bundle["wheels"][0]["name"] == "dummy-1.0-py3-none-any.whl"
     assert base64.b64decode(bundle["wheels"][0]["data"]) == wheel.read_bytes()
     assert base64.b64decode(bundle["identifiersCsv"]) == b"isin,valor\n"
+
+
+def test_locked_closure_splits_dist_and_embedded_packages(build_web_app):
+    pypi, git, _ = build_web_app.collect_dependencies(PROJECT_ROOT / "pyproject.toml")
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name
+
+    skip = {canonicalize_name(Requirement(req).name) for req in git}
+    skip.add(canonicalize_name("opensteuerauszug"))
+    # Pretend the Pyodide distribution ships the binary packages (as the real
+    # lockfile does) so the walk routes them there instead of embedding.
+    dist = {name: name for name in ("lxml", "pillow", "pydantic", "click", "rich")}
+    locked, dist_used = build_web_app.resolve_locked_closure(pypi, skip, dist)
+    assert "lxml" in dist_used and "pydantic" in dist_used
+    # Direct deps and transitive deps of embedded wheels get exact pins…
+    import typer
+
+    assert locked["typer"] == typer.__version__
+    assert "reportlab" in locked and "shellingham" in locked
+    # …and nothing routed to the distribution is also embedded.
+    assert not set(locked) & set(dist_used)
 
 
 def test_rendered_html_contains_parseable_bundle_json(build_web_app, tmp_path):
     template = (PROJECT_ROOT / "web" / "app_template.html").read_text(encoding="utf-8")
     wheel = _make_dummy_wheel(tmp_path / "dummy-1.0-py3-none-any.whl")
     bundle = build_web_app.make_bundle(
-        [wheel], ["pydantic>=2"], "1.2.3", identifiers_csv=tmp_path / "missing.csv"
+        [wheel], ["pydantic"], {}, "1.2.3", identifiers_csv=tmp_path / "missing.csv"
     )
     # A hostile-looking string must not be able to close the <script> tag.
-    bundle["requirements"].append("evil</script><script>")
+    bundle["pyodidePackages"].append("evil</script><script>")
     html = build_web_app.render_html(template, bundle)
     assert build_web_app.BUNDLE_PLACEHOLDER not in html
     assert "</script><script>alert" not in html
