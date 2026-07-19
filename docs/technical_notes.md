@@ -106,7 +106,9 @@ or set the base URL under *Advanced: runtime options* on the welcome step.
   node web/dev/e2e_smoke.mjs dist/web/opensteuerauszug.html
   ```
 
-- CI builds and smoke-tests the app via `.github/workflows/web-app.yml` and
-  uploads the HTML as an artifact.
+- CI builds and smoke-tests the app via `.github/workflows/web-app.yml`,
+  uploads the HTML as an artifact and, on pushes to `main`, deploys it to
+  GitHub Pages at <https://vroonhof.github.io/opensteuerauszug/> (served
+  both as `index.html` and as a downloadable `opensteuerauszug.html`).
 
 

@@ -18,10 +18,19 @@ run, the first time you open it — after that it's cached by your browser.
 
 ## Getting the app
 
-Download `opensteuerauszug.html` from the *Web app* workflow artifact on the
-[GitHub Actions page](https://github.com/vroonhof/opensteuerauszug/actions/workflows/web-app.yml),
-save it anywhere, and open it in a modern browser (Chrome/Edge/Firefox; an
-internet connection is needed on first load).
+Simply open **<https://vroonhof.github.io/opensteuerauszug/>** in a modern
+browser (Chrome/Edge/Firefox) — that's the app, always built from the latest
+`main` branch. Everything still runs locally in the page.
+
+If you prefer a local copy (e.g. for offline use), download
+[`opensteuerauszug.html`](https://vroonhof.github.io/opensteuerauszug/opensteuerauszug.html)
+from the same site (right-click → *Save link as…*), save it anywhere, and
+open it from disk. An internet connection is needed on first load either
+way.
+
+Unreleased builds from pull requests are available as *Web app* workflow
+artifacts on the
+[GitHub Actions page](https://github.com/vroonhof/opensteuerauszug/actions/workflows/web-app.yml).
 
 ## Using the wizard
 
