@@ -24,10 +24,14 @@ class _CallbackWriter:
         self._buffer = ""
 
     def write(self, text: str) -> int:
-        self._buffer += text
+        # Treat carriage returns as line breaks so in-place progress tickers
+        # (e.g. the Kursliste converter's "\rProcessed N records...") reach
+        # the callback while they happen instead of piling up in the buffer.
+        self._buffer += text.replace("\r", "\n")
         while "\n" in self._buffer:
             line, self._buffer = self._buffer.split("\n", 1)
-            self._callback(line)
+            if line:
+                self._callback(line)
         return len(text)
 
     def flush(self) -> None:
@@ -149,6 +153,68 @@ def run_cli(args: List[str], on_output: Optional[OutputCallback] = None) -> dict
         sys.stderr = old_stderr
         _reset_root_logging()
     return {"exit_code": exit_code}
+
+
+def convert_kursliste_xmls(kursliste_dir: str, on_output: Optional[OutputCallback] = None) -> dict:
+    """Convert Kursliste XML files in a directory to SQLite databases in place.
+
+    Loading a full Kursliste XML needs roughly 30x the file size in memory,
+    which does not fit in the browser's WebAssembly heap for real files.  The
+    streaming XML-to-SQLite converter runs in near-constant memory, so the web
+    worker calls this before the pipeline and the page caches the resulting
+    database for later runs.
+
+    Each successfully converted XML file is deleted so the pipeline picks up
+    the SQLite database instead.  XML files whose year already has a SQLite
+    database are left untouched and reported as skipped.  Returns
+    ``{"converted": [{"source", "path", "year", "size"}], "skipped": [...],
+    "errors": [{"source", "error"}]}``.
+    """
+    from opensteuerauszug.core.kursliste_manager import KurslisteManager
+    from opensteuerauszug.kursliste.converter import convert_kursliste_xml_to_sqlite
+
+    callback: OutputCallback = on_output or (lambda line: None)
+    writer = _CallbackWriter(callback)
+    manager = KurslisteManager()
+    directory = Path(kursliste_dir)
+    result: dict = {"converted": [], "skipped": [], "errors": []}
+
+    for xml_path in sorted(directory.glob("*.xml")):
+        year = manager._get_year_from_filename(xml_path.name)
+        if year is None:
+            year = manager._get_year_from_xml_content(xml_path)
+        db_path = directory / (f"kursliste_{year}.sqlite" if year else xml_path.stem + ".sqlite")
+        if db_path.is_file():
+            callback(f"Skipping {xml_path.name}: {db_path.name} already exists.")
+            result["skipped"].append(xml_path.name)
+            continue
+
+        old_stdout, old_stderr = sys.stdout, sys.stderr
+        sys.stdout = writer  # type: ignore[assignment]
+        sys.stderr = writer  # type: ignore[assignment]
+        try:
+            convert_kursliste_xml_to_sqlite(xml_path, db_path)
+        except Exception as exc:
+            db_path.unlink(missing_ok=True)
+            result["errors"].append({"source": xml_path.name, "error": str(exc)})
+        else:
+            xml_path.unlink()
+            result["converted"].append(
+                {
+                    "source": xml_path.name,
+                    "path": str(db_path),
+                    "year": year,
+                    "size": db_path.stat().st_size,
+                }
+            )
+        finally:
+            writer.flush()
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+
+    for err in result["errors"]:
+        callback(f"Error converting {err['source']}: {err['error']}")
+    return result
 
 
 def run_process(

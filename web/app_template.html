@@ -274,9 +274,10 @@
           <a href="https://www.ictax.admin.ch/extern/en.html#/xml" target="_blank" rel="noopener">ictax.admin.ch</a> and unzip it.</li>
         <li>Add the resulting <code>kursliste_YYYY.xml</code> below.</li>
       </ol>
-      <p class="hint">Tip: the XML is large (&gt;100&nbsp;MB) and takes a while to parse in the browser. If you also use the
-        command line tool, <code>opensteuerauszug kursliste download --year YYYY</code> produces a much faster
-        <code>kursliste_YYYY.sqlite</code> which you can add here instead.</p>
+      <p class="hint">The XML is large (&gt;100&nbsp;MB), so the first run converts it to a compact database —
+        that takes a few minutes, after which the database is cached and the XML is no longer needed.
+        If you also use the command line tool, <code>opensteuerauszug kursliste download --year YYYY</code>
+        produces the same <code>kursliste_YYYY.sqlite</code>, which you can add here directly.</p>
       <div class="filedrop" id="dropKursliste">
         <b>Drop the Kursliste file here</b> or click to choose<br>
         <span class="hint">kursliste_YYYY.xml or kursliste_YYYY.sqlite</span>
@@ -331,7 +332,7 @@
     <div class="card">
       <h2>Generate</h2>
       <p class="lead">Review the summary, then run the pipeline. Processing happens entirely in this page and can
-        take from a few seconds up to several minutes (a large Kursliste XML is the slow part).</p>
+        take from a few seconds up to several minutes (converting a Kursliste XML on the first run is the slow part).</p>
       <div id="runSummary" style="font-size:14px"></div>
       <div class="notice error" id="runBlockers" style="display:none"></div>
       <div class="row" style="margin-top:14px">
@@ -494,6 +495,26 @@ async function run(job) {
     for (const f of job.kurslisteFiles)
       FS.writeFile("/work/kursliste/" + f.name, new Uint8Array(f.buffer));
 
+    pyodide.globals.set("_log_cb", (line) => post({ type: "log", line: String(line) }));
+
+    // A full Kursliste XML cannot be parsed directly in the browser (it needs
+    // ~30x its size in memory, far beyond the WebAssembly limit).  Convert any
+    // XML to SQLite with the streaming converter first and hand the result
+    // back to the page, which caches it for future runs.
+    if (job.kurslisteFiles.some((f) => /\.xml$/i.test(f.name))) {
+      post({ type: "log", line: "Converting Kursliste XML to a database (one-time; the result is cached in your browser)…" });
+      const convJson = await pyodide.runPythonAsync(`
+import json
+from opensteuerauszug.util import web_runner
+json.dumps(web_runner.convert_kursliste_xmls("/work/kursliste", on_output=_log_cb))
+`);
+      for (const c of JSON.parse(convJson).converted) {
+        const data = FS.readFile(c.path);
+        post({ type: "kursliste-converted", source: c.source, name: c.path.split("/").pop(),
+               buffer: data.buffer }, [data.buffer]);
+      }
+    }
+
     const extraArgs = [];
     for (const f of job.preAmble) {
       const p = "/work/ambles/pre_" + f.name;
@@ -526,7 +547,6 @@ async function run(job) {
     };
 
     pyodide.globals.set("_params_json", JSON.stringify(params));
-    pyodide.globals.set("_log_cb", (line) => post({ type: "log", line: String(line) }));
     const resultJson = await pyodide.runPythonAsync(`
 import json
 from opensteuerauszug.util import web_runner
@@ -931,6 +951,7 @@ function startEngine() {
       log.textContent += msg.line + "\n";
       log.scrollTop = log.scrollHeight;
     }
+    else if (msg.type === "kursliste-converted") onKurslisteConverted(msg);
     else if (msg.type === "done") onRunDone(msg.result);
   };
   worker.onerror = (e) => setEngine("error", "Engine failed", e.message || "Worker error", null,
@@ -1017,6 +1038,18 @@ $("btnRun").onclick = async () => {
     refreshRunButton();
   }
 };
+async function onKurslisteConverted(msg) {
+  // The worker converted an uploaded Kursliste XML to SQLite; keep only the
+  // (much faster) database from now on, both in memory and in the cache.
+  const blob = new Blob([msg.buffer], { type: "application/vnd.sqlite3" });
+  state.kurslisteFiles = state.kurslisteFiles.filter(
+    (x) => x.name !== msg.source && x.name !== msg.name);
+  state.kurslisteFiles.push({ name: msg.name, size: blob.size, blob, fromCache: true });
+  await idbDelete(msg.source);
+  await idbPut({ name: msg.name, size: blob.size, blob, added: Date.now() });
+  renderKursliste();
+}
+
 function onRunDone(result) {
   state.running = false;
   state.results = result;

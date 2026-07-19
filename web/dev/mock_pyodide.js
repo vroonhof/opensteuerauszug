@@ -76,6 +76,23 @@ function loadPyodide(_opts) {
       }
     },
     async runPythonAsync(code) {
+      if (code.includes("convert_kursliste_xmls")) {
+        // Emulate the streaming XML -> SQLite conversion: replace each XML in
+        // /work/kursliste with a mock kursliste_<year>.sqlite.
+        const log = globals.get("_log_cb");
+        const result = { converted: [], skipped: [], errors: [] };
+        for (const name of FS.readdir("/work/kursliste")) {
+          if (!/\.xml$/i.test(name)) continue;
+          const year = (name.match(/(\d{4})/) || [])[1] || "0000";
+          const dbPath = "/work/kursliste/kursliste_" + year + ".sqlite";
+          FS.writeFile(dbPath, "SQLite mock (from " + name + ")");
+          FS.unlink("/work/kursliste/" + name);
+          log("MOCK converted " + name + " -> kursliste_" + year + ".sqlite");
+          result.converted.push({ source: name, path: dbPath, year: Number(year),
+                                  size: FS.readFile(dbPath).length });
+        }
+        return JSON.stringify(result);
+      }
       if (!code.includes("run_process")) throw new Error("mock: unexpected python\n" + code);
       const params = JSON.parse(globals.get("_params_json"));
       const log = globals.get("_log_cb");

@@ -106,9 +106,18 @@ try {
   if (pdfName !== "steuerauszug_2025.pdf") fail("bad pdf download name: " + pdfName);
   const log = await page.textContent("#resultLog");
   if (!log.includes("MOCK inputs: vtandchill_2025.xml")) fail("broker file did not reach engine:\n" + log);
-  if (!log.includes("MOCK kursliste: kursliste_mini_2025.xml")) fail("kursliste did not reach engine:\n" + log);
+  if (!log.includes("MOCK converted kursliste_mini_2025.xml -> kursliste_2025.sqlite"))
+    fail("kursliste XML was not converted:\n" + log);
+  if (!log.includes("MOCK kursliste: kursliste_2025.sqlite"))
+    fail("pipeline did not receive the converted kursliste:\n" + log);
   if (!log.includes('full_name = "Maxine Muster"')) fail("config did not reach engine:\n" + log);
   ok("pipeline received files + config, downloads offered");
+
+  // The converted sqlite must replace the XML in the kursliste list (and cache).
+  const klName = await page.locator("#listKursliste li .name").textContent();
+  if (!klName.includes("kursliste_2025.sqlite"))
+    fail("converted sqlite did not replace the XML in the list: " + klName);
+  ok("converted kursliste replaces the XML");
 
   // Download really contains the produced bytes.
   const [download] = await Promise.all([page.waitForEvent("download"), links.first().click()]);
@@ -126,7 +135,10 @@ try {
   await page.waitForSelector("#listKursliste li", { state: "attached", timeout: 10000 });
   const cached = await page.locator("#listKursliste li .meta").textContent();
   if (!cached.includes("cached")) fail("kursliste not restored from IndexedDB");
-  ok("settings + kursliste persist across reload");
+  const cachedName = await page.locator("#listKursliste li .name").textContent();
+  if (!cachedName.includes("kursliste_2025.sqlite"))
+    fail("cache should hold the converted sqlite, got: " + cachedName);
+  ok("settings + converted kursliste persist across reload");
 
   console.log("\nAll web app smoke tests passed.");
 } finally {
