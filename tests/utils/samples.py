@@ -44,6 +44,22 @@ def get_sample_files(pattern: str, base_dir: str = "tests/samples/") -> List[str
     return sample_files
 
 
+def _find_sample_dirs(root: Path, extensions: List[str]) -> List[str]:
+    """Return directories under *root* that directly contain matching sample files."""
+    if not root.exists():
+        return []
+
+    sample_dirs = []
+    for current_dir, dirnames, filenames in os.walk(root):
+        dirnames.sort()
+        matching_files = [
+            f for f in filenames if any(f.lower().endswith(ext) for ext in extensions)
+        ]
+        if matching_files:
+            sample_dirs.append(str(Path(current_dir)))
+    return sample_dirs
+
+
 def get_sample_dirs(subdir: str, extensions: List[str] = ['.pdf', '.json']) -> List[str]:
     """
     Return a list of sample directories to test: the given subdirectory under the repo and, if set, under EXTRA_SAMPLE_DIR.
@@ -60,36 +76,14 @@ def get_sample_dirs(subdir: str, extensions: List[str] = ['.pdf', '.json']) -> L
     extra_sample_dir = os.getenv("EXTRA_SAMPLE_DIR")
     if extra_sample_dir:
         extra_dir = Path(os.path.expanduser(os.path.expandvars(extra_sample_dir))) / subdir
-        if extra_dir.is_dir():
-            files = [
-                f
-                for f in os.listdir(extra_dir)
-                if any(f.lower().endswith(ext) for ext in extensions)
-            ]
-            if files:
-                dirs.append(str(extra_dir))
+        dirs.extend(_find_sample_dirs(extra_dir, extensions))
     # Private samples directory
     private_dir = REPO_ROOT / "private/samples" / subdir
-    if private_dir.is_dir():
-        files = [
-            f for f in os.listdir(private_dir) if any(f.lower().endswith(ext) for ext in extensions)
-        ]
-        if files:
-            dirs.append(str(private_dir))
+    dirs.extend(_find_sample_dirs(private_dir, extensions))
     # Default repo directory
     repo_dir = REPO_ROOT / "tests/samples" / subdir
-    if repo_dir.is_dir():
-        files = [
-            f for f in os.listdir(repo_dir) if any(f.lower().endswith(ext) for ext in extensions)
-        ]
-        if files:
-            dirs.append(str(repo_dir))
+    dirs.extend(_find_sample_dirs(repo_dir, extensions))
     # Add data/{subdir} as directory of last resort
     data_dir = REPO_ROOT / "data" / subdir
-    if data_dir.is_dir():
-        files = [
-            f for f in os.listdir(data_dir) if any(f.lower().endswith(ext) for ext in extensions)
-        ]
-        if files:
-            dirs.append(str(data_dir))
+    dirs.extend(_find_sample_dirs(data_dir, extensions))
     return dirs
