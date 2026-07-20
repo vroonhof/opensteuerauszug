@@ -8,6 +8,7 @@ EXTRA_SAMPLE_DIR/import/degiro/).  See design/testing.md for details.
 import os
 import re
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
@@ -85,6 +86,39 @@ def test_import_dir_raises_on_missing_files(tmp_path):
     )
     with pytest.raises(FileNotFoundError):
         importer.import_dir(str(tmp_path))
+
+
+def test_import_files_preserves_cash_accounts_in_each_currency(tmp_path):
+    account_csv = tmp_path / "Account.csv"
+    account_csv.write_text(
+        "Date,Time,Value date,Product,ISIN,Description,FX,Change,,Balance,,Order Id\n",
+        encoding="utf-8",
+    )
+    portfolio_csv = tmp_path / "Portfolio.csv"
+    portfolio_csv.write_text(
+        "Product,Symbol/ISIN,Amount,Closing,Local value,,Value in CHF\n"
+        "CASH & CASH FUND & FTX CASH (CHF),,,,CHF,500.00,500.00\n"
+        "CASH & CASH FUND & FTX CASH (USD),,,,USD,200.00,180.00\n",
+        encoding="utf-8",
+    )
+    importer = DegiroImporter(
+        period_from=PERIOD_FROM,
+        period_to=PERIOD_TO,
+        account_settings_list=[],
+    )
+
+    statement = importer.import_files(str(account_csv), str(portfolio_csv))
+
+    assert statement.listOfBankAccounts is not None
+    accounts = statement.listOfBankAccounts.bankAccount
+    balances = {}
+    for account in accounts:
+        assert account.taxValue is not None
+        balances[account.bankAccountCurrency] = account.taxValue.balance
+    assert balances == {
+        "CHF": Decimal("500.00"),
+        "USD": Decimal("200.00"),
+    }
 
 
 # fmt: off
