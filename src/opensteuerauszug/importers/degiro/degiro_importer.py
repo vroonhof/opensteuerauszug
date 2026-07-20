@@ -26,7 +26,7 @@ import re
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from opensteuerauszug.config.models import DegiroAccountSettings
 from opensteuerauszug.importers.common import (
@@ -139,8 +139,7 @@ class DegiroImporter:
         )
 
         # Step 1 – Seed closing balances from Portfolio.csv
-        cash_balance: Optional[Decimal] = None
-        cash_currency: str = "CHF"
+        cash_balances: List[tuple[Decimal, str]] = []
 
         end_plus_one = self.period_to + timedelta(days=1)
 
@@ -149,8 +148,7 @@ class DegiroImporter:
         isin_to_entry: Dict[str, PortfolioEntry] = {}
         for entry in portfolio_entries:
             if entry.is_cash:
-                cash_balance = entry.local_amount
-                cash_currency = entry.local_currency or "CHF"
+                cash_balances.append((entry.local_amount, entry.local_currency or "CHF"))
                 continue
             if not _valid_isin(entry.isin):
                 logger.debug("Skipping portfolio entry with non-ISIN: %s", entry.isin)
@@ -302,17 +300,19 @@ class DegiroImporter:
         )
 
         # Step 8 – Augment bank accounts
-        if cash_balance is not None:
-            cash_entry = CashAccountEntry(
+        cash_entries = [
+            CashAccountEntry(
                 account_id=self._depot_id,
-                currency=cash_currency,
-                closing_balance=cash_balance,
+                currency=currency,
+                closing_balance=balance,
                 payments=[],
                 country="NL",
-                name=f"{self._depot_id} {cash_currency}",
-                number=f"{self._depot_id}-{cash_currency}",
+                name=f"{self._depot_id} {currency}",
+                number=f"{self._depot_id}-{currency}",
             )
-            augment_list_of_bank_accounts(statement, [cash_entry])
+            for balance, currency in cash_balances
+        ]
+        augment_list_of_bank_accounts(statement, cash_entries)
 
         return statement
 
