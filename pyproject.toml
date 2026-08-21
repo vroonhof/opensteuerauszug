@@ -24,7 +24,7 @@ dependencies = [
     "Pillow>=10.2.0",
     "reportlab>=4.0.0",
     "python-barcode>=0.15.0",
-    "pypdf>=6.10.0",
+    "pypdf>=6.15.0",
     "ibflex2 @ git+https://github.com/vroonhof/ibflex.git",
     "pdf417gen @ git+https://github.com/vroonhof/pdf417-py.git",
     "markdown>=3.0.0",
