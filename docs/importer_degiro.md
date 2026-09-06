@@ -109,7 +109,7 @@ opensteuerauszug process path/to/degiro/ \
 *   **Corporate Action Cash Settlements**: Merger or acquisition cash payouts are captured as income payments alongside the delisting mutation.
 *   **Dividend withholding tax**: `Dividend Tax` rows in `Account.csv` are automatically matched to their parent dividend and reported as `nonRecoverableTaxAmountOriginal` in the generated XML.
 *   **FX rows**: `FX Credit` / `FX Debit` rows that accompany a trade are consumed internally and do not generate separate output entries.
-*   **Cash balance**: The CHF cash balance is taken from the `CASH & CASH FUND` row in `Portfolio.csv`.
+*   **Cash balances**: Cash balances are taken from the `CASH & CASH FUND` rows in `Portfolio.csv`. If your account holds cash in several currencies, DEGIRO exports one such row per currency and each one becomes a separate bank account (e.g. `<account>-CHF`, `<account>-USD`) in the Steuerauszug, converted at the year-end Kursliste rate.
 *   **Account language**: Row descriptions in `Account.csv` depend on your account language. English, Italian, French and German are supported; other languages will stop with an "Unknown DEGIRO row" error — please report these so support can be added.
 *   **Testing**: This importer has been tested against real data from multiple users and account languages. Unusual account histories may still reveal edge cases.
 

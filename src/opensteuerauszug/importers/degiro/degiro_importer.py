@@ -18,6 +18,8 @@ Key design choices
 * Securities present in Account.csv but absent from Portfolio.csv (e.g.
   delisted equities) get an explicit zero closing-balance stock so the
   reconciler can backward-synthesize the correct opening balance.
+* Portfolio.csv can list a cash row per currency wallet; each currency becomes
+  its own bank account rather than the last row winning.
 """
 
 import logging
@@ -139,6 +141,9 @@ class DegiroImporter:
         )
 
         # Step 1 – Seed closing balances from Portfolio.csv
+        # Portfolio.csv holds one "CASH & CASH FUND & FTX CASH (<currency>)" row per
+        # currency wallet, so cash is accumulated per currency (insertion ordered)
+        # and each currency becomes its own bank account in step 8.
         cash_balances: Dict[str, Decimal] = defaultdict(Decimal)
 
         end_plus_one = self.period_to + timedelta(days=1)
@@ -148,6 +153,11 @@ class DegiroImporter:
         isin_to_entry: Dict[str, PortfolioEntry] = {}
         for entry in portfolio_entries:
             if entry.is_cash:
+                if not entry.local_currency:
+                    logger.warning(
+                        "Cash row %r in Portfolio.csv has no currency; assuming CHF",
+                        entry.product,
+                    )
                 cash_balances[entry.local_currency or "CHF"] += entry.local_amount
                 continue
             if not _valid_isin(entry.isin):
@@ -299,7 +309,8 @@ class DegiroImporter:
             assume_zero_if_no_balances=True,
         )
 
-        # Step 8 – Augment bank accounts
+        # Step 8 – Augment bank accounts, one per cash currency. Zero balances are
+        # kept: a wallet that is listed but empty is still a reportable account.
         cash_entries = [
             CashAccountEntry(
                 account_id=self._depot_id,
