@@ -139,7 +139,7 @@ class DegiroImporter:
         )
 
         # Step 1 – Seed closing balances from Portfolio.csv
-        cash_balances: List[tuple[Decimal, str]] = []
+        cash_balances: Dict[str, Decimal] = defaultdict(Decimal)
 
         end_plus_one = self.period_to + timedelta(days=1)
 
@@ -148,7 +148,7 @@ class DegiroImporter:
         isin_to_entry: Dict[str, PortfolioEntry] = {}
         for entry in portfolio_entries:
             if entry.is_cash:
-                cash_balances.append((entry.local_amount, entry.local_currency or "CHF"))
+                cash_balances[entry.local_currency or "CHF"] += entry.local_amount
                 continue
             if not _valid_isin(entry.isin):
                 logger.debug("Skipping portfolio entry with non-ISIN: %s", entry.isin)
@@ -310,7 +310,7 @@ class DegiroImporter:
                 name=f"{self._depot_id} {currency}",
                 number=f"{self._depot_id}-{currency}",
             )
-            for balance, currency in cash_balances
+            for currency, balance in cash_balances.items()
         ]
         augment_list_of_bank_accounts(statement, cash_entries)
 
