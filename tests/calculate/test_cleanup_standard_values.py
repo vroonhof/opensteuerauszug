@@ -40,7 +40,7 @@ class TestCleanupCalculatorStandardValues:
         assert result.periodTo == period_to
         assert result.taxPeriod == period_to.year
         assert result.country == "CH"
-        assert result.creationDate == datetime(2025, 5, 29, 10, 0, 0)
+        assert result.creationDate == datetime(2025, 5, 29, 10, 0, 0).astimezone()
 
     def test_period_values_propagation(self):
         """Test that period values are correctly propagated from the calculator to the statement."""
@@ -96,7 +96,7 @@ class TestCleanupCalculatorStandardValues:
         result = calculator.calculate(statement)
 
         # Assert
-        assert result.creationDate == datetime(2025, 5, 29, 10, 0, 0)
+        assert result.creationDate == datetime(2025, 5, 29, 10, 0, 0).astimezone()
 
     def test_standard_values_in_modified_fields(self):
         """Test that standard values are not logged in modified_fields as they are expected to be set."""
@@ -153,14 +153,15 @@ class TestCleanupCalculatorStandardValues:
         )
 
         # Get time before calculation
-        before_time = datetime.now()
+        # creationDate is truncated to second precision, so truncate here too
+        before_time = datetime.now().astimezone().replace(microsecond=0)
 
         # Act
         calculator = CleanupCalculator(period_from, period_to, "TestImporter", render_language='de')
         result = calculator.calculate(statement)
 
         # Get time after calculation
-        after_time = datetime.now()
+        after_time = datetime.now().astimezone()
 
         # Assert
         # First verify creationDate is not None
