@@ -3077,3 +3077,133 @@ def test_bond_interest_import_succeeds(sample_ibkr_settings):
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)
+
+
+# ---------------------------------------------------------------------------
+# LOT-level OpenPosition tests (synthetic data only)
+# ---------------------------------------------------------------------------
+
+
+_SYNTHETIC_LOT_FLEX_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<FlexQueryResponse queryName="SyntheticLotOnly" type="AF">
+<FlexStatements count="1">
+<FlexStatement accountId="U0000000" fromDate="20260101" toDate="20261231" period="YearToDate" whenGenerated="20270101;000000">
+<AccountInformation accountId="U0000000" name="Synthetic Holder" />
+<Trades>
+</Trades>
+<OpenPositions>
+<OpenPosition accountId="U0000000" acctAlias="" model="" currency="USD" fxRateToBase="1" assetCategory="STK" subCategory="COMMON" symbol="SYN1" description="SYNTHETIC SECURITY ONE" conid="90001" securityID="US0000000001" securityIDType="ISIN" cusip="" isin="US0000000001" figi="" listingExchange="" underlyingConid="" underlyingSymbol="" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" reportDate="20261231" position="3" markPrice="100" positionValue="300" openPrice="" costBasisPrice="95" costBasisMoney="285" percentOfNAV="" fifoPnlUnrealized="" side="Long" levelOfDetail="SUMMARY" openDateTime="" holdingPeriodDateTime="" vestingDate="" code="" originatingOrderID="" originatingTransactionID="" accruedInt="" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+<OpenPosition accountId="U0000000" acctAlias="" model="" currency="USD" fxRateToBase="1" assetCategory="STK" subCategory="COMMON" symbol="SYN1" description="SYNTHETIC SECURITY ONE" conid="90001" securityID="US0000000001" securityIDType="ISIN" cusip="" isin="US0000000001" figi="" listingExchange="" underlyingConid="" underlyingSymbol="" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" reportDate="20261231" position="2" markPrice="100" positionValue="200" openPrice="95" costBasisPrice="95" costBasisMoney="190" percentOfNAV="" fifoPnlUnrealized="" side="Long" levelOfDetail="LOT" openDateTime="20260501;090000" holdingPeriodDateTime="20260501;090000" vestingDate="" code="" originatingOrderID="" originatingTransactionID="TX-SYN-LOT-1" accruedInt="" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+<OpenPosition accountId="U0000000" acctAlias="" model="" currency="USD" fxRateToBase="1" assetCategory="STK" subCategory="COMMON" symbol="SYN1" description="SYNTHETIC SECURITY ONE" conid="90001" securityID="US0000000001" securityIDType="ISIN" cusip="" isin="US0000000001" figi="" listingExchange="" underlyingConid="" underlyingSymbol="" underlyingSecurityID="" underlyingListingExchange="" issuer="" issuerCountryCode="US" multiplier="1" strike="" expiry="" putCall="" principalAdjustFactor="" reportDate="20261231" position="1" markPrice="100" positionValue="100" openPrice="95" costBasisPrice="95" costBasisMoney="95" percentOfNAV="" fifoPnlUnrealized="" side="Long" levelOfDetail="LOT" openDateTime="20260615;150000" holdingPeriodDateTime="20260615;150000" vestingDate="" code="" originatingOrderID="" originatingTransactionID="TX-SYN-LOT-2" accruedInt="" serialNumber="" deliveryType="" commodityType="" fineness="0.0" weight="0.0" />
+</OpenPositions>
+<CashTransactions>
+</CashTransactions>
+</FlexStatement>
+</FlexStatements>
+</FlexQueryResponse>
+"""
+
+
+def _run_importer_on_xml(xml: str) -> object:
+    """Write *xml* to a temp file, run the IBKR importer, return the TaxStatement."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False, encoding="utf-8") as fh:
+        fh.write(xml)
+        path = fh.name
+    try:
+        importer = IbkrImporter(
+            period_from=date(2026, 1, 1),
+            period_to=date(2026, 12, 31),
+            account_settings_list=[],
+        )
+        return importer.import_files([path])
+    finally:
+        os.remove(path)
+
+
+def test_lot_acquisition_dates_synthesize_buy_mutations_when_trades_section_empty():
+    """When <Trade> is empty, per-lot acquisition timestamps become real
+    BUY mutations so the synthesizer no longer fabricates a Saldo at
+    the start of the year."""
+    statement = _run_importer_on_xml(_SYNTHETIC_LOT_FLEX_XML)
+    securities = statement.listOfSecurities.depot[0].security
+    assert len(securities) == 1
+    sec = securities[0]
+
+    mutations = sorted([s for s in sec.stock if s.mutation], key=lambda s: s.referenceDate)
+    assert len(mutations) == 2
+    assert mutations[0].referenceDate == date(2026, 5, 1)
+    assert mutations[0].quantity == Decimal("2")
+    assert mutations[0].unitPrice == Decimal("95")
+    assert mutations[0].balance == Decimal("190")
+    assert mutations[1].referenceDate == date(2026, 6, 15)
+    assert mutations[1].quantity == Decimal("1")
+    assert mutations[1].unitPrice == Decimal("95")
+    assert mutations[1].balance == Decimal("95")
+
+    opening_balances = [
+        s for s in sec.stock if (not s.mutation) and s.referenceDate == date(2026, 1, 1)
+    ]
+    assert opening_balances == []
+
+
+def test_lot_row_without_open_datetime_falls_back_to_holding_period_datetime():
+    """When openDateTime is empty but holdingPeriodDateTime is set, the
+    LOT still produces a BUY mutation dated to holdingPeriodDateTime."""
+    xml = _SYNTHETIC_LOT_FLEX_XML.replace(
+        'openDateTime="20260501;090000" holdingPeriodDateTime="20260501;090000"',
+        'openDateTime="" holdingPeriodDateTime="20260820;000000"',
+    )
+    statement = _run_importer_on_xml(xml)
+    sec = statement.listOfSecurities.depot[0].security[0]
+    mutations = sorted([s for s in sec.stock if s.mutation], key=lambda s: s.referenceDate)
+    assert len(mutations) == 2
+    dates = [m.referenceDate for m in mutations]
+    assert date(2026, 8, 20) in dates
+    assert date(2026, 6, 15) in dates
+
+
+def test_lot_row_with_both_dates_missing_is_skipped():
+    """LOT row with both timestamps empty contributes no BUY mutation."""
+    xml = _SYNTHETIC_LOT_FLEX_XML
+    xml = xml.replace(
+        'openDateTime="20260501;090000" holdingPeriodDateTime="20260501;090000"',
+        'openDateTime="" holdingPeriodDateTime=""',
+    )
+    xml = xml.replace(
+        'openDateTime="20260615;150000" holdingPeriodDateTime="20260615;150000"',
+        'openDateTime="" holdingPeriodDateTime=""',
+    )
+    statement = _run_importer_on_xml(xml)
+    sec = statement.listOfSecurities.depot[0].security[0]
+    mutations = [s for s in sec.stock if s.mutation]
+    assert mutations == []
+
+
+def test_lot_carry_over_predating_period_from_synthesizes_real_saldo():
+    """LOT openDateTime before period_from becomes a real opening Saldo
+    at the start of the period (the synthesizer reconciles from the
+    earliest mutation)."""
+    xml = _SYNTHETIC_LOT_FLEX_XML.replace(
+        'openDateTime="20260501;090000" holdingPeriodDateTime="20260501;090000"',
+        'openDateTime="20251215;090000" holdingPeriodDateTime="20251215;090000"',
+    )
+    statement = _run_importer_on_xml(xml)
+    sec = statement.listOfSecurities.depot[0].security[0]
+    mutations = sorted([s for s in sec.stock if s.mutation], key=lambda s: s.referenceDate)
+    assert [m.referenceDate for m in mutations] == [
+        date(2025, 12, 15),
+        date(2026, 6, 15),
+    ]
+    opening = [s for s in sec.stock if (not s.mutation) and s.referenceDate == date(2026, 1, 1)]
+    assert len(opening) == 1
+    assert opening[0].quantity == Decimal("2")
+
+
+def test_parse_open_position_datetime_accepts_ymd_and_ymd_hms_form():
+    from opensteuerauszug.importers.ibkr.ibkr_importer import parse_open_position_datetime
+
+    assert parse_open_position_datetime("20260501") == date(2026, 5, 1)
+    assert parse_open_position_datetime("20260501;090727") == date(2026, 5, 1)
+    assert parse_open_position_datetime("") is None
+    assert parse_open_position_datetime(None) is None
+    assert parse_open_position_datetime("garbage") is None
