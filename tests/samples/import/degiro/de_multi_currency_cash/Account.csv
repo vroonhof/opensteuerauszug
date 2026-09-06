@@ -1,0 +1,4 @@
+Datum,Uhrzeit,Valutadatum,Produkt,ISIN,Beschreibung,FX,Änderung,,Saldo,,Order-ID
+20-03-2025,10:12,20-03-2025,,,FX-Gutschrift,0.7900,USD,200.00,USD,200.00,
+20-03-2025,10:12,20-03-2025,,,FX-Belastung,0.7900,CHF,-158.00,CHF,500.00,
+02-01-2025,09:03,02-01-2025,,,Einzahlung,,CHF,658.00,CHF,658.00,
