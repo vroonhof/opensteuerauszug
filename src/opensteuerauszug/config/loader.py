@@ -11,6 +11,7 @@ except ImportError:
 
 from .paths import resolve_config_file
 from .models import (
+    DegiroAccountSettings,
     IbkrAccountSettings,
     SchwabAccountSettings,
     FidelityAccountSettings,
@@ -247,6 +248,9 @@ class ConfigManager:
         elif broker_name.lower() == "ibkr":
             specific_settings = IbkrAccountSettings(**current_config)
             kind_literal = "ibkr"
+        elif broker_name.lower() == "degiro":
+            specific_settings = DegiroAccountSettings(**current_config)
+            kind_literal = "degiro"
         # Example for future expansion:
         # elif broker_name.lower() == "ubs":
         #     specific_settings = UBSAccountSettings(**current_config)
@@ -271,7 +275,8 @@ class ConfigManager:
             # we must handle unknown brokers more gracefully or restrict them.
             # For now, let's assume "schwab" is the only configured one.
             raise ValueError(
-                f"Unsupported broker type for specific settings: {broker_name}. Only 'schwab' is currently configured with a specific model."
+                f"Unsupported broker type for specific settings: {broker_name}. "
+                "Supported brokers are 'schwab', 'ibkr', 'fidelity' and 'degiro'."
             )
 
         try:
