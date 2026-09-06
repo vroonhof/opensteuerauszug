@@ -88,7 +88,10 @@ def test_import_dir_raises_on_missing_files(tmp_path):
         importer.import_dir(str(tmp_path))
 
 
-def test_import_files_preserves_cash_accounts_in_each_currency(tmp_path):
+@pytest.mark.parametrize("additional_usd_balance", [None, "25.50", "-25.50", "-200.00"])
+def test_cash_balances_are_aggregated_into_one_account_per_currency(
+    tmp_path, additional_usd_balance
+):
     account_csv = tmp_path / "Account.csv"
     account_csv.write_text(
         "Date,Time,Value date,Product,ISIN,Description,FX,Change,,Balance,,Order Id\n",
@@ -98,7 +101,12 @@ def test_import_files_preserves_cash_accounts_in_each_currency(tmp_path):
     portfolio_csv.write_text(
         "Product,Symbol/ISIN,Amount,Closing,Local value,,Value in CHF\n"
         "CASH & CASH FUND & FTX CASH (CHF),,,,CHF,500.00,500.00\n"
-        "CASH & CASH FUND & FTX CASH (USD),,,,USD,200.00,180.00\n",
+        "CASH & CASH FUND & FTX CASH (USD),,,,USD,200.00,180.00\n"
+        + (
+            f"CASH & CASH FUND & FTX CASH (USD),,,,USD,{additional_usd_balance},0.00\n"
+            if additional_usd_balance is not None
+            else ""
+        ),
         encoding="utf-8",
     )
     importer = DegiroImporter(
@@ -111,13 +119,15 @@ def test_import_files_preserves_cash_accounts_in_each_currency(tmp_path):
 
     assert statement.listOfBankAccounts is not None
     accounts = statement.listOfBankAccounts.bankAccount
+    assert len(accounts) == 2
+    assert len({account.bankAccountNumber for account in accounts}) == 2
     balances = {}
     for account in accounts:
         assert account.taxValue is not None
         balances[account.bankAccountCurrency] = account.taxValue.balance
     assert balances == {
         "CHF": Decimal("500.00"),
-        "USD": Decimal("200.00"),
+        "USD": Decimal("200.00") + Decimal(additional_usd_balance or "0"),
     }
 
 
