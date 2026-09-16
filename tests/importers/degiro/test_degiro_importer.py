@@ -146,6 +146,10 @@ def test_cash_balances_are_aggregated_into_one_account_per_currency(
     ("Kauf 60 iShares@20.08 EUR (IE00B3WJKG14)", "Kauf", "60", "20.08", "EUR"),
     ("Verkauf 10 Vanguard@71.00 EUR (IE00B3XXRP09)", "Verkauf", "10", "71.00", "EUR"),
     ("Kauf 1.000 iShares@20,08 EUR (IE00B3WJKG14)", "Kauf", "1.000", "20,08", "EUR"),
+    # German "zu je" variant (no inline product name)
+    ("Kauf 3 zu je 64,91 EUR (IE00B8FHGS14)", "Kauf", "3", "64,91", "EUR"),
+    ("Verkauf 20 zu je 3,95 EUR (DE000BY5LZ46)", "Verkauf", "20", "3,95", "EUR"),
+    ("Verkauf 50 zu je 5 EUR (DE000PK5UFA4)", "Verkauf", "50", "5", "EUR"),
 ])
 # fmt: on
 def test_trade_re_matches(desc, action, qty, price, currency):

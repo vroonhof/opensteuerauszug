@@ -61,6 +61,7 @@ def _make_row(**kwargs) -> DegiroRow:
         ),
         ("Deposit", DegiroRowKind.DEPOSIT),
         ("Flatex Interest Income", DegiroRowKind.FLATEX_INTEREST),
+        ("Geldmarktfonds Kompensation", DegiroRowKind.FLATEX_INTEREST),
         (
             "Transfer from your Cash Account at flatexDEGIRO Bank: 7 CHF",
             DegiroRowKind.CASH_SWEEP_IN,
@@ -108,9 +109,12 @@ def _make_row(**kwargs) -> DegiroRow:
         ("Dividendensteuer", DegiroRowKind.DIVIDEND_TAX),
         ("FX-Gutschrift", DegiroRowKind.FX_CREDIT),
         ("FX-Belastung", DegiroRowKind.FX_DEBIT),
+        ("Währungswechsel (Einbuchung)", DegiroRowKind.FX_CREDIT),
+        ("Währungswechsel (Ausbuchung)", DegiroRowKind.FX_DEBIT),
         ("DEGIRO Transaktionsgebühren und/oder Gebühren Dritter", DegiroRowKind.FEE_TRANSACTION),
         ("DEGIRO Börsengebühren 2025 (Xetra - XET)", DegiroRowKind.FEE_CONNECTION),
         ("DEGIRO Anschlussgebühren 2025 (Xetra - XET)", DegiroRowKind.FEE_CONNECTION),
+        ("Einrichtung von Handelsmodalitäten 2026 (BNP OTC - BNP)", DegiroRowKind.FEE_CONNECTION),
         ("Einzahlung", DegiroRowKind.DEPOSIT),
         (
             "Überweisung von Ihrem Geldkonto bei der flatexDEGIRO Bank: 7 CHF",
