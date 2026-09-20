@@ -483,6 +483,51 @@ class TestSchwabTransactionExtractor:
         assert cash_stock_entry.mutation is True, "Cash stock entry should be a mutation"
         assert cash_stock_entry.quantity == Decimal("555.65")
 
+    def test_action_dividend_reinvestment_creates_cash_outflow(self):
+        extractor = create_extractor("EquityAwardsCenter_Transactions_20260916082416.json")
+        data = {
+            "FromDate": "01/01/2025",
+            "ToDate": "12/31/2025",
+            "Transactions": [
+                {
+                    "Date": "12/15/2025",
+                    "Action": "Dividend Reinvestment",
+                    "Symbol": "GOOG",
+                    "Description": "Debit",
+                    "Amount": "-$558.74",
+                },
+                {
+                    "Date": "12/15/2025",
+                    "Action": "Deposit",
+                    "Symbol": "GOOG",
+                    "Quantity": "1.8079",
+                    "Description": "Div Reinv",
+                    "TransactionDetails": [{"Details": {"PurchasePrice": "$309.0497"}}],
+                },
+            ],
+        }
+
+        result = run_extraction_test(extractor, data, 2)
+        assert result is not None
+
+        goog_data = find_position(result, SecurityPosition, "GOOG")
+        cash_data = find_position(result, CashPosition)
+        assert goog_data is not None
+        assert cash_data is not None
+
+        _, stocks, payments = goog_data
+        assert len(stocks) == 1
+        assert stocks[0].quantity == Decimal("1.8079")
+        assert payments is None
+
+        _, cash_stocks, cash_payments = cash_data
+        assert cash_payments is None
+        assert len(cash_stocks) == 1
+        cash_stock = cash_stocks[0]
+        assert cash_stock.quantity == Decimal("-558.74")
+        assert cash_stock.balance == Decimal("-558.74")
+        assert cash_stock.requires_settlement is True
+
     def test_action_qual_div_reinvest(self):
         extractor = create_extractor()
         data = {
