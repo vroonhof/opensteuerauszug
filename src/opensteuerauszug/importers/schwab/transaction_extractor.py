@@ -25,6 +25,7 @@ KNOWN_ACTIONS = {
     "Cash Merger",
     "Cash Merger Adj",
     "Div Adjustment",
+    "Dividend Reinvestment",
     "Full Redemption",
     "Full Redemption Adj",
     "Foreign Tax Paid",
@@ -409,7 +410,7 @@ class TransactionExtractor:
                 requires_settlement=requires_settlement,
             )
 
-        if action == "Buy" or action == "Reinvest Shares":
+        if action in ("Buy", "Reinvest Shares"):
             if schwab_qty and schwab_qty > 0 and isinstance(pos_object, SecurityPosition):
                 calculated_cost = None
                 cash_flow = None
@@ -437,6 +438,23 @@ class TransactionExtractor:
                         f"Cash out for {action} {pos_object.symbol}",
                         requires_settlement=True,
                     )
+
+        elif action == "Dividend Reinvestment":
+            if (
+                schwab_amount is not None
+                and schwab_amount < 0
+                and isinstance(pos_object, SecurityPosition)
+            ):
+                cash_stock = create_cash_stock(
+                    schwab_amount,
+                    f"Cash out for {action} {pos_object.symbol}",
+                    requires_settlement=True,
+                )
+            else:
+                raise ValueError(
+                    "Dividend Reinvestment requires a negative amount and a valid "
+                    f"SecurityPosition. Amount: {schwab_amount}, Position: {pos_object}"
+                )
 
         elif action == "Sale" or action == "Sell":
             if schwab_qty and isinstance(pos_object, SecurityPosition):
@@ -471,6 +489,9 @@ class TransactionExtractor:
                     name=action,
                 )
                 if cash_flow:
+                    logger.info(
+                        f"Creating cash stock mutation for \"{action}\" transaction for symbol {pos_object.symbol}."
+                    )
                     cash_stock = create_cash_stock(
                         cash_flow,
                         f"Cash in for {action} {pos_object.symbol}",
