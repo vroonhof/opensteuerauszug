@@ -88,6 +88,50 @@ def test_import_dir_raises_on_missing_files(tmp_path):
         importer.import_dir(str(tmp_path))
 
 
+def test_dividend_and_withholding_tax_become_separate_payments(tmp_path):
+    """A dividend and its matching tax row must not be merged into one payment.
+
+    payment_reconciliation_calculator._accumulate_broker() treats any payment
+    carrying withholding fields as tax-only and returns before accounting for
+    its dividend amount, so a merged payment would make the dividend vanish
+    from broker-side reconciliation (matching IBKR/Fidelity's convention of
+    one payment per cash event fixes this).
+    """
+    account_csv = tmp_path / "Account.csv"
+    account_csv.write_text(
+        "Date,Time,Value date,Product,ISIN,Description,FX,Change,,Balance,,Order Id\n"
+        "19-04-2025,08:37,16-04-2025,COCA-COLA CO,US1912161007,Dividend,,USD,0.24,USD,0.24,\n"
+        "19-04-2025,08:40,16-04-2025,COCA-COLA CO,US1912161007,Dividend Tax,,USD,-0.04,USD,0.20,\n",
+        encoding="utf-8",
+    )
+    portfolio_csv = tmp_path / "Portfolio.csv"
+    portfolio_csv.write_text(
+        "Product,Symbol/ISIN,Amount,Closing,Local value,,Value in CHF\n"
+        "COCA-COLA CO,US1912161007,10,60.00,USD,600.00,540.00\n",
+        encoding="utf-8",
+    )
+    importer = DegiroImporter(
+        period_from=date(2025, 1, 1),
+        period_to=date(2025, 12, 31),
+        account_settings_list=[],
+    )
+
+    statement = importer.import_files(str(account_csv), str(portfolio_csv))
+
+    depot = statement.listOfSecurities.depot[0]
+    security = depot.security[0]
+    assert len(security.payment) == 2
+
+    dividend_payment = next(p for p in security.payment if p.broker_label_original == "Dividend")
+    tax_payment = next(p for p in security.payment if p.broker_label_original == "Dividend Tax")
+
+    assert dividend_payment.amount == Decimal("0.24")
+    assert dividend_payment.withHoldingTaxClaim is None
+    assert dividend_payment.nonRecoverableTaxAmountOriginal is None
+
+    assert tax_payment.nonRecoverableTaxAmountOriginal == Decimal("0.04")
+
+
 @pytest.mark.parametrize("additional_usd_balance", [None, "25.50", "-25.50", "-200.00"])
 def test_cash_balances_are_aggregated_into_one_account_per_currency(
     tmp_path, additional_usd_balance
@@ -146,6 +190,10 @@ def test_cash_balances_are_aggregated_into_one_account_per_currency(
     ("Kauf 60 iShares@20.08 EUR (IE00B3WJKG14)", "Kauf", "60", "20.08", "EUR"),
     ("Verkauf 10 Vanguard@71.00 EUR (IE00B3XXRP09)", "Verkauf", "10", "71.00", "EUR"),
     ("Kauf 1.000 iShares@20,08 EUR (IE00B3WJKG14)", "Kauf", "1.000", "20,08", "EUR"),
+    # German "zu je" variant (no inline product name)
+    ("Kauf 3 zu je 64,91 EUR (IE00B8FHGS14)", "Kauf", "3", "64,91", "EUR"),
+    ("Verkauf 20 zu je 3,95 EUR (DE000BY5LZ46)", "Verkauf", "20", "3,95", "EUR"),
+    ("Verkauf 50 zu je 5 EUR (DE000PK5UFA4)", "Verkauf", "50", "5", "EUR"),
 ])
 # fmt: on
 def test_trade_re_matches(desc, action, qty, price, currency):

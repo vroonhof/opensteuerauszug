@@ -36,7 +36,6 @@ from opensteuerauszug.importers.common import (
     PositionHints,
     SecurityNameRegistry,
     SecurityPositionData,
-    apply_withholding_tax_fields,
     augment_list_of_bank_accounts,
     augment_list_of_securities,
     build_client,
@@ -67,9 +66,15 @@ logger = logging.getLogger(__name__)
 # Regex for trade description lines, e.g.:
 #   Buy 60 iShares S&P 500 Info Technolg Sctr UCITS ETF USD A@20.08 EUR (IE00B3WJKG14)
 #   Sell 10 Vanguard S&P 500 UCITS ETF USD Dis@71.00 EUR (IE00B3XXRP09)
+# A newer DEGIRO export variant drops the inline product name and uses
+# "zu je" ("at each") instead of "@", e.g.:
+#   Kauf 3 zu je 64,91 EUR (IE00B8FHGS14)
+#   Verkauf 20 zu je 3,95 EUR (DE000BY5LZ46)
 _TRADE_RE = re.compile(
     r"^(Buy|Sell|Acquisto|Vendita|Achat|Vente|Kauf|Verkauf)"
-    r"\s+(\d[\d'.]*(?:[.,]\d+)?)\s+(.+?)@([\d.,]+)\s+([A-Z]{3})"
+    r"\s+(\d[\d'.]*(?:[.,]\d+)?)"
+    r"(?:\s+(.+?)@|\s+zu je)"
+    r"\s*([\d.,]+)\s+([A-Z]{3})"
     r"(?:\s+\([A-Z0-9]{12}\))?$"
 )
 
@@ -411,14 +416,25 @@ class DegiroImporter:
             amount=row.change_amount,
             broker_label="Dividend",
         )
+        positions[sec_pos]["payments"].append(payment)
 
-        # Look up and apply matching withholding tax
+        # Look up matching withholding tax and record it as its own payment.
+        # _accumulate_broker() in the payment reconciliation calculator expects
+        # dividend and withholding to live on separate SecurityPayment objects
+        # (the convention IBKR/Fidelity already follow); a single payment
+        # carrying both would have its dividend amount silently dropped there.
         tax_rows = div_tax_lookup.get((row.value_date, row.isin), [])
         if tax_rows:
             tax_row = tax_rows.pop(0)
-            apply_withholding_tax_fields(payment, tax_row.change_amount, tax_row.change_currency)
-
-        positions[sec_pos]["payments"].append(payment)
+            tax_payment = build_security_payment(
+                payment_date=row.value_date,
+                description=product or row.isin,
+                currency=tax_row.change_currency,
+                amount=tax_row.change_amount,
+                broker_label="Dividend Tax",
+                is_withholding=True,
+            )
+            positions[sec_pos]["payments"].append(tax_payment)
 
     def _process_delisting(
         self,

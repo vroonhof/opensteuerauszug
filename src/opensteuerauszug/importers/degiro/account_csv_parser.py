@@ -87,17 +87,20 @@ _EXACT_MATCH: dict[str, DegiroRowKind] = {
     "Opération de change - Crédit": DegiroRowKind.FX_CREDIT,
     "Operation de change - Crédit": DegiroRowKind.FX_CREDIT,
     "FX-Gutschrift": DegiroRowKind.FX_CREDIT,
+    "Währungswechsel (Einbuchung)": DegiroRowKind.FX_CREDIT,
     "FX Debit": DegiroRowKind.FX_DEBIT,
     "Prelievo FX": DegiroRowKind.FX_DEBIT,
     "Débit FX": DegiroRowKind.FX_DEBIT,
     "Opération de change - Débit": DegiroRowKind.FX_DEBIT,
     "Operation de change - Débit": DegiroRowKind.FX_DEBIT,
     "FX-Belastung": DegiroRowKind.FX_DEBIT,
+    "Währungswechsel (Ausbuchung)": DegiroRowKind.FX_DEBIT,
     "Deposit": DegiroRowKind.DEPOSIT,
     "Deposito": DegiroRowKind.DEPOSIT,
     "Dépôt": DegiroRowKind.DEPOSIT,
     "Einzahlung": DegiroRowKind.DEPOSIT,
     "Degiro Cash Sweep Transfer": DegiroRowKind.DEGIRO_SWEEP,
+    "Geldmarktfonds Kompensation": DegiroRowKind.FLATEX_INTEREST,
 }
 
 # Prefix-match descriptions → row kind (case-sensitive).
@@ -143,6 +146,7 @@ _PREFIX_MATCH_NOCASE: list[tuple[str, DegiroRowKind]] = [
     ("degiro börsengebühren", DegiroRowKind.FEE_CONNECTION),
     ("degiro anschlussgebühren", DegiroRowKind.FEE_CONNECTION),
     ("frais de connexion aux places boursières", DegiroRowKind.FEE_CONNECTION),
+    ("einrichtung von handelsmodalitäten", DegiroRowKind.FEE_CONNECTION),
 ]
 
 # Substring-match descriptions → row kind (case-insensitive).
