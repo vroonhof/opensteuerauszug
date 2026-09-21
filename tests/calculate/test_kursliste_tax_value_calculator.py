@@ -2253,6 +2253,71 @@ def test_compute_payments_sets_additional_withholding_tax_usa(kursliste_manager)
     assert payment.additionalWithHoldingTaxUSA == Decimal("0")
 
 
+def test_swiss_custodian_sets_additional_withholding_tax_usa_to_15_percent(kursliste_manager):
+    """
+    With swiss_custodian=True the zusaetzlicher Steuerrueckbehalt USA (15% of
+    the gross CHF amount) is applied to US DA-1 payments, matching what Swiss
+    QI banks actually retain and what the official EWV validator expects.
+    """
+    provider = KurslisteExchangeRateProvider(kursliste_manager)
+    calc = KurslisteTaxValueCalculator(
+        mode=CalculationMode.FILL, exchange_rate_provider=provider, swiss_custodian=True
+    )
+
+    kl_sec = Share(
+        id=1,
+        securityGroup=SecurityGroupESTV.SHARE,
+        country="US",
+        currency="USD",
+        institutionId=123,
+        institutionName="Test US Bank",
+        payment=[
+            PaymentShare(
+                id=101,
+                paymentDate=date(2024, 5, 10),
+                currency="USD",
+                paymentValue=Decimal("2.50"),
+                paymentValueCHF=Decimal("2.20"),
+                exchangeRate=Decimal("0.88"),
+                withHoldingTax=False,
+            )
+        ],
+    )
+
+    sec = Security(
+        country="US",
+        securityName="Test US Security",
+        positionId=1,
+        currency="USD",
+        quotationType="PIECE",
+        securityCategory="SHARE",
+        isin=ISINType("US0000000001"),
+        taxValue=SecurityTaxValue(
+            referenceDate=date(2024, 12, 31),
+            quotationType="PIECE",
+            quantity=Decimal("100"),
+            balanceCurrency="USD",
+        ),
+        stock=[
+            SecurityStock(
+                referenceDate=date(2024, 1, 1),
+                mutation=False,
+                quotationType="PIECE",
+                quantity=Decimal("100"),
+                balanceCurrency="USD",
+            )
+        ],
+    )
+
+    calc._current_kursliste_security = kl_sec
+    calc.computePayments(sec, "sec")
+
+    assert len(sec.payment) == 1
+    payment = sec.payment[0]
+    assert payment.grossRevenueB is not None and payment.grossRevenueB > 0
+    assert payment.additionalWithHoldingTaxUSA == payment.grossRevenueB * Decimal("0.15")
+
+
 def test_no_missing_kursliste_warning_for_rights_issue_with_no_tax_value():
     """A rights issue that was fully exercised/expired (no taxValue, zero balance)
     should NOT emit a MISSING_KURSLISTE warning even when absent from the Kursliste."""

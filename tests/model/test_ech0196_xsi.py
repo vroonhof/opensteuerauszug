@@ -44,11 +44,10 @@ def test_tax_statement_xsi_namespace_and_schema_location():
 
     assert schema_location_key in root.attrib
 
+    # Two xsd URLs without namespace pairs, matching real bank statements
+    # (ZHprivateTax 2025 compatibility).
     expected_schema_location = (
-        "http://www.ech.ch/xmlns/eCH-0196/2 "
         "http://www.ech.ch/xmlns/eCH-0196/2.2/eCH-0196-2-2.xsd "
-        "http://www.ech.ch/xmlns/eCH-0097/4 "
         "http://www.ech.ch/xmlns/eCH-0097/4/eCH-0097-4-0.xsd"
     )
-
     assert root.attrib[schema_location_key] == expected_schema_location
