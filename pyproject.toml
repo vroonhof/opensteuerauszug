@@ -30,6 +30,8 @@ dependencies = [
     "markdown>=3.0.0",
     "platformdirs>=3.0.0",
     "requests>=2.33.0", # actually an undeclared dependecy of ibflex [not as optional as it says on the tin]
+    "openpyxl>=3.1.0", # tax-overview mode: multi-sheet xlsx workbook export
+    "jinja2>=3.1.0", # tax-overview mode: HTML dashboard rendering
     "holidays>=0.62",
     "defusedxml>=0.7.1",
 ]

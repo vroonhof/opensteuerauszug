@@ -18,6 +18,7 @@ from .core.identifier_loader import SecurityIdentifierMapLoader
 
 from .model.ech0196 import TaxStatement, Client, ClientNumber, Institution
 from .render.render import render_tax_statement
+from .render.tax_overview.cli import tax_overview_command
 from .calculate.base import CalculationMode
 from .calculate.total import TotalCalculator
 from .calculate.cleanup import CleanupCalculator
@@ -51,6 +52,7 @@ class DefaultToProcess(TyperGroup):
 
 app = typer.Typer(cls=DefaultToProcess)
 app.add_typer(kursliste_app, name="kursliste")
+app.command(name="tax-overview")(tax_overview_command)
 
 
 class Phase(str, Enum):

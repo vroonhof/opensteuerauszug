@@ -323,6 +323,10 @@ opensteuerauszug process input.xml --importer ibkr --tax-year 2025 \
 
 See [docs/verify_existing.md](verify_existing.md) for instructions on verifying or recalculating an existing Steuerauszug (eCH-0196 XML) with OpenSteuerAuszug.
 
+## Tax Overview Mode (human-readable dashboard)
+
+For the optional three-format dashboard — xlsx workbook, self-contained HTML report, and single-page PDF cover — see [docs/tax_overview.md](tax_overview.md). It covers the CLI (`steuerauszug tax-overview …`, including `--canton`), the nine visible sheets, the Vermögenszuwachs waterfall, the DA-1 Hilfstabelle, the Kanton SG Wertschriftenverzeichnis mapping sheet, third-party safety invariants, and the `--preparer-mode` KS 36 self-check.
+
 ---
 ---
 
