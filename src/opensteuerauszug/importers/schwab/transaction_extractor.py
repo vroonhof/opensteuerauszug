@@ -142,8 +142,8 @@ class TransactionExtractor:
             # Attempt to extract account number from filename for depot
             # Filename format: Individual_XXX178_Transactions_20250309-115444.json
             try:
-                # Extract the part before "_Transactions_"
-                name_part = self.filename.split('_Transactions_')[0]
+                # Extract the part before "_Transactions_" which must occur exactly once
+                name_part, _ = self.filename.split('_Transactions_')
                 # Take the last part after the last underscore (should be XXX123)
                 depot_identifier = name_part.split('_')[-1]
                 # Get last 3 digits if it's longer, otherwise use as is.

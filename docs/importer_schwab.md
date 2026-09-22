@@ -7,7 +7,7 @@ Unfortunately Schwab has put its real export data behind a developer only API wh
 
 ## Overview
 
-All data files should be downloaded in a single directory. The software will detect the file types automatically. You provide the directory on the commandline.
+All data files should be downloaded in a single directory without renaming (i.e., using the filenames that the website chooses). The software will detect the file types automatically. You provide the directory on the commandline.
 
 In general we are trying to obtain
    * At least one position statement (typically today), but more is better.
@@ -51,6 +51,7 @@ You will need to download data for your Brokerage accounts and any Equity Awards
     5.  Ensure you select the correct date range covering 
         * the entire tax year (e.g., January 1st to December 31st).
         * at least one, but ideally all of the dates you have position data for.
+    6. Do not rename the downloaded json file -- the importer depends on finding the partial account number in the filename.
 *   **Format Details for Developers**:
     *   The filename usually contains the last 3 digits of your account number (e.g., `Individual_XXX123_Transactions_YYYYMMDD-HHMMSS.json`). The importer uses these digits to associate the file with the correct account configured in `config.toml`.
     *   Key fields used: `Date`, `Action`, `Symbol`, `Description`, `Quantity`, `Amount`.

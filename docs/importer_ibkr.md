@@ -10,7 +10,7 @@ OpenSteuerAuszug processes IBKR data using [**Flex Query XML files**](https://ww
 
 1.  **Log in** to your IBKR Account Management portal.
 2.  Navigate to **"Performance & Reports" > "Flex Queries"**.
-3.  (onetime) **Create a new Flex Query** or modify an existing one.
+3.  (onetime) **Create a new Activity Flex Query** or modify an existing one.
     *   Give your query a descriptive name (e.g., "Annual Tax Report").
     *   Select the **XML format**.
     *   Ensure the following sections are included in your query configuration. The importer relies on specific fields within these sections (see below).
@@ -70,7 +70,7 @@ It is crucial that the Flex Query covers the **entire tax year** and is in **XML
 
 ## Configuration (`config.toml`)
 
-Because Interactive Brokers specifies relatively complete data in its exports, this importer currently requires no specific configuration.
+Because Interactive Brokers specifies relatively complete data in its exports, this importer currently requires no specific configuration and you can disregard  the warning *"Broker 'ibkr' not found in configuration. Cannot list accounts."*
 
 ## Running Opensteuerauszug
 
