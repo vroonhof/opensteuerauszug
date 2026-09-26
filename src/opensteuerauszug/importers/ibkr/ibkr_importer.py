@@ -64,6 +64,31 @@ def is_summary_level(entry: object) -> bool:
     return str(level_value).upper() == "SUMMARY"
 
 
+def parse_open_position_datetime(value: object) -> Optional[date]:
+    """Parse an IBKR per-lot acquisition timestamp into a date.
+
+    ibflex exposes ``openDateTime`` and ``holdingPeriodDateTime`` as
+    ``datetime.datetime``; some rows may carry a raw ``"YYYYMMDD"`` or
+    ``"YYYYMMDD;HHMMSS"`` string. Returns ``None`` for empty or
+    unparseable input so callers can skip the row.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        date_part = value.split(";", 1)[0].strip()
+        if not date_part:
+            return None
+        try:
+            return datetime.strptime(date_part, "%Y%m%d").date()
+        except ValueError:
+            return None
+    return None
+
+
 def should_skip_pseudo_account_entry(entry: object) -> bool:
     """Skip pseudo rows where accountId='-' or mapped-to-None SUMMARY rows."""
     # ibflex maps accountId="-" to None on some entry types, so
@@ -90,7 +115,9 @@ class IbkrImporter:
                 error_desc = (
                     f"{object_description} (Symbol: " f"{getattr(data_object, 'symbol', 'N/A')})"
                 )
-            elif hasattr(data_object, 'accountId') and 'Account:' not in object_description:  # Avoid double "Account:"
+            elif (
+                hasattr(data_object, 'accountId') and 'Account:' not in object_description
+            ):  # Avoid double "Account:"
                 error_desc = (
                     f"{object_description} (Account: "
                     f"{getattr(data_object, 'accountId', 'N/A')})"
@@ -242,6 +269,102 @@ class IbkrImporter:
                 raise RuntimeError(f"An unexpected error occurred while parsing {filename}: {e}")
 
         return statements
+
+    def _append_lot_buy_mutation(
+        self,
+        processed_security_positions: Dict[SecurityPosition, SecurityPositionData],
+        sec_pos: SecurityPosition,
+        open_pos: Any,
+        *,
+        trade_transaction_ids: set[str],
+        quantity: Decimal,
+        currency: str,
+    ) -> None:
+        """Synthesize a BUY mutation from a per-lot OpenPosition row.
+
+        The Flex XML's LOT-level OpenPosition entries expose acquisition
+        timestamps and cost basis. When the corresponding ``<Trade>``
+        section is empty these LOTs are the only evidence of in-period
+        buy events; without synthesizing mutations the boundary
+        synthesizer would fabricate an opening Saldo equal to the
+        current quantity.
+
+        The row is skipped when:
+
+        - both acquisition timestamps are missing (we don't know when
+          the lot was acquired), or
+        - a ``<Trade>`` row already covers the same logical buy (matched
+          on IBKR ``transactionID``).
+        """
+        symbol = getattr(open_pos, "symbol", None) or "<unknown>"
+        ref_date = parse_open_position_datetime(
+            getattr(open_pos, "openDateTime", None)
+        ) or parse_open_position_datetime(getattr(open_pos, "holdingPeriodDateTime", None))
+        if ref_date is None:
+            logger.debug(
+                "Skipping LOT-level OpenPosition %s: no openDateTime / " "holdingPeriodDateTime",
+                symbol,
+            )
+            return
+
+        lot_tx_id = getattr(open_pos, "originatingTransactionID", None)
+        if lot_tx_id and str(lot_tx_id) in trade_transaction_ids:
+            logger.debug(
+                "Skipping LOT-level OpenPosition %s tx=%s: covered by Trade",
+                symbol,
+                lot_tx_id,
+            )
+            return
+
+        cost_basis_price: Optional[Decimal] = None
+        cost_basis_price_raw = getattr(open_pos, "costBasisPrice", None)
+        if cost_basis_price_raw not in (None, ""):
+            try:
+                cost_basis_price = self._to_decimal(
+                    cost_basis_price_raw,
+                    "costBasisPrice",
+                    f"OpenPosition LOT {symbol}",
+                )
+                cost_basis_price = self._price_apply_multiplier(
+                    open_pos, cost_basis_price, f"OpenPosition LOT {symbol}"
+                )
+            except (ValueError, TypeError) as exc:
+                logger.debug(
+                    "LOT %s: cannot parse costBasisPrice=%r (%s)",
+                    symbol,
+                    cost_basis_price_raw,
+                    exc,
+                )
+
+        cost_basis_money: Optional[Decimal] = None
+        cost_basis_money_raw = getattr(open_pos, "costBasisMoney", None)
+        if cost_basis_money_raw not in (None, ""):
+            try:
+                cost_basis_money = self._to_decimal(
+                    cost_basis_money_raw,
+                    "costBasisMoney",
+                    f"OpenPosition LOT {symbol}",
+                )
+            except (ValueError, TypeError) as exc:
+                logger.debug(
+                    "LOT %s: cannot parse costBasisMoney=%r (%s)",
+                    symbol,
+                    cost_basis_money_raw,
+                    exc,
+                )
+
+        lot_buy = SecurityStock(
+            referenceDate=ref_date,
+            mutation=True,
+            quantity=quantity,
+            unitPrice=cost_basis_price,
+            name=get_text("buy", self.render_language),
+            orderId=str(lot_tx_id) if lot_tx_id else None,
+            balanceCurrency=currency,
+            quotationType="PIECE",
+            balance=cost_basis_money,
+        )
+        processed_security_positions[sec_pos]["stocks"].append(lot_buy)
 
     def _find_processed_security_position(
         self,
@@ -441,6 +564,11 @@ class IbkrImporter:
             defaultdict(lambda: {'stocks': [], 'payments': []})
         )
 
+        # Per-security set of IBKR transaction IDs already covered by the
+        # <Trade> section, used to deduplicate LOT-derived BUY mutations so
+        # positions covered by both sections aren't double-counted.
+        trade_transaction_ids: Dict[SecurityPosition, set[str]] = defaultdict(set)
+
         # Best-name-wins registry for security display names.
         security_name_registry = SecurityNameRegistry()
 
@@ -597,6 +725,13 @@ class IbkrImporter:
                     )
                     processed_security_positions[sec_pos]['stocks'].append(stock_mutation)
 
+                    # Record the IBKR transaction ID so the LOT-level loop
+                    # below can skip LOTs that already have a Trade row
+                    # covering the same logical buy.
+                    trade_tx_id = getattr(trade, 'transactionID', None)
+                    if trade_tx_id:
+                        trade_transaction_ids[sec_pos].add(str(trade_tx_id))
+
                     # Cash movements resulting from trades are tracked via the cash transaction section. Only the stock mutation is stored here.
 
             # --- Process Open Positions (End of Period Snapshot) ---
@@ -677,6 +812,21 @@ class IbkrImporter:
                     if getattr(open_pos, 'positionValue', None) is not None:
                         pos_value = self._to_decimal(
                             open_pos.positionValue, 'positionValue', f"OpenPosition {symbol}"
+                        )
+
+                    # LOT-level rows carry per-lot acquisition timestamps and
+                    # cost basis. When the Trades section is empty these LOTs
+                    # are the only evidence of in-period buy events; without
+                    # synthesizing mutations the boundary synthesizer
+                    # fabricates an opening Saldo equal to current quantity.
+                    if not is_summary_level(open_pos):
+                        self._append_lot_buy_mutation(
+                            processed_security_positions,
+                            sec_pos,
+                            open_pos,
+                            trade_transaction_ids=trade_transaction_ids.get(sec_pos, set()),
+                            quantity=quantity,
+                            currency=currency,
                         )
 
                     balance_stock = SecurityStock(
