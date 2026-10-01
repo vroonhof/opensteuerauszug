@@ -36,6 +36,7 @@ You can attach original broker statements or other supporting documents to the g
 - Cross verify calculations against existing E-Steuerauszug data
 - Create standardized formatted PDF that can be imported into Tax Software. 
 - Append original supporting documents to the final PDF.
+- Optional `tax-overview` subcommand that emits a human-readable companion set per run — an xlsx workbook, a self-contained HTML dashboard, and a one-page PDF cover — including a DA-1 Hilfstabelle, a Vermögenszuwachs waterfall reconciled against the Kursliste Steuerwert, and a Wertschriftenverzeichnis mapping sheet (Kanton SG column layout; other cantonal layouts welcome). See the [Tax Overview guide](docs/tax_overview.md) and the committed [synthetic sample dashboard](docs/samples/tax_overview/sample_dashboard.html).
 
 ## Sample Output
 

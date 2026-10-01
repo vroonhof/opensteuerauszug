@@ -1,0 +1,18 @@
+{
+  "_comment": "Hand-curated calendar-year benchmark returns (percent) shown on the Performance tab as reference values, not authoritative figures. Extend per tax year; a missing year renders an explicit 'no benchmark data' notice instead of silently dropping the table.",
+  "2022": [
+    {"code": "SPI", "label": "Swiss Performance Index", "return_pct": "-16.50"},
+    {"code": "SPX", "label": "S&P 500 (Total Return)", "return_pct": "-18.11"}
+  ],
+  "2023": [
+    {"code": "SPI", "label": "Swiss Performance Index", "return_pct": "6.09"},
+    {"code": "SPX", "label": "S&P 500 (Total Return)", "return_pct": "26.29"},
+    {"code": "MSCI_WORLD", "label": "MSCI World (Net, in CHF)", "return_pct": "17.04"}
+  ],
+  "2024": [
+    {"code": "SPI", "label": "Swiss Performance Index", "return_pct": "6.24", "note": "Breiter Schweizer Gesamtmarkt, inkl. Dividenden."},
+    {"code": "SMI", "label": "Swiss Market Index", "return_pct": "4.20", "note": "20 Blue-Chips; Preisindex ohne Dividenden."},
+    {"code": "SPX", "label": "S&P 500 (Total Return)", "return_pct": "25.02"},
+    {"code": "MSCI_WORLD", "label": "MSCI World (Net, in CHF)", "return_pct": "25.80", "note": "Netto-Total-Return, in CHF umgerechnet."}
+  ]
+}

@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<title>Steuer-Übersicht 2025</title>
+<style>
+:root {
+    --color-ink: #0F1720;
+    --color-ink-muted: #4A5568;
+    --color-paper: #FFFFFF;
+    --color-paper-warm: #FAF8F3;
+    --color-rule: #E2E4E8;
+    --color-primary: #1B3A5B;
+    --color-primary-80: #3C5F84;
+    --color-accent: #A47551;
+    --color-positive: #2E6F4E;
+    --color-negative: #8A2A2A;
+    --color-warn: #B08900;
+    --font-body: &#39;Inter&#39;, &#39;Helvetica Neue&#39;, system-ui, sans-serif;
+    --font-display: &#39;Source Serif 4&#39;, &#39;Georgia&#39;, serif;
+    --font-num: &#39;Inter&#39;, &#39;Helvetica Neue&#39;, system-ui, sans-serif;
+    --grid-unit: 8px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+    margin: 0;
+    font-family: var(--font-body);
+    color: var(--color-ink);
+    background: var(--color-paper);
+    line-height: 1.45;
+}
+main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: calc(var(--grid-unit) * 4);
+}
+h1, h2, h3 {
+    font-family: var(--font-display);
+    color: var(--color-primary);
+    margin: 0 0 var(--grid-unit) 0;
+}
+h1 { font-size: 1.875rem; letter-spacing: -0.01em; }
+main > header {
+    padding-bottom: calc(var(--grid-unit) * 2);
+    border-bottom: 3px double var(--color-rule);
+}
+h2 {
+    font-size: 1.25rem;
+    margin-top: 0;
+    padding-bottom: var(--grid-unit);
+    border-bottom: 2px solid var(--color-rule);
+}
+h3 { font-size: 1rem; margin-top: calc(var(--grid-unit) * 2); color: var(--color-ink-muted); }
+.meta { color: var(--color-ink-muted); font-size: 0.875rem; margin-top: 0; }
+/* Sticky wayfinding nav — reviewer jumps to any section without scrolling. */
+.dashnav {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--color-paper);
+    border-bottom: 1px solid var(--color-rule);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.dashnav-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: calc(var(--grid-unit) * 1.5) calc(var(--grid-unit) * 4);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--grid-unit);
+    align-items: center;
+}
+.dashnav-brand {
+    font-family: var(--font-display);
+    color: var(--color-primary);
+    font-weight: 700;
+    margin-right: calc(var(--grid-unit) * 2);
+    white-space: nowrap;
+}
+.dashnav-brand small {
+    color: var(--color-ink-muted);
+    font-weight: 400;
+    font-size: 0.8125rem;
+    margin-left: var(--grid-unit);
+}
+.dashnav a {
+    color: var(--color-ink);
+    text-decoration: none;
+    padding: calc(var(--grid-unit) / 2) var(--grid-unit);
+    border-radius: 3px;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    transition: background 0.1s ease;
+}
+.dashnav a:hover { background: var(--color-paper-warm); color: var(--color-primary); }
+.dashnav a .count {
+    color: var(--color-ink-muted);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    margin-left: 4px;
+}
+.dashnav a.preparer { color: var(--color-accent); }
+section[id] {
+    scroll-margin-top: 72px;
+    background: var(--color-paper);
+    border: 1px solid var(--color-rule);
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(15, 23, 32, 0.04);
+    padding: calc(var(--grid-unit) * 3);
+    margin-top: calc(var(--grid-unit) * 3);
+    overflow-x: auto; /* wide tables scroll inside their card, never the page */
+}
+section[id]:first-of-type { margin-top: calc(var(--grid-unit) * 2); }
+@media print {
+    .dashnav { display: none; }
+    section[id] { border: none; padding: 0; break-inside: avoid; }
+    section[id] { page-break-inside: avoid; margin-top: calc(var(--grid-unit) * 2); }
+}
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--grid-unit);
+    margin-bottom: calc(var(--grid-unit) * 2);
+}
+.kpi-tile {
+    background: var(--color-paper-warm);
+    padding: calc(var(--grid-unit) * 2);
+    border: 1px solid var(--color-rule);
+    border-top: 3px solid var(--color-primary);
+    border-radius: 4px;
+}
+.kpi-label {
+    color: var(--color-ink-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.kpi-value {
+    font-family: var(--font-num);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-ink);
+    margin-top: calc(var(--grid-unit) / 2);
+    font-variant-numeric: tabular-nums;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+th, td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--color-rule);
+    text-align: left;
+    vertical-align: top;
+}
+th {
+    background: var(--color-paper-warm);
+    color: var(--color-ink-muted);
+    font-weight: 600;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 2px solid var(--color-primary);
+    white-space: nowrap;
+}
+td.number, th.number {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+tbody tr:nth-child(even) td { background: var(--color-paper-warm); }
+tbody tr:hover td { background: rgba(27, 58, 91, 0.06); }
+.positive { color: var(--color-positive); }
+.negative { color: var(--color-negative); }
+.empty { color: var(--color-ink-muted); font-style: italic; }
+/* Ampel classes: reserved for the KS36 section only. See test_phase8_html. */
+.ampel-green { background: #C6E0B4; }
+.ampel-amber { background: #FFE699; }
+.ampel-red { background: #F4B3B3; }
+.preparer-only {
+    border-left: 4px solid var(--color-accent);
+    padding-left: calc(var(--grid-unit) * 2);
+    margin-top: calc(var(--grid-unit) * 4);
+}
+.preparer-only h2 { color: var(--color-accent); }
+.chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: calc(var(--grid-unit) * 3);
+    align-items: start;
+    margin-top: calc(var(--grid-unit) * 2);
+}
+.chart-card {
+    background: var(--color-paper-warm);
+    border: 1px solid var(--color-rule);
+    padding: calc(var(--grid-unit) * 2);
+}
+.chart-card h3 { margin-top: 0; }
+.chart-card svg { width: 100%; height: auto; display: block; }
+.benchmark-note { color: var(--color-ink-muted); font-size: 0.8125rem; margin-top: calc(var(--grid-unit) / 2); }
+.table-wrap { overflow-x: auto; margin-top: calc(var(--grid-unit) * 2); }
+</style>
+</head>
+<body>
+<nav class="dashnav" aria-label="Abschnittsnavigation">
+<div class="dashnav-inner">
+<span class="dashnav-brand">Steuer-Übersicht <small>2025 · ibkr</small></span>
+<a href="#uebersicht">Übersicht</a>
+<a href="#wertschriften">Wertschriften<span class="count">2</span></a>
+<a href="#sg-verzeichnis">SG-Verzeichnis<span class="count">2</span></a>
+<a href="#da1">DA-1<span class="count">1</span></a>
+<a href="#kauf-verkauf">Kauf / Verkauf<span class="count">2</span></a>
+<a href="#dividenden">Dividenden<span class="count">2</span></a>
+<a href="#zinsen">Zinsen<span class="count">2</span></a>
+<a href="#gebuehren">Gebühren<span class="count">2</span></a>
+<a href="#fx-kurse">FX<span class="count">3</span></a>
+</div>
+</nav>
+<main>
+<header>
+<h1>Steuer-Übersicht 2025</h1>
+<p class="meta">Broker: ibkr</p>
+</header>
+
+<section id="uebersicht">
+<h2>Übersicht</h2>
+<div class="kpi-grid">
+<div class="kpi-tile"><div class="kpi-label">Eröffnungswert</div><div class="kpi-value">CHF 100&#39;000.00</div></div>
+<div class="kpi-tile"><div class="kpi-label">Schlusswert</div><div class="kpi-value">CHF 115&#39;950.00</div></div>
+<div class="kpi-tile"><div class="kpi-label">Dividenden</div><div class="kpi-value">CHF 372.60</div></div>
+<div class="kpi-tile"><div class="kpi-label">Zinsen</div><div class="kpi-value">CHF 150.00</div></div>
+<div class="kpi-tile"><div class="kpi-label">Quellensteuer</div><div class="kpi-value">CHF 127.89</div></div>
+<div class="kpi-tile"><div class="kpi-label">DA-1 rückforderbar</div><div class="kpi-value">CHF 1.89</div></div>
+<div class="kpi-tile"><div class="kpi-label">Gebühren</div><div class="kpi-value">CHF 31.60</div></div>
+</div>
+
+<h3>Vermögenszuwachs</h3>
+<table>
+<thead><tr><th>Bezeichnung</th><th>Art</th><th class="number">Betrag (CHF)</th></tr></thead>
+<tbody>
+<tr><td>Opening value</td><td>opening</td><td class="number">CHF 100&#39;000.00</td></tr>
+<tr><td>Einzahlungen</td><td>inflow</td><td class="number">CHF 10&#39;000.00</td></tr>
+<tr><td>Dividenden (brutto)</td><td>inflow</td><td class="number">CHF 5&#39;200.00</td></tr>
+<tr><td>Zinsen</td><td>inflow</td><td class="number">CHF 150.00</td></tr>
+<tr><td>Realisierte Gewinne</td><td>inflow</td><td class="number">CHF 3&#39;800.00</td></tr>
+<tr><td>Auszahlungen</td><td>outflow</td><td class="number">CHF 2&#39;000.00</td></tr>
+<tr><td>Gebühren</td><td>outflow</td><td class="number">CHF 420.00</td></tr>
+<tr><td>Quellensteuer</td><td>outflow</td><td class="number">CHF 780.00</td></tr>
+<tr><td>Closing value</td><td>closing</td><td class="number">CHF 115&#39;950.00</td></tr>
+<tr><td><strong>Differenz</strong></td><td>residual</td><td class="number">CHF 0.00</td></tr>
+</tbody>
+</table>
+</section>
+
+
+<section id="wertschriften">
+<h2>Wertschriften</h2>
+<table>
+<thead><tr><th>ISIN</th><th>Symbol</th><th>Bezeichnung</th><th class="number">Menge</th><th>Währung</th><th class="number">Kurs lokal</th><th class="number">Kurs CHF</th><th class="number">Marktwert CHF</th></tr></thead>
+<tbody>
+<tr><td>US0378331005</td><td>AAPL</td><td>Apple Inc.</td><td class="number">60.00</td><td>USD</td><td class="number">189.12</td><td class="number">170.42</td><td class="number">CHF 10&#39;225.20</td></tr>
+<tr><td>CH0012005267</td><td>NOVN</td><td>Novartis AG</td><td class="number">120.00</td><td>CHF</td><td class="number">88.54</td><td class="number">88.54</td><td class="number">CHF 10&#39;624.80</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="sg-verzeichnis">
+<h2>SG Wertschriftenverzeichnis</h2>
+<table>
+<thead><tr><th>Formularfeld</th><th>Kategorie</th><th>ISIN</th><th>Bezeichnung</th><th class="number">Menge</th><th class="number">Marktwert CHF</th><th class="number">Ertrag CHF</th><th class="number">VSt CHF</th><th class="number">QSt CHF</th></tr></thead>
+<tbody>
+<tr><td>A 1</td><td>Aktie</td><td>US0378331005</td><td>Apple Inc.</td><td class="number">60.00</td><td class="number">CHF 10&#39;225.20</td><td class="number">CHF 12.60</td><td class="number">CHF 0.00</td><td class="number">CHF 1.89</td></tr>
+<tr><td>A 2</td><td>Aktie</td><td>CH0012005267</td><td>Novartis AG</td><td class="number">120.00</td><td class="number">CHF 10&#39;624.80</td><td class="number">CHF 360.00</td><td class="number">CHF 126.00</td><td class="number">CHF 0.00</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="da1">
+<h2>DA-1 Hilfstabelle</h2>
+<table>
+<thead><tr><th>ISIN</th><th>Symbol</th><th>Bezeichnung</th><th>Quellenstaat</th><th class="number">Brutto CHF</th><th class="number">QSt CHF</th><th class="number">Satz</th><th class="number">DBA-Obergrenze</th><th class="number">Rückforderbar CHF</th></tr></thead>
+<tbody>
+<tr><td>US0378331005</td><td>AAPL</td><td>Apple Inc.</td><td>US</td><td class="number">CHF 12.60</td><td class="number">CHF 1.89</td><td class="number">15.0%</td><td class="number">15.0%</td><td class="number">CHF 1.89</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="kauf-verkauf">
+<h2>Kauf / Verkauf</h2>
+<table>
+<thead><tr><th>Order-ID</th><th>Symbol</th><th>Seite</th><th class="number">Menge</th><th class="number">Ø Preis</th><th>Währung</th><th class="number">Gegenwert</th><th class="number">Kommission</th><th>Zeitraum</th><th>Gruppierung</th></tr></thead>
+<tbody>
+<tr><td>ib:100001</td><td>AAPL</td><td>BUY</td><td class="number">60.00</td><td class="number">150.0000</td><td>USD</td><td class="number">9&#39;000.00</td><td class="number">1.50</td><td>04.02.2025</td><td>ib_order_id</td></tr>
+<tr><td>ib:100002</td><td>NOVN</td><td>BUY</td><td class="number">120.00</td><td class="number">82.0000</td><td>CHF</td><td class="number">9&#39;840.00</td><td class="number">3.50</td><td>18.03.2025</td><td>ib_order_id</td></tr>
+</tbody>
+</table>
+
+<h3>FIFO Schliessungen</h3>
+<table>
+<thead><tr><th>Symbol</th><th>Eröffnet</th><th>Geschlossen</th><th class="number">Menge</th><th class="number">Einstand</th><th class="number">Erlös</th><th class="number">Realisierter G/V</th></tr></thead>
+<tbody>
+<tr><td>AAPL</td><td>04.02.2025</td><td>12.11.2025</td><td class="number">20.00</td><td class="number">3&#39;000.00</td><td class="number">3&#39;570.00</td><td class="number positive">570.00</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="dividenden">
+<h2>Dividenden</h2>
+<table>
+<thead><tr><th>Datum</th><th>ISIN</th><th>Symbol</th><th>Bezeichnung</th><th class="number">Brutto lokal</th><th>Währung</th><th class="number">QSt lokal</th><th class="number">Netto lokal</th><th class="number">Brutto CHF</th><th class="number">QSt CHF</th><th class="number">Netto CHF</th></tr></thead>
+<tbody>
+<tr><td>15.05.2025</td><td>US0378331005</td><td>AAPL</td><td>Apple Inc. dividend</td><td class="number">14.40</td><td>USD</td><td class="number">2.16</td><td class="number">12.24</td><td class="number">CHF 12.60</td><td class="number">CHF 1.89</td><td class="number">CHF 10.71</td></tr>
+<tr><td>10.03.2025</td><td>CH0012005267</td><td>NOVN</td><td>Novartis AG dividend</td><td class="number">360.00</td><td>CHF</td><td class="number">126.00</td><td class="number">234.00</td><td class="number">CHF 360.00</td><td class="number">CHF 126.00</td><td class="number">CHF 234.00</td></tr>
+</tbody>
+</table>
+
+</section>
+
+<section id="zinsen">
+<h2>Zinsen</h2>
+<table>
+<thead><tr><th>Datum</th><th>ISIN</th><th>Symbol</th><th>Bezeichnung</th><th class="number">Brutto lokal</th><th>Währung</th><th class="number">QSt lokal</th><th class="number">Netto lokal</th><th class="number">Brutto CHF</th><th class="number">QSt CHF</th><th class="number">Netto CHF</th></tr></thead>
+<tbody>
+<tr><td>30.06.2025</td><td></td><td>CASH</td><td>USD-Konto Zinsen H1</td><td class="number">75.00</td><td>USD</td><td class="number">0.00</td><td class="number">75.00</td><td class="number">CHF 67.50</td><td class="number">CHF 0.00</td><td class="number">CHF 67.50</td></tr>
+<tr><td>31.12.2025</td><td></td><td>CASH</td><td>USD-Konto Zinsen H2</td><td class="number">82.50</td><td>USD</td><td class="number">0.00</td><td class="number">82.50</td><td class="number">CHF 82.50</td><td class="number">CHF 0.00</td><td class="number">CHF 82.50</td></tr>
+</tbody>
+</table>
+
+</section>
+
+<section id="gebuehren">
+<h2>Gebühren</h2>
+<table>
+<thead><tr><th>Datum</th><th>Art</th><th>Beschreibung</th><th class="number">Betrag lokal</th><th>Währung</th><th class="number">Betrag CHF</th></tr></thead>
+<tbody>
+<tr><td>31.01.2025</td><td>data</td><td>IBKR market data</td><td class="number">10.00</td><td>USD</td><td class="number">CHF 9.00</td></tr>
+<tr><td>31.07.2025</td><td>platform</td><td>Platform fee</td><td class="number">20.00</td><td>USD</td><td class="number">CHF 17.60</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="fx-kurse">
+<h2>FX Kurse</h2>
+<table>
+<thead><tr><th>Währung</th><th>Referenzdatum</th><th class="number">Kurs (CHF je 1)</th><th>Quelle</th></tr></thead>
+<tbody>
+<tr><td>USD</td><td>10.03.2025</td><td class="number">0.900000</td><td>kursliste</td></tr>
+<tr><td>USD</td><td>15.05.2025</td><td class="number">0.875000</td><td>kursliste</td></tr>
+<tr><td>USD</td><td>31.12.2025</td><td class="number">0.901200</td><td>kursliste</td></tr>
+</tbody>
+</table>
+</section>
+
+</main>
+</body>
+</html>
