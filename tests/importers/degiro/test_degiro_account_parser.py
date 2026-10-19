@@ -104,6 +104,7 @@ def _make_row(**kwargs) -> DegiroRow:
         ("Dépôt", DegiroRowKind.DEPOSIT),
         # German descriptions
         ("Kauf 60 iShares@20.08 EUR (IE00B3WJKG14)", DegiroRowKind.BUY_SELL),
+        ("Zinsen", DegiroRowKind.FEE_TRANSACTION),
         ("Verkauf 10 Activision@0 USD (US00507V1098)", DegiroRowKind.BUY_SELL),
         ("Dividende", DegiroRowKind.DIVIDEND),
         ("Dividendensteuer", DegiroRowKind.DIVIDEND_TAX),
@@ -116,6 +117,7 @@ def _make_row(**kwargs) -> DegiroRow:
         ("DEGIRO Anschlussgebühren 2025 (Xetra - XET)", DegiroRowKind.FEE_CONNECTION),
         ("Einrichtung von Handelsmodalitäten 2026 (BNP OTC - BNP)", DegiroRowKind.FEE_CONNECTION),
         ("Einzahlung", DegiroRowKind.DEPOSIT),
+        ("Auszahlung", DegiroRowKind.WITHDRAWAL),
         (
             "Überweisung von Ihrem Geldkonto bei der flatexDEGIRO Bank: 7 CHF",
             DegiroRowKind.CASH_SWEEP_IN,

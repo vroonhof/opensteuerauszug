@@ -63,6 +63,7 @@ class DegiroRowKind(Enum):
     CORPORATE_CASH = auto()
     DELISTING = auto()
     DEPOSIT = auto()
+    WITHDRAWAL = auto()
     FLATEX_INTEREST = auto()
     CASH_SWEEP_IN = auto()
     CASH_SWEEP_OUT = auto()
@@ -99,8 +100,12 @@ _EXACT_MATCH: dict[str, DegiroRowKind] = {
     "Deposito": DegiroRowKind.DEPOSIT,
     "Dépôt": DegiroRowKind.DEPOSIT,
     "Einzahlung": DegiroRowKind.DEPOSIT,
+    "Auszahlung": DegiroRowKind.WITHDRAWAL,
     "Degiro Cash Sweep Transfer": DegiroRowKind.DEGIRO_SWEEP,
     "Geldmarktfonds Kompensation": DegiroRowKind.FLATEX_INTEREST,
+    # Monthly debit interest on a negative balance (German counterpart of
+    # "Intérêts débiteurs mensuels (débit argent)").
+    "Zinsen": DegiroRowKind.FEE_TRANSACTION,
 }
 
 # Prefix-match descriptions → row kind (case-sensitive).
