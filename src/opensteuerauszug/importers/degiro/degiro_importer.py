@@ -359,8 +359,7 @@ class DegiroImporter:
         if not m:
             # Fail loudly: silently dropping a trade would corrupt positions.
             raise ValueError(
-                f"BUY_SELL row {row.raw_row}: cannot parse description "
-                f"{row.description!r}"
+                f"BUY_SELL row {row.raw_row}: cannot parse description {row.description!r}"
             )
 
         action, qty_str, _name, price_str, currency, desc_isin = m.groups()
@@ -376,8 +375,7 @@ class DegiroImporter:
             isin = desc_isin
         if isin is None:
             raise ValueError(
-                f"BUY_SELL row {row.raw_row}: no valid ISIN available "
-                f"({row.description!r})"
+                f"BUY_SELL row {row.raw_row}: no valid ISIN available ({row.description!r})"
             )
 
         product = row.product or _name
