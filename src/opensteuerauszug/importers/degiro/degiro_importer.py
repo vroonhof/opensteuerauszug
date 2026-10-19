@@ -70,12 +70,15 @@ logger = logging.getLogger(__name__)
 # "zu je" ("at each") instead of "@", e.g.:
 #   Kauf 3 zu je 64,91 EUR (IE00B8FHGS14)
 #   Verkauf 20 zu je 3,95 EUR (DE000BY5LZ46)
+# Fund mergers produce trade legs with a "FUSION:" prefix, and Swiss-locale
+# exports use the typographic apostrophe as thousands separator, e.g.:
+#   FUSION: Verkauf 1’105 zu je 14.2055 EUR (LU1781541179)
 _TRADE_RE = re.compile(
-    r"^(Buy|Sell|Acquisto|Vendita|Achat|Vente|Kauf|Verkauf)"
-    r"\s+(\d[\d'.]*(?:[.,]\d+)?)"
+    r"^(?:FUSION:\s+)?(Buy|Sell|Acquisto|Vendita|Achat|Vente|Kauf|Verkauf)"
+    r"\s+(\d[\d'’.]*(?:[.,]\d+)?)"
     r"(?:\s+(.+?)@|\s+zu je)"
-    r"\s*([\d.,]+)\s+([A-Z]{3})"
-    r"(?:\s+\([A-Z0-9]{12}\))?$"
+    r"\s*([\d.,'’]+)\s+([A-Z]{3})"
+    r"(?:\s+\(([A-Z0-9]{12})\))?$"
 )
 
 # Regex for delisting lines, e.g.:
@@ -354,14 +357,13 @@ class DegiroImporter:
     ) -> None:
         m = _TRADE_RE.match(row.description)
         if not m:
-            logger.warning(
-                "BUY_SELL row %d: cannot parse description %r",
-                row.raw_row,
-                row.description,
+            # Fail loudly: silently dropping a trade would corrupt positions.
+            raise ValueError(
+                f"BUY_SELL row {row.raw_row}: cannot parse description "
+                f"{row.description!r}"
             )
-            return
 
-        action, qty_str, _name, price_str, currency = m.groups()
+        action, qty_str, _name, price_str, currency, desc_isin = m.groups()
         qty = Decimal(normalize_number(qty_str))
         price = Decimal(normalize_number(price_str))
 
@@ -370,9 +372,13 @@ class DegiroImporter:
 
         # Determine ISIN – prefer the row's ISIN column, fall back to regex name
         isin = row.isin if _valid_isin(row.isin) else None
+        if isin is None and desc_isin and _valid_isin(desc_isin):
+            isin = desc_isin
         if isin is None:
-            logger.warning("BUY_SELL row %d: no valid ISIN available", row.raw_row)
-            return
+            raise ValueError(
+                f"BUY_SELL row {row.raw_row}: no valid ISIN available "
+                f"({row.description!r})"
+            )
 
         product = row.product or _name
         sec_pos = self._make_sec_pos(isin, product)
