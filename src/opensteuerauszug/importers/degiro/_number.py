@@ -20,13 +20,15 @@ def normalize_number(s: str) -> str:
       * German/French style with dot thousands and comma decimal: ``1.000,50``
       * Plain European decimal comma: ``3487,66``
     """
+    # Apostrophes (ASCII ' and typographic ’) are only ever thousands separators.
+    s = s.replace("’", "").replace("'", "")
     if "," in s and "." in s:
         if s.rindex(",") > s.rindex("."):
             return s.replace(".", "").replace(",", ".")
         return s.replace(",", "")
     if "," in s:
         return s.replace(",", ".")
-    return s.replace("'", "")
+    return s
 
 
 def to_decimal_localized(value: str, field_name: str, context: str) -> Decimal:

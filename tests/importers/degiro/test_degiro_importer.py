@@ -194,6 +194,10 @@ def test_cash_balances_are_aggregated_into_one_account_per_currency(
     ("Kauf 3 zu je 64,91 EUR (IE00B8FHGS14)", "Kauf", "3", "64,91", "EUR"),
     ("Verkauf 20 zu je 3,95 EUR (DE000BY5LZ46)", "Verkauf", "20", "3,95", "EUR"),
     ("Verkauf 50 zu je 5 EUR (DE000PK5UFA4)", "Verkauf", "50", "5", "EUR"),
+    # Swiss-locale typographic apostrophe and fund-merger legs
+    ("Kauf 1’105 zu je 14.2055 EUR (LU1781541179)", "Kauf", "1’105", "14.2055", "EUR"),
+    ("FUSION: Verkauf 1’105 zu je 14.2055 EUR (LU1781541179)", "Verkauf", "1’105", "14.2055", "EUR"),
+    ("FUSION: Kauf 160 zu je 98.1 EUR (IE000BI8OT95)", "Kauf", "160", "98.1", "EUR"),
 ])
 # fmt: on
 def test_trade_re_matches(desc, action, qty, price, currency):
@@ -214,7 +218,89 @@ def test_trade_re_matches(desc, action, qty, price, currency):
         ("20.08", "20.08"),
         ("1.000,50", "1000.50"),
         ("20,08", "20.08"),
+        ("1’105", "1105"),
+        ("1’105.50", "1105.50"),
+        ("12’345,67", "12345.67"),
     ],
 )
 def test_normalize_number(raw, expected):
     assert normalize_number(raw) == expected
+
+
+def _stocks_by_isin(statement):
+    out = {}
+    for depot in statement.listOfSecurities.depot:
+        for sec in depot.security:
+            out[sec.isin] = sorted(sec.stock, key=lambda st: (st.referenceDate, st.mutation))
+    return out
+
+
+def test_fund_merger_legs_and_swiss_locale_rows(tmp_path):
+    """FUSION legs move units from the absorbed fund to the absorbing fund.
+
+    Uses the Swiss-German export wording (typographic apostrophe, "Auszahlung
+    von"/"Überweisung auf" cash-account sweeps), which previously aborted the
+    import as unknown rows.
+    """
+    account_csv = tmp_path / "Account.csv"
+    account_csv.write_text(
+        "Datum,Uhrzeit,Valutadatum,Produkt,ISIN,Beschreibung,FX,Änderung,,Saldo,,Order-ID\n"
+        '20-06-2025,08:00,20-06-2025,,,"Überweisung auf Ihr Geldkonto bei der flatexDEGIRO Bank: 760.97 CHF",,,,CHF,0.00,\n'
+        "18-06-2025,07:00,18-06-2025,NEW WORLD ETF,IE000BI8OT95,FUSION: Kauf 160 zu je 98.1 EUR (IE000BI8OT95),,EUR,-15696.00,EUR,0.00,\n"
+        "18-06-2025,07:00,18-06-2025,OLD WORLD ETF,LU1781541179,FUSION: Verkauf 1’105 zu je 14.2055 EUR (LU1781541179),,EUR,15697.08,EUR,15697.08,\n"
+        '10-03-2025,08:00,10-03-2025,,,"Auszahlung von Ihrem Geldkonto bei der flatexDEGIRO Bank: 4.71 CHF",,,,CHF,4.71,\n',
+        encoding="utf-8",
+    )
+    portfolio_csv = tmp_path / "Portfolio.csv"
+    portfolio_csv.write_text(
+        "Produkt,Symbol/ISIN,Anzahl,Schlußkurs,Wert,,Wert in CHF\n"
+        "NEW WORLD ETF,IE000BI8OT95,160,100.00,EUR,16000.00,15000.00\n"
+        "CASH & CASH FUND & FTX CASH (CHF),,,,CHF,1’000.00,1’000.00\n",
+        encoding="utf-8",
+    )
+    importer = DegiroImporter(
+        period_from=date(2025, 1, 1),
+        period_to=date(2025, 12, 31),
+        account_settings_list=[],
+    )
+
+    statement = importer.import_files(str(account_csv), str(portfolio_csv))
+    stocks = _stocks_by_isin(statement)
+
+    old = stocks["LU1781541179"]
+    assert [s.quantity for s in old if s.mutation] == [Decimal("-1105")]
+    old_balances = [s for s in old if not s.mutation]
+    assert old_balances[0].referenceDate == date(2025, 1, 1)
+    assert old_balances[0].quantity == Decimal("1105")
+    assert old_balances[-1].quantity == 0
+
+    new = stocks["IE000BI8OT95"]
+    assert [s.quantity for s in new if s.mutation] == [Decimal("160")]
+    new_balances = [s for s in new if not s.mutation]
+    # No holding before the merger date; 160 units at year-end.
+    assert all(b.quantity == 0 for b in new_balances if b.referenceDate <= date(2025, 6, 18))
+    assert new_balances[-1].referenceDate == date(2026, 1, 1)
+    assert new_balances[-1].quantity == Decimal("160")
+
+    cash = statement.listOfBankAccounts.bankAccount
+    assert sum(a.taxValue.balance for a in cash) == Decimal("1000.00")
+
+
+def test_unparseable_trade_row_fails_loudly(tmp_path):
+    account_csv = tmp_path / "Account.csv"
+    account_csv.write_text(
+        "Date,Time,Value date,Product,ISIN,Description,FX,Change,,Balance,,Order Id\n"
+        "18-06-2025,07:00,18-06-2025,X,LU1781541179,Kauf some garbage,,EUR,-1.00,EUR,0.00,\n",
+        encoding="utf-8",
+    )
+    portfolio_csv = tmp_path / "Portfolio.csv"
+    portfolio_csv.write_text(
+        "Product,Symbol/ISIN,Amount,Closing,Local value,,Value in CHF\n", encoding="utf-8"
+    )
+    importer = DegiroImporter(
+        period_from=date(2025, 1, 1),
+        period_to=date(2025, 12, 31),
+        account_settings_list=[],
+    )
+    with pytest.raises(ValueError, match="cannot parse description"):
+        importer.import_files(str(account_csv), str(portfolio_csv))

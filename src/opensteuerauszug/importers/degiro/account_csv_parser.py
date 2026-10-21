@@ -63,6 +63,7 @@ class DegiroRowKind(Enum):
     CORPORATE_CASH = auto()
     DELISTING = auto()
     DEPOSIT = auto()
+    WITHDRAWAL = auto()
     FLATEX_INTEREST = auto()
     CASH_SWEEP_IN = auto()
     CASH_SWEEP_OUT = auto()
@@ -99,8 +100,12 @@ _EXACT_MATCH: dict[str, DegiroRowKind] = {
     "Deposito": DegiroRowKind.DEPOSIT,
     "Dépôt": DegiroRowKind.DEPOSIT,
     "Einzahlung": DegiroRowKind.DEPOSIT,
+    "Auszahlung": DegiroRowKind.WITHDRAWAL,
     "Degiro Cash Sweep Transfer": DegiroRowKind.DEGIRO_SWEEP,
     "Geldmarktfonds Kompensation": DegiroRowKind.FLATEX_INTEREST,
+    # Monthly debit interest on a negative balance (German counterpart of
+    # "Intérêts débiteurs mensuels (débit argent)").
+    "Zinsen": DegiroRowKind.FEE_TRANSACTION,
 }
 
 # Prefix-match descriptions → row kind (case-sensitive).
@@ -114,6 +119,9 @@ _PREFIX_MATCH: list[tuple[str, DegiroRowKind]] = [
     ("Vente ", DegiroRowKind.BUY_SELL),
     ("Kauf ", DegiroRowKind.BUY_SELL),
     ("Verkauf ", DegiroRowKind.BUY_SELL),
+    # Fund merger legs, e.g. "FUSION: Verkauf 1’105 zu je 14.2055 EUR (LU1781541179)"
+    ("FUSION: Kauf ", DegiroRowKind.BUY_SELL),
+    ("FUSION: Verkauf ", DegiroRowKind.BUY_SELL),
     # CORPORATE_CASH
     ("Corporate Action Cash Settlement", DegiroRowKind.CORPORATE_CASH),
     # DELISTING
@@ -122,8 +130,10 @@ _PREFIX_MATCH: list[tuple[str, DegiroRowKind]] = [
     ("Transfer from", DegiroRowKind.CASH_SWEEP_IN),
     ("Virement depuis", DegiroRowKind.CASH_SWEEP_IN),
     ("Überweisung von", DegiroRowKind.CASH_SWEEP_IN),
+    ("Auszahlung von Ihrem Geldkonto", DegiroRowKind.CASH_SWEEP_IN),
     ("Transfer to", DegiroRowKind.CASH_SWEEP_OUT),
     ("Überweisung an", DegiroRowKind.CASH_SWEEP_OUT),
+    ("Überweisung auf Ihr Geldkonto", DegiroRowKind.CASH_SWEEP_OUT),
     ("Virement vers", DegiroRowKind.CASH_SWEEP_OUT),
     ("Retrait de fonds", DegiroRowKind.CASH_SWEEP_OUT),
 ]
