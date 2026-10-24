@@ -1518,7 +1518,13 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     xml = tax_statement.to_xml_bytes()
     data = zlib.compress(xml, 9)
 
-    file_name = tax_statement.id
+    # Do not put the statement id into the Macro PDF417 file-name field.
+    # PR #114 introduced it per the Wegleitung, but decoders embedded in tax
+    # software are stricter than the spec: with the file name present the
+    # import into ZH PrivateTax broke (#239), and ZHprivateTax for tax period
+    # 2025 rejected such statements again in 2026 even with the fixed
+    # pdf417gen compaction. Real bank statements work without it.
+    file_name = None
 
     # Follow Guidance in "Beilage zu eCH-0196 V2.2.0 – Barcode Generierung – Technische Wegleitung"
     # our library does not allow setting the row_count, so guess by making the segments roughly
@@ -1539,18 +1545,21 @@ def render_to_barcodes(tax_statement: TaxStatement) -> list[PILImage.Image]:
     file_name_compacted = list(compact_text(bytes(file_name or '', 'utf-8')))
     # Check if we are using a fixed version of py417gen that does properly compact the file name.
     # See https://github.com/vroonhof/opensteuerauszug/issues/240
-    if encode_optional_field(MACRO_FILE_NAME, file_name)[2:] != file_name_compacted:
+    if (
+        file_name is not None
+        and encode_optional_field(MACRO_FILE_NAME, file_name)[2:] != file_name_compacted
+    ):
         raise ValueError(
             "Using too old version of py417gen. Run to fix: 'pip install git+https://github.com/vroonhof/pdf417-py.git'"
         )
 
-    file_name_compacted_word_count = len(file_name_compacted) + 1
+    file_name_compacted_word_count = (len(file_name_compacted) + 1) if file_name is not None else 0
     capacity = NUM_COLUMNS * NUM_ROWS - FIXED_OVERHEAD - file_name_compacted_word_count
     # Byte encoding efficiency is 6 bytes per 5 codewords
     SEGMENT_SIZE = floor((capacity / 5) * 6)
     # Official PDF generator uses 4 * 3 digit (<= 255 each) for file ID
     # Create file ID based on hash of taxstatement id and creation date
-    hash_input = f"{file_name}_{tax_statement.creationDate.timestamp() if tax_statement.creationDate else ''}"
+    hash_input = f"{tax_statement.id}_{tax_statement.creationDate.timestamp() if tax_statement.creationDate else ''}"
     digest = hashlib.sha256(hash_input.encode('utf-8')).digest()
     file_id = [100 + (b % 156) for b in digest[:4]]
 

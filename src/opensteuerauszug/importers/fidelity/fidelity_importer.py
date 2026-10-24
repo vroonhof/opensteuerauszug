@@ -157,11 +157,15 @@ class FidelityImporter:
                 error_desc = f"{object_description} (Symbol: " f"{data_object.get('Symbol')})"
             elif data_object.get('Symbol/CUSIP'):
                 error_desc = f"{object_description} (Symbol: " f"{data_object.get('Symbol/CUSIP')})"
-            elif data_object.get('Account Number') and 'Account:' not in object_description:  # Avoid double "Account:"
+            elif (
+                data_object.get('Account Number') and 'Account:' not in object_description
+            ):  # Avoid double "Account:"
                 error_desc = (
                     f"{object_description} (Account: " f"{data_object.get('Account Number')})"
                 )
-            elif data_object.get('Account') and 'Account:' not in object_description:  # Avoid double "Account:"
+            elif (
+                data_object.get('Account') and 'Account:' not in object_description
+            ):  # Avoid double "Account:"
                 error_desc = f"{object_description} (Account: " f"{data_object.get('Account')})"
             raise ValueError(f"Missing required field '{field_name}' in {error_desc}.")
         if field_name == 'Run Date':

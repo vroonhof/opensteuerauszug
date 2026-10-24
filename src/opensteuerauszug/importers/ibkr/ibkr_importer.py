@@ -90,7 +90,9 @@ class IbkrImporter:
                 error_desc = (
                     f"{object_description} (Symbol: " f"{getattr(data_object, 'symbol', 'N/A')})"
                 )
-            elif hasattr(data_object, 'accountId') and 'Account:' not in object_description:  # Avoid double "Account:"
+            elif (
+                hasattr(data_object, 'accountId') and 'Account:' not in object_description
+            ):  # Avoid double "Account:"
                 error_desc = (
                     f"{object_description} (Account: "
                     f"{getattr(data_object, 'accountId', 'N/A')})"

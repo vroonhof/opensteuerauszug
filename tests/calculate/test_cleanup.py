@@ -2790,7 +2790,7 @@ class TestCleanupCalculatorIDGeneration:
         # compute_org_nr will hash "SCHWAB" and produce a clearing number
         # For "SCHWAB", hash_organization_name produces "258", so clearing is "19258"
         expected_id = self._construct_expected_id(
-            country="CH", clearing="19258", customer="SCHWABCUST123X", date_str="20231231"
+            country="CH", clearing="19258", customer="00000000000123", date_str="20231231"
         )
 
         calculator = CleanupCalculator(
@@ -2815,7 +2815,7 @@ class TestCleanupCalculatorIDGeneration:
 
         # For "POSTFINANCE", hash produces "030", so clearing is "19030"
         expected_id = self._construct_expected_id(
-            country="CH", clearing="19030", customer="POSTFINANCETIN", date_str="20231231"
+            country="CH", clearing="19030", customer="00000000000456", date_str="20231231"
         )
         calculator = CleanupCalculator(
             period_from=DEFAULT_TEST_PERIOD_FROM,
@@ -2844,7 +2844,7 @@ class TestCleanupCalculatorIDGeneration:
         expected_id = self._construct_expected_id(
             country="CH",
             clearing="19999",  # Default when no institution
-            customer="CLI789XXXXXXXX",
+            customer="00000000000789",
             date_str="20231231",
         )
         calculator = CleanupCalculator(
@@ -2876,7 +2876,7 @@ class TestCleanupCalculatorIDGeneration:
         expected_id = self._construct_expected_id(
             country="CH",
             clearing="19999",  # Default when institution name is empty
-            customer="CLI789XXXXXXXX",
+            customer="00000000000789",
             date_str="20231231",
         )
         calculator = CleanupCalculator(
@@ -2902,7 +2902,7 @@ class TestCleanupCalculatorIDGeneration:
 
         # For "UBS", hash produces "545", so clearing is "19545"
         expected_id = self._construct_expected_id(
-            country="CH", clearing="19545", customer="UBSCUSTLONGXXX", date_str="20231231"
+            country="CH", clearing="19545", customer="00000000000000", date_str="20231231"
         )
         calculator = CleanupCalculator(
             period_from=DEFAULT_TEST_PERIOD_FROM,
@@ -2926,7 +2926,7 @@ class TestCleanupCalculatorIDGeneration:
 
         # For "TESTIMP", hash produces "022", so clearing is "19022"
         expected_id = self._construct_expected_id(
-            country="CH", clearing="19022", customer="TESTIMPNOIDENT", date_str="20231231"
+            country="CH", clearing="19022", customer="00000000000000", date_str="20231231"
         )
         calculator = CleanupCalculator(
             period_from=DEFAULT_TEST_PERIOD_FROM,
@@ -2947,7 +2947,7 @@ class TestCleanupCalculatorIDGeneration:
 
         # For "ANYBANK", hash produces "272", so clearing is "19272"
         expected_id = self._construct_expected_id(
-            country="CH", clearing="19272", customer="ANYBANKNOCLIEN", date_str="20231231"
+            country="CH", clearing="19272", customer="00000000000000", date_str="20231231"
         )
         calculator = CleanupCalculator(
             period_from=DEFAULT_TEST_PERIOD_FROM,
@@ -2999,13 +2999,13 @@ class TestCleanupCalculatorIDGeneration:
 
         assert statement.id is not None
         actual_customer_part = statement.id[7 : 7 + 14]  # CC(2) + Clearing(5) = 7
-        # Build expected using importer prefix 'UBS' + sanitized client id (or 'EMPTY'), padded/truncated to 14
+        # Digits-only, last 14 digits, left-padded with zeros
+        # (ZHprivateTax 2025 rejects IDs containing letters).
         import re
 
-        importer_prefix = "UBS"
         base = raw_client_id if raw_client_id.strip() else "EMPTY"
-        sanitized = re.sub(r"[^a-zA-Z0-9]", "", base)
-        expected = (importer_prefix + sanitized)[:14].ljust(14, "X")
+        digits = re.sub(r"[^0-9]", "", base) or "0"
+        expected = digits[-14:].rjust(14, "0")
         assert actual_customer_part == expected
 
     def test_period_to_formatting(self):
@@ -3075,7 +3075,7 @@ class TestCleanupCalculatorIDGeneration:
 
         # For "STRIPCASE", hash produces "159", so clearing is "19159"
         expected_id = self._construct_expected_id(
-            country="CH", clearing="19159", customer="STRIPCASECUST1", date_str="20231231"
+            country="CH", clearing="19159", customer="00000000000123", date_str="20231231"
         )
 
         calculator = CleanupCalculator(
