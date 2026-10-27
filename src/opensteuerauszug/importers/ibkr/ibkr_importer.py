@@ -51,6 +51,7 @@ IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Final[Dict[str, SecurityCategory]]
 import ibflex
 from ibflex.parser import FlexParserError
 from ibflex.enums import TradeType
+from ibflex.Types import TransferLot
 
 
 def is_summary_level(entry: object) -> bool:
@@ -693,9 +694,29 @@ class IbkrImporter:
 
             # --- Process Transfers ---
             if stmt.Transfers:
+                # A Flex query with both the "Transfer" and "Lot" options selected
+                # reports each transfer once as a Transfer and again split up into
+                # TransferLot entries. Use the Transfer as authoritative and only
+                # fall back to TransferLots when no matching Transfer exists.
+                transfer_keys = {
+                    (str(t.conid), t.date or (t.dateTime.date() if t.dateTime else None))
+                    for t in stmt.Transfers
+                    if isinstance(t, ibflex.Transfer)
+                }
                 for transfer in stmt.Transfers:
                     if should_skip_entry(transfer, "Transfer"):
                         continue
+                    if isinstance(transfer, TransferLot):
+                        lot_date = transfer.date or (
+                            transfer.dateTime.date() if transfer.dateTime else None
+                        )
+                        if (str(transfer.conid), lot_date) in transfer_keys:
+                            logger.debug(
+                                "Skipping TransferLot for %s on %s; covered by Transfer entry",
+                                transfer.symbol,
+                                lot_date,
+                            )
+                            continue
                     asset_category = self._get_required_field(transfer, 'assetCategory', 'Transfer')
                     asset_cat_val = (
                         asset_category.value

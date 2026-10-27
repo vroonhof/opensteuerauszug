@@ -152,6 +152,28 @@ SAMPLE_IBKR_FLEX_XML_TRANSFER = """
 </FlexQueryResponse>
 """
 
+# Flex query with both "Transfer" and "Lot" options selected: the Transfer is
+# repeated as TransferLot entries which must not be double counted (issue #440).
+SAMPLE_IBKR_FLEX_XML_TRANSFER_WITH_LOTS = """
+<FlexQueryResponse queryName="TransferLotQuery" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="2025-01-01" toDate="2025-12-31" period="Year" whenGenerated="2026-01-15T10:00:00">
+      <Transfers>
+        <Transfer accountId="U1234567" type="FOP" direction="IN" assetCategory="STK" symbol="GOOG" description="ALPHABET INC-CL C" conid="208813720" isin="US02079K1079" currency="USD" quantity="84" date="20251104" account="Other Account" />
+        <TransferLot accountId="U1234567" type="FOP" direction="IN" assetCategory="STK" symbol="GOOG" description="ALPHABET INC-CL C" conid="208813720" isin="US02079K1079" currency="USD" quantity="52.412" date="20251104" account="Other Account" />
+        <TransferLot accountId="U1234567" type="FOP" direction="IN" assetCategory="STK" symbol="GOOG" description="ALPHABET INC-CL C" conid="208813720" isin="US02079K1079" currency="USD" quantity="31.588" date="20251104" account="Other Account" />
+      </Transfers>
+      <OpenPositions>
+        <OpenPosition accountId="U1234567" assetCategory="STK" symbol="GOOG" description="ALPHABET INC-CL C" conid="208813720" isin="US02079K1079" currency="USD" position="84" markPrice="100" positionValue="8400" reportDate="20251231" />
+      </OpenPositions>
+      <CashReport>
+        <CashReportCurrency accountId="U1234567" currency="USD" endingCash="0" fromDate="2025-01-01" toDate="2025-12-31" />
+      </CashReport>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>
+"""
+
 SAMPLE_IBKR_FLEX_XML_TRANSFER_WRONG_SIGN = """
 <FlexQueryResponse queryName="TransferQueryWrong" type="AF">
   <FlexStatements count="1">
@@ -694,6 +716,30 @@ def test_transfer_to_stock(sample_ibkr_settings):
         transfer_stock = transfers[0]
         assert transfer_stock.quantity == Decimal("10")
         assert transfer_stock.name == "INTERNAL Other Account"
+    finally:
+        if os.path.exists(xml_file_path):
+            os.remove(xml_file_path)
+
+
+def test_transfer_lots_not_double_counted(sample_ibkr_settings):
+    importer = IbkrImporter(
+        period_from=date(2025, 1, 1),
+        period_to=date(2025, 12, 31),
+        account_settings_list=sample_ibkr_settings,
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".xml") as tmp_file:
+        tmp_file.write(SAMPLE_IBKR_FLEX_XML_TRANSFER_WITH_LOTS)
+        xml_file_path = tmp_file.name
+
+    try:
+        tax_statement = importer.import_files([xml_file_path])
+
+        depot = tax_statement.listOfSecurities.depot[0]
+        goog_sec = next(s for s in depot.security if s.isin == "US02079K1079")
+        transfers = [s for s in goog_sec.stock if s.mutation]
+        assert len(transfers) == 1
+        assert transfers[0].quantity == Decimal("84")
     finally:
         if os.path.exists(xml_file_path):
             os.remove(xml_file_path)

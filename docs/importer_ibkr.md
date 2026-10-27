@@ -45,6 +45,7 @@ The importer uses the `ibflex` library to parse the XML, this can be quite sensi
     *   Records securities transferred in or out of the account.
     *   Critical fields per transfer: `date` (or `dateTime`), `symbol`, `description`, `conid`, `isin`, `quantity`, `direction` ("IN" or "OUT"), `currency`, `type`, `account`.
     *   *Note: Cash transfers are generally ignored by this section in the importer.*
+    *   *Note: If both the "Transfer" and "Lot" options are selected, IBKR reports each transfer once more split into `TransferLot` entries. The importer uses the `Transfer` entry and ignores the matching `TransferLot` entries, so selecting both is fine.*
 
 5.  **Corporate Actions (`CorporateActions`)**:
     *   Records corporate actions like stock splits, rights issues, and mergers.
