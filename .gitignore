@@ -197,3 +197,9 @@ cython_debug/
 
 # Compiled java files
 *.class
+
+# Generated tax-overview samples: allow only the canonical synthetic
+# HTML dashboard. Other outputs (binary workbooks, PDFs, variant HTMLs)
+# are regenerated locally via scripts/generate_tax_overview_samples.py.
+/docs/samples/tax_overview/*
+!/docs/samples/tax_overview/sample_dashboard.html
