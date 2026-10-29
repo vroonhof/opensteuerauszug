@@ -58,6 +58,7 @@ def aggregate_mutations(stocks: List[SecurityStock]) -> List[SecurityStock]:
                     orderId=stock.orderId,
                     balanceCurrency=stock.balanceCurrency,
                     quotationType=stock.quotationType,
+                    balance=stock.balance,
                 )
         else:
             if pending:
