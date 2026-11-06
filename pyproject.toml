@@ -7,7 +7,7 @@ name = "opensteuerauszug"
 version = "0.1.0"
 description = "Generate Swiss tax statements from financial data."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -53,7 +53,7 @@ dev = [
     "Flake8-pyproject",
     "freezegun>=1.5.0",
     "pdf417decoder @ git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python",
-    "pyrefly>=0.62,<0.70",
+    "pyrefly>=0.62",
 ]
 
 [tool.uv]
@@ -61,7 +61,7 @@ exclude-newer = "6 days"
 
 [tool.black]
 line-length = 100
-target-version = ["py310"]
+target-version = ["py311"]
 skip-string-normalization = true
 include = '\.pyi?$'
 
@@ -96,7 +96,7 @@ skips = ["B101"]
 [tool.pyrefly]
 project-includes = ["src/opensteuerauszug"]
 project-excludes = ["**/.venv/**", "**/build/**", "**/dist/**", "tests/**"]
-python-version = "3.10"
+python-version = "3.11"
 search-path = ["src"]
 
 # Ruff configuration
@@ -104,7 +104,7 @@ search-path = ["src"]
 # Black, flake8, and isort remain the active formatting and linting tools.
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.format]
 quote-style = "preserve"
