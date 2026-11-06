@@ -6,7 +6,7 @@ OpenSteuerAuszug is a Python package for generating Swiss tax statements (Steuer
 
 ## Build and Environment
 
-- **Python**: Requires 3.10 or newer.
+- **Python**: Requires 3.11 or newer.
 - **Build system**: Hatchling (configured in `pyproject.toml`).
 - **Dependency management**: All dependencies go in `pyproject.toml` under `[project.dependencies]` or `[project.optional-dependencies]`. Do **not** use `requirements.txt`.
 - **Install for development**:
@@ -34,7 +34,7 @@ OpenSteuerAuszug is a Python package for generating Swiss tax statements (Steuer
 ## Linting and Formatting
 
 - **Flake8**: `uv run --locked --extra dev flake8 .` with settings from `pyproject.toml` (`max-line-length=127`).
-- **Black**: line-length 100, target Python 3.10.
+- **Black**: line-length 100, target Python 3.11.
 - **isort**: profile "black", line-length 100.
 - CI runs flake8 for syntax errors/undefined names (`E9,F63,F7,F82`) as a hard gate.
 
@@ -77,4 +77,4 @@ Tests mirror the source layout under `tests/` (`calculate/`, `core/`, `importers
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/python-app.yml`) runs on pushes/PRs to `main`: installs Python 3.10 + dependencies, runs flake8, then pytest.
+GitHub Actions (`.github/workflows/python-app.yml`) runs on pushes/PRs to `main`: installs Python 3.11 + dependencies, runs flake8, then pytest.
