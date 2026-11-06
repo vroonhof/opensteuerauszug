@@ -142,11 +142,22 @@ class KurslisteManager:
         for file_path in potential_files:
             year = None
 
-            # For SQLite files, try filename first, then metadata table
+            # For SQLite files, prefer the authoritative metadata tax_year up front
+            # so a DB whose filename year is later than its metadata year still
+            # takes precedence over XML files for its metadata year.
             if file_path.suffix == ".sqlite":
-                year = self._get_year_from_filename(file_path.name)
-                if year is None:
-                    year = self._get_year_from_sqlite_metadata(file_path)
+                filename_year = self._get_year_from_filename(file_path.name)
+                metadata_year = self._get_year_from_sqlite_metadata(file_path)
+                if (
+                    filename_year is not None
+                    and metadata_year is not None
+                    and filename_year != metadata_year
+                ):
+                    print(
+                        f"Warning: Year mismatch for {file_path.name}. Extracted year: {filename_year}, "
+                        f"SQLite metadata year: {metadata_year}. Using SQLite metadata year: {metadata_year}."
+                    )
+                year = metadata_year if metadata_year is not None else filename_year
 
             # For XML files, try filename first, then XML content
             elif file_path.suffix == ".xml":

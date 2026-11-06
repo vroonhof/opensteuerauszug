@@ -312,3 +312,78 @@ def test_load_directory_specific_sqlite_name_preference(tmp_path):
     )  # Content from the specifically named DB
 
     accessor_2036.data_source.close()
+
+
+def test_load_directory_multiple_xml_same_year_overlapping_ids(tmp_path):
+    manager = KurslisteManager()
+    xml_a = SAMPLE_XML_CONTENT_TEMPLATE.format(year=2023).replace(
+        'valorNumber="123456" isin="CH0012345678" securityName="Test Share AG 2023"',
+        'valorNumber="111111" isin="CH0000111111" securityName="Share A"',
+    )
+    xml_b = SAMPLE_XML_CONTENT_TEMPLATE.format(year=2023).replace(
+        'valorNumber="123456" isin="CH0012345678" securityName="Test Share AG 2023"',
+        'valorNumber="222222" isin="CH0000222222" securityName="Share B"',
+    )
+    (tmp_path / "kursliste_2023_a.xml").write_text(xml_a)
+    (tmp_path / "kursliste_2023_b.xml").write_text(xml_b)
+
+    manager.load_directory(tmp_path)
+
+    accessor = manager.get_kurslisten_for_year(2023)
+    assert accessor is not None
+    sec_a = accessor.get_security_by_valor(111111)
+    sec_b = accessor.get_security_by_valor(222222)
+    assert sec_a is not None and sec_a.securityName == "Share A"
+    assert sec_b is not None and sec_b.securityName == "Share B"
+    accessor.data_source.close()
+
+
+def test_load_directory_mid_stream_xml_failure_rolls_back_and_isolates_db(tmp_path):
+    manager = KurslisteManager()
+    # Create a malformed XML with >5000 records so at least one batch is flushed before failure
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste" version="2.0.0.1" creationDate="2024-01-01T00:00:00" year="2023">',
+    ]
+    for i in range(5010):
+        lines.append(
+            f'<exchangeRate currency="USD" date="2023-01-01" denomination="1" value="{i + 1}.0" />'
+        )
+    lines.append("<unclosed_tag>")
+    (tmp_path / "kursliste_2023_01_bad.xml").write_text("\n".join(lines))
+    create_sample_xml(tmp_path / "kursliste_2023_02_good.xml", 2023)
+
+    manager.load_directory(tmp_path)
+
+    accessor = manager.get_kurslisten_for_year(2023)
+    assert accessor is not None
+    # Partial records from the failed XML (2023-01-01) must have been rolled back,
+    # while records from the good XML (2023-11-10) must be present.
+    assert accessor.get_exchange_rate("USD", date(2023, 1, 1)) is None
+    assert accessor.get_exchange_rate("USD", date(2023, 11, 10)) is not None
+    sec = accessor.get_security_by_valor(123456)
+    assert sec is not None and sec.securityName == "Test Share AG 2023"
+    accessor.data_source.close()
+
+
+def test_load_directory_sqlite_metadata_year_precedence_over_earlier_filename_xml(tmp_path):
+    manager = KurslisteManager()
+    # XML for 2027
+    create_sample_xml(tmp_path / "kursliste_2027.xml", 2027)
+
+    # SQLite DB whose authoritative metadata year is 2027, but whose filename says 2028
+    temp_xml = create_sample_xml(tmp_path / "temp_2027.xml", 2027)
+    temp_xml.write_text(temp_xml.read_text().replace("Test Share AG 2027", "DB Share AG 2027"))
+    db_file = tmp_path / "kursliste_2028.sqlite"
+    create_sample_sqlite_from_xml(temp_xml, db_file)
+    temp_xml.unlink()
+
+    manager.load_directory(tmp_path)
+
+    accessor_2027 = manager.get_kurslisten_for_year(2027)
+    assert accessor_2027 is not None
+    assert isinstance(accessor_2027.data_source, KurslisteDBReader)
+    assert accessor_2027.data_source.db_path != ":memory:"
+    sec = accessor_2027.get_security_by_valor(123456)
+    assert sec is not None and sec.securityName == "DB Share AG 2027"
+    accessor_2027.data_source.close()
