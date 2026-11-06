@@ -27,13 +27,32 @@ def is_nonempty_string(value: object) -> bool:
 def split_full_name(value: object) -> Tuple[Optional[str], str]:
     """Split ``"First Middle Last"`` into ``("First", "Middle Last")``.
 
+    Joint-account patterns such as ``"First Last and Second Last"``
+    (English) or ``"First Last und Second Last"`` (German / Swiss-German)
+    are detected by a space-bounded separator and the second holder is
+    dropped before splitting: a Steuerauszug needs a single
+    ``Client`` per account, so only the primary holder is returned.
+
     Single-token inputs return ``(None, <token>)`` so callers can still
     place the value in ``lastName`` if that is all they have.
+    Whitespace-only inputs return ``(None, "")``.
     """
-    parts = str(value).strip().split()
-    if len(parts) > 1:
-        return parts[0], " ".join(parts[1:])
-    return None, str(value).strip()
+    raw = str(value).strip()
+    if not raw:
+        return None, raw
+
+    for separator in (" and ", " und "):
+        idx = raw.lower().find(separator)
+        if idx > 0:
+            raw = raw[:idx].rstrip()
+            break
+
+    tokens = raw.split()
+    if len(tokens) > 1:
+        return tokens[0], " ".join(tokens[1:])
+    if tokens:
+        return None, tokens[0]
+    return None, raw
 
 
 def resolve_first_last_name(

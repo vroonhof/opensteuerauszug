@@ -12,6 +12,25 @@ def test_split_full_name_single_and_multi_token():
     assert split_full_name("  First Middle Last  ") == ("First", "Middle Last")
 
 
+def test_split_full_name_truncates_joint_account_at_separator():
+    # English " and " - keep primary holder, drop the rest.
+    assert split_full_name("Firstname Lastname and Othername Other-Lastname") == (
+        "Firstname",
+        "Lastname",
+    )
+    # German / Swiss-German " und " - same treatment.
+    assert split_full_name("Firstname Lastname und Othername Other-Lastname") == (
+        "Firstname",
+        "Lastname",
+    )
+    # Case-insensitive uppercase separator.
+    assert split_full_name("Alice Smith AND Bob Jones") == ("Alice", "Smith")
+    # Leading/trailing whitespace and excess whitespace are normalised.
+    assert split_full_name("  Alice Smith   and   Bob Jones  ") == ("Alice", "Smith")
+    # No separator present at all - falls back to the regular split.
+    assert split_full_name("John Quincy Adams") == ("John", "Quincy Adams")
+
+
 def test_resolve_prefers_explicit_first_last():
     assert resolve_first_last_name(first_name="A", last_name="B") == ("A", "B")
 
@@ -22,6 +41,16 @@ def test_resolve_combines_first_with_full_name_surname():
 
 def test_resolve_falls_back_to_account_holder_name():
     assert resolve_first_last_name(account_holder_name="X Y") == ("X", "Y")
+
+
+def test_resolve_joint_account_name_fits_in_last_name_schema():
+    # The joint-account pattern would otherwise overflow the 30-char
+    # lastName schema limit once the bare name field is used as a surname.
+    first, last = resolve_first_last_name(
+        full_name="Firstname Lastname and Othername Other-Lastname",
+    )
+    assert first == "Firstname"
+    assert last is not None and len(last) <= 30
 
 
 def test_resolve_returns_none_when_nothing_valid():
