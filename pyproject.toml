@@ -53,7 +53,7 @@ dev = [
     "Flake8-pyproject",
     "freezegun>=1.5.0",
     "pdf417decoder @ git+https://github.com/vroonhof/pdf417decoder.git#subdirectory=python",
-    "pyrefly>=0.62,<0.70",
+    "pyrefly>=0.62",
 ]
 
 [tool.uv]

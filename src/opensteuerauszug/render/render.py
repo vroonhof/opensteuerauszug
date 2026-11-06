@@ -118,7 +118,7 @@ def format_currency_rounded(value: Decimal, default='0'):
         return default
 
 
-def format_currency_2dp(value: Decimal, default='0.00'):
+def format_currency_2dp(value: Optional[Decimal], default='0.00'):
     """Format currency with 2 decimals, for detail tables."""
     if value is None or value == '':
         return default
@@ -168,7 +168,10 @@ def format_exchange_rate(value: Decimal, default=''):
 # For Stock quantities quantize to a shared template, if argument mutation is true
 # then always render a sign in front of the number
 def format_stock_quantity(
-    value: Decimal, mutation: bool = False, template: Decimal = Decimal('0.0000'), default=''
+    value: Optional[Decimal],
+    mutation: bool = False,
+    template: Decimal = Decimal('0.0000'),
+    default='',
 ):
     """Format stock quantity with 4 decimals, if mutation is true, render a sign in front of the number."""
     if value is None or value == Decimal(0):
@@ -2128,7 +2131,8 @@ def create_securities_table(
             )
             current_row += 1
             # Collect all payments and stock entries, sort by date
-            entries = []
+            # Heterogeneous entries: ('payment', date, SecurityPayment) or ('stock', date, SecurityStock)
+            entries: List[Any] = []
             precision = find_minimal_decimals(security.nominalValue)
             if getattr(security, 'payment', None):
                 for payment in security.payment:

@@ -872,9 +872,11 @@ def main():
     effective_config_file = resolve_config_file(config_file)
     config_manager = ConfigManager(config_file_path=str(effective_config_file))
     concrete_accounts_list = config_manager.get_all_account_settings_for_broker("fidelity")
-    all_fidelity_account_settings_models = []
+    all_fidelity_account_settings_models: List[FidelityAccountSettings] = []
     for acc_settings in concrete_accounts_list:
-        if acc_settings.kind == "fidelity":
+        if acc_settings.kind == "fidelity" and isinstance(
+            acc_settings.settings, FidelityAccountSettings
+        ):
             all_fidelity_account_settings_models.append(acc_settings.settings)
     if len(all_fidelity_account_settings_models) < 1:
         logger.info('No Fidelity Account Setting Found')
