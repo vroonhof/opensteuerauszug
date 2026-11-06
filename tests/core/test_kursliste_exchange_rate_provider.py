@@ -126,7 +126,7 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
         self.assertEqual(rate_year_end, rate)
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
 
-    def test_get_exchange_rate_priority_monthly_over_daily(self):
+    def test_get_exchange_rate_priority_daily_over_monthly(self):
         test_year = 2023
         test_month_str = "11"
         test_day = 15
@@ -152,8 +152,19 @@ class TestKurslisteExchangeRateProvider(unittest.TestCase):
         rate = self.provider.get_exchange_rate(
             test_currency, date(test_year, int(test_month_str), test_day)
         )
-        self.assertEqual(rate_monthly, rate)
+        self.assertEqual(rate_daily, rate)
         self.kursliste_manager_mock.get_kurslisten_for_year.assert_called_once_with(test_year)
+
+    def test_get_exchange_rate_denomination_and_year_end_fallback(self):
+        test_year = 2023
+        self.kursliste_mock.exchangeRatesYearEnd = [
+            ExchangeRateYearEnd(
+                currency="JPY", year=test_year, denomination=100, value=Decimal("0.65")
+            )
+        ]
+
+        rate = self.provider.get_exchange_rate("JPY", date(test_year, 3, 10))
+        self.assertEqual(Decimal("0.0065"), rate)
 
     def test_get_exchange_rate_currency_not_found(self):
         test_year = 2023

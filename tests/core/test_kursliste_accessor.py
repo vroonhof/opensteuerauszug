@@ -335,7 +335,62 @@ def test_get_exchange_rate_xml(xml_accessor):
     assert xml_accessor.get_exchange_rate("USD", date(TAX_YEAR, 10, 21)) == Decimal("0.89")
     assert xml_accessor.get_exchange_rate("EUR", date(TAX_YEAR, 11, 10)) == Decimal("0.96")
     assert xml_accessor.get_exchange_rate("GBP", date(TAX_YEAR, 12, 31)) == Decimal("1.16")
+    # Non-Dec-31 fallback to year-end rate matches SQL behavior
+    assert xml_accessor.get_exchange_rate("GBP", date(TAX_YEAR, 3, 3)) == Decimal("1.16")
     assert xml_accessor.get_exchange_rate("AUD", date(TAX_YEAR, 1, 1)) is None
+
+
+def test_sql_and_xml_parity_on_sample(tmp_path):
+    parity_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<kursliste xmlns="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           version="2.0.0.0" creationDate="2024-01-01T00:00:00" year="{TAX_YEAR}">
+    <share id="10" quoted="true" source="KURSLISTE" securityGroup="SHARE"
+           valorNumber="555000" isin="CH0005550001" securityName="No SecurityType Share"
+           currency="CHF" nominalValue="10.00" country="CH"
+           institutionId="2001" institutionName="Inst S1">
+    </share>
+    <exchangeRate currency="CAD" date="{TAX_YEAR}-09-15" denomination="1" value="0.70" />
+    <exchangeRateMonthly currency="CAD" year="{TAX_YEAR}" month="09" denomination="1" value="0.71" />
+    <exchangeRateYearEnd currency="CAD" year="{TAX_YEAR}" denomination="1" value="0.72" />
+    <exchangeRateYearEnd currency="JPY" year="{TAX_YEAR}" denomination="100" value="0.65" />
+    <exchangeRateYearEnd currency="SEK" year="{TAX_YEAR}" denomination="10" valueMiddle="0.85" />
+</kursliste>
+"""
+    xml_file = tmp_path / f"kursliste_{TAX_YEAR}.xml"
+    xml_file.write_text(parity_xml)
+    db_file = tmp_path / f"kursliste_{TAX_YEAR}.sqlite"
+    convert_kursliste_xml_to_sqlite(str(xml_file), str(db_file))
+
+    kl_xml = Kursliste.from_xml_file(xml_file, denylist=set())
+    acc_xml = KurslisteAccessor([kl_xml], TAX_YEAR)
+
+    with KurslisteDBReader(str(db_file)) as reader:
+        acc_sql = KurslisteAccessor(reader, TAX_YEAR)
+
+        for d in [
+            date(TAX_YEAR, 9, 15),  # Daily over monthly
+            date(TAX_YEAR, 9, 20),  # Monthly over year-end
+            date(TAX_YEAR, 5, 10),  # Year-end fallback
+            date(TAX_YEAR, 12, 31),  # Dec 31 year-end
+        ]:
+            assert acc_xml.get_exchange_rate("CAD", d) == acc_sql.get_exchange_rate("CAD", d)
+
+        # Denomination handling (100 JPY)
+        assert acc_xml.get_exchange_rate("JPY", date(TAX_YEAR, 12, 31)) == Decimal("0.0065")
+        assert acc_sql.get_exchange_rate("JPY", date(TAX_YEAR, 12, 31)) == Decimal("0.0065")
+
+        # valueMiddle / rate_middle fallback with denomination (10 SEK)
+        assert acc_xml.get_exchange_rate("SEK", date(TAX_YEAR, 12, 31)) == Decimal("0.085")
+        assert acc_sql.get_exchange_rate("SEK", date(TAX_YEAR, 12, 31)) == Decimal("0.085")
+        assert acc_xml.get_exchange_rate("SEK", date(TAX_YEAR, 4, 1)) == Decimal("0.085")
+        assert acc_sql.get_exchange_rate("SEK", date(TAX_YEAR, 4, 1)) == Decimal("0.085")
+
+        # Security without securityType attribute
+        sec_xml = acc_xml.get_security_by_valor(555000)
+        sec_sql = acc_sql.get_security_by_valor(555000)
+        assert sec_xml is not None and sec_sql is not None
+        assert sec_xml.securityName == sec_sql.securityName == "No SecurityType Share"
 
 
 def test_get_security_by_valor_singular_xml(xml_accessor):

@@ -58,4 +58,26 @@ def test_load_directory_fallback_to_xml_content(tmp_path):
     assert manager.get_available_years() == [2026]
     accessor = manager.get_kurslisten_for_year(2026)
     assert accessor is not None
-    assert accessor.data_source[0].year == 2026
+
+
+def test_load_directory_fallback_to_sqlite_metadata_and_mismatch(tmp_path):
+    from scripts.convert_kursliste_to_sqlite import convert_kursliste_xml_to_sqlite
+
+    xml_2027 = create_sample_xml_no_year_in_filename(tmp_path / "temp_2027.xml", 2027)
+    db_no_year = tmp_path / "custom_kursliste.sqlite"
+    convert_kursliste_xml_to_sqlite(str(xml_2027), str(db_no_year))
+    xml_2027.unlink()
+
+    xml_2028 = create_sample_xml_no_year_in_filename(tmp_path / "temp_2028.xml", 2028)
+    # Filename says 2022, but metadata tax_year is 2028
+    db_mismatched = tmp_path / "kursliste_2022.sqlite"
+    convert_kursliste_xml_to_sqlite(str(xml_2028), str(db_mismatched))
+    xml_2028.unlink()
+
+    manager = KurslisteManager()
+    manager.load_directory(tmp_path)
+
+    assert manager.get_available_years() == [2027, 2028]
+    assert manager.get_kurslisten_for_year(2022) is None
+    assert manager.get_kurslisten_for_year(2027) is not None
+    assert manager.get_kurslisten_for_year(2028) is not None

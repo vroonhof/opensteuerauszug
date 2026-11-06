@@ -425,7 +425,7 @@ def convert_kursliste_xml_to_sqlite(
                 kl_id = elem.get('id')
                 valor_number = elem.get('valorNumber')
                 isin = elem.get('isin')
-                security_type = elem.get('securityType')
+                security_type = elem.get('securityType') or elem.get('securityGroup') or tag
 
                 blob_data = serialize_element_to_xml_bytes(elem, needs_ns_rewrite)
 
