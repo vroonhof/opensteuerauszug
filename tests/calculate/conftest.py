@@ -90,17 +90,17 @@ def ensure_kursliste_year_available(
 @pytest.fixture(scope="session")
 def sample_kursliste_dirs() -> List[str]:
     """
-    Return a list of sample kursliste directories containing XML files.
+    Return a list of sample kursliste directories containing XML or SQLite files.
 
-    Uses get_sample_dirs to find kursliste/ subdirectories that contain *.xml files.
+    Uses get_sample_dirs to find kursliste/ subdirectories that contain *.xml or *.sqlite files.
     This fixture is shared across the session for efficiency.
 
     Returns:
-        List of directory paths containing kursliste XML files
+        List of directory paths containing kursliste XML or SQLite files
     """
-    dirs = get_sample_dirs("kursliste", extensions=['.xml'])
+    dirs = get_sample_dirs("kursliste", extensions=['.xml', '.sqlite'])
     if not dirs:
-        pytest.skip("No kursliste sample directories with XML files found")
+        pytest.skip("No kursliste sample directories with XML or SQLite files found")
     return dirs
 
 

@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import logging
+import re
 from typing import Optional, Dict as PyDict, List, Type, TypeVar
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -37,21 +38,6 @@ class KurslisteDBReader:
     """
 
     _SECURITY_TYPE_MAP: PyDict[str, Type[Security]] = {
-        st.value: globals()[
-            (
-                st.name.split('_')[-1].capitalize()
-                if '.' not in st.name
-                else st.name.split('.')[0].capitalize()
-            )
-        ]
-        for st in SecurityTypeESTV
-        if st.name.split('_')[-1].capitalize() in globals()
-        or ('.' in st.name and st.name.split('.')[0].capitalize() in globals())
-    }
-    # Manually adjust specific mappings if capitalization/naming is tricky
-    # For example, if SecurityTypeESTV.SHARE_COMMON -> Share, SecurityTypeESTV.BOND_BOND -> Bond
-    # The comprehension above is a bit optimistic. Let's define it more explicitly for clarity and correctness.
-    _SECURITY_TYPE_MAP: PyDict[str, Type[Security]] = {
         SecurityTypeESTV.SHARE_COMMON.value: Share,
         SecurityTypeESTV.SHARE_BEARERCERT.value: Share,
         SecurityTypeESTV.SHARE_BONUS.value: Share,
@@ -84,9 +70,22 @@ class KurslisteDBReader:
         SecurityTypeESTV.OPTION_CALL.value: Derivative,  # Option could map to Derivative too
         SecurityTypeESTV.OPTION_PUT.value: Derivative,
         SecurityTypeESTV.OPTION_PHANTOM.value: Derivative,
-        # Note: Some SecurityTypeESTV might not have a direct unique Pydantic model
-        # or might be grouped under a more generic one like 'Derivative' or 'OtherSecurity'.
-        # This map needs to be comprehensive for types stored.
+        # Fallback mappings when securityType attribute is omitted in XML
+        SecurityGroupESTV.SHARE.value: Share,
+        SecurityGroupESTV.BOND.value: Bond,
+        SecurityGroupESTV.FUND.value: Fund,
+        SecurityGroupESTV.DEVT.value: Derivative,
+        SecurityGroupESTV.OPTION.value: Derivative,
+        SecurityGroupESTV.COINBULL.value: CoinBullion,
+        SecurityGroupESTV.CURRNOTE.value: CurrencyNote,
+        SecurityGroupESTV.LIBOSWAP.value: LiborSwap,
+        "share": Share,
+        "bond": Bond,
+        "fund": Fund,
+        "derivative": Derivative,
+        "coinBullion": CoinBullion,
+        "currencyNote": CurrencyNote,
+        "liborSwap": LiborSwap,
     }
 
     def __init__(self, db_path: str):
@@ -148,10 +147,18 @@ class KurslisteDBReader:
             print(f"Warning: Unexpected error deserializing object type '{object_type_name}': {e}")
             return None
 
-    def _deserialize_security(self, blob_data: bytes, type_identifier: str) -> Optional[Security]:
+    def _deserialize_security(
+        self, blob_data: bytes, type_identifier: Optional[str]
+    ) -> Optional[Security]:
         """
         Deserializes a security object from BLOB data using its type identifier.
+        Falls back to inspecting the XML root element tag when type_identifier is missing.
         """
+        if not type_identifier and blob_data and self._blob_format == "xml":
+            match = re.match(rb"\s*<\s*(?:[a-zA-Z0-9_.-]+:)?([a-zA-Z0-9_.-]+)", blob_data)
+            if match:
+                type_identifier = match.group(1).decode("ascii", errors="ignore")
+
         if not type_identifier:  # blob_data check is done in _deserialize_object
             print("Warning: No type_identifier provided for security deserialization.")
             return None
@@ -276,7 +283,7 @@ class KurslisteDBReader:
     def get_exchange_rate(self, currency_code: str, reference_date: date) -> Optional[Decimal]:
         """
         Retrieves the most relevant exchange rate for a given currency and date.
-        Searches daily, then monthly, then year-end rates.
+        Searches year-end (on Dec 31), then daily, then monthly, then year-end rates.
 
         Args:
             currency_code: The 3-letter currency code (e.g., "USD").
@@ -285,29 +292,35 @@ class KurslisteDBReader:
         Returns:
             The exchange rate as a Decimal, or None if not found.
         """
-        rate_value = None
-
         query_year_end = """
-            SELECT rate, denomination FROM exchange_rates_year_end
+            SELECT rate, rate_middle, denomination FROM exchange_rates_year_end
             WHERE currency_code = ? AND year = ? AND tax_year = ?
             ORDER BY id DESC LIMIT 1
         """
+
+        def _extract_year_end_rate(row: Optional[sqlite3.Row]) -> Optional[Decimal]:
+            if not row:
+                return None
+            raw_rate = row["rate"] if row["rate"] is not None else row["rate_middle"]
+            if raw_rate is None:
+                return None
+            try:
+                denomination = Decimal(1)
+                if row["denomination"]:
+                    denomination = Decimal(str(row["denomination"]))
+                return Decimal(str(raw_rate)) / denomination
+            except InvalidOperation:
+                print(f"Warning: Could not convert year_end rate '{raw_rate}' to Decimal.")
+                return None
 
         # Prefer year-end rate on December 31st
         if reference_date.month == 12 and reference_date.day == 31:
             row_year_end = self._execute_query_fetchone(
                 query_year_end, (currency_code, reference_date.year, reference_date.year)
             )
-            if row_year_end and row_year_end["rate"] is not None:
-                try:
-                    denomination = Decimal(1)
-                    if row_year_end["denomination"]:
-                        denomination = Decimal(str(row_year_end["denomination"]))
-                    return Decimal(str(row_year_end["rate"])) / denomination
-                except InvalidOperation:
-                    print(
-                        f"Warning: Could not convert year_end rate '{row_year_end['rate']}' to Decimal."
-                    )
+            year_end_rate = _extract_year_end_rate(row_year_end)
+            if year_end_rate is not None:
+                return year_end_rate
 
         # 1. Try daily rates
         date_iso = reference_date.isoformat()
@@ -356,16 +369,9 @@ class KurslisteDBReader:
         row_year_end = self._execute_query_fetchone(
             query_year_end, (currency_code, reference_date.year, reference_date.year)
         )
-        if row_year_end and row_year_end["rate"] is not None:
-            try:
-                denomination = Decimal(1)
-                if row_year_end["denomination"]:
-                    denomination = Decimal(str(row_year_end["denomination"]))
-                return Decimal(str(row_year_end["rate"])) / denomination
-            except InvalidOperation:
-                print(
-                    f"Warning: Could not convert year_end rate '{row_year_end['rate']}' to Decimal."
-                )
+        year_end_rate = _extract_year_end_rate(row_year_end)
+        if year_end_rate is not None:
+            return year_end_rate
 
         return None  # If no rate found or convertible rate is None
 
@@ -407,15 +413,15 @@ class KurslisteDBReader:
         reference_date: Optional[date] = None,
     ) -> Optional[List[Da1Rate]]:
         """
-        Retrieves a Da1Rate object based on criteria.
-        Deserializes the Da1Rate object from BLOB.
+        Retrieves Da1Rate objects based on criteria.
+        Deserializes the Da1Rate objects from BLOB.
+        If security_type is provided, attempts to find a specific match first,
+        then falls back to general rates (where securityType is None).
         The reference_date is used to filter by validFrom and validTo if provided.
-        Note: This currently fetches the first matching record. More complex selection logic
-              (e.g. "most specific" or "latest valid") might be needed depending on business rules.
         """
         params = [country, security_group.value, tax_year]
 
-        # For now, let's fetch all DA1 rates for the main criteria and filter by date/type in Python
+        # Fetch all DA1 rates for the main criteria and filter by date/type in Python
         query = """
             SELECT da1_rate_object_blob
             FROM da1_rates
@@ -436,12 +442,14 @@ class KurslisteDBReader:
         if not candidates:
             return None
 
-        # Python-side filtering
+        # Python-side filtering matching KurslisteAccessor.get_da1_rate
         filtered_candidates = candidates
         if security_type:
-            filtered_candidates = [
-                r for r in filtered_candidates if r.securityType == security_type
-            ]
+            specific_matches = [r for r in filtered_candidates if r.securityType == security_type]
+            if specific_matches:
+                filtered_candidates = specific_matches
+            else:
+                filtered_candidates = [r for r in filtered_candidates if r.securityType is None]
 
         if da1_rate_type:
             filtered_candidates = [r for r in filtered_candidates if r.da1RateType == da1_rate_type]

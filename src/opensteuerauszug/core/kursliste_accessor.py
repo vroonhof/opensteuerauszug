@@ -58,53 +58,65 @@ class KurslisteAccessor:
             return self.data_source.get_exchange_rate(currency, reference_date)
 
         elif isinstance(self.data_source, list):  # List[Kursliste]
+            # The tax_year for comparison within XML rates should be based on the reference_date's year
+            xml_tax_year = reference_date.year
+
+            def _rate_denomination(rate_obj) -> Decimal:
+                denom = getattr(rate_obj, "denomination", None)
+                return Decimal(str(denom)) if denom else Decimal(1)
+
+            def _find_year_end_rate(kl_instance: Kursliste) -> Optional[Decimal]:
+                if not hasattr(kl_instance, "exchangeRatesYearEnd"):
+                    return None
+                for rate in reversed(kl_instance.exchangeRatesYearEnd or []):
+                    if rate.currency == currency and rate.year == xml_tax_year:
+                        denomination = _rate_denomination(rate)
+                        if rate.value is not None:
+                            return Decimal(str(rate.value)) / denomination
+                        if rate.valueMiddle is not None:
+                            return Decimal(str(rate.valueMiddle)) / denomination
+                        return None
+                return None
+
             # Iterate through each Kursliste object (typically one, but could be multiple for the same year)
             for kursliste_instance in self.data_source:
                 if not isinstance(kursliste_instance, Kursliste):
                     continue  # Should not happen with correct type hints but good for safety
+                if getattr(kursliste_instance, "year", xml_tax_year) != xml_tax_year:
+                    continue
 
-                # Logic similar to _get_exchange_rate_from_xml_kursliste from KurslisteExchangeRateProvider
-                # The tax_year for comparison within XML rates should be based on the reference_date's year
-                xml_tax_year = reference_date.year
-
-                # End-of-Year Logic (only if date is exactly year-end)
+                # Prefer year-end rate on December 31st
                 if reference_date.month == 12 and reference_date.day == 31:
-                    if hasattr(kursliste_instance, 'exchangeRatesYearEnd'):
-                        for rate in kursliste_instance.exchangeRatesYearEnd:
-                            if rate.currency == currency and rate.year == xml_tax_year:
-                                # denomination = Decimal(str(rate.denomination) if rate.denomination else 1)
-                                denomination = Decimal(1)
-                                if rate.value is not None:
-                                    return Decimal(str(rate.value)) / denomination
-                                elif (
-                                    rate.valueMiddle is not None
-                                ):  # Fallback for certain year-end rates
-                                    return Decimal(str(rate.valueMiddle)) / denomination
+                    ye_rate = _find_year_end_rate(kursliste_instance)
+                    if ye_rate is not None:
+                        return ye_rate
 
-                # Monthly Average Logic
-                if hasattr(kursliste_instance, 'exchangeRatesMonthly'):
+                # 1. Daily Rate Logic
+                if hasattr(kursliste_instance, "exchangeRates"):
+                    for rate in reversed(kursliste_instance.exchangeRates or []):
+                        if rate.currency == currency and rate.date == reference_date:
+                            if rate.value is not None:
+                                return Decimal(str(rate.value)) / _rate_denomination(rate)
+                            break
+
+                # 2. Monthly Average Logic
+                if hasattr(kursliste_instance, "exchangeRatesMonthly"):
                     month_str = f"{reference_date.month:02d}"
-                    for rate in kursliste_instance.exchangeRatesMonthly:
+                    for rate in reversed(kursliste_instance.exchangeRatesMonthly or []):
                         if (
                             rate.currency == currency
                             and rate.year == xml_tax_year
                             and rate.month == month_str
                         ):
-                            # denomination = Decimal(str(rate.denomination) if rate.denomination else 1)
-                            denomination = Decimal(1)
                             if rate.value is not None:
-                                return Decimal(str(rate.value)) / denomination
+                                return Decimal(str(rate.value)) / _rate_denomination(rate)
+                            break
 
-                # Daily Rate Logic
-                if hasattr(kursliste_instance, 'exchangeRates'):
-                    for rate in kursliste_instance.exchangeRates:
-                        if (
-                            rate.currency == currency and rate.date == reference_date
-                        ):  # Direct date match
-                            # denomination = Decimal(str(rate.denomination) if rate.denomination else 1)
-                            denomination = Decimal(1)
-                            if rate.value is not None:
-                                return Decimal(str(rate.value)) / denomination
+                # 3. Year-End Fallback Logic
+                ye_rate = _find_year_end_rate(kursliste_instance)
+                if ye_rate is not None:
+                    return ye_rate
+
             return None  # No rate found in any Kursliste XML object in the list
 
         return None  # Should not be reached if data_source is correctly typed and handled above
