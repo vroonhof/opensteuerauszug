@@ -1,10 +1,11 @@
 import sqlite3
 import os
 import lxml.etree as ET
-from typing import Optional, Union
+from typing import List, Optional, Union
 from pathlib import Path
 
 from opensteuerauszug.model.kursliste import (
+    Kursliste,
     KurslisteMetadata,
     KURSLISTE_NS_2_0,
     KURSLISTE_NS_2_2,
@@ -238,7 +239,7 @@ def read_kursliste_metadata(db_file_path: Union[str, Path]) -> Optional[Kurslist
 
 def convert_kursliste_xml_to_sqlite(
     xml_file_path: Union[str, Path],
-    db_file_path: Union[str, Path],
+    db_file_path: Union[str, Path, sqlite3.Connection],
     kursliste_metadata: Optional[KurslisteMetadata] = None,
 ) -> bool:
     """
@@ -250,19 +251,26 @@ def convert_kursliste_xml_to_sqlite(
 
     Args:
         xml_file_path: Path to the Kursliste XML file
-        db_file_path: Path to the SQLite database file to create
+        db_file_path: Path to the SQLite database file to create, or an open sqlite3.Connection
 
     Returns:
         True if successful, raises exception if failed
     """
     xml_file_path = str(xml_file_path)
     conn = None
+    owns_conn = False
     try:
         if not os.path.isfile(xml_file_path):
             raise FileNotFoundError(f"XML file not found at {xml_file_path}")
 
         # Create/connect to the SQLite database with bulk-insert optimizations
-        conn = sqlite3.connect(str(db_file_path))
+        if isinstance(db_file_path, sqlite3.Connection):
+            conn = db_file_path
+            owns_conn = False
+        else:
+            conn = sqlite3.connect(str(db_file_path))
+            owns_conn = True
+
         cursor = conn.cursor()
         cursor.execute("PRAGMA journal_mode=OFF")
         cursor.execute("PRAGMA synchronous=OFF")
@@ -312,7 +320,7 @@ def convert_kursliste_xml_to_sqlite(
 
         # Pre-compiled SQL statements
         sql_securities = """
-            INSERT INTO securities (
+            INSERT OR REPLACE INTO securities (
                 kl_id, valor_number, isin, tax_year,
                 security_type_identifier, security_object_blob
             ) VALUES (?, ?, ?, ?, ?, ?)"""
@@ -329,11 +337,11 @@ def convert_kursliste_xml_to_sqlite(
                 currency_code, year, rate, rate_middle, denomination, tax_year, source_file
             ) VALUES (?, ?, ?, ?, ?, ?, ?)"""
         sql_signs = """
-            INSERT INTO signs (
+            INSERT OR REPLACE INTO signs (
                 kl_id, sign_value, tax_year, source_file, sign_object_blob
             ) VALUES (?, ?, ?, ?, ?)"""
         sql_da1_rates = """
-            INSERT INTO da1_rates (
+            INSERT OR REPLACE INTO da1_rates (
                 kl_id, country, security_group, tax_year, source_file, da1_rate_object_blob
             ) VALUES (?, ?, ?, ?, ?, ?)"""
 
@@ -552,5 +560,141 @@ def convert_kursliste_xml_to_sqlite(
     except Exception as e:
         raise Exception(f"Conversion failed: {e}")
     finally:
-        if conn:
+        if conn and owns_conn:
             conn.close()
+
+
+def convert_kursliste_models_to_sqlite(
+    kurslisten: List[Kursliste],
+    conn: sqlite3.Connection,
+    default_tax_year: Optional[int] = None,
+) -> None:
+    """
+    Populates an open sqlite3.Connection from in-memory Kursliste model objects.
+    Used when KurslisteAccessor is initialized directly with a List[Kursliste].
+    """
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA journal_mode=OFF")
+    cursor.execute("PRAGMA synchronous=OFF")
+    cursor.execute("PRAGMA temp_store=MEMORY")
+
+    create_schema(conn)
+    cursor.execute(
+        "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+        ("blob_format", BLOB_FORMAT),
+    )
+
+    security_attrs = (
+        ("shares", "share"),
+        ("bonds", "bond"),
+        ("funds", "fund"),
+        ("derivatives", "derivative"),
+        ("coinBullions", "coinBullion"),
+        ("currencyNotes", "currencyNote"),
+        ("liborSwaps", "liborSwap"),
+    )
+
+    for kl_idx, kl in enumerate(kurslisten):
+        kl_year = getattr(kl, "year", None)
+        if not isinstance(kl_year, int):
+            kl_year = default_tax_year
+        if kl_year is not None:
+            cursor.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+                ("tax_year", str(kl_year)),
+            )
+
+        for attr_name, tag_name in security_attrs:
+            for sec_idx, sec in enumerate(getattr(kl, attr_name, None) or []):
+                kl_id = f"{kl_idx}_{getattr(sec, 'id', sec_idx)}"
+                valor = getattr(sec, "valorNumber", None)
+                valor_str = str(valor) if valor is not None else None
+                isin = getattr(sec, "isin", None)
+                sec_type_obj = getattr(sec, "securityType", None)
+                sec_group_obj = getattr(sec, "securityGroup", None)
+                sec_type = (
+                    (sec_type_obj.value if hasattr(sec_type_obj, "value") else sec_type_obj)
+                    or (sec_group_obj.value if hasattr(sec_group_obj, "value") else sec_group_obj)
+                    or tag_name
+                )
+                blob_data = sec.to_xml(skip_empty=True)
+                cursor.execute(
+                    """INSERT OR REPLACE INTO securities (
+                        kl_id, valor_number, isin, tax_year,
+                        security_type_identifier, security_object_blob
+                    ) VALUES (?, ?, ?, ?, ?, ?)""",
+                    (kl_id, valor_str, isin, kl_year, sec_type, blob_data),
+                )
+
+        for rate in getattr(kl, "exchangeRates", None) or []:
+            cursor.execute(
+                """INSERT INTO exchange_rates_daily (
+                    currency_code, date, rate, denomination, tax_year, source_file
+                ) VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    rate.currency,
+                    rate.date.isoformat(),
+                    str(rate.value) if rate.value is not None else None,
+                    rate.denomination,
+                    kl_year,
+                    "memory",
+                ),
+            )
+
+        for rate in getattr(kl, "exchangeRatesMonthly", None) or []:
+            cursor.execute(
+                """INSERT INTO exchange_rates_monthly (
+                    currency_code, year, month, rate, denomination, tax_year, source_file
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    rate.currency,
+                    rate.year,
+                    rate.month,
+                    str(rate.value) if rate.value is not None else None,
+                    rate.denomination,
+                    kl_year,
+                    "memory",
+                ),
+            )
+
+        for rate in getattr(kl, "exchangeRatesYearEnd", None) or []:
+            cursor.execute(
+                """INSERT INTO exchange_rates_year_end (
+                    currency_code, year, rate, rate_middle, denomination, tax_year, source_file
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    rate.currency,
+                    rate.year,
+                    str(rate.value) if rate.value is not None else None,
+                    str(rate.valueMiddle) if rate.valueMiddle is not None else None,
+                    rate.denomination,
+                    kl_year,
+                    "memory",
+                ),
+            )
+
+        for sign_idx, sign in enumerate(getattr(kl, "signs", None) or []):
+            kl_id = f"{kl_idx}_{getattr(sign, 'id', sign_idx)}"
+            cursor.execute(
+                """INSERT OR REPLACE INTO signs (
+                    kl_id, sign_value, tax_year, source_file, sign_object_blob
+                ) VALUES (?, ?, ?, ?, ?)""",
+                (kl_id, sign.sign, kl_year, "memory", sign.to_xml(skip_empty=True)),
+            )
+
+        for da1_idx, da1 in enumerate(getattr(kl, "da1Rates", None) or []):
+            kl_id = f"{kl_idx}_{getattr(da1, 'id', da1_idx)}"
+            sec_group = (
+                da1.securityGroup.value
+                if hasattr(da1.securityGroup, "value")
+                else str(da1.securityGroup)
+            )
+            cursor.execute(
+                """INSERT OR REPLACE INTO da1_rates (
+                    kl_id, country, security_group, tax_year, source_file, da1_rate_object_blob
+                ) VALUES (?, ?, ?, ?, ?, ?)""",
+                (kl_id, da1.country, sec_group, kl_year, "memory", da1.to_xml(skip_empty=True)),
+            )
+
+    conn.commit()
+    create_idx(conn)

@@ -2,7 +2,8 @@ import sqlite3
 import json
 import logging
 import re
-from typing import Optional, Dict as PyDict, List, Type, TypeVar
+from pathlib import Path
+from typing import Optional, Dict as PyDict, List, Type, TypeVar, Union
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -88,15 +89,19 @@ class KurslisteDBReader:
         "liborSwap": LiborSwap,
     }
 
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: Union[str, Path, sqlite3.Connection]):
         """
         Initializes the reader and connects to the SQLite database.
 
         Args:
-            db_path: Path to the SQLite database file.
+            db_path: Path to the SQLite database file, or an open sqlite3.Connection.
         """
-        self.db_path = db_path
-        self.conn: Optional[sqlite3.Connection] = sqlite3.connect(self.db_path)
+        if isinstance(db_path, sqlite3.Connection):
+            self.db_path = ":memory:"
+            self.conn: Optional[sqlite3.Connection] = db_path
+        else:
+            self.db_path = str(db_path)
+            self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row  # Access columns by name
         # Detect blob format from metadata (xml or json/legacy)
         self._blob_format = self._read_blob_format()

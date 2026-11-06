@@ -6,13 +6,17 @@ for different tax years.
 """
 
 import re
+import sqlite3
 import datetime
 import defusedxml.ElementTree as ET
 from decimal import Decimal
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from opensteuerauszug.kursliste.converter import read_metadata_value
+from opensteuerauszug.kursliste.converter import (
+    convert_kursliste_xml_to_sqlite,
+    read_metadata_value,
+)
 from opensteuerauszug.model.kursliste import Kursliste, Payment
 from .kursliste_db_reader import KurslisteDBReader
 from .kursliste_accessor import KurslisteAccessor
@@ -38,7 +42,8 @@ class KurslisteManager:
     """
     Manages KurslisteAccessors for different tax years.
 
-    This class loads Kursliste data (prioritizing SQLite over XML), wraps it
+    This class loads Kursliste data (prioritizing on-disk SQLite over XML,
+    and streaming XML into an in-memory SQLite database), wraps it
     in a KurslisteAccessor, and provides methods to retrieve data.
     """
 
@@ -114,8 +119,8 @@ class KurslisteManager:
     def load_directory(self, directory_path: Union[str, Path]) -> None:
         """
         Load Kursliste data (SQLite DBs or XML files) from the specified directory.
-        Prioritizes SQLite DBs (e.g., kursliste_YYYY.sqlite) if found for a year.
-        Otherwise, loads XML files for that year.
+        Prioritizes on-disk SQLite DBs (e.g., kursliste_YYYY.sqlite) if found for a year.
+        Otherwise, streams XML files for that year into an in-memory SQLite database.
 
         For both SQLite and XML files, tries to extract year from filename first,
         then falls back to metadata / XML content if needed.
@@ -174,7 +179,7 @@ class KurslisteManager:
             # Prioritize SQLite DB
             # Use the first SQLite file found for that year (e.g. kursliste_YYYY.sqlite)
             db_loaded_for_year = False
-            data_source: Optional[Union[KurslisteDBReader, List[Kursliste]]] = None
+            data_source: Optional[KurslisteDBReader] = None
 
             if sqlite_files:
                 # Filter out any SQLite files whose authoritative metadata year mismatches
@@ -215,35 +220,44 @@ class KurslisteManager:
                         db_loaded_for_year = False
                         data_source = None
 
-            if not db_loaded_for_year and xml_files:  # Fallback to XML files
-                loaded_xmls_for_year: List[Kursliste] = []
+            if not db_loaded_for_year and xml_files:  # Fallback to XML files via in-memory SQLite
+                valid_xml_files: List[Path] = []
                 for xml_file_path in xml_files:
-                    try:
-                        print(f"Loading Kursliste XML for year {year} from {xml_file_path.name}")
-                        kursliste_obj = Kursliste.from_xml_file(
-                            xml_file_path, denylist=KURSLISTE_UNUSED_XML_TAGS
-                        )
-
-                        if kursliste_obj.year != year:
-                            # This situation might indicate a mismatch between extracted year and XML content.
-                            # We'll use the XML content year as authoritative.
-                            print(
-                                f"Warning: Year mismatch for {xml_file_path.name}. Extracted year: {year}, XML content year: {kursliste_obj.year}. Using XML content year: {kursliste_obj.year}."
-                            )
-                            actual_year = kursliste_obj.year
-                            year_file_map.setdefault(actual_year, {"xml": [], "sqlite": []})
-                            year_file_map[actual_year]["xml"].append(xml_file_path)
-                            processed_years.discard(actual_year)
-                            continue
-
-                        loaded_xmls_for_year.append(kursliste_obj)
-                    except Exception as e:
+                    actual_year = self._get_year_from_xml_content(xml_file_path)
+                    if actual_year is None:
                         print(
-                            f"Error loading Kursliste XML from {xml_file_path.name} for year {year}: {e}"
+                            f"Warning: Skipping invalid Kursliste XML {xml_file_path.name} (missing root year attribute)."
                         )
+                        continue
+                    if actual_year != year:
+                        print(
+                            f"Warning: Year mismatch for {xml_file_path.name}. Extracted year: {year}, "
+                            f"XML content year: {actual_year}. Using XML content year: {actual_year}."
+                        )
+                        year_file_map.setdefault(actual_year, {"xml": [], "sqlite": []})
+                        year_file_map[actual_year]["xml"].append(xml_file_path)
+                        processed_years.discard(actual_year)
+                        continue
+                    valid_xml_files.append(xml_file_path)
 
-                if loaded_xmls_for_year:
-                    data_source = loaded_xmls_for_year
+                if valid_xml_files:
+                    mem_conn = sqlite3.connect(":memory:")
+                    any_loaded = False
+                    for xml_file_path in valid_xml_files:
+                        try:
+                            print(
+                                f"Loading Kursliste XML for year {year} into in-memory SQLite from {xml_file_path.name}"
+                            )
+                            convert_kursliste_xml_to_sqlite(xml_file_path, mem_conn)
+                            any_loaded = True
+                        except Exception as e:
+                            print(
+                                f"Error loading Kursliste XML from {xml_file_path.name} for year {year}: {e}"
+                            )
+                    if any_loaded:
+                        data_source = KurslisteDBReader(mem_conn)
+                    else:
+                        mem_conn.close()
 
             if data_source:
                 self.kurslisten[year] = KurslisteAccessor(data_source, year)

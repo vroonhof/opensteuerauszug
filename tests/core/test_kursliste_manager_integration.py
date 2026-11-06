@@ -1,10 +1,8 @@
 from pathlib import Path
-from typing import List
 from datetime import date
 
 from opensteuerauszug.core.kursliste_manager import KurslisteManager
 from opensteuerauszug.core.kursliste_db_reader import KurslisteDBReader
-from opensteuerauszug.model.kursliste import Kursliste
 
 # Import direct conversion function instead of subprocess
 from scripts.convert_kursliste_to_sqlite import convert_kursliste_xml_to_sqlite
@@ -56,16 +54,15 @@ def test_load_directory_xml_only(tmp_path):
     accessor_2023 = manager.get_kurslisten_for_year(2023)
     assert accessor_2023 is not None
     assert isinstance(
-        accessor_2023.data_source, List
-    ), "Expected List[Kursliste] for XML-only scenario"
-    assert len(accessor_2023.data_source) == 1
-    assert isinstance(accessor_2023.data_source[0], Kursliste)
-    assert accessor_2023.data_source[0].year == 2023
+        accessor_2023.data_source, KurslisteDBReader
+    ), "Expected in-memory KurslisteDBReader for XML-only scenario"
+    assert accessor_2023.data_source.db_path == ":memory:"
 
     sec_2023 = accessor_2023.get_security_by_valor(123456)
     assert sec_2023 is not None and sec_2023.securityName == "Test Share AG 2023"
 
     assert manager.get_available_years() == [2023]
+    accessor_2023.data_source.close()
 
 
 def test_load_directory_sqlite_only(tmp_path):
@@ -136,11 +133,13 @@ def test_load_directory_multiple_years_mixed(tmp_path):
     # Verify types
     accessor_2026 = manager.get_kurslisten_for_year(2026)
     assert accessor_2026 is not None
-    assert isinstance(accessor_2026.data_source, List) and isinstance(
-        accessor_2026.data_source[0], Kursliste
-    ), "Type mismatch for 2026 (XML only)"
+    assert (
+        isinstance(accessor_2026.data_source, KurslisteDBReader)
+        and accessor_2026.data_source.db_path == ":memory:"
+    ), "Type mismatch for 2026 (XML only -> in-memory SQLite)"
     sec2026 = accessor_2026.get_security_by_valor(123456)
     assert sec2026 is not None and sec2026.securityName == "Test Share AG 2026"
+    accessor_2026.data_source.close()
 
     accessor_2027 = manager.get_kurslisten_for_year(2027)
     assert accessor_2027 is not None
@@ -153,9 +152,10 @@ def test_load_directory_multiple_years_mixed(tmp_path):
 
     accessor_2028 = manager.get_kurslisten_for_year(2028)
     assert accessor_2028 is not None
-    assert isinstance(
-        accessor_2028.data_source, KurslisteDBReader
-    ), "Type mismatch for 2028 (XML and SQLite)"
+    assert (
+        isinstance(accessor_2028.data_source, KurslisteDBReader)
+        and accessor_2028.data_source.db_path != ":memory:"
+    ), "Type mismatch for 2028 (XML and SQLite -> disk SQLite preferred)"
     sec2028 = accessor_2028.get_security_by_valor(123456)
     assert sec2028 is not None and sec2028.securityName == "Test Share AG 2028"
     accessor_2028.data_source.close()
@@ -178,8 +178,9 @@ def test_load_directory_non_kursliste_files_ignored(tmp_path):
     assert manager.get_available_years() == [2029]  # Only kursliste_2029.xml should be loaded
     accessor_2029 = manager.get_kurslisten_for_year(2029)
     assert accessor_2029 is not None
-    assert isinstance(accessor_2029.data_source, List)
-    assert accessor_2029.data_source[0].year == 2029
+    assert isinstance(accessor_2029.data_source, KurslisteDBReader)
+    assert accessor_2029.data_source.db_path == ":memory:"
+    accessor_2029.data_source.close()
 
 
 def test_load_directory_empty(tmp_path):
@@ -244,15 +245,27 @@ def test_year_extraction_from_filename_in_manager(tmp_path):
 
     accessor_2031 = manager.get_kurslisten_for_year(2031)
     assert accessor_2031 is not None
-    assert isinstance(accessor_2031.data_source, List) and accessor_2031.data_source[0].year == 2031
+    assert (
+        isinstance(accessor_2031.data_source, KurslisteDBReader)
+        and accessor_2031.data_source.db_path == ":memory:"
+    )
+    accessor_2031.data_source.close()
 
     accessor_2032 = manager.get_kurslisten_for_year(2032)
     assert accessor_2032 is not None
-    assert isinstance(accessor_2032.data_source, List) and accessor_2032.data_source[0].year == 2032
+    assert (
+        isinstance(accessor_2032.data_source, KurslisteDBReader)
+        and accessor_2032.data_source.db_path == ":memory:"
+    )
+    accessor_2032.data_source.close()
 
     accessor_2033 = manager.get_kurslisten_for_year(2033)
     assert accessor_2033 is not None
-    assert isinstance(accessor_2033.data_source, List) and accessor_2033.data_source[0].year == 2033
+    assert (
+        isinstance(accessor_2033.data_source, KurslisteDBReader)
+        and accessor_2033.data_source.db_path == ":memory:"
+    )
+    accessor_2033.data_source.close()
 
     accessor_2035 = manager.get_kurslisten_for_year(2035)
     assert accessor_2035 is not None
