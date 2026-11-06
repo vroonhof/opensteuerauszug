@@ -137,11 +137,20 @@ class KurslisteManager:
         for file_path in potential_files:
             year = None
 
-            # For SQLite files, try filename first, then metadata table
+            # For SQLite files, resolve authoritative metadata year up front (falling back to filename)
             if file_path.suffix == ".sqlite":
-                year = self._get_year_from_filename(file_path.name)
-                if year is None:
-                    year = self._get_year_from_sqlite_metadata(file_path)
+                filename_year = self._get_year_from_filename(file_path.name)
+                metadata_year = self._get_year_from_sqlite_metadata(file_path)
+                if (
+                    filename_year is not None
+                    and metadata_year is not None
+                    and filename_year != metadata_year
+                ):
+                    print(
+                        f"Warning: Year mismatch for {file_path.name}. Extracted year: {filename_year}, "
+                        f"SQLite metadata year: {metadata_year}. Using SQLite metadata year: {metadata_year}."
+                    )
+                year = metadata_year if metadata_year is not None else filename_year
 
             # For XML files, try filename first, then XML content
             elif file_path.suffix == ".xml":
@@ -177,43 +186,27 @@ class KurslisteManager:
             data_source: Optional[Union[KurslisteDBReader, List[Kursliste]]] = None
 
             if sqlite_files:
-                # Filter out any SQLite files whose authoritative metadata year mismatches
-                valid_sqlite_files: List[Path] = []
+                # Attempt to find a specifically named SQLite file first
+                expected_db_name = f"kursliste_{year}.sqlite"
+                db_to_load = None
                 for f_sqlite in sqlite_files:
-                    metadata_year = self._get_year_from_sqlite_metadata(f_sqlite)
-                    if metadata_year is not None and metadata_year != year:
-                        print(
-                            f"Warning: Year mismatch for {f_sqlite.name}. Extracted year: {year}, "
-                            f"SQLite metadata year: {metadata_year}. Using SQLite metadata year: {metadata_year}."
-                        )
-                        year_file_map.setdefault(metadata_year, {"xml": [], "sqlite": []})
-                        year_file_map[metadata_year]["sqlite"].append(f_sqlite)
-                        processed_years.discard(metadata_year)
-                    else:
-                        valid_sqlite_files.append(f_sqlite)
+                    if f_sqlite.name == expected_db_name:
+                        db_to_load = f_sqlite
+                        break
+                if not db_to_load:  # If not found, take the first sqlite file for that year
+                    db_to_load = sqlite_files[0]
 
-                if valid_sqlite_files:
-                    # Attempt to find a specifically named SQLite file first
-                    expected_db_name = f"kursliste_{year}.sqlite"
-                    db_to_load = None
-                    for f_sqlite in valid_sqlite_files:
-                        if f_sqlite.name == expected_db_name:
-                            db_to_load = f_sqlite
-                            break
-                    if not db_to_load:  # If not found, take the first sqlite file for that year
-                        db_to_load = valid_sqlite_files[0]
-
-                    try:
-                        print(f"Loading KurslisteDBReader for year {year} from {db_to_load.name}")
-                        data_source = KurslisteDBReader(str(db_to_load))
-                        db_loaded_for_year = True
-                    except Exception as e:
-                        print(
-                            f"Error loading KurslisteDBReader from {db_to_load.name} for year {year}: {e}"
-                        )
-                        # Fallback to XML if DB loading fails for some reason
-                        db_loaded_for_year = False
-                        data_source = None
+                try:
+                    print(f"Loading KurslisteDBReader for year {year} from {db_to_load.name}")
+                    data_source = KurslisteDBReader(str(db_to_load))
+                    db_loaded_for_year = True
+                except Exception as e:
+                    print(
+                        f"Error loading KurslisteDBReader from {db_to_load.name} for year {year}: {e}"
+                    )
+                    # Fallback to XML if DB loading fails for some reason
+                    db_loaded_for_year = False
+                    data_source = None
 
             if not db_loaded_for_year and xml_files:  # Fallback to XML files
                 loaded_xmls_for_year: List[Kursliste] = []
