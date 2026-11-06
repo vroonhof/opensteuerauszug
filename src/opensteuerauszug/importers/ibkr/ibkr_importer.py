@@ -982,9 +982,14 @@ class IbkrImporter:
                             # Tax relevant event. Fall through to create a bank payment.
                             pass
                         elif tx_type in [ibflex.CashAction.WHTAX]:
-                            # Withholding tax not linked to a security (e.g. yield enhancement).
-                            # Tax relevant event. Fall through to create a bank payment.
-                            pass
+                            # Withholding tax not linked to a security (e.g. credit interest or yield enhancement).
+                            # IBKR is a non-Swiss broker and withholding on interest/SYEP is normally refunded
+                            # under W-8BEN; skip these entries so deductions are not moved to Schulden (liabilities)
+                            # and cancellations are not taxed as bank interest income.
+                            logger.warning(
+                                f"Withholding tax not linked to a security for {description} with amount {amount} is ignored for statement."
+                            )
+                            continue
                         else:
                             raise ValueError(
                                 f"CashTransaction type {tx_type} is not supported for {description}"
