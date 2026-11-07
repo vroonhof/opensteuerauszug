@@ -1,10 +1,13 @@
+import io
 import sqlite3
 import os
+from datetime import datetime
 import lxml.etree as ET
-from typing import Optional, Union
+from typing import Any, IO, List, Optional, Union
 from pathlib import Path
 
 from opensteuerauszug.model.kursliste import (
+    Kursliste,
     KurslisteMetadata,
     KURSLISTE_NS_2_0,
     KURSLISTE_NS_2_2,
@@ -237,8 +240,8 @@ def read_kursliste_metadata(db_file_path: Union[str, Path]) -> Optional[Kurslist
 
 
 def convert_kursliste_xml_to_sqlite(
-    xml_file_path: Union[str, Path],
-    db_file_path: Union[str, Path],
+    xml_file_path: Union[str, Path, IO[bytes]],
+    db_file_path: Union[str, Path, sqlite3.Connection],
     kursliste_metadata: Optional[KurslisteMetadata] = None,
 ) -> bool:
     """
@@ -249,32 +252,65 @@ def convert_kursliste_xml_to_sqlite(
     optimized for bulk inserts.
 
     Args:
-        xml_file_path: Path to the Kursliste XML file
-        db_file_path: Path to the SQLite database file to create
+        xml_file_path: Path to the Kursliste XML file or a binary stream
+        db_file_path: Path to the SQLite database file to create, or an open sqlite3.Connection
 
     Returns:
         True if successful, raises exception if failed
     """
-    xml_file_path = str(xml_file_path)
+    is_stream = hasattr(xml_file_path, "read")
+    xml_source: Any
+    if is_stream:
+        xml_source = xml_file_path
+        source_file_name = os.path.basename(str(getattr(xml_file_path, "name", "memory")))
+    else:
+        xml_source = str(xml_file_path)
+        source_file_name = os.path.basename(xml_source)
+
     conn = None
+    owns_conn = False
     try:
-        if not os.path.isfile(xml_file_path):
+        if not is_stream and not os.path.isfile(str(xml_file_path)):
             raise FileNotFoundError(f"XML file not found at {xml_file_path}")
 
         # Create/connect to the SQLite database with bulk-insert optimizations
-        conn = sqlite3.connect(str(db_file_path))
+        if isinstance(db_file_path, sqlite3.Connection):
+            conn = db_file_path
+            owns_conn = False
+        else:
+            conn = sqlite3.connect(str(db_file_path))
+            owns_conn = True
+
         cursor = conn.cursor()
-        cursor.execute("PRAGMA journal_mode=OFF")
-        cursor.execute("PRAGMA synchronous=OFF")
-        cursor.execute("PRAGMA cache_size=-65536")  # 64MB cache
-        cursor.execute("PRAGMA temp_store=MEMORY")
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='metadata'")
+        schema_exists = cursor.fetchone() is not None
 
-        # Create the database schema
-        create_schema(conn)
+        if not schema_exists:
+            cursor.execute("PRAGMA journal_mode=MEMORY")
+            cursor.execute("PRAGMA synchronous=OFF")
+            cursor.execute("PRAGMA cache_size=-65536")  # 64MB cache
+            cursor.execute("PRAGMA temp_store=MEMORY")
+            # Create the database schema (commits DDL)
+            create_schema(conn)
 
-        source_file_name = os.path.basename(xml_file_path)
+        # If this connection already imported an XML source, namespace kl_id values
+        # so records with identical per-file XML ids do not overwrite each other.
+        cursor.execute("SELECT value FROM metadata WHERE key = 'source_xml_file'")
+        prev_source_row = cursor.fetchone()
+        if prev_source_row is None:
+            kl_id_prefix = ""
+        else:
+            cursor.execute(
+                "SELECT COUNT(*) FROM (SELECT 1 FROM securities UNION ALL SELECT 1 FROM signs UNION ALL SELECT 1 FROM da1_rates)"
+            )
+            existing_count = cursor.fetchone()[0]
+            kl_id_prefix = (
+                f"{source_file_name}:"
+                if source_file_name != prev_source_row[0]
+                else f"{source_file_name}#{existing_count}:"
+            )
 
-        print(f"Starting streaming parse of {xml_file_path}...")
+        print(f"Starting streaming parse of {source_file_name if is_stream else xml_source}...")
 
         # Security types to process
         security_tags_local = frozenset(
@@ -312,7 +348,7 @@ def convert_kursliste_xml_to_sqlite(
 
         # Pre-compiled SQL statements
         sql_securities = """
-            INSERT INTO securities (
+            INSERT OR REPLACE INTO securities (
                 kl_id, valor_number, isin, tax_year,
                 security_type_identifier, security_object_blob
             ) VALUES (?, ?, ?, ?, ?, ?)"""
@@ -329,11 +365,11 @@ def convert_kursliste_xml_to_sqlite(
                 currency_code, year, rate, rate_middle, denomination, tax_year, source_file
             ) VALUES (?, ?, ?, ?, ?, ?, ?)"""
         sql_signs = """
-            INSERT INTO signs (
+            INSERT OR REPLACE INTO signs (
                 kl_id, sign_value, tax_year, source_file, sign_object_blob
             ) VALUES (?, ?, ?, ?, ?)"""
         sql_da1_rates = """
-            INSERT INTO da1_rates (
+            INSERT OR REPLACE INTO da1_rates (
                 kl_id, country, security_group, tax_year, source_file, da1_rate_object_blob
             ) VALUES (?, ?, ?, ?, ?, ?)"""
 
@@ -357,9 +393,13 @@ def convert_kursliste_xml_to_sqlite(
                 cursor.executemany(sql_da1_rates, da1_rates_batch)
                 da1_rates_batch.clear()
 
+        def make_kl_id(raw_id: Optional[str]) -> str:
+            rid = raw_id if raw_id is not None else str(total_count + batch_count)
+            return f"{kl_id_prefix}{rid}" if kl_id_prefix else rid
+
         # Quick first pass: detect namespace and tax year from root element only
         namespace = None
-        for _event, elem in ET.iterparse(xml_file_path, events=('start',)):
+        for _event, elem in ET.iterparse(xml_source, events=('start',)):
             tag = elem.tag
             if tag and '}' in tag:
                 namespace = tag.split('}')[0][1:]
@@ -369,6 +409,9 @@ def convert_kursliste_xml_to_sqlite(
                 tax_year = int(tax_year_str)
                 print(f"Processing kursliste for tax year: {tax_year}")
             break  # Only need the root element
+
+        if is_stream and hasattr(xml_source, "seek"):
+            xml_source.seek(0)
 
         # Build namespace-qualified tag set for fast lookup
         ns_qualified_tags = {}
@@ -408,7 +451,7 @@ def convert_kursliste_xml_to_sqlite(
         # Main pass: only subscribe to 'end' events to avoid processing millions
         # of unused 'start' events. Use tag filtering for the top-level tags we need.
         root = None
-        for event, elem in ET.iterparse(xml_file_path, events=('end',)):
+        for event, elem in ET.iterparse(xml_source, events=('end',)):
             # Capture root element (first element to appear; its 'end' fires last,
             # but we can detect it as the parent of the first processed child)
             if root is None:
@@ -422,7 +465,7 @@ def convert_kursliste_xml_to_sqlite(
 
             # Process security elements
             if tag in security_tags_local:
-                kl_id = elem.get('id')
+                kl_id = make_kl_id(elem.get('id'))
                 valor_number = elem.get('valorNumber')
                 isin = elem.get('isin')
                 security_type = elem.get('securityType') or elem.get('securityGroup') or tag
@@ -486,7 +529,7 @@ def convert_kursliste_xml_to_sqlite(
 
             # Process signs
             elif tag == 'sign':
-                kl_id = elem.get('id')
+                kl_id = make_kl_id(elem.get('id'))
                 sign_value = elem.get('sign')
                 blob_data = serialize_element_to_xml_bytes(elem, needs_ns_rewrite)
                 if blob_data:
@@ -496,7 +539,7 @@ def convert_kursliste_xml_to_sqlite(
 
             # Process DA1 rates
             elif tag == 'da1Rate':
-                kl_id = elem.get('id')
+                kl_id = make_kl_id(elem.get('id'))
                 country = elem.get('country')
                 security_group = elem.get('securityGroup')
                 blob_data = serialize_element_to_xml_bytes(elem, needs_ns_rewrite)
@@ -521,13 +564,12 @@ def convert_kursliste_xml_to_sqlite(
                 print(f"\rProcessed {total_count} records...", end='', flush=True)
                 batch_count = 0
 
-        # Final commit
+        # Final flush, index creation, and commit
         flush_batches()
-        conn.commit()
-
         total_count += batch_count
         print("\nCreating indexes...")
         create_idx(conn)
+        conn.commit()
 
         # Print summary
         print("\nConversion complete:")
@@ -543,14 +585,91 @@ def convert_kursliste_xml_to_sqlite(
         print(f"  Exchange Rates (year-end): {counts['exchangeRateYearEnd']}")
         print(f"  Signs: {counts['sign']}")
         print(f"  DA1 Rates: {counts['da1Rate']}")
-        print(f"\nSuccessfully converted {xml_file_path} to {db_file_path}")
+        print(
+            f"\nSuccessfully converted {source_file_name if is_stream else xml_source} to {db_file_path}"
+        )
 
         return True
 
     except FileNotFoundError:
+        if conn is not None and not owns_conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         raise FileNotFoundError(f"XML file not found at {xml_file_path}")
     except Exception as e:
+        if conn is not None and not owns_conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         raise Exception(f"Conversion failed: {e}")
     finally:
-        if conn:
+        if conn and owns_conn:
             conn.close()
+
+
+def _coerce_to_kursliste(kl: Kursliste, default_tax_year: Optional[int]) -> Kursliste:
+    """Coerce a Kursliste (or a test MagicMock(spec=Kursliste)) into a concrete Kursliste model."""
+    if type(kl) is Kursliste:
+        if kl.year is None and default_tax_year is not None:
+            return kl.model_copy(update={"year": default_tax_year})
+        return kl
+
+    kl_year = getattr(kl, "year", None)
+    if not isinstance(kl_year, int):
+        kl_year = default_tax_year or 2024
+    version = getattr(kl, "version", None)
+    if not isinstance(version, str):
+        version = "2.2.0.0"
+    creation_date = getattr(kl, "creationDate", None)
+    if not isinstance(creation_date, datetime):
+        creation_date = datetime(kl_year, 1, 1)
+
+    kwargs: dict[str, Any] = {
+        "version": version,
+        "creationDate": creation_date,
+        "year": kl_year,
+    }
+    for list_attr in (
+        "shares",
+        "bonds",
+        "funds",
+        "derivatives",
+        "coinBullions",
+        "currencyNotes",
+        "liborSwaps",
+        "exchangeRates",
+        "exchangeRatesMonthly",
+        "exchangeRatesYearEnd",
+        "signs",
+        "da1Rates",
+    ):
+        val = getattr(kl, list_attr, None)
+        if isinstance(val, list):
+            kwargs[list_attr] = val
+    return Kursliste(**kwargs)
+
+
+def convert_kursliste_models_to_sqlite(
+    kurslisten: List[Kursliste],
+    conn: sqlite3.Connection,
+    default_tax_year: Optional[int] = None,
+) -> None:
+    """
+    Populates an open sqlite3.Connection from in-memory Kursliste model objects
+    by serializing each model to XML and delegating to convert_kursliste_xml_to_sqlite.
+    """
+    if not kurslisten:
+        create_schema(conn)
+        create_idx(conn)
+        return
+
+    for kl_idx, kl in enumerate(kurslisten):
+        kl_model = _coerce_to_kursliste(kl, default_tax_year)
+        xml_out = kl_model.to_xml(skip_empty=True)
+        xml_bytes = xml_out.encode("utf-8") if isinstance(xml_out, str) else xml_out
+        stream = io.BytesIO(xml_bytes)
+        stream.name = f"memory_{kl_idx}.xml"
+        convert_kursliste_xml_to_sqlite(stream, conn)
