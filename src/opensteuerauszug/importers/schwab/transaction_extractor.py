@@ -383,7 +383,7 @@ class TransactionExtractor:
         schwab_qty = self._parse_schwab_decimal(schwab_tx.get("Quantity"))
         schwab_price = self._parse_schwab_decimal(schwab_tx.get("Price"))
         schwab_amount = self._parse_schwab_decimal(schwab_tx.get("Amount"))
-        schwab_fees = self._parse_schwab_decimal(
+        schwab_fees = self._parse_schwab_decimal(  # noqa: F841
             schwab_tx.get("Fees & Comm")
         ) or self._parse_schwab_decimal(schwab_tx.get("FeesAndCommissions"))
 
@@ -687,7 +687,7 @@ class TransactionExtractor:
                 calculated_balance_deposit = None
                 cash_flow = None
                 if schwab_qty and vest_fmv_decimal:
-                    calculated_balance_deposit = schwab_qty * vest_fmv_decimal
+                    calculated_balance_deposit = schwab_qty * vest_fmv_decimal  # noqa: F841
                     # Assumption: Deposit/Vesting implies value received, treat as cash OUT if we consider cost basis?
                     # Or is it just shares appearing with no cash flow in this account? Let's assume NO cash flow for now.
                     # cash_flow = -abs(calculated_balance_deposit)
@@ -800,7 +800,7 @@ class TransactionExtractor:
                 cash_flow = None
                 calculated_value = None
                 if schwab_amount and schwab_amount != 0:
-                    calculated_value = schwab_amount
+                    calculated_value = schwab_amount  # noqa: F841
                     # If qty > 0 (in), cash is out? If qty < 0 (out), cash is in?
                     cash_flow = -schwab_amount if schwab_qty > 0 else abs(schwab_amount)
 

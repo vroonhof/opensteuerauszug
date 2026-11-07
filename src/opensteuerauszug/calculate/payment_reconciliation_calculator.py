@@ -203,7 +203,6 @@ class PaymentReconciliationCalculator:
             if has_kurs and kurs.has_capped_payment:
                 status = "capped"
                 matched = True
-                original_wht = kurs.original_withholding_chf
                 note = (
                     f"Withholding capped to broker level (" f"{kurs.withholding_chf:.2f} CHF)."
                     if kurs.withholding_chf is not None

@@ -6,6 +6,7 @@ import pytest
 from opensteuerauszug.calculate.payment_reconciliation_calculator import (
     PaymentReconciliationCalculator,
 )
+from opensteuerauszug.calculate.withholding_cap_calculator import WithholdingCapCalculator
 from opensteuerauszug.model.ech0196 import (
     Depot,
     DepotNumber,
@@ -965,8 +966,6 @@ def _make_bnd_statement(
 # ---------------------------------------------------------------------------
 # WithholdingCapCalculator tests
 # ---------------------------------------------------------------------------
-
-from opensteuerauszug.calculate.withholding_cap_calculator import WithholdingCapCalculator
 
 
 def test_withholding_cap_full_reversal_zeros_withholding():

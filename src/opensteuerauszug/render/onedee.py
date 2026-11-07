@@ -128,7 +128,6 @@ class OneDeeBarCode:
 
         # Dimensions of the barcode widget *before* rotation
         bw = barcode_widget.width
-        bh = barcode_widget.barHeight  # Use barHeight as it's the relevant dimension
 
         # --- Manual Text Settings ---
         # Gap between bars edge (y=0 in rotated coords) and text baseline

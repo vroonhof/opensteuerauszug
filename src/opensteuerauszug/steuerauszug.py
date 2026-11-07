@@ -450,7 +450,7 @@ def process(
         )
 
     # This variable is used later for Schwab Importer instantiation
-    account_settings: Optional[ConcreteAccountSettings] = (
+    account_settings: Optional[ConcreteAccountSettings] = (  # noqa: F841
         None  # Retain for now, as Schwab Importer instantiation still uses it.
     )
     # This will be addressed in the next step.

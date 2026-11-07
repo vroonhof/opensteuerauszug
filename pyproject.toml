@@ -75,8 +75,15 @@ line_length = 100
 
 [tool.flake8]
 max-line-length = 127
-extend-ignore = "E1,E2,E3,E4,E5,E7,F5,F8,W29,W39"
+extend-ignore = "E203,E501"
 extend-exclude = ".venv"
+per-file-ignores = [
+    "src/opensteuerauszug/model/ech0196.py:F841",
+    "src/opensteuerauszug/model/kursliste.py:E741",
+    "tests/core/test_kursliste_manager_integration.py:F841,W291",
+    "tests/importers/schwab/test_import_schwab_integration.py:E402",
+    "tests/util/test_util.py:E131,E261",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

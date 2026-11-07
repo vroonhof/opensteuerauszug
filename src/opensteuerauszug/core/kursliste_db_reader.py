@@ -214,10 +214,10 @@ class KurslisteDBReader:
         Deserializes the security object from BLOB.
         """
         query = """
-            SELECT security_object_blob, security_type_identifier 
+            SELECT security_object_blob, security_type_identifier
             FROM securities
             WHERE valor_number = ? AND tax_year = ?
-            LIMIT 1 
+            LIMIT 1
         """
         # valor_number in DB is TEXT, so ensure input valor_number is passed as string for query
         row = self._execute_query_fetchone(query, (str(valor_number), tax_year))
@@ -233,7 +233,7 @@ class KurslisteDBReader:
         Deserializes security objects from BLOB.
         """
         query = """
-            SELECT security_object_blob, security_type_identifier 
+            SELECT security_object_blob, security_type_identifier
             FROM securities
             WHERE valor_number = ? AND tax_year = ?
         """

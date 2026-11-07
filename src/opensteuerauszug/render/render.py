@@ -23,15 +23,12 @@ from reportlab.platypus import (
     DocAssign,
 )
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.units import cm, mm
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 from barcode.writer import ImageWriter
 from barcode import Code128
-
-assert ImageWriter is not None  # Pillow is a declared dependency
 import logging
 
 from opensteuerauszug.model.ech0196 import TaxStatement, Security, CountryIdISO2Type
@@ -42,6 +39,8 @@ from opensteuerauszug.util.styles import get_custom_styles, FONT_REGULAR, FONT_B
 from opensteuerauszug.util import round_accounting
 from .markdown_renderer import markdown_to_platypus
 from .translations import t as _t, DEFAULT_LANGUAGE
+
+assert ImageWriter is not None  # Pillow is a declared dependency
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +113,7 @@ def format_currency_rounded(value: Decimal, default='0'):
         decimal_value = Decimal(str(value)).quantize(Decimal('0'), rounding=ROUND_HALF_UP)
         formatted = '{:,.0f}'.format(decimal_value).replace(',', "'")
         return formatted
-    except:
+    except Exception:
         return default
 
 
@@ -126,7 +125,7 @@ def format_currency_2dp(value: Optional[Decimal], default='0.00'):
         decimal_value = Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         formatted = '{:,.2f}'.format(decimal_value).replace(',', "'")
         return formatted
-    except:
+    except Exception:
         return default
 
 
@@ -161,7 +160,7 @@ def format_exchange_rate(value: Decimal, default=''):
         decimal_value = Decimal(str(value)).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
         formatted = '{:,.6f}'.format(decimal_value).replace(',', "'")
         return formatted
-    except:
+    except Exception:
         return default
 
 
@@ -369,7 +368,6 @@ def draw_page_header(canvas, doc, is_barcode_page: bool = False):
     page_height = doc.pagesize[1]
     canvas.setFont(FONT_REGULAR, 9)
     canvas.setFillColor(colors.black)
-    header_x = page_width - doc.rightMargin
 
     # Draw left header text on all pages
     if hasattr(doc, 'tax_statement') and doc.tax_statement:
@@ -869,7 +867,6 @@ def create_summary_table(data, styles, usable_width):
     ]
     common_valign = ('VALIGN', (0, 0), (-1, -1), 'BOTTOM')
     line_style = (0.7, colors.black)
-    no_line_style = (0, colors.black)  # Or use (0.5, colors.white) if background isn't white
 
     # --- Define spacer row styles ---
     spacer_row_2_style = [
@@ -1611,18 +1608,13 @@ def make_barcode_pages(
         len(barcode_images) + barcodes_per_page - 1
     ) // barcodes_per_page  # Ceiling division
 
-    # Get styles
-    styles = get_custom_styles()
-    center_style = ParagraphStyle(name='Center', parent=styles['Normal'], alignment=TA_CENTER)
-
     # Scaling for barcodes - each module (pixel) should be 0.4 - 0,42 mm.
     scale_factor_col = 0.42 * mm
     scale_factor_row = 0.4 * mm
 
-    # Calculate available width and height
-    page_width, page_height = landscape(A4)
+    # Calculate available width
+    page_width, _ = landscape(A4)
     available_width = page_width - (doc.leftMargin + doc.rightMargin)
-    available_height = page_height - (doc.topMargin + doc.bottomMargin)
 
     # Process barcodes in groups
     for page_num in range(barcode_pages):
@@ -2106,7 +2098,7 @@ def create_securities_table(
                     current_row += 1
 
             # Description/header row for the security
-            if security.country != "CH" and security.country != None:
+            if security.country != "CH" and security.country is not None:
                 cur_country = f"{security.currency or ''}<br/>{security.country}"
             else:
                 cur_country = security.currency

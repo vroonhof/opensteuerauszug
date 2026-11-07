@@ -14,7 +14,7 @@ SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR.parent))  # Add project root to import opensteuerauszug
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from filter_kursliste import filter_kursliste
+from filter_kursliste import filter_kursliste  # noqa: E402
 
 
 @pytest.fixture

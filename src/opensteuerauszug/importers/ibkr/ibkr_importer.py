@@ -5,7 +5,11 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from collections import defaultdict
 
-logger = logging.getLogger(__name__)
+# Import ibflex components to avoid RuntimeWarning about module loading order
+import ibflex
+from ibflex.parser import FlexParserError
+from ibflex.enums import TradeType
+from ibflex.Types import TransferLot
 
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
@@ -38,6 +42,8 @@ from opensteuerauszug.importers.common import (
 )
 from opensteuerauszug.render.translations import get_text, Language, DEFAULT_LANGUAGE
 
+logger = logging.getLogger(__name__)
+
 IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Final[Dict[str, SecurityCategory]] = {
     "STK": "SHARE",
     "BOND": "BOND",
@@ -47,11 +53,6 @@ IBKR_ASSET_CATEGORY_TO_ECH_SECURITY_CATEGORY: Final[Dict[str, SecurityCategory]]
     "ETF": "FUND",
     "FUND": "FUND",
 }
-# Import ibflex components to avoid RuntimeWarning about module loading order
-import ibflex
-from ibflex.parser import FlexParserError
-from ibflex.enums import TradeType
-from ibflex.Types import TransferLot
 
 
 def is_summary_level(entry: object) -> bool:
@@ -91,7 +92,9 @@ class IbkrImporter:
                 error_desc = (
                     f"{object_description} (Symbol: " f"{getattr(data_object, 'symbol', 'N/A')})"
                 )
-            elif hasattr(data_object, 'accountId') and 'Account:' not in object_description:  # Avoid double "Account:"
+            elif (
+                hasattr(data_object, 'accountId') and 'Account:' not in object_description
+            ):  # Avoid double "Account:"
                 error_desc = (
                     f"{object_description} (Account: "
                     f"{getattr(data_object, 'accountId', 'N/A')})"
@@ -480,7 +483,9 @@ class IbkrImporter:
                     if should_skip_entry(trade, "Trade"):
                         continue
                     trade_date = self._get_required_field(trade, 'tradeDate', 'Trade')
-                    settle_date = self._get_required_field(trade, 'settleDateTarget', 'Trade')
+                    settle_date = self._get_required_field(  # noqa: F841
+                        trade, 'settleDateTarget', 'Trade'
+                    )
                     symbol = self._get_required_field(trade, 'symbol', 'Trade')
                     description = self._get_required_field(trade, 'description', 'Trade')
                     asset_category = self._get_required_field(trade, 'assetCategory', 'Trade')
@@ -503,7 +508,7 @@ class IbkrImporter:
                         trade, trade_price, f"Trade {symbol}"
                     )
 
-                    trade_money = self._to_decimal(
+                    trade_money = self._to_decimal(  # noqa: F841
                         self._get_required_field(trade, 'tradeMoney', 'Trade'),
                         'tradeMoney',
                         f"Trade {symbol}",
@@ -516,7 +521,7 @@ class IbkrImporter:
                     expiry_date = getattr(trade, 'expiry', None)
                     close_price = getattr(trade, 'closePrice', None)
 
-                    ib_commission = self._to_decimal(
+                    ib_commission = self._to_decimal(  # noqa: F841
                         trade.ibCommission if trade.ibCommission is not None else '0',
                         'ibCommission',
                         f"Trade {symbol}",

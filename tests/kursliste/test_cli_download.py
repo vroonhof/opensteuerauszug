@@ -17,9 +17,9 @@ def test_download_with_convert():
         patch(
             "opensteuerauszug.kursliste.__main__.convert_kursliste_xml_to_sqlite"
         ) as mock_convert,
-        patch("opensteuerauszug.kursliste.__main__.os.remove") as mock_remove,
+        patch("opensteuerauszug.kursliste.__main__.os.remove") as mock_remove,  # noqa: F841
         patch("pathlib.Path.exists") as mock_exists,
-        patch("pathlib.Path.mkdir") as mock_mkdir,
+        patch("pathlib.Path.mkdir") as mock_mkdir,  # noqa: F841
     ):
 
         mock_latest.return_value = {
@@ -49,9 +49,9 @@ def test_download_no_convert():
         patch(
             "opensteuerauszug.kursliste.__main__.convert_kursliste_xml_to_sqlite"
         ) as mock_convert,
-        patch("opensteuerauszug.kursliste.__main__.os.remove") as mock_remove,
+        patch("opensteuerauszug.kursliste.__main__.os.remove") as mock_remove,  # noqa: F841
         patch("pathlib.Path.exists") as mock_exists,
-        patch("pathlib.Path.mkdir") as mock_mkdir,
+        patch("pathlib.Path.mkdir") as mock_mkdir,  # noqa: F841
     ):
 
         mock_latest.return_value = {
@@ -78,9 +78,9 @@ def test_download_skips_when_newest_file_hash_unchanged(caplog):
         patch(
             "opensteuerauszug.kursliste.__main__.convert_kursliste_xml_to_sqlite"
         ) as mock_convert,
-        patch("opensteuerauszug.kursliste.__main__.os.remove") as mock_remove,
+        patch("opensteuerauszug.kursliste.__main__.os.remove") as mock_remove,  # noqa: F841
         patch("pathlib.Path.exists") as mock_exists,
-        patch("pathlib.Path.mkdir") as mock_mkdir,
+        patch("pathlib.Path.mkdir") as mock_mkdir,  # noqa: F841
     ):
 
         mock_latest.return_value = {

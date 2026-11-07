@@ -2233,9 +2233,9 @@ class TestMergeLiabilityAccounts:
         # Verify USD liability
         usd_liability = next(
             (
-                l
-                for l in result.listOfLiabilities.liabilityAccount
-                if l.bankAccountCurrency == "USD"
+                liab
+                for liab in result.listOfLiabilities.liabilityAccount
+                if liab.bankAccountCurrency == "USD"
             ),
             None,
         )
@@ -2247,9 +2247,9 @@ class TestMergeLiabilityAccounts:
         # Verify EUR liability
         eur_liability = next(
             (
-                l
-                for l in result.listOfLiabilities.liabilityAccount
-                if l.bankAccountCurrency == "EUR"
+                liab
+                for liab in result.listOfLiabilities.liabilityAccount
+                if liab.bankAccountCurrency == "EUR"
             ),
             None,
         )
