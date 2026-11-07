@@ -50,13 +50,20 @@ def _find_sample_dirs(root: Path, extensions: List[str]) -> List[str]:
         return []
 
     sample_dirs = []
+    ignored_names = {"old", "archive", "bak", "backup"}
     for current_dir, dirnames, filenames in os.walk(root):
+        dirnames[:] = [
+            d for d in dirnames if not d.startswith((".", "_")) and d.lower() not in ignored_names
+        ]
         dirnames.sort()
+        curr_path = Path(current_dir)
+        if curr_path.name.lower() in ignored_names or curr_path.name.startswith((".", "_")):
+            continue
         matching_files = [
             f for f in filenames if any(f.lower().endswith(ext) for ext in extensions)
         ]
         if matching_files:
-            sample_dirs.append(str(Path(current_dir)))
+            sample_dirs.append(str(curr_path))
     return sample_dirs
 
 
