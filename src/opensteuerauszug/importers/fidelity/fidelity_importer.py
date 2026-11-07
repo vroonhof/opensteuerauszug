@@ -585,7 +585,7 @@ class FidelityImporter:
                 else:
                     trade_price = trade_money / quantity
 
-                self._to_decimal(
+                commission = self._to_decimal(  # noqa: F841
                     transaction['Commission ($)'] if 'Commission' in transaction else 0,
                     'Commission',
                     f"Trade {symbol}",

@@ -15,10 +15,10 @@ from opensteuerauszug.util import round_accounting
         (Decimal("-99.1234"), Decimal("-99.123")),
         (Decimal("-99.1235"), Decimal("-99.124")),
         (Decimal("50"), Decimal("50.000")),
-        (50, Decimal("50.000")),  # int input
-        (50.1234, Decimal("50.123")),  # float input
-        (50.1235, Decimal("50.124")),  # float input
-        (Decimal("99.9995"), Decimal("100.000")),  # Rounds up to 100, still 3 decimals? Spec says < 100
+        (50, Decimal("50.000")), # int input
+        (50.1234, Decimal("50.123")), # float input
+        (50.1235, Decimal("50.124")), # float input
+        (Decimal("99.9995"), Decimal("100.000")), # Rounds up to 100, still 3 decimals? Spec says < 100
         (Decimal("99.9994"), Decimal("99.999")),
 
         # Values >= 100 (round to 2 decimal places)
@@ -29,9 +29,9 @@ from opensteuerauszug.util import round_accounting
         (Decimal("-100"), Decimal("-100.00")),
         (Decimal("-100.123"), Decimal("-100.12")),
         (Decimal("-100.125"), Decimal("-100.13")),
-        (100, Decimal("100.00")),  # int input
-        (100.123, Decimal("100.12")),  # float input
-        (100.125, Decimal("100.13")),  # float input
+        (100, Decimal("100.00")), # int input
+        (100.123, Decimal("100.12")), # float input
+        (100.125, Decimal("100.13")), # float input
 
         # Zero
         (Decimal("0"), Decimal("0.000")),
@@ -44,12 +44,12 @@ from opensteuerauszug.util import round_accounting
         (Decimal("99.9995"), Decimal("100.000")),
 
         # Edge case exactly 100
-        (Decimal("100.000"), Decimal("100.00")),
-        (Decimal("100.004"), Decimal("100.00")),
-        (Decimal("100.005"), Decimal("100.01")),
+         (Decimal("100.000"), Decimal("100.00")),
+         (Decimal("100.004"), Decimal("100.00")),
+         (Decimal("100.005"), Decimal("100.01")),
 
-        # Edge case slightly below 100
-        (Decimal("99.999"), Decimal("99.999")),
+         # Edge case slightly below 100
+         (Decimal("99.999"), Decimal("99.999")),
 
     ],
 )

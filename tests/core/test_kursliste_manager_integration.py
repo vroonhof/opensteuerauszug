@@ -17,9 +17,9 @@ SAMPLE_XML_CONTENT_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
            xsi:schemaLocation="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste kursliste-2.0.0.xsd"
            version="2.0.0.1" creationDate="2024-01-01T00:00:00" year="{year}">
 
-    <share id="101" quoted="true" source="KURSLISTE" securityGroup="SHARE" securityType="SHARE.COMMON"
-           valorNumber="123456" isin="CH0012345678" securityName="Test Share AG {year}"
-           currency="CHF" nominalValue="10.00" country="CH"
+    <share id="101" quoted="true" source="KURSLISTE" securityGroup="SHARE" securityType="SHARE.COMMON" 
+           valorNumber="123456" isin="CH0012345678" securityName="Test Share AG {year}" 
+           currency="CHF" nominalValue="10.00" country="CH" 
            institutionId="999" institutionName="Test Bank">
         <yearend id="10101" quotationType="PIECE" taxValue="150.50" taxValueCHF="150.50" />
     </share>
@@ -49,7 +49,7 @@ def create_sample_sqlite_from_xml(xml_file_path: Path, db_file_path: Path):
 
 def test_load_directory_xml_only(tmp_path):
     manager = KurslisteManager()
-    create_sample_xml(tmp_path / "kursliste_2023.xml", 2023)
+    xml_file_2023 = create_sample_xml(tmp_path / "kursliste_2023.xml", 2023)
 
     manager.load_directory(tmp_path)
 
@@ -190,7 +190,7 @@ def test_load_directory_empty(tmp_path):
 
 def test_load_directory_db_conversion_failure_fallback(tmp_path, capsys):
     manager = KurslisteManager()
-    create_sample_xml(tmp_path / "kursliste_2030.xml", 2030)
+    xml_file_2030 = create_sample_xml(tmp_path / "kursliste_2030.xml", 2030)
 
     db_file_2030_malformed = tmp_path / "kursliste_2030.sqlite"
     db_file_2030_malformed.write_text("This is not a valid SQLite file.")

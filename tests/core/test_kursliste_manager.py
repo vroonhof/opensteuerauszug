@@ -49,7 +49,7 @@ def create_sample_sqlite_from_xml(xml_file_path: Path, db_file_path: Path):
 
 def test_load_directory_xml_only(tmp_path):
     manager = KurslisteManager()
-    create_sample_xml(tmp_path / "kursliste_2023.xml", 2023)
+    xml_file_2023 = create_sample_xml(tmp_path / "kursliste_2023.xml", 2023)  # noqa: F841
 
     manager.load_directory(tmp_path)
 
@@ -190,7 +190,7 @@ def test_load_directory_empty(tmp_path):
 
 def test_load_directory_db_conversion_failure_fallback(tmp_path, capsys):
     manager = KurslisteManager()
-    create_sample_xml(tmp_path / "kursliste_2030.xml", 2030)
+    xml_file_2030 = create_sample_xml(tmp_path / "kursliste_2030.xml", 2030)  # noqa: F841
 
     db_file_2030_malformed = tmp_path / "kursliste_2030.sqlite"
     db_file_2030_malformed.write_text("This is not a valid SQLite file.")

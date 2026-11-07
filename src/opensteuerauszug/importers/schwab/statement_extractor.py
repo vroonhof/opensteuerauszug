@@ -339,6 +339,8 @@ class StatementExtractor:
         symbol = data.get('symbol')
         closing_shares = data.get('closing_shares')
         opening_shares = data.get('opening_shares')
+        closing_value = data.get('closing_value')  # noqa: F841
+        closing_price = data.get('closing_price')  # noqa: F841
         if symbol and closing_shares is not None:
             pos = SecurityPosition(depot=depot, symbol=symbol, securityType=None)
             if opening_shares is not None:  # Only add opening if available

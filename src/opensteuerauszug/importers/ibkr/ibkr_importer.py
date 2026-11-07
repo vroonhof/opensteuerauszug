@@ -483,7 +483,9 @@ class IbkrImporter:
                     if should_skip_entry(trade, "Trade"):
                         continue
                     trade_date = self._get_required_field(trade, 'tradeDate', 'Trade')
-                    self._get_required_field(trade, 'settleDateTarget', 'Trade')
+                    settle_date = self._get_required_field(  # noqa: F841
+                        trade, 'settleDateTarget', 'Trade'
+                    )
                     symbol = self._get_required_field(trade, 'symbol', 'Trade')
                     description = self._get_required_field(trade, 'description', 'Trade')
                     asset_category = self._get_required_field(trade, 'assetCategory', 'Trade')
@@ -506,7 +508,7 @@ class IbkrImporter:
                         trade, trade_price, f"Trade {symbol}"
                     )
 
-                    self._to_decimal(
+                    trade_money = self._to_decimal(  # noqa: F841
                         self._get_required_field(trade, 'tradeMoney', 'Trade'),
                         'tradeMoney',
                         f"Trade {symbol}",
@@ -519,7 +521,7 @@ class IbkrImporter:
                     expiry_date = getattr(trade, 'expiry', None)
                     close_price = getattr(trade, 'closePrice', None)
 
-                    self._to_decimal(
+                    ib_commission = self._to_decimal(  # noqa: F841
                         trade.ibCommission if trade.ibCommission is not None else '0',
                         'ibCommission',
                         f"Trade {symbol}",
