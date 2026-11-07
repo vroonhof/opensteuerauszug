@@ -177,8 +177,6 @@ class PositionReconciler:
         Returns:
             A ReconciledQuantity object if successful, None otherwise.
         """
-        # Use a separate log for synthesis to avoid interference if called multiple times
-        synthesis_log: List[str] = []
         log_prefix = f"[{self.identifier}]"
 
         def _synth_log(msg, level=logging.DEBUG):

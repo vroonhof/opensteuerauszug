@@ -8,6 +8,9 @@ from typing import Any, List, Tuple, Union
 
 from pypdf import PdfReader, errors
 
+from opensteuerauszug.model.position import SecurityPosition, CashPosition
+from opensteuerauszug.model.ech0196 import SecurityStock
+
 # Use Decimal for precise financial calculations
 decimal.getcontext().prec = 20  # Set precision for Decimal
 
@@ -32,9 +35,6 @@ CASH_SUMMARY_PATTERN = re.compile(
     r'(\$[\d,.]+)\s',  # Group 3: Closing Value
     re.DOTALL | re.IGNORECASE,
 )
-
-from opensteuerauszug.model.position import SecurityPosition, CashPosition
-from opensteuerauszug.model.ech0196 import SecurityStock
 
 
 class StatementExtractor:
@@ -339,8 +339,6 @@ class StatementExtractor:
         symbol = data.get('symbol')
         closing_shares = data.get('closing_shares')
         opening_shares = data.get('opening_shares')
-        closing_value = data.get('closing_value')
-        closing_price = data.get('closing_price')
         if symbol and closing_shares is not None:
             pos = SecurityPosition(depot=depot, symbol=symbol, securityType=None)
             if opening_shares is not None:  # Only add opening if available

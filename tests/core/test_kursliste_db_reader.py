@@ -18,37 +18,37 @@ SAMPLE_XML_CONTENT = f"""<?xml version="1.0" encoding="UTF-8"?>
            xsi:schemaLocation="http://xmlns.estv.admin.ch/ictax/2.0.0/kursliste kursliste-2.0.0.xsd"
            version="2.0.0.1" creationDate="2024-01-01T00:00:00" year="{TAX_YEAR}">
 
-    <bond id="202" quoted="true" source="KURSLISTE" securityGroup="BOND" securityType="BOND.BOND" 
-          valorNumber="789012" isin="CH0078901234" securityName="Test Bond Corp" 
-          currency="EUR" nominalValue="1000.00" country="CH" 
+    <bond id="202" quoted="true" source="KURSLISTE" securityGroup="BOND" securityType="BOND.BOND"
+          valorNumber="789012" isin="CH0078901234" securityName="Test Bond Corp"
+          currency="EUR" nominalValue="1000.00" country="CH"
           institutionId="998" institutionName="Test Bank Bond" issueDate="{TAX_YEAR-3}-01-01" redemptionDate="{TAX_YEAR+7}-01-01">
         <yearend id="20201" quotationType="PERCENT" percent="101.25" taxValue="1012.50" />
     </bond>
 
-    <fund id="303" quoted="true" source="KURSLISTE" securityGroup="FUND" securityType="FUND.DISTRIBUTION" 
-          valorNumber="654321" isin="LU0065432109" securityName="Test Global Fund" 
-          currency="USD" nominalValue="1.0" country="LU" 
+    <fund id="303" quoted="true" source="KURSLISTE" securityGroup="FUND" securityType="FUND.DISTRIBUTION"
+          valorNumber="654321" isin="LU0065432109" securityName="Test Global Fund"
+          currency="USD" nominalValue="1.0" country="LU"
           institutionId="997" institutionName="Test Bank Fund">
         <yearend id="30301" quotationType="PIECE" taxValue="75.20" taxValueCHF="68.70" />
     </fund>
-    
-    <fund id="501" quoted="true" source="KURSLISTE" securityGroup="FUND" securityType="FUND.ACCUMULATION" 
-          valorNumber="111222" isin="LU0065432109" securityName="Test Global Fund Duplicate ISIN" 
-          currency="EUR" nominalValue="1.0" country="LU" 
+
+    <fund id="501" quoted="true" source="KURSLISTE" securityGroup="FUND" securityType="FUND.ACCUMULATION"
+          valorNumber="111222" isin="LU0065432109" securityName="Test Global Fund Duplicate ISIN"
+          currency="EUR" nominalValue="1.0" country="LU"
           institutionId="996" institutionName="Test Bank Fund Other">
         <yearend id='50101' quotationType='PIECE' />
     </fund>
 
-    <share id="101" quoted="true" source="KURSLISTE" securityGroup="SHARE" securityType="SHARE.COMMON" 
-           valorNumber="123456" isin="CH0012345678" securityName="Test Share AG" 
-           currency="CHF" nominalValue="10.00" country="CH" 
+    <share id="101" quoted="true" source="KURSLISTE" securityGroup="SHARE" securityType="SHARE.COMMON"
+           valorNumber="123456" isin="CH0012345678" securityName="Test Share AG"
+           currency="CHF" nominalValue="10.00" country="CH"
            institutionId="999" institutionName="Test Bank Share">
         <yearend id="10101" quotationType="PIECE" taxValue="150.50" taxValueCHF="150.50" />
     </share>
-    
-    <share id="401" quoted="true" source="KURSLISTE" securityGroup="SHARE" securityType="SHARE.COMMON" 
-           valorNumber="123456" isin="CH0000000401" securityName="Test Share AG Duplicate Valor" 
-           currency="CHF" nominalValue="20.00" country="CH" 
+
+    <share id="401" quoted="true" source="KURSLISTE" securityGroup="SHARE" securityType="SHARE.COMMON"
+           valorNumber="123456" isin="CH0000000401" securityName="Test Share AG Duplicate Valor"
+           currency="CHF" nominalValue="20.00" country="CH"
            institutionId="999" institutionName="Test Bank Share">
         <yearend id='40101' quotationType='PIECE' />
     </share>

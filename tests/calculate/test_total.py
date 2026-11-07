@@ -204,7 +204,7 @@ class TestTotalCalculator:
 
         # Calculate in VERIFY mode
         calculator = TotalCalculator(mode=CalculationMode.VERIFY)
-        result = calculator.calculate(tax_statement)
+        calculator.calculate(tax_statement)
 
         # No exception should be raised, and no fields should be modified
         assert len(calculator.modified_fields) == 0
@@ -221,7 +221,7 @@ class TestTotalCalculator:
 
         # Calculate in VERIFY mode
         calculator = TotalCalculator(mode=CalculationMode.VERIFY)
-        result = calculator.calculate(tax_statement)
+        calculator.calculate(tax_statement)
 
         assert len(calculator.errors) == 1
 

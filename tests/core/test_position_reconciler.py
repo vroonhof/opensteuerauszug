@@ -103,7 +103,7 @@ class TestPositionReconciler(unittest.TestCase):
             create_stock("2023-01-15", "109", False, name="Wrong Closing Balance"),  # Reported 109
         ]
         reconciler = PositionReconciler(stocks, identifier="CONSIST_MISMATCH")
-        with self.assertRaises(ValueError) as context:
+        with self.assertRaises(ValueError):
             reconciler.check_consistency(raise_on_error=True)
 
     def test_multiple_mutations(self):
@@ -352,6 +352,7 @@ class TestPositionReconciler(unittest.TestCase):
         ]
         reconciler = PositionReconciler(stocks, identifier="SYNTH_NO_BALANCES_ANYWHERE")
         pos = reconciler.synthesize_position_at_date(date(2023, 1, 1))
+        self.assertIsNone(pos)
 
     def test_synthesize_backward_unapplies_mutation_on_target_date(self):
         stocks = [

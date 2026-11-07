@@ -30,7 +30,7 @@ from .util.known_issues import is_known_issue
 from .core.exchange_rate_provider import ExchangeRateProvider
 from .core.kursliste_manager import KurslisteManager
 from .core.kursliste_exchange_rate_provider import KurslisteExchangeRateProvider
-from .config import ConfigManager, ConcreteAccountSettings
+from .config import ConfigManager
 from .config.paths import (
     resolve_config_file,
     resolve_kursliste_dir,
@@ -448,15 +448,6 @@ def process(
         print(
             "No specific broker targeted by --importer or --broker for detailed configuration loading. Proceeding with general setup."
         )
-
-    # This variable is used later for Schwab Importer instantiation
-    account_settings: Optional[ConcreteAccountSettings] = (
-        None  # Retain for now, as Schwab Importer instantiation still uses it.
-    )
-    # This will be addressed in the next step.
-    # For this step, we focus on populating all_schwab_account_settings_models.
-    # If Schwab importer is used, the old account_settings will be effectively ignored
-    # as all_schwab_account_settings_models takes precedence in logic flow.
 
     statement: Optional[TaxStatement] = None  # Now refers to TaxStatement
 

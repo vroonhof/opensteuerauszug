@@ -36,9 +36,9 @@ ACCESSOR_SAMPLE_XML_CONTENT = f"""<?xml version="1.0" encoding="UTF-8"?>
           issueDate="2020-01-01" redemptionDate="2030-01-01">
     </bond>
 
-    <share id="1" quoted="true" source="KURSLISTE" securityGroup="SHARE" securityType="SHARE.COMMON" 
-           valorNumber="1234567" isin="CH00000000S1" securityName="Accessor Share DB" 
-           currency="CHF" nominalValue="10.00" country="CH" 
+    <share id="1" quoted="true" source="KURSLISTE" securityGroup="SHARE" securityType="SHARE.COMMON"
+           valorNumber="1234567" isin="CH00000000S1" securityName="Accessor Share DB"
+           currency="CHF" nominalValue="10.00" country="CH"
            institutionId="2001" institutionName="Inst Acc S1">
     </share>
 

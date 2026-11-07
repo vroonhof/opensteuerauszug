@@ -7,8 +7,6 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 from collections import defaultdict
 
-logger = logging.getLogger(__name__)
-
 from opensteuerauszug.model.position import SecurityPosition
 from opensteuerauszug.model.ech0196 import (
     BankAccountPayment,
@@ -37,6 +35,8 @@ from opensteuerauszug.importers.common import (
     to_decimal,
 )
 from opensteuerauszug.render.translations import get_text, Language, DEFAULT_LANGUAGE
+
+logger = logging.getLogger(__name__)
 
 KNOWN_ACTIONS = [  # actions that we know how to deal with
     "buy",
@@ -585,7 +585,7 @@ class FidelityImporter:
                 else:
                     trade_price = trade_money / quantity
 
-                commission = self._to_decimal(
+                self._to_decimal(
                     transaction['Commission ($)'] if 'Commission' in transaction else 0,
                     'Commission',
                     f"Trade {symbol}",

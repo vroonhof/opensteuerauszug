@@ -75,8 +75,12 @@ line_length = 100
 
 [tool.flake8]
 max-line-length = 127
-extend-ignore = "E1,E2,E3,E4,E5,E7,F5,F8,W29,W39"
+extend-ignore = "E203,E501"
 extend-exclude = ".venv"
+per-file-ignores = [
+    "src/opensteuerauszug/model/ech0196.py:F841",
+    "src/opensteuerauszug/model/kursliste.py:E741",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

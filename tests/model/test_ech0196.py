@@ -306,7 +306,7 @@ def test_institution_round_trip():
     """
     # Simplified XML snippet for a bankAccount element in human-readable format
     xml_input = '''
-      <institution 
+      <institution
         xmlns="http://www.ech.ch/xmlns/eCH-0196/2"
         xmlns:eCH-0097="http://www.ech.ch/xmlns/eCH-0097/4"
         lei="IDENTIFIER1234567A01" name="Test Bank">
