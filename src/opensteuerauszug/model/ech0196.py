@@ -1932,7 +1932,12 @@ class TaxStatement(TaxStatementBase):
         # Add schemaLocation
         element.set(
             f"{{{nsmap['xsi']}}}schemaLocation",
-            "http://www.ech.ch/xmlns/eCH-0196/2 http://www.ech.ch/xmlns/eCH-0196/2.2/eCH-0196-2-2.xsd http://www.ech.ch/xmlns/eCH-0097/4 http://www.ech.ch/xmlns/eCH-0097/4/eCH-0097-4-0.xsd",
+            # Two xsd URLs without namespace pairs: technically not the W3C
+            # namespace/location pair form, but it is what real bank
+            # eSteuerauszuege ship (e.g. Raiffeisen 2025) and what the
+            # official EWV tooling expects; ZHprivateTax 2025 rejected
+            # statements using the four-token pair form.
+            "http://www.ech.ch/xmlns/eCH-0196/2.2/eCH-0196-2-2.xsd http://www.ech.ch/xmlns/eCH-0097/4/eCH-0097-4-0.xsd",
         )
 
         self._build_attributes(element)

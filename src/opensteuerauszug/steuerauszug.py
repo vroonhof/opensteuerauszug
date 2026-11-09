@@ -755,6 +755,7 @@ def process(
                     exchange_rate_provider=exchange_rate_provider,
                     keep_existing_payments=calculate_settings.keep_existing_payments,
                     render_language=render_language,
+                    swiss_custodian=calculate_settings.swiss_custodian,
                 )
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 print("Running FillInTaxValueCalculator...")
@@ -869,6 +870,7 @@ def process(
                     exchange_rate_provider=exchange_rate_provider_verify,
                     keep_existing_payments=calculate_settings.keep_existing_payments,
                     render_language=render_language,
+                    swiss_custodian=calculate_settings.swiss_custodian,
                 )
             elif tax_calculation_level == TaxCalculationLevel.FILL_IN:
                 verifier_name = "FillInTaxValueCalculator"

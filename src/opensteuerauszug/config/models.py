@@ -116,6 +116,14 @@ class CalculateSettings(BaseModel):
     keep_existing_payments: bool = Field(
         default=False, description="If True, keep existing payments when calculating tax values."
     )
+    swiss_custodian: bool = Field(
+        default=False,
+        description=(
+            "If True, the statement's custodian is a Swiss bank: apply the "
+            "zusaetzlicher Steuerrueckbehalt USA (15% of gross) on US dividends "
+            "instead of 0 (foreign-broker default)."
+        ),
+    )
     allow_above_treaty_withholding: bool = Field(
         default=False, description="Allow broker withholding > KL calculation"
     )

@@ -94,10 +94,17 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
         flag_override_provider: Optional[FlagOverrideProvider] = None,
         keep_existing_payments: bool = False,
         render_language: Language = DEFAULT_LANGUAGE,
+        swiss_custodian: bool = False,
     ):
         super().__init__(
             mode, exchange_rate_provider, keep_existing_payments=keep_existing_payments
         )
+        # Swiss custodian banks retain the zusaetzlicher Steuerrueckbehalt USA
+        # (15% of gross) on US dividends under the US-CH QI agreement; foreign
+        # brokers do not. The official EWV validator checks
+        # additionalWithHoldingTaxUSA == 15% of gross revenue for DA-1 US
+        # payments when the statement comes from a Swiss custodian.
+        self.swiss_custodian = swiss_custodian
         logger.info(
             "KurslisteTaxValueCalculator initialized with mode: %s and provider: %s",
             mode.value,
@@ -853,7 +860,12 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
                         sec_payment.nonRecoverableTaxPercent = da1_rate.nonRecoverable
                         sec_payment.nonRecoverableTaxAmount = non_recoverable_amount
                         if kl_sec.country == "US":
-                            sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
+                            if self.swiss_custodian:
+                                sec_payment.additionalWithHoldingTaxUSA = chf_amount * Decimal(
+                                    "0.15"
+                                )
+                            else:
+                                sec_payment.additionalWithHoldingTaxUSA = Decimal("0")
                         sec_payment.lumpSumTaxCredit = True
 
             if effective_sign == "(V)":

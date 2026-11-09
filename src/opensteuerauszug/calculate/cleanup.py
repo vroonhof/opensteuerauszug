@@ -114,7 +114,8 @@ class CleanupCalculator:
         Format per eCH-0196 v2.1 (31 chars): CCCCCCCCCCCCCCCCCCCCCCCYYYYMMDDSS
         CC: Country Code (2 chars, always CH)
         CCCCC: Clearing Number (5 digits, numeric, with leading zeros)
-        CCCCCCCCCCCCCC: Customer ID (14 chars, alphanumeric, padded with X)
+        CCCCCCCCCCCCCC: Customer ID (14 digits, zero-padded; digits-only for
+                        ZHprivateTax 2025 compatibility)
         YYYYMMDD: Statement Period To Date (8 chars)
         SS: Sequential Number (2 digits, fixed "01")
         """
@@ -161,16 +162,18 @@ class CleanupCalculator:
                 "statement.client list is empty. Using placeholder for customer ID part."
             )
 
-        # Normalize importer name (uppercase alphanumeric) and customer/account id (alphanumeric)
+        # Digits-only customer part, zero-padded on the left ("mit führenden
+        # Nullen" per eCH-0196 v2.1 wording). Although v2.2 allows an
+        # alphanumeric Stammnummer, real bank statements (e.g. Raiffeisen) and
+        # datalevel's official-generator output are digits-only, and
+        # ZHprivateTax for tax period 2025 rejects statements whose ID
+        # contains letters with a generic "wrong tax period" error.
         importer_prefix = re.sub(r'[^a-zA-Z0-9]', '', (self.importer_name or '').upper())
-        account_id_norm = re.sub(r'[^a-zA-Z0-9]', '', customer_id_raw)
+        account_id_norm = re.sub(r'[^0-9]', '', customer_id_raw) or '0'
 
-        combined_customer = f"{importer_prefix}{account_id_norm}"
-        # Format to exactly 14 characters: truncate or pad with 'X'
-        if len(combined_customer) > 14:
-            customer_id = combined_customer[:14]
-        else:
-            customer_id = combined_customer.ljust(14, 'X')
+        # Format to exactly 14 digits: truncate (keep the tail, which is the
+        # more distinctive part of an account number) or left-pad with zeros.
+        customer_id = account_id_norm[-14:].rjust(14, '0')
 
         # 4. Date (8 chars)
         # statement.periodTo is mandatory, so direct access should be safe.
@@ -205,7 +208,7 @@ class CleanupCalculator:
 
         # if set assume the importer used the stastment time.
         if not statement.creationDate:
-            statement.creationDate = datetime.now()
+            statement.creationDate = datetime.now().astimezone().replace(microsecond=0)
 
         # Set canton from configuration (config takes precedence over importer data)
         if self.config_settings and self.config_settings.canton:
