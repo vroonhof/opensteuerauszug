@@ -110,6 +110,12 @@ class DegiroAccountSettings(AccountSettingsBase):
     pass
 
 
+class MssbAccountSettings(AccountSettingsBase):
+    '''Specific configuration settings for a Morgan Stanley (MSSB) account.'''
+
+    pass
+
+
 class CalculateSettings(BaseModel):
     """Settings for the calculation process."""
 
@@ -127,7 +133,11 @@ class CalculateSettings(BaseModel):
 
 # A type union for all possible specific account settings models
 SpecificAccountSettingsUnion = Union[
-    SchwabAccountSettings, IbkrAccountSettings, FidelityAccountSettings, DegiroAccountSettings
+    SchwabAccountSettings,
+    IbkrAccountSettings,
+    FidelityAccountSettings,
+    DegiroAccountSettings,
+    MssbAccountSettings,
 ]
 
 
@@ -139,7 +149,7 @@ class ConcreteAccountSettings(BaseModel):
     or other specific types in the future.
     '''
 
-    kind: Literal["schwab", "ibkr", "fidelity", "degiro"]
+    kind: Literal["schwab", "ibkr", "fidelity", "degiro", "mssb"]
     settings: SpecificAccountSettingsUnion
 
     # Delegate attribute access to the underlying specific settings model

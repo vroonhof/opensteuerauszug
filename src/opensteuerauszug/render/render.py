@@ -2424,6 +2424,23 @@ def create_payment_reconciliation_tables(tax_statement: TaxStatement, styles, us
     if report is None or not report.rows:
         return []
 
+    # Exclude the reconciliation section if the input data did not contain any broker payments
+    has_broker_payments = False
+    if tax_statement.listOfSecurities and tax_statement.listOfSecurities.depot:
+        for depot in tax_statement.listOfSecurities.depot:
+            for security in depot.security:
+                bp = getattr(security, "broker_payments", None) or [
+                    p for p in security.payment if not p.kursliste
+                ]
+                if bp:
+                    has_broker_payments = True
+                    break
+            if has_broker_payments:
+                break
+
+    if not has_broker_payments:
+        return []
+
     val_left = styles['Val_LEFT']
     val_right = styles['Val_RIGHT']
     header_style = styles['Header_RIGHT']
@@ -2829,8 +2846,8 @@ def render_tax_statement(
             right_margin=right_margin,
             bottom_margin=bottom_margin,
             show_outline=(
-                True if tax_statement.payment_reconciliation_report is not None else False
-            ),  # Show outline only if reconciliation report exists
+                True if reconciliation_flowables else False
+            ),  # Show outline only if reconciliation pages exist
             **kwargs,
         )
 

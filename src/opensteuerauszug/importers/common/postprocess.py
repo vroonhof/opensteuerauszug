@@ -208,6 +208,7 @@ def augment_list_of_securities(
     aggregate_same_day_mutations: bool = True,
     opening_stock_name: Optional[str] = None,
     closing_stock_name: Optional[str] = None,
+    skip_opening_balance_when_zero: bool = True,
 ) -> None:
     """Fold ``positions`` into ``statement.listOfSecurities`` in place.
 
@@ -281,7 +282,7 @@ def augment_list_of_securities(
             currency=primary_currency,
             quotation_type=primary_quotation_type,
             name=opening_stock_name,
-            skip_when_zero=True,
+            skip_when_zero=skip_opening_balance_when_zero,
         )
         _append_boundary_stock_if_missing(
             sorted_stocks,

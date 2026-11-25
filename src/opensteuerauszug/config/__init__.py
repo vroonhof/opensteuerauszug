@@ -6,6 +6,8 @@ from .models import (
     SchwabAccountSettings,
     IbkrAccountSettings,
     FidelityAccountSettings,
+    DegiroAccountSettings,
+    MssbAccountSettings,
     ConcreteAccountSettings,
 )
 from .loader import ConfigManager
@@ -17,6 +19,8 @@ __all__ = [
     "SchwabAccountSettings",
     "IbkrAccountSettings",
     "FidelityAccountSettings",
+    "DegiroAccountSettings",
+    "MssbAccountSettings",
     "ConcreteAccountSettings",
     "ConfigManager",
 ]
