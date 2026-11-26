@@ -171,12 +171,20 @@ SYMBOL_DESCRIPTION = {
 DEFAULT_GSU_SYMBOL = "GOOG"
 UNVESTED_SECURITY_NAME = "GSU Class C, unvested (pro memoria)"
 
+
 # Alphabet's 20:1 split was distributed on 15 July 2022. MSSB's own notice in the
 # withdrawals report says activity on or before that date is shown in pre-split values;
 # GSU vests are always shown post-split, so only withdrawals are adjusted.
+@dataclass(frozen=True)
+class StockSplit:
+    symbol: str
+    last_pre_split_date: datetime.date
+    factor: int
+
+
 STOCK_SPLIT_INFO = [
-    {"symbol": "GOOG", "last_pre_split_date": datetime.date(2022, 7, 15), "factor": 20},
-    {"symbol": "GOOGL", "last_pre_split_date": datetime.date(2022, 7, 15), "factor": 20},
+    StockSplit(symbol="GOOG", last_pre_split_date=datetime.date(2022, 7, 15), factor=20),
+    StockSplit(symbol="GOOGL", last_pre_split_date=datetime.date(2022, 7, 15), factor=20),
 ]
 
 # Relative spread tolerated between exchange rates that should be identical.
@@ -806,10 +814,10 @@ class MssbImporter:
             quantity = w.quantity
             symbol = KNOWN_SYMBOL_DICT[w.plan]
             for split in STOCK_SPLIT_INFO:
-                if symbol == split["symbol"] and w.date <= split["last_pre_split_date"]:
-                    quantity *= split["factor"]
+                if symbol == split.symbol and w.date <= split.last_pre_split_date:
+                    quantity *= split.factor
                     if price is not None:
-                        price /= split["factor"]
+                        price /= split.factor
 
             if not w.is_transfer:
                 # Sale proceeds are credited to the MSSB cash account.
