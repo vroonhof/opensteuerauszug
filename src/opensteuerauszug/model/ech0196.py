@@ -1628,8 +1628,6 @@ class Security(BaseXmlModel):
     totalAdditionalWithHoldingTaxUSA: Optional[Decimal] = Field(default=None, exclude=True)
     broker_payments: List[SecurityPayment] = Field(default_factory=list, exclude=True)
     is_rights_issue: bool = Field(default=False, exclude=True)
-    # Disclosed for information only (e.g. unvested employee shares); has no tax value.
-    is_pro_memoria: bool = Field(default=False, exclude=True)
     model_config = {
         "json_schema_extra": {'tag_name': 'security', 'tag_namespace': NS_MAP['eCH-0196']}
     }

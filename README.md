@@ -59,7 +59,7 @@ For now the focus is on brokers / banks that the author has
 Thanks to community contributions we also support
 
 - DEGIRO (contributed by [@manuelgr0](https://github.com/manuelgr0), with multilingual support by [@dalpozz](https://github.com/dalpozz) and [@VincentBlondeau](https://github.com/VincentBlondeau))
-- Morgan Stanley StockPlan Connect (Alphabet GSUs, contributed by [@cosmincc](https://github.com/cosmincc); see the [MSSB importer guide](docs/importer_mssb.md))
+- Morgan Stanley StockPlan Connect (experimental; Alphabet GSUs, contributed by [@cosmincc](https://github.com/cosmincc); see the [MSSB importer guide](docs/importer_mssb.md))
 
 Additionally we can recalculate and verify any existing steuerauszug (this is mostly to increase confidence in the software itself)
 

@@ -232,9 +232,7 @@ class KurslisteTaxValueCalculator(MinimalTaxValueCalculator):
             if security.taxValue:
                 closing_balance = security.taxValue.quantity
 
-            if security.is_pro_memoria:
-                logger.debug("Pro memoria position %s has no Kursliste entry by design.", ident)
-            elif is_rights and closing_balance == 0:
+            if is_rights and closing_balance == 0:
                 logger.debug(
                     "Suppressing missing Kursliste warning for rights issue %s with zero balance.",
                     ident,

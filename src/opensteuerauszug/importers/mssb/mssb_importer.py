@@ -12,8 +12,7 @@ MSSB downloads them in; reports are recognised by their content, not their file 
   does not state its date, so the date is taken from the quote history downloaded with it
   (same zip archive or folder), after checking that the holdings' market values match those
   quotes. Typically one snapshot at the start and one at the end of the tax year.
-* "Unvested Shares As At Date": the remaining vesting schedule, listed as a pro memoria
-  position without tax value.
+* "Unvested Shares As At Date" is recognised but not used: unvested GSUs are not listed.
 
 Prices in the releases and withdrawals reports are in USD when prefixed with "$". Otherwise
 MSSB has converted them to the account's display currency at the exchange rate of the day
@@ -23,13 +22,20 @@ stock statement (release price / USD fair market value) and undone.
 Balances come from the holdings snapshots where available and are carried forwards and
 backwards with the activity. Without any snapshot they are reconstructed by walking the
 activity from zero; when the activity removes more shares than it adds, the smallest opening
-balance that keeps the position non-negative is assumed and a warning is logged.
+balance that keeps the position non-negative is assumed and a critical warning is added.
+
+The exports contain no dividend, withholding tax or interest records. A critical warning on
+the statement asks the taxpayer to verify the dividends taken from the Kursliste.
+
+Data that cannot be interpreted safely raises ParsingError; data that is usable but needs
+the taxpayer's attention adds a critical warning to the statement.
 """
 
 import csv
 import datetime
 import logging
 import os
+import re
 import statistics
 import zipfile
 from collections import defaultdict
@@ -51,12 +57,10 @@ from opensteuerauszug.importers.common import (
     parse_swiss_canton,
     resolve_first_last_name,
 )
+from opensteuerauszug.importers.common.settlement import settlement_date
+from opensteuerauszug.model.critical_warning import CriticalWarning, CriticalWarningCategory
 from opensteuerauszug.model.ech0196 import (
-    Depot,
-    DepotNumber,
     Institution,
-    ListOfSecurities,
-    Security,
     SecurityStock,
     TaxStatement,
 )
@@ -142,12 +146,14 @@ class ReportKind(StrEnum):
     HOLDINGS = "holdings"
     QUOTES = "quote history"
     UNVESTED = "unvested shares"
-    # Duplicates of data in the reports above.
+    # Duplicates of data in the reports above, or not used.
     WIRES = "withdrawal wires"
     NET_SHARES = "releases net shares"
 
 
-IGNORED_KINDS = {ReportKind.WIRES, ReportKind.NET_SHARES}
+IGNORED_KINDS = {ReportKind.WIRES, ReportKind.NET_SHARES, ReportKind.UNVESTED}
+# Reports that must not be provided more than once.
+UNIQUE_KINDS = {ReportKind.RELEASES, ReportKind.WITHDRAWALS, ReportKind.STOCK_STATEMENT}
 
 KNOWN_FILENAMES = {
     RELEASES_REPORT_FILENAME: ReportKind.RELEASES,
@@ -169,7 +175,8 @@ SYMBOL_DESCRIPTION = {
 }
 # GSUs have been granted in Class C shares only since the 2022 split.
 DEFAULT_GSU_SYMBOL = "GOOG"
-UNVESTED_SECURITY_NAME = "GSU Class C, unvested (pro memoria)"
+KNOWN_SECURITY_SYMBOLS = set(SYMBOL_DESCRIPTION)
+IMPORTER_SOURCE = "MssbImporter"
 
 
 # Alphabet's 20:1 split was distributed on 15 July 2022. MSSB's own notice in the
@@ -189,9 +196,8 @@ STOCK_SPLIT_INFO = [
 
 # Relative spread tolerated between exchange rates that should be identical.
 FX_CONSISTENCY_TOLERANCE = Decimal("0.005")
-# GSUs vest monthly; a schedule whose first vest is further out than this after the
-# period end was probably exported as at a later date.
-UNVESTED_MAX_GAP = timedelta(days=62)
+# US number format: optional sign and "$", comma thousands separators, "." decimals.
+_US_NUMBER = re.compile(r"^-?\$?-?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$")
 
 
 class ParsingError(Exception):
@@ -199,7 +205,10 @@ class ParsingError(Exception):
 
 
 def _parse_decimal(value: str, column: str) -> Decimal:
-    cleaned = value.replace(",", "").replace("$", "").strip()
+    stripped = value.strip()
+    if not _US_NUMBER.match(stripped):
+        raise ParsingError(f"Invalid decimal in column '{column}': {value!r}")
+    cleaned = stripped.replace(",", "").replace("$", "")
     try:
         return Decimal(cleaned)
     except InvalidOperation as err:
@@ -213,18 +222,8 @@ def _parse_date(value: str, column: str) -> datetime.date:
         raise ParsingError(f"Invalid date in column '{column}': {value!r}") from err
 
 
-def _looks_like_date(value: Optional[str]) -> bool:
-    if not value:
-        return False
-    try:
-        datetime.datetime.strptime(value.strip(), DATE_FORMAT)
-    except ValueError:
-        return False
-    return True
-
-
 def _is_usd(value: str) -> bool:
-    return value.strip().startswith("$")
+    return value.strip().lstrip("-").startswith("$")
 
 
 def _fund_symbol(fund_name: str) -> str:
@@ -233,7 +232,10 @@ def _fund_symbol(fund_name: str) -> str:
 
 
 def _spread(values: List[Decimal]) -> Decimal:
-    return (max(values) - min(values)) / min(values)
+    lowest = min(values)
+    if lowest <= 0:
+        raise ParsingError(f"Expected positive values, got {lowest}")
+    return (max(values) - lowest) / lowest
 
 
 @dataclass
@@ -255,6 +257,7 @@ class _Release:
     price: Optional[Decimal]
     price_is_usd: bool
     order_id: Optional[str]
+    group: str
 
 
 @dataclass
@@ -267,6 +270,7 @@ class _Withdrawal:
     amount: Decimal
     is_usd: bool
     order_id: Optional[str]
+    group: str
 
 
 @dataclass
@@ -274,7 +278,6 @@ class _Vest:
     date: datetime.date
     quantity: Decimal
     fmv_usd: Decimal
-    award_number: Optional[str]
 
 
 @dataclass
@@ -282,6 +285,7 @@ class _Holding:
     fund_name: str
     quantity: Decimal
     market_value: Decimal
+    currency: str
 
 
 @dataclass
@@ -289,13 +293,6 @@ class _HoldingsGroup:
     label: str
     holdings: List[_Holding] = field(default_factory=list)
     quotes: Dict[str, Tuple[datetime.date, Decimal]] = field(default_factory=dict)
-
-
-@dataclass
-class _UnvestedTranche:
-    vesting_date: datetime.date
-    quantity: Decimal
-    grant_number: Optional[str]
 
 
 def classify_report(name: str, text: str) -> Optional[ReportKind]:
@@ -378,6 +375,12 @@ class MssbImporter:
         period_to: datetime.date,
         account_settings_list: List[MssbAccountSettings],
     ) -> None:
+        if len(account_settings_list) > 1:
+            raise ParsingError(
+                "Only one MSSB account is supported per run, but "
+                f"{len(account_settings_list)} are configured. Run the importer once per account "
+                "with --account."
+            )
         self.period_from = period_from
         self.period_to = period_to
         self.account_settings_list = account_settings_list
@@ -394,49 +397,87 @@ class MssbImporter:
         self.cash_events: List[Tuple[datetime.date, Decimal]] = []
         # Known cash balances at the start of a date, from holdings snapshots.
         self.cash_anchors: List[Tuple[datetime.date, Decimal]] = []
+        # Sale proceeds traded within the period that settle after it (T+1).
+        self.unsettled_proceeds: List[Tuple[datetime.date, Decimal]] = []
+        self.critical_warnings: List[CriticalWarning] = []
 
         # Raw records, resolved into stocks and cash events in _build_statement.
         self._releases: List[_Release] = []
         self._withdrawals: List[_Withdrawal] = []
         self._vests: Dict[str, _Vest] = {}
         self._holdings_groups: Dict[str, _HoldingsGroup] = {}
-        self._unvested: List[_UnvestedTranche] = []
-        self._unvested_label: Optional[str] = None
+        # Where each report came from, to reject duplicates and mixed downloads.
+        self._sources_by_kind: Dict[ReportKind, List[_Source]] = defaultdict(list)
+
+    def _warn(self, message: str, *args: object, identifier: Optional[str] = None) -> None:
+        """Log a warning and add it to the statement as a critical warning."""
+        text = message % args if args else message
+        logger.warning(text)
+        self.critical_warnings.append(
+            CriticalWarning(
+                category=CriticalWarningCategory.OTHER,
+                message=text,
+                source=IMPORTER_SOURCE,
+                identifier=identifier,
+            )
+        )
 
     def import_dir(self, directory: str) -> TaxStatement:
-        paths = sorted(
-            os.path.join(directory, name)
-            for name in os.listdir(directory)
-            if name.lower().endswith((".csv", ".zip"))
-            and os.path.isfile(os.path.join(directory, name))
-        )
+        """Import every CSV report and zip archive in ``directory`` and its sub-folders.
+
+        Each sub-folder (like each zip archive) is a group: a holdings report is dated by
+        the quote history in the same group.
+        """
+        paths = []
+        for root, dirs, files in os.walk(directory):
+            dirs.sort()
+            paths.extend(
+                os.path.join(root, name)
+                for name in sorted(files)
+                if name.lower().endswith((".csv", ".zip"))
+            )
         if not paths:
-            logger.warning("No MSSB reports (CSV or zip) found in %s.", directory)
+            raise ParsingError(f"No MSSB reports (CSV or zip) found in {directory}.")
         return self.import_files(*paths)
 
     def import_files(self, *files: str) -> TaxStatement:
         """Import CSV reports and zip archives of CSV reports."""
-        found = set()
         for source in collect_sources(list(files)):
             kind = classify_report(source.name, source.text)
             if kind is None:
                 logger.warning("Ignoring unrecognised MSSB file: %s", source.label)
                 continue
             if kind in IGNORED_KINDS:
-                logger.debug("Skipping %s (%s, duplicated elsewhere).", source.label, kind)
+                logger.info(
+                    "Skipping %s (%s: duplicated elsewhere or not used).", source.label, kind
+                )
                 continue
+            if kind in UNIQUE_KINDS and self._sources_by_kind[kind]:
+                raise ParsingError(
+                    f"Found the MSSB {kind} report twice: "
+                    f"{self._sources_by_kind[kind][0].label} and {source.label}. "
+                    "Keep only one copy (for example either the zip archive or the extracted "
+                    "files) so that no activity is counted twice."
+                )
             logger.info("Reading %s as %s.", source.label, kind)
-            found.add(kind)
+            self._sources_by_kind[kind].append(source)
             self._process_source(kind, source)
 
-        for kind, advice in (
+        found = set(self._sources_by_kind)
+        if not found & {ReportKind.RELEASES, ReportKind.WITHDRAWALS, ReportKind.STOCK_STATEMENT}:
+            raise ParsingError(
+                "No MSSB activity found: provide at least the releases and withdrawals reports."
+            )
+        for kind, consequence in (
             (ReportKind.RELEASES, "vests are taken from the stock statement only"),
-            (ReportKind.WITHDRAWALS, "sales and transfers out are unknown"),
-            (ReportKind.HOLDINGS, "balances are reconstructed from the activity alone"),
-            (ReportKind.UNVESTED, "no pro memoria entry for unvested shares"),
+            (ReportKind.WITHDRAWALS, "sales and transfers out are not included"),
         ):
             if kind not in found:
-                logger.info("No MSSB %s report provided: %s.", kind, advice)
+                self._warn("No MSSB %s report was provided: %s.", kind, consequence)
+        if ReportKind.HOLDINGS not in found:
+            logger.info(
+                "No MSSB holdings report provided: balances are reconstructed from the activity."
+            )
         return self._build_statement()
 
     # ------------------------------------------------------------------
@@ -446,44 +487,56 @@ class MssbImporter:
     def _process_source(self, kind: ReportKind, source: _Source) -> None:
         if kind == ReportKind.RELEASES:
             rows = self._read_rows(source, COLUMNS_RELEASE)
-            self._process_rows(source, rows, self._process_release_row)
+            self._process_rows(
+                source,
+                rows,
+                lambda row: self._process_release_row(source, row),
+                ReleaseColumn.VEST_DATE,
+            )
         elif kind == ReportKind.WITHDRAWALS:
             rows = self._read_rows(source, COLUMNS_WITHDRAWAL)
-            self._process_rows(source, rows, self._process_withdrawal_row)
+            self._process_rows(
+                source,
+                rows,
+                lambda row: self._process_withdrawal_row(source, row),
+                WithdrawalColumn.EXECUTION_DATE,
+            )
         elif kind == ReportKind.STOCK_STATEMENT:
             rows = self._read_rows(
                 source, COLUMNS_STOCK_STATEMENT, header_marker=StockStatementColumn.PURNO
             )
-            # The table is followed by free-text footnotes; vest rows are the ones with a date.
-            rows = [r for r in rows if _looks_like_date(r.get(StockStatementColumn.VESTING_DATE))]
-            self._process_rows(source, rows, self._process_stock_statement_row)
+            self._process_rows(
+                source, rows, self._process_stock_statement_row, StockStatementColumn.VESTING_DATE
+            )
         elif kind == ReportKind.HOLDINGS:
             rows = self._read_rows(source, COLUMNS_HOLDINGS, header_marker=HoldingsColumn.FUND_NAME)
-            rows = [
-                r
-                for r in rows
-                if r.get(HoldingsColumn.FUND_NAME) and r.get(HoldingsColumn.NUMBER_OF_SHARES)
-            ]
             group = self._holdings_group(source)
             if group.holdings:
                 raise ParsingError(
                     f"{source.label}: more than one holdings report in the same folder or "
                     "archive; keep each one in the zip archive it was downloaded in."
                 )
-            self._process_rows(source, rows, lambda row: self._process_holdings_row(group, row))
+            self._process_rows(
+                source,
+                rows,
+                lambda row: self._process_holdings_row(group, row),
+                HoldingsColumn.NUMBER_OF_SHARES,
+            )
+            if not group.holdings:
+                raise ParsingError(f"{source.label}: the holdings report has no holdings.")
         elif kind == ReportKind.QUOTES:
             rows = self._read_rows(source, COLUMNS_QUOTE, header_marker=QuoteColumn.FUND)
             group = self._holdings_group(source)
-            self._process_rows(source, rows, lambda row: self._process_quote_row(group, row))
-        elif kind == ReportKind.UNVESTED:
-            rows = self._read_rows(
-                source, COLUMNS_UNVESTED, header_marker=UnvestedColumn.GRANT_NUMBER
+            if group.quotes:
+                raise ParsingError(
+                    f"{source.label}: more than one quote history in the same folder or archive."
+                )
+            self._process_rows(
+                source,
+                rows,
+                lambda row: self._process_quote_row(group, row),
+                QuoteColumn.QUOTE_DATE,
             )
-            rows = [r for r in rows if _looks_like_date(r.get(UnvestedColumn.VESTING_DATE))]
-            if self._unvested:
-                raise ParsingError(f"{source.label}: more than one unvested shares report.")
-            self._unvested_label = source.label
-            self._process_rows(source, rows, self._process_unvested_row)
 
     def _holdings_group(self, source: _Source) -> _HoldingsGroup:
         if source.group not in self._holdings_groups:
@@ -517,28 +570,60 @@ class MssbImporter:
         return list(reader)
 
     def _process_rows(
-        self, source: _Source, rows: List[dict], handler: Callable[[dict], None]
+        self,
+        source: _Source,
+        rows: List[dict],
+        handler: Callable[[dict], None],
+        value_column: str,
     ) -> None:
         for idx, row in enumerate(rows):
-            if self._is_blank(row) or self._is_notice(row):
+            if self._is_blank(row):
+                continue
+            if self._is_free_text(row, value_column):
+                logger.debug("%s row %d: skipping note: %s", source.label, idx, self._text(row))
                 continue
             try:
                 handler(row)
             except ParsingError as e:
                 raise ParsingError(f"{source.label} row {idx}: {e}") from e
 
-    # MSSB appends a free-text notice about the Alphabet stock split to the withdrawals
-    # report. The csv module splits it on its commas, so it shows up as a bogus row.
     @staticmethod
-    def _is_notice(row: dict) -> bool:
-        row_str = ",".join([c for c in row.values() if isinstance(c, str) and c])
-        return row_str.startswith("Please note")
+    def _text(row: dict) -> str:
+        values: List[str] = []
+        for v in row.values():
+            if isinstance(v, list):
+                values.extend(v)
+            elif isinstance(v, str):
+                values.append(v)
+        return ",".join(v for v in values if v)
+
+    # MSSB appends free-text notes to several reports (the stock split notice, footnotes,
+    # definitions). The csv module splits them on their commas, so they show up as rows
+    # whose first cell is a sentence. A row is only taken as a note when, in addition, its
+    # ``value_column`` (a date or number in every data row) holds no date or number, so a
+    # data row with a malformed value is still reported as an error.
+    @staticmethod
+    def _is_free_text(row: dict, value_column: str) -> bool:
+        first = next(iter(row.values()), None)
+        if not isinstance(first, str) or " " not in first.strip():
+            return False
+        value = row.get(value_column)
+        if not isinstance(value, str) or not value.strip():
+            return True
+        value = value.strip()
+        if _US_NUMBER.match(value):
+            return False
+        try:
+            datetime.datetime.strptime(value, DATE_FORMAT)
+        except ValueError:
+            return True
+        return False
 
     @staticmethod
     def _is_blank(row: dict) -> bool:
         return not any(isinstance(v, str) and v.strip() for v in row.values())
 
-    def _process_release_row(self, row: dict) -> None:
+    def _process_release_row(self, source: _Source, row: dict) -> None:
         plan = row[ReleaseColumn.PLAN]
 
         if row[ReleaseColumn.TYPE] != "Release":
@@ -559,20 +644,32 @@ class MssbImporter:
         quantity = _parse_decimal(
             row[ReleaseColumn.NET_SHARE_PROCEEDS], ReleaseColumn.NET_SHARE_PROCEEDS
         )
+        vested = _parse_decimal(row[ReleaseColumn.QUANTITY], ReleaseColumn.QUANTITY)
         price = _parse_decimal(price_raw, ReleaseColumn.PRICE)
         net_cash = _parse_decimal(
             row[ReleaseColumn.NET_CASH_PROCEEDS] or "0", ReleaseColumn.NET_CASH_PROCEEDS
         )
         date = _parse_date(row[ReleaseColumn.VEST_DATE], ReleaseColumn.VEST_DATE)
 
+        if quantity <= 0:
+            raise ParsingError(f"Expected positive Net Share Proceeds, got {quantity}")
+        if vested < quantity:
+            raise ParsingError(
+                f"Net Share Proceeds ({quantity}) exceed the vested Quantity ({vested})"
+            )
+        if price <= 0:
+            raise ParsingError(f"Expected a positive price, got {price}")
         if net_cash != Decimal(0):
             raise ParsingError(
                 f"Non-zero Net Cash Proceeds: {row[ReleaseColumn.NET_CASH_PROCEEDS]}"
             )
 
         if status == "Staged":
-            logger.warning(
-                "Release on %s (%s) is still 'Staged'; counting it as delivered.", date, plan
+            self._warn(
+                "MSSB release on %s (%s) is still 'Staged'; it is counted as delivered. Check "
+                "that the shares arrived.",
+                date,
+                plan,
             )
 
         self._releases.append(
@@ -583,10 +680,11 @@ class MssbImporter:
                 price=price,
                 price_is_usd=_is_usd(price_raw),
                 order_id=row[ReleaseColumn.ORDER_NUMBER] or None,
+                group=source.group,
             )
         )
 
-    def _process_withdrawal_row(self, row: dict) -> None:
+    def _process_withdrawal_row(self, source: _Source, row: dict) -> None:
         plan = row[WithdrawalColumn.PLAN]
         # An empty type is a share transfer to another broker.
         tx_type = row[WithdrawalColumn.TYPE]
@@ -607,9 +705,11 @@ class MssbImporter:
         # Withdrawals are reported with a negative quantity, which is also the eCH sign
         # convention for a disposal.
         quantity = _parse_decimal(row[WithdrawalColumn.QUANTITY], WithdrawalColumn.QUANTITY)
-        if quantity > 0:
+        if quantity >= 0:
             raise ParsingError(f"Expected a negative withdrawal quantity, got {quantity}")
         price = _parse_decimal(price_raw, WithdrawalColumn.PRICE)
+        if price < 0:
+            raise ParsingError(f"Expected a non-negative price, got {price}")
         net_amount_raw = row[WithdrawalColumn.NET_AMOUNT].strip()
         if plan == CASH_PLAN and not net_amount_raw:
             raise ParsingError("Net Amount is empty for Cash plan")
@@ -618,28 +718,63 @@ class MssbImporter:
             if net_amount_raw
             else Decimal(0)
         )
+        if amount < 0:
+            raise ParsingError(f"Expected a non-negative Net Amount, got {amount}")
+        net_shares_raw = row[WithdrawalColumn.NET_SHARE_PROCEEDS].strip()
+        if net_shares_raw and _parse_decimal(
+            net_shares_raw, WithdrawalColumn.NET_SHARE_PROCEEDS
+        ) != Decimal(0):
+            raise ParsingError(f"Unexpected Net Share Proceeds on a withdrawal: {net_shares_raw}")
         date = _parse_date(row[WithdrawalColumn.EXECUTION_DATE], WithdrawalColumn.EXECUTION_DATE)
+
+        is_transfer = False
+        if plan != CASH_PLAN:
+            if tx_type == "":
+                if amount != Decimal(0):
+                    raise ParsingError(
+                        f"Withdrawal without a type has a Net Amount ({net_amount_raw}); "
+                        "expected a share transfer without proceeds."
+                    )
+                is_transfer = True
+            elif amount == Decimal(0):
+                self._warn(
+                    "MSSB sale of %s %s on %s has no Net Amount; it is treated as a transfer "
+                    "out without proceeds.",
+                    -quantity,
+                    plan,
+                    date,
+                )
+                is_transfer = True
 
         self._withdrawals.append(
             _Withdrawal(
                 date=date,
                 plan=plan,
-                is_transfer=plan != CASH_PLAN and (tx_type == "" or amount == Decimal(0)),
+                is_transfer=is_transfer,
                 quantity=quantity,
                 price=price,
                 amount=amount,
                 is_usd=_is_usd(price_raw),
                 order_id=row[WithdrawalColumn.ORDER_NUMBER] or None,
+                group=source.group,
             )
         )
 
     def _process_stock_statement_row(self, row: dict) -> None:
         currency = row[StockStatementColumn.CURRENCY].strip()
-        if currency and currency != "USD":
-            raise ParsingError(f"Unexpected currency: {currency}")
+        if currency != "USD":
+            raise ParsingError(f"Unexpected currency: {currency!r}")
         purno = row[StockStatementColumn.PURNO].strip()
         if not purno:
             raise ParsingError("Purno is empty")
+        if purno in self._vests:
+            raise ParsingError(f"Purno {purno} appears twice")
+        fmv_raw = row[StockStatementColumn.FAIR_MARKET_VALUE]
+        if not _is_usd(fmv_raw):
+            raise ParsingError(f"Expected a USD fair market value, got {fmv_raw!r}")
+        fmv = _parse_decimal(fmv_raw, StockStatementColumn.FAIR_MARKET_VALUE)
+        if fmv <= 0:
+            raise ParsingError(f"Expected a positive fair market value, got {fmv}")
         self._vests[purno] = _Vest(
             date=_parse_date(
                 row[StockStatementColumn.VESTING_DATE], StockStatementColumn.VESTING_DATE
@@ -647,22 +782,30 @@ class MssbImporter:
             quantity=_parse_decimal(
                 row[StockStatementColumn.SHARES_DEPOSITED], StockStatementColumn.SHARES_DEPOSITED
             ),
-            fmv_usd=_parse_decimal(
-                row[StockStatementColumn.FAIR_MARKET_VALUE], StockStatementColumn.FAIR_MARKET_VALUE
-            ),
-            award_number=row[StockStatementColumn.AWARD_NUMBER].strip() or None,
+            fmv_usd=fmv,
         )
 
     def _process_holdings_row(self, group: _HoldingsGroup, row: dict) -> None:
+        fund_name = row[HoldingsColumn.FUND_NAME].strip()
+        if not fund_name.startswith(CASH_FUND_PREFIX) and (
+            _fund_symbol(fund_name) not in KNOWN_SECURITY_SYMBOLS
+        ):
+            raise ParsingError(f"Unknown fund: {fund_name!r}")
+        if any(h.fund_name == fund_name for h in group.holdings):
+            raise ParsingError(f"Fund {fund_name!r} is listed twice")
+        quantity = _parse_decimal(
+            row[HoldingsColumn.NUMBER_OF_SHARES], HoldingsColumn.NUMBER_OF_SHARES
+        )
+        market_value = _parse_decimal(row[HoldingsColumn.MARKET_VALUE], HoldingsColumn.MARKET_VALUE)
+        if quantity < 0 or market_value < 0:
+            raise ParsingError(f"Negative holding for {fund_name!r}")
         group.holdings.append(
             _Holding(
-                fund_name=row[HoldingsColumn.FUND_NAME].strip(),
-                quantity=_parse_decimal(
-                    row[HoldingsColumn.NUMBER_OF_SHARES], HoldingsColumn.NUMBER_OF_SHARES
-                ),
-                market_value=_parse_decimal(
-                    row[HoldingsColumn.MARKET_VALUE], HoldingsColumn.MARKET_VALUE
-                ),
+                fund_name=fund_name,
+                quantity=quantity,
+                market_value=market_value,
+                # The unnamed column after Market Value holds its currency.
+                currency=(row.get("") or "").strip(),
             )
         )
 
@@ -670,25 +813,12 @@ class MssbImporter:
         price_raw = row[QuoteColumn.PRICE]
         if not _is_usd(price_raw):
             raise ParsingError(f"Expected a USD price, got {price_raw!r}")
-        group.quotes[row[QuoteColumn.FUND].strip()] = (
+        fund = row[QuoteColumn.FUND].strip()
+        if fund in group.quotes:
+            raise ParsingError(f"Fund {fund!r} is quoted twice")
+        group.quotes[fund] = (
             _parse_date(row[QuoteColumn.QUOTE_DATE], QuoteColumn.QUOTE_DATE),
             _parse_decimal(price_raw, QuoteColumn.PRICE),
-        )
-
-    def _process_unvested_row(self, row: dict) -> None:
-        award = row[UnvestedColumn.AWARD_NAME].strip()
-        if award != "GSU":
-            raise ParsingError(f"Unknown award type: {award}")
-        self._unvested.append(
-            _UnvestedTranche(
-                vesting_date=_parse_date(
-                    row[UnvestedColumn.VESTING_DATE], UnvestedColumn.VESTING_DATE
-                ),
-                quantity=_parse_decimal(
-                    row[UnvestedColumn.TOTAL_QUANTITY], UnvestedColumn.TOTAL_QUANTITY
-                ),
-                grant_number=row[UnvestedColumn.GRANT_NUMBER].strip() or None,
-            )
         )
 
     # ------------------------------------------------------------------
@@ -714,32 +844,32 @@ class MssbImporter:
         if not ratios:
             return None
         if _spread(ratios) > FX_CONSISTENCY_TOLERANCE:
-            logger.warning(
-                "Release prices are not a constant multiple of the stock statement's USD fair "
-                "market values; cannot recover the report exchange rate."
+            self._warn(
+                "MSSB release prices are not a constant multiple of the stock statement's USD "
+                "fair market values; the report exchange rate cannot be recovered."
             )
             return None
         return Decimal(statistics.median(ratios))
 
-    def _resolve_releases(self) -> None:
+    def _resolve_releases(self, fx: Optional[Decimal]) -> None:
         release_orders = set()
         for release in self._releases:
             vest = self._vests.get(release.order_id) if release.order_id else None
+            price: Optional[Decimal]
             if vest is not None:
                 release_orders.add(release.order_id)
                 if vest.quantity != release.quantity or vest.date != release.date:
-                    logger.warning(
-                        "Release %s: releases report says %s shares on %s, stock statement "
-                        "says %s on %s. Using the releases report.",
-                        release.order_id,
-                        release.quantity,
-                        release.date,
-                        vest.quantity,
-                        vest.date,
+                    raise ParsingError(
+                        f"Release {release.order_id}: the releases report says "
+                        f"{release.quantity} shares on {release.date}, the stock statement says "
+                        f"{vest.quantity} on {vest.date}. Check that both reports are complete "
+                        "and from the same account."
                     )
-                price: Optional[Decimal] = vest.fmv_usd
+                price = vest.fmv_usd
             elif release.price_is_usd:
                 price = release.price
+            elif fx is not None and release.price is not None:
+                price = release.price / fx
             else:
                 price = None
 
@@ -758,12 +888,13 @@ class MssbImporter:
             )
 
         if any(
-            r.price is not None and not r.price_is_usd and r.order_id not in self._vests
+            not r.price_is_usd and r.order_id not in self._vests and fx is None
             for r in self._releases
         ):
-            logger.warning(
-                "Some release prices are in your MSSB display currency, not USD, and have no "
-                "matching stock statement row. Their unit prices are left empty."
+            self._warn(
+                "Some MSSB release prices are in your display currency, not USD, and the "
+                "exchange rate cannot be recovered. Their unit prices are left empty; add the "
+                "stock statement export to fill them."
             )
 
         # The stock statement alone is enough to know what vested.
@@ -771,9 +902,9 @@ class MssbImporter:
             if purno in release_orders:
                 continue
             if self._releases:
-                logger.warning(
-                    "Vest %s on %s is in the stock statement but not in the releases report; "
-                    "adding it as %s.",
+                self._warn(
+                    "MSSB vest %s on %s is in the stock statement but not in the releases "
+                    "report; adding it as %s.",
                     purno,
                     vest.date,
                     DEFAULT_GSU_SYMBOL,
@@ -793,6 +924,7 @@ class MssbImporter:
             )
 
     def _resolve_withdrawals(self, fx: Optional[Decimal]) -> None:
+        release_groups = {r.group for r in self._releases if not r.price_is_usd}
         for w in self._withdrawals:
             price, amount = w.price, w.amount
             if not w.is_usd:
@@ -805,10 +937,28 @@ class MssbImporter:
                         )
                     price = None
                 else:
+                    if w.group not in release_groups:
+                        raise ParsingError(
+                            f"Withdrawal on {w.date} is not in USD, and the exchange rate was "
+                            "recovered from a releases report of another download. Download "
+                            "the releases and withdrawals reports together."
+                        )
                     price, amount = price / fx, amount / fx
 
             if w.plan == CASH_PLAN:
-                self.cash_events.append((w.date, -amount))
+                # Cash is quoted per USD, so the quantity is the USD amount that left the
+                # account, whatever the display currency. A smaller Net Amount means fees.
+                withdrawn = -w.quantity
+                if abs(withdrawn - amount) > Decimal("0.01"):
+                    self._warn(
+                        "MSSB cash withdrawal on %s: %s %s left the account, but the net amount "
+                        "is %s; the difference is probably a fee.",
+                        w.date,
+                        withdrawn,
+                        self.base_currency,
+                        amount.quantize(Decimal("0.01")),
+                    )
+                self.cash_events.append((w.date, w.quantity))
                 continue
 
             quantity = w.quantity
@@ -820,8 +970,11 @@ class MssbImporter:
                         price /= split.factor
 
             if not w.is_transfer:
-                # Sale proceeds are credited to the MSSB cash account.
-                self.cash_events.append((w.date, amount))
+                # Sale proceeds reach the MSSB cash account on the settlement date (T+1).
+                settle = settlement_date(w.date)
+                self.cash_events.append((settle, amount))
+                if w.date <= self.period_to < settle:
+                    self.unsettled_proceeds.append((w.date, amount))
 
             self._add_stock(
                 symbol,
@@ -837,41 +990,59 @@ class MssbImporter:
                 ),
             )
 
-    def _holdings_date(self, group: _HoldingsGroup) -> Optional[datetime.date]:
+    def _holdings_date(self, group: _HoldingsGroup) -> datetime.date:
         """Date of a holdings snapshot, taken from the quote history downloaded with it."""
         if not group.quotes:
-            logger.warning(
-                "%s has no date of its own and no quote history was downloaded with it, so it "
-                "is ignored. Keep each holdings report in its zip archive, together with its "
-                "'%s'.",
-                group.label,
-                QUOTE_HISTORY_FILENAME,
+            raise ParsingError(
+                f"{group.label} has no date of its own and no quote history was downloaded "
+                "with it. Keep each holdings report in its zip archive (or sub-folder), "
+                f"together with its '{QUOTE_HISTORY_FILENAME}'."
             )
-            return None
 
         dates = {date for date, _ in group.quotes.values()}
         if len(dates) != 1:
-            logger.warning("Quote history for %s spans several dates; ignoring it.", group.label)
-            return None
+            raise ParsingError(
+                f"The quote history for {group.label} spans several dates "
+                f"({', '.join(str(d) for d in sorted(dates))}), so it cannot date the holdings."
+            )
+        as_of = dates.pop()
 
         # Market value / (shares * USD quote) is the display-currency rate and must be the
-        # same for every fund if the holdings and quotes are for the same day.
+        # same for every fund (and 1 for USD) if the holdings and quotes are for the same day.
         rates = []
+        rate_currencies = []
         for holding in group.holdings:
             quote = group.quotes.get(holding.fund_name)
             if quote is None:
-                logger.warning("No quote for '%s'; ignoring %s.", holding.fund_name, group.label)
-                return None
+                raise ParsingError(
+                    f"{group.label}: no quote for '{holding.fund_name}' in its quote history."
+                )
             if holding.quantity and quote[1]:
-                rates.append(holding.market_value / (holding.quantity * quote[1]))
-        if rates and _spread(rates) > FX_CONSISTENCY_TOLERANCE:
-            logger.warning(
-                "Market values in %s do not match its quote history, so the two are probably "
-                "for different dates; ignoring it.",
-                group.label,
+                rate = holding.market_value / (holding.quantity * quote[1])
+                if rate <= 0:
+                    raise ParsingError(
+                        f"{group.label}: market value of '{holding.fund_name}' is zero."
+                    )
+                if holding.currency == "USD" and abs(rate - 1) > FX_CONSISTENCY_TOLERANCE:
+                    raise ParsingError(
+                        f"{group.label}: market value of '{holding.fund_name}' does not match "
+                        "its quote, so the holdings and quotes are for different dates."
+                    )
+                rates.append(rate)
+                rate_currencies.append(holding.currency)
+        if len(rates) > 1 and _spread(rates) > FX_CONSISTENCY_TOLERANCE:
+            raise ParsingError(
+                f"Market values in {group.label} do not match its quote history, so the two "
+                "are probably for different dates."
             )
-            return None
-        return dates.pop()
+        if len(rates) == 1 and rate_currencies[0] != "USD":
+            self._warn(
+                "The MSSB holdings in %s have a single priced fund, so it cannot be verified "
+                "that they are as at %s, the date of the quote history next to them.",
+                group.label,
+                as_of,
+            )
+        return as_of
 
     def _snapshot_reference_date(self, as_of: datetime.date) -> datetime.date:
         """Holdings are as at the end of ``as_of``, i.e. the start of the next day.
@@ -881,37 +1052,49 @@ class MssbImporter:
         snapshot "as at 1 January" then becomes the opening balance).
         """
         next_day = as_of + timedelta(days=1)
-        activity_on_day = any(r.date == as_of for r in self._releases) or any(
-            w.date == as_of for w in self._withdrawals
+        activity_on_day = (
+            any(r.date == as_of for r in self._releases)
+            or any(w.date == as_of for w in self._withdrawals)
+            or any(v.date == as_of for v in self._vests.values())
         )
         if not activity_on_day and as_of == self.period_from:
             return as_of
         return next_day
 
     def _resolve_holdings(self) -> None:
-        symbols_seen: set = set()
-        snapshot_dates = []
+        snapshot_dates: Dict[datetime.date, str] = {}
         for group in self._holdings_groups.values():
             if not group.holdings:
+                if group.quotes:
+                    logger.warning("Ignoring %s: no holdings report next to it.", group.label)
                 continue
             as_of = self._holdings_date(group)
-            if as_of is None:
-                continue
+            for split in STOCK_SPLIT_INFO:
+                if as_of <= split.last_pre_split_date:
+                    raise ParsingError(
+                        f"{group.label} is as at {as_of}, before the {split.symbol} stock split "
+                        "on 15 July 2022; holdings before the split are not supported."
+                    )
             reference_date = self._snapshot_reference_date(as_of)
-            snapshot_dates.append(reference_date)
+            if reference_date in snapshot_dates:
+                raise ParsingError(
+                    f"{group.label} and {snapshot_dates[reference_date]} are both holdings as "
+                    f"at {as_of}; keep only one."
+                )
+            snapshot_dates[reference_date] = group.label
             logger.info("Using MSSB holdings as at %s (%s).", as_of, group.label)
 
+            cash_seen = False
             for holding in group.holdings:
                 if holding.fund_name.startswith(CASH_FUND_PREFIX):
                     currency = holding.fund_name[len(CASH_FUND_PREFIX) :].strip()
                     if currency != self.base_currency:
                         raise ParsingError(f"Unsupported cash currency in holdings: {currency}")
                     self.cash_anchors.append((reference_date, holding.quantity))
+                    cash_seen = True
                     continue
-                symbol = _fund_symbol(holding.fund_name)
-                symbols_seen.add(symbol)
                 self._add_stock(
-                    symbol,
+                    _fund_symbol(holding.fund_name),
                     SecurityStock(
                         referenceDate=reference_date,
                         mutation=False,
@@ -921,6 +1104,9 @@ class MssbImporter:
                         name="Holdings Report",
                     ),
                 )
+            if not cash_seen:
+                # No cash line in a snapshot means no cash at that date.
+                self.cash_anchors.append((reference_date, Decimal(0)))
 
         # A position missing from a snapshot was zero at that date.
         for sec_pos, data in self.processed_security_positions.items():
@@ -957,25 +1143,85 @@ class MssbImporter:
             return None
         opening = _infer_opening_balance(self.cash_events)
         if opening:
-            logger.warning(
+            self._warn(
                 "MSSB cash account: withdrawals exceed the proceeds in the export; assuming an "
-                "opening cash balance of %s %s.",
+                "opening cash balance of %s %s. Add the vested share holdings reports to use "
+                "the real figure.",
                 opening,
                 self.base_currency,
             )
         return opening + sum((a for d, a in self.cash_events if d < target), Decimal(0))
 
+    def _reconcile_unsettled_with_snapshot(
+        self, period_end_plus_one: datetime.date, unsettled: Decimal
+    ) -> None:
+        """Make a year-end cash snapshot exclude sale proceeds that settle after the period.
+
+        Whether MSSB's holdings report already counts proceeds of a trade that has not
+        settled yet is not documented. When an earlier snapshot is available, the year-end
+        cash is compared with the settled cash computed from it: if it matches settled
+        cash plus the unsettled proceeds, the proceeds are taken out of the snapshot so
+        they are not counted twice.
+        """
+        end = [a for a in self.cash_anchors if a[0] == period_end_plus_one]
+        if not end:
+            return
+        snapshot = end[0][1]
+        earlier = [a for a in self.cash_anchors if a[0] < period_end_plus_one]
+        if not earlier:
+            self._warn(
+                "MSSB sale proceeds of %s %s settle after %s and are reported as unsettled. "
+                "Check that the year-end cash in the holdings report (%s %s) does not already "
+                "include them.",
+                unsettled,
+                self.base_currency,
+                self.period_to,
+                snapshot,
+                self.base_currency,
+            )
+            return
+        anchor_date, anchor = max(earlier)
+        settled = anchor + sum(
+            (a for d, a in self.cash_events if anchor_date <= d < period_end_plus_one),
+            Decimal(0),
+        )
+        if abs(snapshot - settled - unsettled) < abs(snapshot - settled):
+            logger.info(
+                "The MSSB year-end cash (%s %s) includes %s %s of unsettled sale proceeds; "
+                "they are reported separately.",
+                snapshot,
+                self.base_currency,
+                unsettled,
+                self.base_currency,
+            )
+            self.cash_anchors = [
+                (d, v - unsettled if d == period_end_plus_one else v) for d, v in self.cash_anchors
+            ]
+
     def _check_cash_anchors(self) -> None:
         anchors = sorted(self.cash_anchors)
         for (d1, v1), (d2, v2) in zip(anchors, anchors[1:]):
             expected = v1 + sum((a for d, a in self.cash_events if d1 <= d < d2), Decimal(0))
-            if expected != v2:
-                # Dividends are credited to cash but are not in any MSSB export.
+            difference = v2 - expected
+            if difference > 0:
+                # Dividends and interest are credited to cash but are not in any MSSB export.
                 logger.info(
-                    "MSSB cash grew by %s %s between the holdings snapshots without matching "
-                    "sales or withdrawals (most likely dividends).",
-                    v2 - expected,
+                    "MSSB cash grew by %s %s between the holdings snapshots on %s and %s "
+                    "without matching sales (most likely dividends or interest).",
+                    difference,
                     self.base_currency,
+                    d1,
+                    d2,
+                )
+            elif difference < 0:
+                self._warn(
+                    "MSSB cash shrank by %s %s between the holdings snapshots on %s and %s "
+                    "without matching withdrawals; some activity or fees are missing from the "
+                    "exports.",
+                    -difference,
+                    self.base_currency,
+                    d1,
+                    d2,
                 )
 
     def _build_statement(self) -> TaxStatement:
@@ -1005,9 +1251,23 @@ class MssbImporter:
             if client_obj is not None:
                 statement.client = [client_obj]
 
-        self._resolve_releases()
-        self._resolve_withdrawals(self._report_fx_rate())
+        fx = self._report_fx_rate()
+        self._resolve_releases(fx)
+        self._resolve_withdrawals(fx)
         self._resolve_holdings()
+
+        for split in STOCK_SPLIT_INFO:
+            if self.period_from <= split.last_pre_split_date < self.period_to and any(
+                p.symbol == split.symbol for p in self.processed_security_positions
+            ):
+                self._warn(
+                    "The %s 20:1 stock split of July 2022 falls in this period. All %s "
+                    "quantities are shown in post-split shares and the split itself is not "
+                    "listed as a mutation; check the result carefully.",
+                    split.symbol,
+                    split.symbol,
+                    identifier=split.symbol,
+                )
 
         def _hints_for(sec_pos: SecurityPosition) -> PositionHints:
             return PositionHints(security_category="SHARE", country="US")
@@ -1015,7 +1275,7 @@ class MssbImporter:
         for sec_pos, data in self.processed_security_positions.items():
             stocks = _aggregate_mssb_stocks(data["stocks"])
             if any(not s.mutation for s in stocks):
-                _check_against_balances(sec_pos.symbol, stocks)
+                _check_against_balances(sec_pos.symbol, stocks, self._warn)
             else:
                 stocks = self._with_inferred_opening(sec_pos, stocks)
             data["stocks"] = stocks
@@ -1027,22 +1287,28 @@ class MssbImporter:
             hints_for=_hints_for,
             strict_consistency=False,
             assume_zero_if_no_balances=True,
-            skip_opening_balance_when_zero=False,
+            # Same-day mutations are already merged by _aggregate_mssb_stocks, which keeps
+            # sales and transfers apart.
+            aggregate_same_day_mutations=False,
         )
-        self._add_unvested(statement)
 
         period_end_plus_one = self.period_to + timedelta(days=1)
+        unsettled = sum((a for _, a in self.unsettled_proceeds), Decimal(0))
+        if unsettled:
+            self._reconcile_unsettled_with_snapshot(period_end_plus_one, unsettled)
         self._check_cash_anchors()
         cash_balance = self._cash_balance_at(period_end_plus_one)
         if cash_balance is not None:
             if cash_balance < 0:
-                logger.warning(
-                    "MSSB cash account ends the period at %s %s.", cash_balance, self.base_currency
+                self._warn(
+                    "MSSB cash account ends the period at %s %s; some activity is missing.",
+                    cash_balance,
+                    self.base_currency,
                 )
             if self.cash_anchors and not any(
                 d == period_end_plus_one for d, _ in self.cash_anchors
             ):
-                logger.warning(
+                self._warn(
                     "MSSB cash at the period end is carried from a holdings snapshot on another "
                     "date. Dividends credited to cash are not in the MSSB exports; add the "
                     "vested share holdings report for the end of the tax year to get it exact."
@@ -1056,8 +1322,38 @@ class MssbImporter:
                 name=f"{self._depot_id} {self.base_currency}",
                 number=f"{self._depot_id}-{self.base_currency}",
             )
-            augment_list_of_bank_accounts(statement, [cash_entry])
+            cash_entries = [cash_entry]
+            if unsettled:
+                dates = ", ".join(str(d) for d, _ in self.unsettled_proceeds)
+                logger.info(
+                    "MSSB sale proceeds of %s %s (sold on %s) settle after %s; reported as a "
+                    "separate unsettled account.",
+                    unsettled,
+                    self.base_currency,
+                    dates,
+                    self.period_to,
+                )
+                cash_entries.append(
+                    CashAccountEntry(
+                        account_id=f"{self._depot_id} (Unsettled)",
+                        currency=self.base_currency,
+                        closing_balance=unsettled,
+                        payments=[],
+                        country="US",
+                        name=f"{self._depot_id} {self.base_currency} (Unsettled)",
+                        number=f"{self._depot_id}-{self.base_currency}-UNSETTLED",
+                    )
+                )
+            augment_list_of_bank_accounts(statement, cash_entries)
 
+        if self.processed_security_positions:
+            self._warn(
+                "The MSSB exports contain no dividend, withholding tax or interest records. "
+                "Dividends are taken from the Kursliste, assuming 15% US withholding (a valid "
+                "W-8BEN). Check them against your Form 1042-S and MSSB statements."
+            )
+
+        statement.critical_warnings.extend(self.critical_warnings)
         return statement
 
     def _with_inferred_opening(
@@ -1067,13 +1363,14 @@ class MssbImporter:
         if not opening:
             return stocks
         first_date = min(stocks[0].referenceDate, self.period_from)
-        logger.warning(
-            "%s: the export removes more shares than it adds, so it does not start from an "
-            "empty account. Assuming %s shares held before %s. Add the MSSB vested share "
+        self._warn(
+            "%s: the MSSB export removes more shares than it adds, so it does not start from "
+            "an empty account. Assuming %s shares held before %s. Add the MSSB vested share "
             "holdings report to use the real figure.",
             sec_pos.symbol,
             opening,
             first_date,
+            identifier=sec_pos.symbol,
         )
         return [
             SecurityStock(
@@ -1085,69 +1382,18 @@ class MssbImporter:
             )
         ] + stocks
 
-    def _add_unvested(self, statement: TaxStatement) -> None:
-        """List unvested GSUs at the period end as a pro memoria position without tax value.
 
-        The report does not state its "as at" date. Every tranche vests after that date, so
-        the report is taken to be as at the period end when its first vest falls shortly
-        after it.
-        """
-        if not self._unvested:
-            return
-        first_vest = min(t.vesting_date for t in self._unvested)
-        if first_vest <= self.period_to:
-            logger.warning(
-                "%s lists a vest on %s, within the tax period, so it is not as at %s; "
-                "skipping the unvested shares. Export it as at the end of the tax year.",
-                self._unvested_label,
-                first_vest,
-                self.period_to,
-            )
-            return
-        if first_vest > self.period_to + UNVESTED_MAX_GAP:
-            logger.warning(
-                "%s starts with a vest on %s; it may be as at a later date than %s and miss "
-                "earlier vests.",
-                self._unvested_label,
-                first_vest,
-                self.period_to,
-            )
-
-        quantity = sum((t.quantity for t in self._unvested), Decimal(0))
-        security = Security(
-            positionId=1,
-            country="US",
-            currency=self.base_currency,
-            quotationType="PIECE",
-            securityCategory="SHARE",
-            securityName=UNVESTED_SECURITY_NAME,
-            stock=[
-                SecurityStock(
-                    referenceDate=self.period_to + timedelta(days=1),
-                    mutation=False,
-                    quantity=quantity,
-                    balanceCurrency=self.base_currency,
-                    quotationType="PIECE",
-                    name=f"Unvested GSUs, {len(self._unvested)} tranches until {max(t.vesting_date for t in self._unvested)}",
-                )
-            ],
-            is_pro_memoria=True,
-        )
-
-        if statement.listOfSecurities is None:
-            statement.listOfSecurities = ListOfSecurities(
-                depot=[Depot(depotNumber=DepotNumber(self._depot_id), security=[])]
-            )
-        depots = statement.listOfSecurities.depot
-        depot = next((d for d in depots if d.depotNumber == self._depot_id), depots[0])
-        security.positionId = max((s.positionId for d in depots for s in d.security), default=0) + 1
-        depot.security.append(security)
-
-
-def _check_against_balances(symbol: Optional[str], stocks: List[SecurityStock]) -> None:
+def _check_against_balances(
+    symbol: Optional[str],
+    stocks: List[SecurityStock],
+    warn: Callable[..., None],
+) -> None:
     """Warn when the activity does not connect the known balances."""
     balances = sorted((s for s in stocks if not s.mutation), key=lambda s: s.referenceDate)
-    mutations = [s for s in stocks if s.mutation]
+    # Same-day additions before removals, as in _infer_opening_balance.
+    mutations = sorted(
+        (s for s in stocks if s.mutation), key=lambda s: (s.referenceDate, s.quantity < 0)
+    )
 
     for b1, b2 in zip(balances, balances[1:]):
         expected = b1.quantity + sum(
@@ -1159,40 +1405,44 @@ def _check_against_balances(symbol: Optional[str], stocks: List[SecurityStock]) 
             Decimal(0),
         )
         if expected != b2.quantity:
-            logger.warning(
-                "%s: the activity between the holdings on %s (%s) and %s (%s) adds up to %s; "
-                "some activity is missing from the exports.",
+            warn(
+                "%s: the MSSB activity between the holdings on %s (%s) and %s (%s) adds up to "
+                "%s; some activity is missing from the exports.",
                 symbol,
                 b1.referenceDate,
                 b1.quantity,
                 b2.referenceDate,
                 b2.quantity,
                 expected,
+                identifier=symbol,
             )
 
     first, last = balances[0], balances[-1]
     running = last.quantity
-    for m in sorted(mutations, key=lambda s: s.referenceDate):
+    for m in mutations:
         if m.referenceDate >= last.referenceDate:
             running += m.quantity
             if running < 0:
-                logger.warning(
-                    "%s: activity after the %s holdings takes the position negative on %s.",
+                warn(
+                    "%s: MSSB activity after the %s holdings takes the position negative on %s.",
                     symbol,
                     last.referenceDate,
                     m.referenceDate,
+                    identifier=symbol,
                 )
                 break
     running = first.quantity
-    for m in sorted(mutations, key=lambda s: s.referenceDate, reverse=True):
+    for m in reversed(mutations):
         if m.referenceDate < first.referenceDate:
             running -= m.quantity
             if running < 0:
-                logger.warning(
-                    "%s: activity before the %s holdings implies a negative position before " "%s.",
+                warn(
+                    "%s: MSSB activity before the %s holdings implies a negative position "
+                    "before %s.",
                     symbol,
                     first.referenceDate,
                     m.referenceDate,
+                    identifier=symbol,
                 )
                 break
 

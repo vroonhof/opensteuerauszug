@@ -230,7 +230,7 @@ Currently supported brokers and their specific guides:
 *   **[Interactive Brokers (IBKR)](importer_ibkr.md)**: For brokerage accounts.
 *   **[Fidelity Investments](importer_fidelity.md)**: For brokerage accounts.
 *   **[DEGIRO](importer_degiro.md)**: For brokerage accounts.
-*   **[Morgan Stanley (MSSB)](importer_mssb.md)**: For StockPlan Connect equity award accounts (Alphabet GSUs).
+*   **[Morgan Stanley (MSSB)](importer_mssb.md)**: For StockPlan Connect equity award accounts (Alphabet GSUs). Experimental: requires `experimental_importers = true` in the `[general]` section of `config.toml`.
 
 Please refer to the documentation for your specific broker by clicking the links above to understand what files to download, their formats, and any specific configurations required in `config.toml`.
 

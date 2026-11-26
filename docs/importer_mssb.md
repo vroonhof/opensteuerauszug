@@ -2,7 +2,7 @@
 
 ## Disclaimer and User Responsibility
 
-**Important**: The Morgan Stanley importer is new and has only been tested with Alphabet (Google) GSU accounts. Exports from other employers' plans may look different. The importer is designed to fail safe: when it finds a row, plan or report it does not recognise, it stops with an error or logs a warning instead of silently dropping data. Please [report such cases](https://github.com/vroonhof/opensteuerauszug/issues) so support can be added.
+**Important**: The Morgan Stanley importer is new and has only been tested with Alphabet (Google) GSU accounts. Exports from other employers' plans may look different. The importer is designed to fail safe: when it finds a row, plan or report it does not recognise, it stops with an error, or adds a critical warning to the generated PDF, instead of silently dropping data. Please [report such cases](https://github.com/vroonhof/opensteuerauszug/issues) so support can be added.
 
 As stated in the [Disclaimer](user_guide.md#disclaimer-and-user-responsibility), it is crucial to understand your role:
 
@@ -23,8 +23,16 @@ The importer currently supports:
 *   GSU vests (releases) of Alphabet Class C (`GOOG`) and Class A (`GOOGL`) shares.
 *   Sales, share transfers out and cash withdrawals.
 *   Cash (USD) held in the account.
-*   Unvested GSUs, listed as a pro memoria position without tax value.
-*   Alphabet's 20:1 stock split of July 2022 (withdrawals before the split are reported by MSSB in pre-split values and are adjusted automatically).
+*   Sale proceeds are credited to cash on the settlement date (T+1, skipping weekends and NYSE holidays). Proceeds of a sale at the end of December that settle in January are reported as a separate "Unsettled" cash account. If your year-end holdings report already counts them as cash, the importer detects this (when the start-of-year holdings are also provided) and does not count them twice.
+*   Alphabet's 20:1 stock split of July 2022: withdrawals before the split are reported by MSSB in pre-split values and are converted to post-split shares automatically. For the 2022 tax year itself the split is not listed as a mutation, and a critical warning asks you to check the result.
+
+Not supported:
+
+*   Unvested GSUs. The "Unvested Shares As At Date" report is recognised but not used.
+*   Dividends, withholding tax and interest. The MSSB exports do not contain them, so the dividends on the statement come from the Kursliste, assuming 15% US withholding (a valid W-8BEN on file). A critical warning on the statement reminds you to check them against your Form 1042-S and MSSB statements.
+*   More than one MSSB account per run.
+
+The importer stops with an error when it finds data it cannot interpret safely (an unknown plan, fund or transaction type, a report provided twice, holdings that do not match their quote history). Data it can use but that needs your attention, such as an inferred opening balance or a cash balance that does not add up, is listed as a critical warning in the generated PDF.
 
 ## Required and Optional Inputs
 
@@ -35,7 +43,6 @@ The importer currently supports:
 | Vested share holdings at the **start** of the tax year | Strongly recommended | Opening balances of shares and cash. |
 | Vested share holdings at the **end** of the tax year | Strongly recommended | Closing balances of shares and cash. |
 | "Your Alphabet Stock Statement" | Recommended | The USD fair market value of each vest. |
-| "Unvested Shares As At Date" | Optional | The remaining vesting schedule (pro memoria). |
 
 ### 1. Activity report (releases and withdrawals)
 
@@ -56,15 +63,11 @@ The holdings report gives the number of shares and the cash you held on a given 
 
 The holdings report does not state its own date, so the importer takes the date from the quote history downloaded with it, after checking that the market values match those quotes. **Keep each holdings report in the zip archive it was downloaded in** (or, if you extract them, in a separate sub-folder per date), so each one stays paired with its own quote history. Because both archives contain files with the same names, give them distinct names, for example `Vested Share Holdings.01.zip` and `Vested Share Holdings.12.zip`.
 
-Without holdings snapshots, balances are reconstructed by walking the activity from zero. If the activity removes more shares than it adds (for example because vests from earlier years are missing), the importer assumes the smallest opening balance that keeps the position non-negative and logs a warning. Providing both snapshots avoids this guesswork.
+Without holdings snapshots, balances are reconstructed by walking the activity from zero. If the activity removes more shares than it adds (for example because vests from earlier years are missing), the importer assumes the smallest opening balance that keeps the position non-negative and adds a critical warning to the statement. Providing both snapshots avoids this guesswork.
 
 ### 3. Your Alphabet Stock Statement
 
 This report lists, per vest (`Purno`), the USD fair market value. It matters when the prices in the activity report are not prefixed with `$`: in that case Morgan Stanley has converted them to your account's display currency at the exchange rate of the day **the report was run**, not the day of the vest. The importer uses the stock statement to recover that rate and convert the prices back to USD.
-
-### 4. Unvested Shares As At Date (optional)
-
-The vesting schedule of GSUs that have not vested yet. Download it as of the end of the tax year. The unvested shares are listed in the Steuerauszug as a pro memoria position without tax value. A schedule that still lists vests inside the tax period was not taken at year end and is skipped with a warning.
 
 ### Placing the Files
 
@@ -75,17 +78,19 @@ Put everything in one directory, for example:
 ├── MSSB Activity Report.zip
 ├── Vested Share Holdings.01.zip
 ├── Vested Share Holdings.12.zip
-├── Your Alphabet Stock Statement.csv
-└── Unvested Shares As At Date.csv
+└── Your Alphabet Stock Statement.csv
 ```
 
-Any other files in the folder that are not recognised as MSSB reports are ignored with a warning.
+Sub-folders are read too, each one treated like a zip archive. Any other files that are not recognised as MSSB reports are ignored with a warning. Do not keep a zip archive next to its extracted files: the importer refuses reports it finds twice, so that no activity is counted twice.
 
 ## Configuration (`config.toml`)
 
-Add an MSSB account to your `config.toml`. The account number is used as the depot number and client number in the Steuerauszug:
+The MSSB importer is experimental, so it has to be enabled in the `[general]` section. Then add your MSSB account; its account number is used as the depot number and client number in the Steuerauszug:
 
 ```toml
+[general]
+experimental_importers = true
+
 [brokers.mssb.accounts.main]
 account_number = "MSSB-123456"
 ```
@@ -99,4 +104,4 @@ opensteuerauszug process ~/tax/2025/mssb \
   -o steuerauszug_mssb_2025.pdf
 ```
 
-The input must be a directory. Review the log output for warnings: they point out missing reports, inconsistent data and any assumptions the importer had to make.
+The input must be a directory. Review the critical warnings at the end of the PDF and the log output: they point out missing reports, inconsistent data and any assumptions the importer had to make.
