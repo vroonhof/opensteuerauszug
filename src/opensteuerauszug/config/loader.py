@@ -19,6 +19,7 @@ from .models import (
     SpecificAccountSettingsUnion,
     CalculateSettings,
     GeneralSettings,
+    MssbAccountSettings,
 )
 
 logger = logging.getLogger(__name__)
@@ -251,6 +252,9 @@ class ConfigManager:
         elif broker_name.lower() == "degiro":
             specific_settings = DegiroAccountSettings(**current_config)
             kind_literal = "degiro"
+        elif broker_name.lower() == "mssb":
+            specific_settings = MssbAccountSettings(**current_config)
+            kind_literal = "mssb"
         # Example for future expansion:
         # elif broker_name.lower() == "ubs":
         #     specific_settings = UBSAccountSettings(**current_config)
@@ -276,7 +280,7 @@ class ConfigManager:
             # For now, let's assume "schwab" is the only configured one.
             raise ValueError(
                 f"Unsupported broker type for specific settings: {broker_name}. "
-                "Supported brokers are 'schwab', 'ibkr', 'fidelity' and 'degiro'."
+                "Supported brokers are 'schwab', 'ibkr', 'fidelity', 'degiro' and 'mssb'."
             )
 
         try:
