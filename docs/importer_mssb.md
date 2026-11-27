@@ -31,6 +31,7 @@ Not supported:
 *   Unvested GSUs. The "Unvested Shares As At Date" report is recognised but not used.
 *   Dividends, withholding tax and interest. The MSSB exports do not contain them, so the dividends on the statement come from the Kursliste, assuming 15% US withholding (a valid W-8BEN on file). A critical warning on the statement reminds you to check them against your Form 1042-S and MSSB statements.
 *   More than one MSSB account per run.
+*   Releases settled other than by delivering net shares (for example sell-to-cover or cash-settled awards), and plans other than Alphabet GSUs. The importer stops with an error naming the unknown value; please report it so support can be added.
 
 The importer stops with an error when it finds data it cannot interpret safely (an unknown plan, fund or transaction type, a report provided twice, holdings that do not match their quote history). Data it can use but that needs your attention, such as an inferred opening balance or a cash balance that does not add up, is listed as a critical warning in the generated PDF.
 

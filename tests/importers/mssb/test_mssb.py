@@ -1262,3 +1262,40 @@ def test_year_end_snapshot_alone_flags_unsettled_proceeds(
 
     assert _accounts(statement)["MSSB-TEST-USD"] == Decimal("300")
     assert any("does not already include them" in w for w in _warnings(statement))
+
+
+def test_unknown_release_tax_payment_method_is_rejected(tmp_path: Path, importer_settings) -> None:
+    """A sell-to-cover release would create sales and cash the reports do not show."""
+    row = _release_row("25-Jan-2025", "RB1", "$200.00", "5")
+    row[9] = "Sell to Cover"
+    _write_csv(tmp_path / RELEASES_REPORT_FILENAME, [COLUMNS_RELEASE, row])
+    with pytest.raises(ParsingError, match="Unknown Tax Payment Method: 'Sell to Cover'"):
+        _import(tmp_path, importer_settings)
+
+
+def test_unknown_withdrawal_tax_payment_method_is_rejected(
+    tmp_path: Path, importer_settings
+) -> None:
+    row = _withdrawal_row("10-Feb-2025", "S-1", "GSU Class C", "Sale", "$200.00", "-1", "$200.00")
+    row[9] = "Withholding"
+    _write_csv(tmp_path / WITHDRAWALS_REPORT_FILENAME, [COLUMNS_WITHDRAWAL, row])
+    with pytest.raises(ParsingError, match="Unknown Tax Payment Method"):
+        _import(tmp_path, importer_settings)
+
+
+def test_unknown_stock_statement_release_type_is_rejected(
+    tmp_path: Path, importer_settings
+) -> None:
+    _write_stock_statement(tmp_path, [("RB1", "25-Jan-2025", "10", "5", "$190.00")])
+    path = next(tmp_path.glob("*Stock Statement*.csv"))
+    path.write_text(path.read_text(encoding="utf-8").replace(",WCF,", ",CASH,"), encoding="utf-8")
+    with pytest.raises(ParsingError, match="Unknown Release Type: 'CASH'"):
+        _import(tmp_path, importer_settings)
+
+
+def test_unknown_plan_error_says_how_to_report_it(tmp_path: Path, importer_settings) -> None:
+    row = _release_row("25-Jan-2025", "RB1", "$200.00", "5")
+    row[2] = "RSU Acme"
+    _write_csv(tmp_path / RELEASES_REPORT_FILENAME, [COLUMNS_RELEASE, row])
+    with pytest.raises(ParsingError, match="Unknown plan: 'RSU Acme'.*report this"):
+        _import(tmp_path, importer_settings)

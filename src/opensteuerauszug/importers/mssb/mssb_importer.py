@@ -109,6 +109,7 @@ class StockStatementColumn(StrEnum):
     SHARES_DEPOSITED = "Shares Deposited"
     FAIR_MARKET_VALUE = "Fair Market Value"
     CURRENCY = "Currency"
+    RELEASE_TYPE = "Release Type"
     AWARD_NUMBER = "Award Number"
 
 
@@ -164,6 +165,18 @@ KNOWN_FILENAMES = {
 
 CASH_PLAN = "Cash"
 CASH_FUND_PREFIX = "Cash - "
+
+UNSUPPORTED_HINT = (
+    "The MSSB importer has only been tested with Alphabet GSU exports. Please report this, "
+    "with the row anonymised, at https://github.com/vroonhof/opensteuerauszug/issues so "
+    "support can be added."
+)
+# Only plain share deliveries are understood. Other methods (e.g. sell-to-cover) would
+# create sales or cash that the reports do not show.
+KNOWN_RELEASE_TAX_PAYMENT_METHODS = {"Fractional Shares"}
+KNOWN_WITHDRAWAL_TAX_PAYMENT_METHODS = {"N/A"}
+# The only release type seen in the stock statements so far.
+KNOWN_STOCK_STATEMENT_RELEASE_TYPES = {"WCF"}
 
 KNOWN_SYMBOL_DICT = {
     "GSU Class A": "GOOGL",
@@ -637,8 +650,12 @@ class MssbImporter:
         if not price_raw:
             raise ParsingError("Price is empty")
 
+        method = row[ReleaseColumn.TAX_PAYMENT_METHOD].strip()
+        if method not in KNOWN_RELEASE_TAX_PAYMENT_METHODS:
+            raise ParsingError(f"Unknown Tax Payment Method: {method!r}. {UNSUPPORTED_HINT}")
+
         if plan not in KNOWN_SYMBOL_DICT or plan == CASH_PLAN:
-            raise ParsingError(f"Unknown plan: {plan}")
+            raise ParsingError(f"Unknown plan: {plan!r}. {UNSUPPORTED_HINT}")
 
         # Net Share Proceeds is what lands in the account after shares withheld for tax.
         quantity = _parse_decimal(
@@ -700,7 +717,11 @@ class MssbImporter:
             raise ParsingError("Price is empty")
 
         if plan not in KNOWN_SYMBOL_DICT:
-            raise ParsingError(f"Unknown plan: {plan}")
+            raise ParsingError(f"Unknown plan: {plan!r}. {UNSUPPORTED_HINT}")
+
+        method = row[WithdrawalColumn.TAX_PAYMENT_METHOD].strip()
+        if method not in KNOWN_WITHDRAWAL_TAX_PAYMENT_METHODS:
+            raise ParsingError(f"Unknown Tax Payment Method: {method!r}. {UNSUPPORTED_HINT}")
 
         # Withdrawals are reported with a negative quantity, which is also the eCH sign
         # convention for a disposal.
@@ -764,6 +785,9 @@ class MssbImporter:
         currency = row[StockStatementColumn.CURRENCY].strip()
         if currency != "USD":
             raise ParsingError(f"Unexpected currency: {currency!r}")
+        release_type = row[StockStatementColumn.RELEASE_TYPE].strip()
+        if release_type not in KNOWN_STOCK_STATEMENT_RELEASE_TYPES:
+            raise ParsingError(f"Unknown Release Type: {release_type!r}. {UNSUPPORTED_HINT}")
         purno = row[StockStatementColumn.PURNO].strip()
         if not purno:
             raise ParsingError("Purno is empty")
@@ -790,7 +814,7 @@ class MssbImporter:
         if not fund_name.startswith(CASH_FUND_PREFIX) and (
             _fund_symbol(fund_name) not in KNOWN_SECURITY_SYMBOLS
         ):
-            raise ParsingError(f"Unknown fund: {fund_name!r}")
+            raise ParsingError(f"Unknown fund: {fund_name!r}. {UNSUPPORTED_HINT}")
         if any(h.fund_name == fund_name for h in group.holdings):
             raise ParsingError(f"Fund {fund_name!r} is listed twice")
         quantity = _parse_decimal(
